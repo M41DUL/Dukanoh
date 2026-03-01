@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, FlatList, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, FlatList, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
@@ -13,6 +13,28 @@ import { supabase } from '@/lib/supabase';
 
 export default function ProfileScreen() {
   const { user, signOut, refreshProfile } = useAuth();
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchListings = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('listings')
+      .select('*, seller:users(username, avatar_url)')
+      .eq('seller_id', user.id)
+      .order('created_at', { ascending: false });
+    setListings((data ?? []) as unknown as Listing[]);
+  }, [user]);
+
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchListings();
+    setRefreshing(false);
+  }, [fetchListings]);
 
   const handleResetPreferences = () => {
     Alert.alert(
@@ -36,7 +58,6 @@ export default function ProfileScreen() {
       ]
     );
   };
-  const listings: Listing[] = [];
 
   const username = user?.user_metadata?.username ?? 'username';
   const fullName = user?.user_metadata?.full_name ?? 'Your Name';
@@ -52,6 +73,9 @@ export default function ProfileScreen() {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+        }
         renderItem={({ item }) => (
           <ListingCard
             listing={item}

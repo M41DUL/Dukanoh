@@ -2,33 +2,35 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   Animated,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
-import { EmptyState } from '@/components/EmptyState';
 import { StoriesRow } from '@/components/StoriesRow';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useBasket } from '@/hooks/useBasket';
 import { useStories } from '@/hooks/useStories';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
-const PAGE_SIZE = 16;
-
-async function fetchPage(page: number): Promise<Listing[]> {
-  const { data } = await supabase
+async function fetchSection(userId: string, categories: string[]): Promise<Listing[]> {
+  let query = supabase
     .from('listings')
     .select('*, seller:users(username, avatar_url)')
     .eq('status', 'available')
+    .neq('seller_id', userId)
     .order('created_at', { ascending: false })
-    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    .limit(6);
+
+  if (categories.length > 0) query = query.in('category', categories);
+
+  const { data } = await query;
   return (data ?? []) as unknown as Listing[];
 }
 
@@ -52,19 +54,58 @@ function SkeletonCard() {
       <View style={styles.skeletonContent}>
         <View style={styles.skeletonLine} />
         <View style={[styles.skeletonLine, { width: '60%' }]} />
-        <View style={[styles.skeletonLine, styles.skeletonPrice]} />
+        <View style={[styles.skeletonLine, { width: '45%', height: 14 }]} />
       </View>
     </Animated.View>
   );
 }
 
-function SkeletonGrid() {
+function SkeletonSection() {
   return (
-    <View style={styles.skeletonWrapper}>
+    <View style={styles.section}>
+      <View style={styles.sectionHeaderRow}>
+        <View style={[styles.skeletonLine, { width: 140, height: 16 }]} />
+        <View style={[styles.skeletonLine, { width: 48, height: 14 }]} />
+      </View>
       {[0, 1, 2].map(row => (
-        <View key={row} style={styles.row}>
+        <View key={row} style={styles.gridRow}>
           <SkeletonCard />
           <SkeletonCard />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll: () => void }) {
+  return (
+    <View style={styles.sectionHeaderRow}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <TouchableOpacity onPress={onSeeAll} hitSlop={8}>
+        <Text style={styles.seeAll}>See all</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function ListingsGrid({ items }: { items: Listing[] }) {
+  const rows: Listing[][] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push(items.slice(i, i + 2));
+  }
+  return (
+    <View>
+      {rows.map((row, i) => (
+        <View key={i} style={styles.gridRow}>
+          {row.map(item => (
+            <ListingCard
+              key={item.id}
+              listing={item}
+              variant="grid"
+              onPress={() => router.push(`/listing/${item.id}`)}
+            />
+          ))}
+          {row.length === 1 && <View style={styles.emptyCell} />}
         </View>
       ))}
     </View>
@@ -74,43 +115,56 @@ function SkeletonGrid() {
 export default function HomeScreen() {
   const { count } = useBasket();
   const { stories, loading: storiesLoading, markViewed } = useStories();
+  const { user } = useAuth();
 
-  const [listings, setListings] = useState<Listing[]>([]);
+  const [suggested, setSuggested] = useState<Listing[]>([]);
+  const [newArrivals, setNewArrivals] = useState<Listing[]>([]);
+  const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const pageRef = useRef(0);
+  const hasMounted = useRef(false);
 
-  const load = useCallback(async (reset: boolean) => {
-    const pageNum = reset ? 0 : pageRef.current;
-    const items = await fetchPage(pageNum);
-    if (reset) {
-      setListings(items);
-      pageRef.current = 1;
-    } else {
-      setListings(prev => [...prev, ...items]);
-      pageRef.current = pageNum + 1;
-    }
-    setHasMore(items.length === PAGE_SIZE);
-  }, []);
+  const loadData = useCallback(async () => {
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from('users')
+      .select('preferred_categories')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const cats: string[] = profile?.preferred_categories ?? [];
+    setPreferredCategories(cats);
+
+    const [suggestedItems, newArrivalItems] = await Promise.all([
+      cats.length > 0 ? fetchSection(user.id, cats) : Promise.resolve([]),
+      fetchSection(user.id, []),
+    ]);
+
+    setSuggested(suggestedItems);
+    setNewArrivals(newArrivalItems);
+  }, [user]);
 
   useEffect(() => {
-    load(true).finally(() => setLoading(false));
-  }, [load]);
+    loadData().finally(() => setLoading(false));
+  }, [loadData]);
+
+  // Silent refresh on focus — skip the very first focus (covered by useEffect above)
+  useFocusEffect(
+    useCallback(() => {
+      if (hasMounted.current) {
+        loadData();
+      } else {
+        hasMounted.current = true;
+      }
+    }, [loadData])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load(true);
+    await loadData();
     setRefreshing(false);
-  }, [load]);
-
-  const onEndReached = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    await load(false);
-    setLoadingMore(false);
-  }, [loadingMore, hasMore, load]);
+  }, [loadData]);
 
   return (
     <ScreenWrapper>
@@ -141,27 +195,13 @@ export default function HomeScreen() {
         </View>
 
         {loading ? (
-          <SkeletonGrid />
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.feedContent}>
+            <SkeletonSection />
+            <SkeletonSection />
+          </ScrollView>
         ) : (
-          <FlatList
-            data={listings}
-            keyExtractor={item => item.id}
-            numColumns={2}
-            columnWrapperStyle={styles.row}
-            renderItem={({ item }) => (
-              <ListingCard
-                listing={item}
-                variant="grid"
-                onPress={() => router.push(`/listing/${item.id}`)}
-              />
-            )}
+          <ScrollView
             showsVerticalScrollIndicator={false}
-            ListHeaderComponent={
-              !storiesLoading && stories.length > 0 ? (
-                <StoriesRow stories={stories} onView={markViewed} />
-              ) : null
-            }
-            contentContainerStyle={styles.feedContent}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -169,25 +209,43 @@ export default function HomeScreen() {
                 tintColor={Colors.primary}
               />
             }
-            onEndReached={onEndReached}
-            onEndReachedThreshold={0.4}
-            ListFooterComponent={
-              loadingMore ? (
-                <ActivityIndicator
-                  size="small"
-                  color={Colors.primary}
-                  style={styles.footerSpinner}
+            contentContainerStyle={styles.feedContent}
+          >
+            {!storiesLoading && stories.length > 0 && (
+              <StoriesRow stories={stories} onView={markViewed} />
+            )}
+
+            {suggested.length > 0 && (
+              <View style={styles.section}>
+                <SectionHeader
+                  title="Suggested for you"
+                  onSeeAll={() =>
+                    router.push({
+                      pathname: '/listings',
+                      params: {
+                        title: 'Suggested for you',
+                        categories: preferredCategories.join(','),
+                      },
+                    })
+                  }
                 />
-              ) : null
-            }
-            ListEmptyComponent={
-              <EmptyState
-                icon={<Ionicons name="shirt-outline" size={48} color={Colors.textSecondary} />}
-                heading="Your feed is empty"
-                subtext="New listings will appear here once sellers start posting."
+                <ListingsGrid items={suggested} />
+              </View>
+            )}
+
+            <View style={styles.section}>
+              <SectionHeader
+                title="New arrivals"
+                onSeeAll={() =>
+                  router.push({
+                    pathname: '/listings',
+                    params: { title: 'New arrivals' },
+                  })
+                }
               />
-            }
-          />
+              <ListingsGrid items={newArrivals} />
+            </View>
+          </ScrollView>
         )}
       </View>
     </ScreenWrapper>
@@ -236,29 +294,36 @@ const styles = StyleSheet.create({
     lineHeight: 12,
   },
   feedContent: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
-  row: { gap: Spacing.sm, marginBottom: Spacing.sm },
-  footerSpinner: { paddingVertical: Spacing.base },
+  section: { marginBottom: Spacing.xl },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    ...Typography.subheading,
+    color: Colors.textPrimary,
+  },
+  seeAll: {
+    ...Typography.body,
+    color: Colors.primary,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  gridRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
+  emptyCell: { flex: 1 },
   // Skeleton
-  skeletonWrapper: { paddingTop: Spacing.sm },
   skeletonCard: { flex: 1 },
   skeletonImage: {
     aspectRatio: 4 / 5,
     borderRadius: BorderRadius.medium,
     backgroundColor: Colors.surface,
   },
-  skeletonContent: {
-    paddingVertical: Spacing.sm,
-    gap: 6,
-  },
+  skeletonContent: { paddingVertical: Spacing.sm, gap: 6 },
   skeletonLine: {
     height: 12,
     borderRadius: 6,
     backgroundColor: Colors.surface,
     width: '85%',
-  },
-  skeletonPrice: {
-    width: '45%',
-    height: 14,
-    marginTop: 2,
   },
 });

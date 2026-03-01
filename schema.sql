@@ -12,12 +12,14 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users (mirrors auth.users with extra profile fields)
 CREATE TABLE public.users (
-  id          UUID REFERENCES auth.users (id) ON DELETE CASCADE PRIMARY KEY,
-  username    TEXT UNIQUE NOT NULL,
-  full_name   TEXT NOT NULL,
-  avatar_url  TEXT,
-  bio         TEXT,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  id                    UUID REFERENCES auth.users (id) ON DELETE CASCADE PRIMARY KEY,
+  username              TEXT UNIQUE NOT NULL,
+  full_name             TEXT NOT NULL,
+  avatar_url            TEXT,
+  bio                   TEXT,
+  preferred_categories  TEXT[] DEFAULT '{}',
+  onboarding_completed  BOOLEAN DEFAULT FALSE,
+  created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Invites (controls access to the platform)
@@ -40,6 +42,7 @@ CREATE TABLE public.listings (
   price       NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
   category    TEXT NOT NULL,
   condition   TEXT NOT NULL,
+  size        TEXT,
   images      TEXT[] DEFAULT '{}',
   status      TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold')),
   created_at  TIMESTAMPTZ DEFAULT NOW()
