@@ -1,8 +1,6 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { Colors, Typography, BorderRadius, Spacing } from '@/constants/theme';
-import { Avatar } from './Avatar';
-import { Badge } from './Badge';
 
 export interface Listing {
   id: string;
@@ -11,6 +9,7 @@ export interface Listing {
   category: string;
   images: string[];
   condition: string;
+  size?: string;
   status: 'available' | 'sold';
   seller: {
     username: string;
@@ -32,6 +31,7 @@ export function ListingCard({
   style,
 }: ListingCardProps) {
   const isGrid = variant === 'grid';
+  const meta = [listing.condition, listing.size].filter(Boolean).join(' · ');
 
   return (
     <TouchableOpacity
@@ -39,7 +39,7 @@ export function ListingCard({
       onPress={onPress}
       activeOpacity={0.9}
     >
-      <View style={[styles.imageContainer, isGrid ? styles.gridImage : styles.featuredImage]}>
+      <View style={[styles.imageContainer, isGrid ? styles.imageContainerGrid : styles.imageContainerFeatured]}>
         {listing.images?.[0] ? (
           <Image
             source={{ uri: listing.images[0] }}
@@ -49,24 +49,14 @@ export function ListingCard({
         ) : (
           <View style={styles.imagePlaceholder} />
         )}
-        <View style={styles.badgePosition}>
-          <Badge label={listing.category} active />
-        </View>
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={2}>
+        <Text style={styles.title} numberOfLines={1}>
           {listing.title}
         </Text>
+        {meta ? <Text style={styles.meta}>{meta}</Text> : null}
         <Text style={styles.price}>£{listing.price.toFixed(2)}</Text>
-        <View style={styles.sellerRow}>
-          <Avatar
-            uri={listing.seller.avatar_url}
-            initials={listing.seller.username?.[0]?.toUpperCase() ?? '?'}
-            size="small"
-          />
-          <Text style={styles.sellerName}>@{listing.seller.username}</Text>
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -77,35 +67,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
     borderRadius: BorderRadius.medium,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   featured: {
     backgroundColor: Colors.background,
     borderRadius: BorderRadius.large,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
     marginBottom: Spacing.base,
   },
   imageContainer: {
-    position: 'relative',
     backgroundColor: Colors.surface,
+    overflow: 'hidden',
   },
-  gridImage: { height: 200 },
-  featuredImage: { height: 280 },
+  imageContainerGrid: {
+    aspectRatio: 4 / 5,
+    borderRadius: BorderRadius.medium,
+  },
+  imageContainerFeatured: {
+    height: 280,
+    borderRadius: BorderRadius.large,
+  },
   image: { width: '100%', height: '100%' },
   imagePlaceholder: { flex: 1, backgroundColor: Colors.surface },
-  badgePosition: { position: 'absolute', top: Spacing.sm, left: Spacing.sm },
-  content: { padding: Spacing.sm, gap: Spacing.xs },
+  content: { paddingVertical: Spacing.sm, gap: 3 },
   title: { ...Typography.body, color: Colors.textPrimary, fontWeight: '500' },
-  price: { ...Typography.subheading, color: Colors.primary },
-  sellerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
+  meta: { ...Typography.caption, color: Colors.textSecondary },
+  price: {
+    fontSize: 15,
+    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
+    color: Colors.textPrimary,
+    marginTop: 1,
   },
-  sellerName: { ...Typography.caption, color: Colors.textSecondary },
 });

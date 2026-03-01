@@ -21,12 +21,13 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
 const SELL_CATEGORIES = Categories.filter(c => c !== 'All');
-const CONDITIONS = ['New with tags', 'Excellent', 'Good', 'Fair'] as const;
+const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'] as const;
 
 interface ListingForm {
   title: string;
   description: string;
   price: string;
+  size: string;
   category: string;
   condition: string;
 }
@@ -37,6 +38,7 @@ export default function SellScreen() {
     title: '',
     description: '',
     price: '',
+    size: '',
     category: '',
     condition: '',
   });
@@ -147,6 +149,7 @@ export default function SellScreen() {
         price: parseFloat(form.price),
         category: form.category,
         condition: form.condition,
+        size: form.size.trim() || null,
         images: imageUrls,
         status: 'available',
       });
@@ -157,7 +160,7 @@ export default function SellScreen() {
         {
           text: 'View profile',
           onPress: () => {
-            setForm({ title: '', description: '', price: '', category: '', condition: '' });
+            setForm({ title: '', description: '', price: '', size: '', category: '', condition: '' });
             setImages([]);
             router.push('/(tabs)/profile');
           },
@@ -165,7 +168,7 @@ export default function SellScreen() {
         {
           text: 'List another',
           onPress: () => {
-            setForm({ title: '', description: '', price: '', category: '', condition: '' });
+            setForm({ title: '', description: '', price: '', size: '', category: '', condition: '' });
             setImages([]);
           },
         },
@@ -237,6 +240,12 @@ export default function SellScreen() {
           onChangeText={update('price')}
           keyboardType="decimal-pad"
           error={errors.price}
+        />
+        <Input
+          label="Size"
+          placeholder="e.g. S, M, L, XL, 32, 34…"
+          value={form.size}
+          onChangeText={update('size')}
         />
 
         <View>
