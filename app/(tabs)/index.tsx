@@ -1,5 +1,14 @@
-import React from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -9,101 +18,99 @@ import { ListingCard, Listing } from '@/components/ListingCard';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useBasket } from '@/hooks/useBasket';
 import { useStories } from '@/hooks/useStories';
+import { supabase } from '@/lib/supabase';
 
-const DUMMY_LISTINGS: Listing[] = [
-  {
-    id: '1',
-    title: 'Embroidered Anarkali Suit',
-    price: 45.00,
-    category: 'Women',
-    condition: 'Excellent',
-    size: 'M',
-    status: 'available',
-    images: ['https://picsum.photos/seed/anarkali/400/500'],
-    seller: { username: 'fatima_k' },
-  },
-  {
-    id: '2',
-    title: 'Men\'s Sherwani — Navy & Gold',
-    price: 120.00,
-    category: 'Wedding',
-    condition: 'New',
-    size: 'L',
-    status: 'available',
-    images: ['https://picsum.photos/seed/sherwani/400/500'],
-    seller: { username: 'tariq_m' },
-  },
-  {
-    id: '3',
-    title: 'Silk Saree — Deep Red',
-    price: 65.00,
-    category: 'Festive',
-    condition: 'Good',
-    size: 'Free',
-    status: 'available',
-    images: ['https://picsum.photos/seed/saree1/400/500'],
-    seller: { username: 'priya_s' },
-  },
-  {
-    id: '4',
-    title: 'Pathani Suit — Olive Green',
-    price: 38.00,
-    category: 'Pathani Suit',
-    condition: 'Excellent',
-    size: 'XL',
-    status: 'available',
-    images: ['https://picsum.photos/seed/pathani/400/500'],
-    seller: { username: 'zain_r' },
-  },
-  {
-    id: '5',
-    title: 'Lehenga Choli — Pink Floral',
-    price: 95.00,
-    category: 'Partywear',
-    condition: 'New',
-    size: 'S',
-    status: 'available',
-    images: ['https://picsum.photos/seed/lehenga/400/500'],
-    seller: { username: 'nadia_h' },
-  },
-  {
-    id: '6',
-    title: 'Achkan — Ivory Brocade',
-    price: 80.00,
-    category: 'Achkan',
-    condition: 'Excellent',
-    size: 'L',
-    status: 'available',
-    images: ['https://picsum.photos/seed/achkan/400/500'],
-    seller: { username: 'imran_a' },
-  },
-  {
-    id: '7',
-    title: 'Cotton Kurta Set — Sky Blue',
-    price: 28.00,
-    category: 'Casualwear',
-    condition: 'Good',
-    size: 'M',
-    status: 'available',
-    images: ['https://picsum.photos/seed/kurta1/400/500'],
-    seller: { username: 'sara_b' },
-  },
-  {
-    id: '8',
-    title: 'Formal Bandhgala Suit',
-    price: 110.00,
-    category: 'Formal',
-    condition: 'New',
-    size: 'XL',
-    status: 'available',
-    images: ['https://picsum.photos/seed/bandhgala/400/500'],
-    seller: { username: 'ali_n' },
-  },
-];
+const PAGE_SIZE = 16;
+
+async function fetchPage(page: number): Promise<Listing[]> {
+  const { data } = await supabase
+    .from('listings')
+    .select('*, seller:users(username, avatar_url)')
+    .eq('status', 'available')
+    .order('created_at', { ascending: false })
+    .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+  return (data ?? []) as unknown as Listing[];
+}
+
+function SkeletonCard() {
+  const opacity = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+
+  return (
+    <Animated.View style={[styles.skeletonCard, { opacity }]}>
+      <View style={styles.skeletonImage} />
+      <View style={styles.skeletonContent}>
+        <View style={styles.skeletonLine} />
+        <View style={[styles.skeletonLine, { width: '60%' }]} />
+        <View style={[styles.skeletonLine, styles.skeletonPrice]} />
+      </View>
+    </Animated.View>
+  );
+}
+
+function SkeletonGrid() {
+  return (
+    <View style={styles.skeletonWrapper}>
+      {[0, 1, 2].map(row => (
+        <View key={row} style={styles.row}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
+      ))}
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const { count } = useBasket();
   const { stories, loading: storiesLoading, markViewed } = useStories();
+
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const pageRef = useRef(0);
+
+  const load = useCallback(async (reset: boolean) => {
+    const pageNum = reset ? 0 : pageRef.current;
+    const items = await fetchPage(pageNum);
+    if (reset) {
+      setListings(items);
+      pageRef.current = 1;
+    } else {
+      setListings(prev => [...prev, ...items]);
+      pageRef.current = pageNum + 1;
+    }
+    setHasMore(items.length === PAGE_SIZE);
+  }, []);
+
+  useEffect(() => {
+    load(true).finally(() => setLoading(false));
+  }, [load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load(true);
+    setRefreshing(false);
+  }, [load]);
+
+  const onEndReached = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    await load(false);
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, load]);
 
   return (
     <ScreenWrapper>
@@ -133,33 +140,55 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <FlatList
-          data={DUMMY_LISTINGS}
-          keyExtractor={item => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          renderItem={({ item }) => (
-            <ListingCard
-              listing={item}
-              variant="grid"
-              onPress={() => router.push(`/listing/${item.id}`)}
-            />
-          )}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            !storiesLoading && stories.length > 0 ? (
-              <StoriesRow stories={stories} onView={markViewed} />
-            ) : null
-          }
-          contentContainerStyle={styles.feedContent}
-          ListEmptyComponent={
-            <EmptyState
-              icon={<Ionicons name="shirt-outline" size={48} color={Colors.textSecondary} />}
-              heading="Your feed is empty"
-              subtext="New listings will appear here once sellers start posting."
-            />
-          }
-        />
+        {loading ? (
+          <SkeletonGrid />
+        ) : (
+          <FlatList
+            data={listings}
+            keyExtractor={item => item.id}
+            numColumns={2}
+            columnWrapperStyle={styles.row}
+            renderItem={({ item }) => (
+              <ListingCard
+                listing={item}
+                variant="grid"
+                onPress={() => router.push(`/listing/${item.id}`)}
+              />
+            )}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              !storiesLoading && stories.length > 0 ? (
+                <StoriesRow stories={stories} onView={markViewed} />
+              ) : null
+            }
+            contentContainerStyle={styles.feedContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={Colors.primary}
+              />
+            }
+            onEndReached={onEndReached}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={
+              loadingMore ? (
+                <ActivityIndicator
+                  size="small"
+                  color={Colors.primary}
+                  style={styles.footerSpinner}
+                />
+              ) : null
+            }
+            ListEmptyComponent={
+              <EmptyState
+                icon={<Ionicons name="shirt-outline" size={48} color={Colors.textSecondary} />}
+                heading="Your feed is empty"
+                subtext="New listings will appear here once sellers start posting."
+              />
+            }
+          />
+        )}
       </View>
     </ScreenWrapper>
   );
@@ -208,4 +237,28 @@ const styles = StyleSheet.create({
   },
   feedContent: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
   row: { gap: Spacing.sm, marginBottom: Spacing.sm },
+  footerSpinner: { paddingVertical: Spacing.base },
+  // Skeleton
+  skeletonWrapper: { paddingTop: Spacing.sm },
+  skeletonCard: { flex: 1 },
+  skeletonImage: {
+    aspectRatio: 4 / 5,
+    borderRadius: BorderRadius.medium,
+    backgroundColor: Colors.surface,
+  },
+  skeletonContent: {
+    paddingVertical: Spacing.sm,
+    gap: 6,
+  },
+  skeletonLine: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.surface,
+    width: '85%',
+  },
+  skeletonPrice: {
+    width: '45%',
+    height: 14,
+    marginTop: 2,
+  },
 });
