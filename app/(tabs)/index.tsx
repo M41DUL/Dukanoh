@@ -11,6 +11,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { EmptyState } from '@/components/EmptyState';
 import { StoriesRow } from '@/components/StoriesRow';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
@@ -124,6 +125,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const hasMounted = useRef(false);
 
+
   const loadData = useCallback(async () => {
     if (!user) return;
 
@@ -171,27 +173,29 @@ export default function HomeScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.topBar}>
-          <TouchableOpacity
-            style={styles.searchBar}
-            onPress={() => router.push('/(tabs)/search')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="search-outline" size={18} color={Colors.textSecondary} />
-            <Text style={styles.placeholder}>Search for anything</Text>
-          </TouchableOpacity>
+          <View style={styles.searchRow}>
+            <TouchableOpacity
+              style={styles.searchBar}
+              onPress={() => router.push('/(tabs)/search')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="search-outline" size={18} color={Colors.textSecondary} />
+              <Text style={styles.placeholder}>Search for anything</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.basketButton}
-            onPress={() => router.push('/basket')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="cart-outline" size={24} color={Colors.textPrimary} />
-            {count > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.basketButton}
+              onPress={() => router.push('/basket')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="cart-outline" size={24} color={Colors.textPrimary} />
+              {count > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {loading ? (
@@ -233,18 +237,28 @@ export default function HomeScreen() {
               </View>
             )}
 
-            <View style={styles.section}>
-              <SectionHeader
-                title="New arrivals"
-                onSeeAll={() =>
-                  router.push({
-                    pathname: '/listings',
-                    params: { title: 'New arrivals' },
-                  })
-                }
+            {newArrivals.length > 0 ? (
+              <View style={styles.section}>
+                <SectionHeader
+                  title="New arrivals"
+                  onSeeAll={() =>
+                    router.push({
+                      pathname: '/listings',
+                      params: { title: 'New arrivals' },
+                    })
+                  }
+                />
+                <ListingsGrid items={newArrivals} />
+              </View>
+            ) : suggested.length === 0 ? (
+              <EmptyState
+                icon={<Ionicons name="shirt-outline" size={48} color={Colors.textSecondary} />}
+                heading="Nothing to browse yet"
+                subtext="Be the first to list something and get the community started."
+                ctaLabel="Start selling"
+                onCta={() => router.push('/(tabs)/sell')}
               />
-              <ListingsGrid items={newArrivals} />
-            </View>
+            ) : null}
           </ScrollView>
         )}
       </View>
@@ -255,10 +269,15 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   topBar: {
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   searchBar: {
     flex: 1,
@@ -303,6 +322,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.subheading,
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
+    fontWeight: '700',
     color: Colors.textPrimary,
   },
   seeAll: {
