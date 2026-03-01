@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
-  Image,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -19,7 +18,6 @@ import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useBasket } from '@/hooks/useBasket';
 import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
-import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -211,43 +209,11 @@ function TrendingStrip({ categories }: { categories: string[] }) {
   );
 }
 
-function RecentlyViewedStrip({ items }: { items: Listing[] }) {
-  if (items.length === 0) return null;
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Recently viewed</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.recentScroll}
-        contentContainerStyle={styles.recentContent}
-      >
-        {items.map(item => (
-          <TouchableOpacity
-            key={item.id}
-            style={styles.recentCard}
-            onPress={() => router.push(`/listing/${item.id}`)}
-            activeOpacity={0.8}
-          >
-            <Image
-              source={{ uri: item.images?.[0] }}
-              style={styles.recentImage}
-              resizeMode="cover"
-            />
-            <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
-            <Text style={styles.recentPrice}>£{item.price?.toFixed(2)}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
-}
 
 export default function HomeScreen() {
   const { count } = useBasket();
   const { stories, loading: storiesLoading, markViewed } = useStories();
   const { user } = useAuth();
-  const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
 
   const [suggested, setSuggested] = useState<Listing[]>([]);
   const [newArrivals, setNewArrivals] = useState<Listing[]>([]);
@@ -309,18 +275,17 @@ export default function HomeScreen() {
     useCallback(() => {
       if (hasMounted.current) {
         loadData();
-        reloadRecent();
       } else {
         hasMounted.current = true;
       }
-    }, [loadData, reloadRecent])
+    }, [loadData])
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([loadData(), reloadRecent()]);
+    await loadData();
     setRefreshing(false);
-  }, [loadData, reloadRecent]);
+  }, [loadData]);
 
   return (
     <ScreenWrapper>
@@ -376,8 +341,6 @@ export default function HomeScreen() {
             {!profileComplete && !nudgeDismissed && (
               <ProfileNudgeCard onDismiss={dismissNudge} />
             )}
-
-            <RecentlyViewedStrip items={recentItems} />
 
             <TrendingStrip categories={trending} />
 
@@ -573,27 +536,8 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontFamily: 'Inter_600SemiBold',
   },
-  // Recently viewed
+  // Horizontal scroll bleed (shared)
   recentScroll: { marginHorizontal: -Spacing.base },
-  recentContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm },
-  recentCard: { width: 120 },
-  recentImage: {
-    width: 120,
-    height: 150,
-    borderRadius: BorderRadius.medium,
-    backgroundColor: Colors.surface,
-    marginBottom: Spacing.xs,
-  },
-  recentTitle: {
-    ...Typography.caption,
-    color: Colors.textPrimary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  recentPrice: {
-    ...Typography.caption,
-    color: Colors.primary,
-    fontFamily: 'Inter_600SemiBold',
-  },
   gridRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
   emptyCell: { flex: 1 },
   // Skeleton

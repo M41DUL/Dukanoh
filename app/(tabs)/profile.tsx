@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, Alert, RefreshControl } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, Image, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Divider } from '@/components/Divider';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 
 export default function ProfileScreen() {
   const { user, signOut, refreshProfile } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
 
   const fetchListings = useCallback(async () => {
     if (!user) return;
@@ -30,11 +32,13 @@ export default function ProfileScreen() {
     fetchListings();
   }, [fetchListings]);
 
+  useFocusEffect(useCallback(() => { reloadRecent(); }, [reloadRecent]));
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchListings();
+    await Promise.all([fetchListings(), reloadRecent()]);
     setRefreshing(false);
-  }, [fetchListings]);
+  }, [fetchListings, reloadRecent]);
 
   const handleResetPreferences = () => {
     Alert.alert(
@@ -94,6 +98,35 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Divider />
+            {recentItems.length > 0 && (
+              <View style={styles.recentSection}>
+                <Text style={styles.sectionLabel}>Recently viewed</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.recentScroll}
+                  contentContainerStyle={styles.recentContent}
+                >
+                  {recentItems.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.recentCard}
+                      onPress={() => router.push(`/listing/${item.id}`)}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={{ uri: item.images?.[0] }}
+                        style={styles.recentImage}
+                        resizeMode="cover"
+                      />
+                      <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={styles.recentPrice}>£{item.price?.toFixed(2)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <Divider />
+              </View>
+            )}
             <Text style={styles.sectionLabel}>Listings</Text>
           </View>
         }
@@ -144,6 +177,27 @@ const styles = StyleSheet.create({
     ...Typography.label,
     color: Colors.textPrimary,
     marginBottom: Spacing.md,
+  },
+  recentSection: { marginBottom: Spacing.xs },
+  recentScroll: { marginHorizontal: -Spacing.base },
+  recentContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.base },
+  recentCard: { width: 120 },
+  recentImage: {
+    width: 120,
+    height: 150,
+    borderRadius: BorderRadius.medium,
+    backgroundColor: Colors.surface,
+    marginBottom: Spacing.xs,
+  },
+  recentTitle: {
+    ...Typography.caption,
+    color: Colors.textPrimary,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  recentPrice: {
+    ...Typography.caption,
+    color: Colors.primary,
+    fontFamily: 'Inter_600SemiBold',
   },
   row: { gap: Spacing.sm, marginBottom: Spacing.sm },
   footer: { gap: Spacing.sm, marginTop: Spacing.xl },
