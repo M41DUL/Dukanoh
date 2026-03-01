@@ -1,53 +1,86 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
 export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+  primary: '#3735C5',
+  secondary: '#C7F75E',
+  background: '#FFFFFF',
+  surface: '#F5F5F5',
+  textPrimary: '#0D0D0D',
+  textSecondary: '#6B6B6B',
+  border: '#E8E8E8',
+  error: '#FF4444',
+  success: '#22C55E',
+};
+
+export const FontFamily = {
+  regular: 'Inter_400Regular',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
+};
+
+export const Typography = {
+  display: {
+    fontSize: 32,
+    fontWeight: '700' as const,
+    fontFamily: 'Inter_700Bold',
   },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+  heading: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    fontFamily: 'Inter_700Bold',
+  },
+  subheading: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  body: {
+    fontSize: 14,
+    fontWeight: '400' as const,
+    fontFamily: 'Inter_400Regular',
+  },
+  caption: {
+    fontSize: 12,
+    fontWeight: '400' as const,
+    fontFamily: 'Inter_400Regular',
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    letterSpacing: 0.5,
+    fontFamily: 'Inter_600SemiBold',
   },
 };
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
+export const Spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  base: 16,
+  lg: 20,
+  xl: 24,
+  '2xl': 32,
+  '3xl': 48,
+  '4xl': 64,
+};
+
+export const BorderRadius = {
+  small: 8,
+  medium: 12,
+  large: 16,
+  full: 999,
+};
+
+export const Categories = [
+  'All',
+  'Men',
+  'Women',
+  'Casualwear',
+  'Partywear',
+  'Festive',
+  'Formal',
+  'Achkan',
+  'Wedding',
+  'Pathani Suit',
+  'Shoes',
+] as const;
+
+export type Category = (typeof Categories)[number];

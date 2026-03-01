@@ -1,98 +1,118 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import React from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { EmptyState } from '@/components/EmptyState';
+import { StoriesRow } from '@/components/StoriesRow';
+import { Divider } from '@/components/Divider';
+import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { useBasket } from '@/hooks/useBasket';
+import { useStories } from '@/hooks/useStories';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const { count } = useBasket();
+  const { stories, loading: storiesLoading, markViewed } = useStories();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  return (
+    <ScreenWrapper>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.topBar}>
+          <TouchableOpacity
+            style={styles.searchBar}
+            onPress={() => router.push('/(tabs)/search')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="search-outline" size={18} color={Colors.textSecondary} />
+            <Text style={styles.placeholder}>Search for anything</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.basketButton}
+            onPress={() => router.push('/basket')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="cart-outline" size={24} color={Colors.textPrimary} />
+            {count > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          data={[]}
+          keyExtractor={item => item.id}
+          renderItem={() => null}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            !storiesLoading && stories.length > 0 ? (
+              <>
+                <StoriesRow stories={stories} onView={markViewed} />
+                <Divider style={styles.divider} />
+              </>
+            ) : null
+          }
+          contentContainerStyle={styles.feedContent}
+          ListEmptyComponent={
+            <EmptyState
+              icon={<Ionicons name="shirt-outline" size={48} color={Colors.textSecondary} />}
+              heading="Your feed is empty"
+              subtext="New listings will appear here once sellers start posting."
+            />
+          }
+        />
+      </View>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: { flex: 1 },
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.base,
+    height: 46,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  placeholder: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+  },
+  basketButton: { position: 'relative', padding: Spacing.xs },
+  badge: {
     position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
   },
+  badgeText: {
+    color: Colors.background,
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold',
+    lineHeight: 12,
+  },
+  divider: { marginVertical: 0 },
+  feedContent: { flexGrow: 1 },
 });
