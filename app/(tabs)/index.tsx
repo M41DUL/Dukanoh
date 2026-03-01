@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -18,7 +19,33 @@ import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useBasket } from '@/hooks/useBasket';
 import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
+import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { supabase } from '@/lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const NUDGE_DISMISSED_KEY = '@dukanoh/profile_nudge_dismissed';
+
+async function fetchTrendingCategories(): Promise<string[]> {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from('listings')
+    .select('category')
+    .eq('status', 'available')
+    .gte('created_at', since)
+    .limit(200);
+
+  if (!data || data.length === 0) return [];
+
+  const counts = data.reduce<Record<string, number>>((acc, { category }) => {
+    acc[category] = (acc[category] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([cat]) => cat);
+}
 
 async function fetchSection(userId: string, categories: string[]): Promise<Listing[]> {
   let query = supabase
@@ -113,38 +140,164 @@ function ListingsGrid({ items }: { items: Listing[] }) {
   );
 }
 
+function ReEngageCard() {
+  return (
+    <View style={styles.reEngageCard}>
+      <Ionicons name="shirt-outline" size={32} color={Colors.textSecondary} />
+      <Text style={styles.reEngageTitle}>Your wardrobe could earn money</Text>
+      <Text style={styles.reEngageSub}>
+        Turn items you no longer wear into cash — it only takes a few minutes.
+      </Text>
+      <TouchableOpacity
+        style={styles.reEngageBtn}
+        onPress={() => router.push('/(tabs)/sell')}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.reEngageBtnText}>Start selling</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function ProfileNudgeCard({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <TouchableOpacity
+      style={styles.nudgeCard}
+      onPress={() => router.push('/(tabs)/profile')}
+      activeOpacity={0.8}
+    >
+      <View style={styles.nudgeAvatar}>
+        <Ionicons name="person-outline" size={22} color={Colors.textSecondary} />
+      </View>
+      <View style={styles.nudgeBody}>
+        <Text style={styles.nudgeTitle}>Complete your profile</Text>
+        <Text style={styles.nudgeSub}>Add a photo and bio to stand out to buyers</Text>
+      </View>
+      <TouchableOpacity onPress={onDismiss} hitSlop={10} style={styles.nudgeClose}>
+        <Ionicons name="close" size={18} color={Colors.textSecondary} />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+}
+
+function TrendingStrip({ categories }: { categories: string[] }) {
+  if (categories.length === 0) return null;
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Trending this week</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.recentScroll}
+        contentContainerStyle={styles.trendingContent}
+      >
+        {categories.map(cat => (
+          <TouchableOpacity
+            key={cat}
+            style={styles.trendingPill}
+            onPress={() =>
+              router.push({
+                pathname: '/listings',
+                params: { title: cat, categories: cat },
+              })
+            }
+            activeOpacity={0.75}
+          >
+            <Text style={styles.trendingPillText}>{cat}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function RecentlyViewedStrip({ items }: { items: Listing[] }) {
+  if (items.length === 0) return null;
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Recently viewed</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.recentScroll}
+        contentContainerStyle={styles.recentContent}
+      >
+        {items.map(item => (
+          <TouchableOpacity
+            key={item.id}
+            style={styles.recentCard}
+            onPress={() => router.push(`/listing/${item.id}`)}
+            activeOpacity={0.8}
+          >
+            <Image
+              source={{ uri: item.images?.[0] }}
+              style={styles.recentImage}
+              resizeMode="cover"
+            />
+            <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
+            <Text style={styles.recentPrice}>£{item.price?.toFixed(2)}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const { count } = useBasket();
   const { stories, loading: storiesLoading, markViewed } = useStories();
   const { user } = useAuth();
+  const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
 
   const [suggested, setSuggested] = useState<Listing[]>([]);
   const [newArrivals, setNewArrivals] = useState<Listing[]>([]);
   const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
+  const [trending, setTrending] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [profileComplete, setProfileComplete] = useState(true);
+  const [nudgeDismissed, setNudgeDismissed] = useState(true); // start hidden to avoid flash
+  const [hasListings, setHasListings] = useState(true); // start true to avoid flash
   const hasMounted = useRef(false);
 
+  useEffect(() => {
+    AsyncStorage.getItem(NUDGE_DISMISSED_KEY).then(val => {
+      setNudgeDismissed(val === 'true');
+    });
+  }, []);
+
+  const dismissNudge = useCallback(async () => {
+    await AsyncStorage.setItem(NUDGE_DISMISSED_KEY, 'true');
+    setNudgeDismissed(true);
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!user) return;
 
     const { data: profile } = await supabase
       .from('users')
-      .select('preferred_categories')
+      .select('preferred_categories, avatar_url, bio')
       .eq('id', user.id)
       .maybeSingle();
 
     const cats: string[] = profile?.preferred_categories ?? [];
     setPreferredCategories(cats);
+    setProfileComplete(!!(profile?.avatar_url && profile?.bio));
 
-    const [suggestedItems, newArrivalItems] = await Promise.all([
+    const [suggestedItems, newArrivalItems, trendingCats, listingCountResult] = await Promise.all([
       cats.length > 0 ? fetchSection(user.id, cats) : Promise.resolve([]),
       fetchSection(user.id, []),
+      fetchTrendingCategories(),
+      supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('seller_id', user.id),
     ]);
 
     setSuggested(suggestedItems);
     setNewArrivals(newArrivalItems);
+    setTrending(trendingCats);
+    setHasListings((listingCountResult.count ?? 0) > 0);
   }, [user]);
 
   useEffect(() => {
@@ -156,17 +309,18 @@ export default function HomeScreen() {
     useCallback(() => {
       if (hasMounted.current) {
         loadData();
+        reloadRecent();
       } else {
         hasMounted.current = true;
       }
-    }, [loadData])
+    }, [loadData, reloadRecent])
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadData();
+    await Promise.all([loadData(), reloadRecent()]);
     setRefreshing(false);
-  }, [loadData]);
+  }, [loadData, reloadRecent]);
 
   return (
     <ScreenWrapper>
@@ -219,6 +373,14 @@ export default function HomeScreen() {
               <StoriesRow stories={stories} onView={markViewed} />
             )}
 
+            {!profileComplete && !nudgeDismissed && (
+              <ProfileNudgeCard onDismiss={dismissNudge} />
+            )}
+
+            <RecentlyViewedStrip items={recentItems} />
+
+            <TrendingStrip categories={trending} />
+
             {suggested.length > 0 && (
               <View style={styles.section}>
                 <SectionHeader
@@ -259,6 +421,8 @@ export default function HomeScreen() {
                 onCta={() => router.push('/(tabs)/sell')}
               />
             ) : null}
+
+            {!hasListings && <ReEngageCard />}
           </ScrollView>
         )}
       </View>
@@ -329,6 +493,104 @@ const styles = StyleSheet.create({
   },
   seeAll: {
     ...Typography.body,
+    color: Colors.primary,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  // Re-engage card
+  reEngageCard: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.medium,
+    padding: Spacing.xl,
+    marginTop: Spacing.md,
+  },
+  reEngageTitle: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    fontFamily: 'Inter_700Bold',
+    textAlign: 'center',
+  },
+  reEngageSub: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  reEngageBtn: {
+    marginTop: Spacing.xs,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary,
+  },
+  reEngageBtnText: {
+    ...Typography.body,
+    color: Colors.background,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  // Profile nudge
+  nudgeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.medium,
+    padding: Spacing.base,
+    marginBottom: Spacing.xl,
+  },
+  nudgeAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nudgeBody: { flex: 1, gap: 2 },
+  nudgeTitle: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  nudgeSub: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+  },
+  nudgeClose: { padding: Spacing.xs },
+  // Trending categories
+  trendingContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm },
+  trendingPill: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    backgroundColor: Colors.background,
+  },
+  trendingPillText: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  // Recently viewed
+  recentScroll: { marginHorizontal: -Spacing.base },
+  recentContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm },
+  recentCard: { width: 120 },
+  recentImage: {
+    width: 120,
+    height: 150,
+    borderRadius: BorderRadius.medium,
+    backgroundColor: Colors.surface,
+    marginBottom: Spacing.xs,
+  },
+  recentTitle: {
+    ...Typography.caption,
+    color: Colors.textPrimary,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  recentPrice: {
+    ...Typography.caption,
     color: Colors.primary,
     fontFamily: 'Inter_600SemiBold',
   },

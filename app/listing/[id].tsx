@@ -21,6 +21,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
 import { useBasket } from '@/hooks/useBasket';
+import { recordView } from '@/hooks/useRecentlyViewed';
 
 const { width } = Dimensions.get('window');
 
@@ -40,7 +41,10 @@ export default function ListingDetailScreen() {
       .eq('id', id)
       .single()
       .then(({ data }) => {
-        if (data) setListing(data as unknown as Listing);
+        if (data) {
+          setListing(data as unknown as Listing);
+          recordView(id);
+        }
         setLoading(false);
       });
   }, [id]);
