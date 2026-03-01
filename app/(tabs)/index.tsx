@@ -5,10 +5,93 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { EmptyState } from '@/components/EmptyState';
 import { StoriesRow } from '@/components/StoriesRow';
-import { Divider } from '@/components/Divider';
+import { ListingCard, Listing } from '@/components/ListingCard';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useBasket } from '@/hooks/useBasket';
 import { useStories } from '@/hooks/useStories';
+
+const DUMMY_LISTINGS: Listing[] = [
+  {
+    id: '1',
+    title: 'Embroidered Anarkali Suit',
+    price: 45.00,
+    category: 'Women',
+    condition: 'Excellent',
+    status: 'available',
+    images: ['https://picsum.photos/seed/anarkali/400/500'],
+    seller: { username: 'fatima_k' },
+  },
+  {
+    id: '2',
+    title: 'Men\'s Sherwani — Navy & Gold',
+    price: 120.00,
+    category: 'Wedding',
+    condition: 'New with tags',
+    status: 'available',
+    images: ['https://picsum.photos/seed/sherwani/400/500'],
+    seller: { username: 'tariq_m' },
+  },
+  {
+    id: '3',
+    title: 'Silk Saree — Deep Red',
+    price: 65.00,
+    category: 'Festive',
+    condition: 'Good',
+    status: 'available',
+    images: ['https://picsum.photos/seed/saree1/400/500'],
+    seller: { username: 'priya_s' },
+  },
+  {
+    id: '4',
+    title: 'Pathani Suit — Olive Green',
+    price: 38.00,
+    category: 'Pathani Suit',
+    condition: 'Excellent',
+    status: 'available',
+    images: ['https://picsum.photos/seed/pathani/400/500'],
+    seller: { username: 'zain_r' },
+  },
+  {
+    id: '5',
+    title: 'Lehenga Choli — Pink Floral',
+    price: 95.00,
+    category: 'Partywear',
+    condition: 'New with tags',
+    status: 'available',
+    images: ['https://picsum.photos/seed/lehenga/400/500'],
+    seller: { username: 'nadia_h' },
+  },
+  {
+    id: '6',
+    title: 'Achkan — Ivory Brocade',
+    price: 80.00,
+    category: 'Achkan',
+    condition: 'Excellent',
+    status: 'available',
+    images: ['https://picsum.photos/seed/achkan/400/500'],
+    seller: { username: 'imran_a' },
+  },
+  {
+    id: '7',
+    title: 'Cotton Kurta Set — Sky Blue',
+    price: 28.00,
+    category: 'Casualwear',
+    condition: 'Good',
+    status: 'available',
+    images: ['https://picsum.photos/seed/kurta1/400/500'],
+    seller: { username: 'sara_b' },
+  },
+  {
+    id: '8',
+    title: 'Formal Bandhgala Suit',
+    price: 110.00,
+    category: 'Formal',
+    condition: 'New with tags',
+    status: 'available',
+    images: ['https://picsum.photos/seed/bandhgala/400/500'],
+    seller: { username: 'ali_n' },
+  },
+];
 
 export default function HomeScreen() {
   const { count } = useBasket();
@@ -43,16 +126,21 @@ export default function HomeScreen() {
         </View>
 
         <FlatList
-          data={[]}
+          data={DUMMY_LISTINGS}
           keyExtractor={item => item.id}
-          renderItem={() => null}
+          numColumns={2}
+          columnWrapperStyle={styles.row}
+          renderItem={({ item }) => (
+            <ListingCard
+              listing={item}
+              variant="grid"
+              onPress={() => router.push(`/listing/${item.id}`)}
+            />
+          )}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             !storiesLoading && stories.length > 0 ? (
-              <>
-                <StoriesRow stories={stories} onView={markViewed} />
-                <Divider style={styles.divider} />
-              </>
+              <StoriesRow stories={stories} onView={markViewed} />
             ) : null
           }
           contentContainerStyle={styles.feedContent}
@@ -75,10 +163,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   searchBar: {
     flex: 1,
@@ -113,6 +198,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     lineHeight: 12,
   },
-  divider: { marginVertical: 0 },
-  feedContent: { flexGrow: 1 },
+  feedContent: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
+  row: { gap: Spacing.sm, marginBottom: Spacing.sm },
 });

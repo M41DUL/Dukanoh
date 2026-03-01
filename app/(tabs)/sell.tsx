@@ -288,9 +288,9 @@ export default function SellScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    padding: Spacing.base,
-    gap: Spacing.base,
+    paddingTop: Spacing.base,
     paddingBottom: Spacing['4xl'],
+    gap: Spacing.base,
   },
   imageRow: { flexDirection: 'row' },
   imageThumb: {

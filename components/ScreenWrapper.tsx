@@ -39,7 +39,7 @@ export function ScreenWrapper({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
-  content: { flex: 1 },
+  content: { flex: 1, paddingHorizontal: Spacing.base },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: Spacing.base,

@@ -57,7 +57,8 @@ export default function ListingDetailScreen() {
     <ScreenWrapper>
       <Header showBack />
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Image carousel */}
+        {/* Image carousel — break out of ScreenWrapper horizontal padding */}
+        <View style={styles.imageBreakout}>
         <View style={styles.imageContainer}>
           {listing.images?.length > 0 ? (
             <>
@@ -88,6 +89,7 @@ export default function ListingDetailScreen() {
           ) : (
             <View style={styles.imagePlaceholder} />
           )}
+        </View>
         </View>
 
         <View style={styles.content}>
@@ -150,6 +152,7 @@ export default function ListingDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  imageBreakout: { marginHorizontal: -Spacing.base },
   imageContainer: { width, height: 360, backgroundColor: Colors.surface },
   image: { width, height: 360 },
   imagePlaceholder: { flex: 1 },
@@ -167,7 +170,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.5)',
   },
   dotActive: { backgroundColor: Colors.background },
-  content: { padding: Spacing.base, gap: Spacing.sm },
+  content: { paddingVertical: Spacing.base, gap: Spacing.sm },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -194,7 +197,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    padding: Spacing.base,
+    paddingVertical: Spacing.base,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     backgroundColor: Colors.background,

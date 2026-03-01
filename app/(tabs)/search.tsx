@@ -66,15 +66,13 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   searchBar: {
-    marginHorizontal: Spacing.base,
     marginTop: Spacing.base,
     marginBottom: Spacing.sm,
   },
   categories: {
-    paddingHorizontal: Spacing.base,
     paddingBottom: Spacing.sm,
     gap: Spacing.xs,
   },
-  grid: { flexGrow: 1, paddingHorizontal: Spacing.base, paddingTop: Spacing.sm },
+  grid: { flexGrow: 1, paddingTop: Spacing.sm },
   row: { gap: Spacing.sm, marginBottom: Spacing.sm },
 });

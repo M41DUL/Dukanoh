@@ -62,7 +62,7 @@ export default function InboxScreen() {
 }
 
 const styles = StyleSheet.create({
-  list: { flexGrow: 1, paddingHorizontal: Spacing.base },
+  list: { flexGrow: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

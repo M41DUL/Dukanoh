@@ -73,7 +73,7 @@ export default function BasketScreen() {
 const styles = StyleSheet.create({
   list: {
     flexGrow: 1,
-    padding: Spacing.base,
+    paddingTop: Spacing.base,
     paddingBottom: Spacing['3xl'],
   },
   item: { marginBottom: Spacing.sm },

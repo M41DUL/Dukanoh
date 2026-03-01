@@ -38,9 +38,8 @@ export default function RootLayout() {
     if (!session) {
       if (!inAuthGroup) router.replace('/(auth)/login');
     } else if (inAuthGroup) {
+      // Coming from login/signup — check if onboarding is needed
       router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
-    } else if (!inOnboarding && onboardingCompleted === false) {
-      router.replace('/onboarding');
     }
   }, [session, loading, fontsLoaded, segments, router, onboardingCompleted]);
 

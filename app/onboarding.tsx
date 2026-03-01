@@ -20,17 +20,14 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/useAuth';
-import { Colors, Typography, Spacing, BorderRadius, Categories } from '@/constants/theme';
+import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { Badge } from '@/components/Badge';
-import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 const { width, height } = Dimensions.get('window');
 const SWIPE_THRESHOLD = width * 0.32;
 const CARD_WIDTH = width - Spacing.base * 2;
 const CARD_HEIGHT = height * 0.56;
-const FALLBACK_CATEGORIES = (Categories as readonly string[]).filter(c => c !== 'All');
 
 interface OnboardingListing {
   id: string;
@@ -40,16 +37,22 @@ interface OnboardingListing {
   images: string[];
 }
 
+// Dummy listings used to pad when the DB doesn't have enough yet
+const DUMMY_POOL: OnboardingListing[] = [
+  { id: 'd1', title: 'Embroidered Anarkali Suit', price: 45, category: 'Women', images: ['https://picsum.photos/seed/anarkali/400/560'] },
+  { id: 'd2', title: "Men's Sherwani — Navy & Gold", price: 120, category: 'Wedding', images: ['https://picsum.photos/seed/sherwani/400/560'] },
+  { id: 'd3', title: 'Silk Saree — Deep Red', price: 65, category: 'Festive', images: ['https://picsum.photos/seed/saree1/400/560'] },
+  { id: 'd4', title: 'Pathani Suit — Olive Green', price: 38, category: 'Pathani Suit', images: ['https://picsum.photos/seed/pathani/400/560'] },
+  { id: 'd5', title: 'Lehenga Choli — Pink Floral', price: 95, category: 'Partywear', images: ['https://picsum.photos/seed/lehenga/400/560'] },
+  { id: 'd6', title: 'Achkan — Ivory Brocade', price: 80, category: 'Achkan', images: ['https://picsum.photos/seed/achkan/400/560'] },
+];
+
 export default function OnboardingScreen() {
-  const { user, refreshProfile } = useAuth();
   const [listings, setListings] = useState<OnboardingListing[]>([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [useFallback, setUseFallback] = useState(false);
-  const [selectedCats, setSelectedCats] = useState<string[]>([]);
 
-  // Refs avoid stale closure issues in gesture callbacks
   const indexRef = useRef(0);
   const likedRef = useRef<string[]>([]);
   const listingsRef = useRef<OnboardingListing[]>([]);
@@ -58,8 +61,10 @@ export default function OnboardingScreen() {
   const translateY = useSharedValue(0);
 
   useEffect(() => {
-    if (!user) return;
     (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+
       const { data } = await supabase
         .from('listings')
         .select('id, title, price, category, images')
@@ -68,26 +73,28 @@ export default function OnboardingScreen() {
         .order('created_at', { ascending: false })
         .limit(6);
 
-      if (data && data.length >= 6) {
-        const ls = data as OnboardingListing[];
-        setListings(ls);
-        listingsRef.current = ls;
-      } else {
-        setUseFallback(true);
-      }
+      const real = (data ?? []) as OnboardingListing[];
+      // Pad with dummy listings until we have 6
+      const dummyNeeded = Math.max(0, 6 - real.length);
+      const padded = [...real, ...DUMMY_POOL.slice(0, dummyNeeded)];
+
+      setListings(padded);
+      listingsRef.current = padded;
       setLoading(false);
     })();
-  }, [user]);
+  }, []);
 
   const saveAndNavigate = async (categories: string[]) => {
-    if (!user || saving) return;
+    if (saving) return;
     setSaving(true);
-    const unique = [...new Set(categories)];
-    await supabase
-      .from('users')
-      .update({ preferred_categories: unique, onboarding_completed: true })
-      .eq('id', user.id);
-    await refreshProfile();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const unique = [...new Set(categories)];
+      await supabase
+        .from('users')
+        .update({ preferred_categories: unique, onboarding_completed: true })
+        .eq('id', user.id);
+    }
     router.replace('/(tabs)/');
   };
 
@@ -160,39 +167,6 @@ export default function OnboardingScreen() {
 
   if (loading) return <LoadingSpinner />;
 
-  // Fallback: category chips when fewer than 6 listings exist
-  if (useFallback) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>What do you love?</Text>
-        <Text style={styles.subtitle}>Pick the categories you're interested in.</Text>
-        <View style={styles.catGrid}>
-          {FALLBACK_CATEGORIES.map(cat => (
-            <Badge
-              key={cat}
-              label={cat}
-              active={selectedCats.includes(cat)}
-              onPress={() =>
-                setSelectedCats(prev =>
-                  prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
-                )
-              }
-            />
-          ))}
-        </View>
-        <Button
-          label="Start exploring"
-          onPress={() => saveAndNavigate(selectedCats)}
-          loading={saving}
-          style={styles.fallbackBtn}
-        />
-        <TouchableOpacity onPress={() => saveAndNavigate([])}>
-          <Text style={styles.skipText}>Skip for now</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   const current = listings[index];
   const next = listings[index + 1];
   if (!current) return null;
@@ -217,7 +191,6 @@ export default function OnboardingScreen() {
       </View>
 
       <View style={styles.cardStack}>
-        {/* Next card peeking behind */}
         {next && (
           <View style={[styles.card, styles.nextCard]}>
             <Image
@@ -233,7 +206,6 @@ export default function OnboardingScreen() {
           </View>
         )}
 
-        {/* Current swipeable card */}
         <GestureDetector gesture={pan}>
           <Animated.View style={[styles.card, cardStyle]}>
             <Image
@@ -424,17 +396,5 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: Spacing.xl,
     textDecorationLine: 'underline',
-  },
-  catGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.base,
-    justifyContent: 'center',
-    marginTop: Spacing.xl,
-  },
-  fallbackBtn: {
-    marginTop: Spacing.xl,
-    width: CARD_WIDTH,
   },
 });

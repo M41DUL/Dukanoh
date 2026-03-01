@@ -201,19 +201,20 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
 const styles = StyleSheet.create({
   // Row
   row: {
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.base,
-    gap: Spacing.base,
+    paddingRight: Spacing.base,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.base,
+    gap: Spacing.md,
   },
   bubble: {
     alignItems: 'center',
     gap: Spacing.xs,
-    width: 72,
+    width: 64,
   },
   ring: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     padding: 2.5,
     backgroundColor: Colors.primary,
   },
@@ -222,7 +223,7 @@ const styles = StyleSheet.create({
   },
   ringInner: {
     flex: 1,
-    borderRadius: 33,
+    borderRadius: 29,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: Colors.background,
@@ -230,7 +231,7 @@ const styles = StyleSheet.create({
   bubbleImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 33,
+    borderRadius: 29,
   },
   bubblePlaceholder: {
     backgroundColor: Colors.surface,
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textPrimary,
     textAlign: 'center',
-    width: 72,
+    width: 64,
   },
 
   // Viewer

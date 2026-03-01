@@ -134,7 +134,7 @@ export default function ConversationScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   messageList: {
-    padding: Spacing.base,
+    paddingVertical: Spacing.base,
     gap: Spacing.sm,
   },
   bubble: {
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    padding: Spacing.base,
+    paddingVertical: Spacing.base,
     gap: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.border,

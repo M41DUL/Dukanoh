@@ -104,7 +104,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.base,
     paddingBottom: Spacing['3xl'],
   },
   profileHeader: {
