@@ -17,12 +17,14 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { Button } from './Button';
-import { StoryListing } from '@/hooks/useStories';
+import { StoryListing, AppStory } from '@/hooks/useStories';
 
 const { width, height } = Dimensions.get('window');
 
+type AnyStory = AppStory | StoryListing;
+
 interface StoriesRowProps {
-  stories: StoryListing[];
+  stories: AnyStory[];
   onView: (listingId: string) => void;
 }
 
@@ -37,7 +39,8 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
 
   const openStory = (index: number) => {
     setActiveIndex(index);
-    onView(stories[index].id);
+    const story = stories[index];
+    if (story.type !== 'app') onView(story.id);
   };
 
   const goNext = () => {
@@ -45,7 +48,8 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
     if (activeIndex < stories.length - 1) {
       const next = activeIndex + 1;
       setActiveIndex(next);
-      onView(stories[next].id);
+      const story = stories[next];
+      if (story.type !== 'app') onView(story.id);
     } else {
       setActiveIndex(null);
     }
@@ -66,30 +70,38 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
         keyExtractor={item => item.id}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={rowStyles.row}
-        renderItem={({ item, index }) => (
-          <TouchableOpacity
-            style={rowStyles.bubble}
-            onPress={() => openStory(index)}
-            activeOpacity={0.9}
-          >
-            <View style={[rowStyles.ring, item.viewed && rowStyles.ringViewed]}>
-              <View style={rowStyles.ringInner}>
-                {item.images?.[0] ? (
-                  <Image
-                    source={{ uri: item.images[0] }}
-                    style={viewerStyles.bubbleImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={[viewerStyles.bubbleImage, rowStyles.bubblePlaceholder]} />
-                )}
+        renderItem={({ item, index }) => {
+          const isApp = item.type === 'app';
+          const listing = isApp ? null : (item as StoryListing);
+          return (
+            <TouchableOpacity
+              style={rowStyles.bubble}
+              onPress={() => openStory(index)}
+              activeOpacity={0.9}
+            >
+              <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing!.viewed && rowStyles.ringViewed]}>
+                <View style={rowStyles.ringInner}>
+                  {isApp ? (
+                    <View style={[viewerStyles.bubbleImage, rowStyles.appBubble]}>
+                      <Text style={rowStyles.appBubbleLetter}>D</Text>
+                    </View>
+                  ) : listing!.images?.[0] ? (
+                    <Image
+                      source={{ uri: listing!.images[0] }}
+                      style={viewerStyles.bubbleImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[viewerStyles.bubbleImage, rowStyles.bubblePlaceholder]} />
+                  )}
+                </View>
               </View>
-            </View>
-            <Text style={rowStyles.bubbleLabel} numberOfLines={1}>
-              @{item.seller.username}
-            </Text>
-          </TouchableOpacity>
-        )}
+              <Text style={rowStyles.bubbleLabel} numberOfLines={1}>
+                {isApp ? 'Dukanoh' : `@${listing!.seller.username}`}
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
       />
 
       <Modal
@@ -102,70 +114,145 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
           <View style={viewerStyles.viewer}>
             <StatusBar hidden />
 
-            {activeStory.images?.[0] ? (
-              <Image
-                source={{ uri: activeStory.images[0] }}
-                style={viewerStyles.fullImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={[viewerStyles.fullImage, viewerStyles.fullImagePlaceholder]} />
-            )}
-
-            <View style={viewerStyles.scrimTop} />
-            <View style={viewerStyles.scrimBottom} />
-
-            <View style={viewerStyles.progressBar}>
-              {stories.map((_, i) => (
-                <View key={i} style={viewerStyles.progressSegmentContainer}>
-                  <View
-                    style={[
-                      viewerStyles.progressSegment,
-                      i < (activeIndex ?? 0) && viewerStyles.progressDone,
-                      i === activeIndex && viewerStyles.progressActive,
-                    ]}
-                  />
+            {activeStory.type === 'app' ? (
+              // App story viewer — branded card on dark background
+              <>
+                <View style={viewerStyles.progressBar}>
+                  {stories.map((_, i) => (
+                    <View key={i} style={viewerStyles.progressSegmentContainer}>
+                      <View
+                        style={[
+                          viewerStyles.progressSegment,
+                          i < (activeIndex ?? 0) && viewerStyles.progressDone,
+                          i === activeIndex && viewerStyles.progressActive,
+                        ]}
+                      />
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
 
-            <TouchableOpacity style={viewerStyles.closeButton} onPress={close} hitSlop={16}>
-              <Ionicons name="close" size={26} color="#fff" />
-            </TouchableOpacity>
+                <TouchableOpacity style={viewerStyles.closeButton} onPress={close} hitSlop={16}>
+                  <Ionicons name="close" size={26} color="#fff" />
+                </TouchableOpacity>
 
-            <View style={viewerStyles.tapZones} pointerEvents="box-none">
-              <TouchableOpacity style={viewerStyles.tapLeft} onPress={goPrev} activeOpacity={1} />
-              <TouchableOpacity style={viewerStyles.tapRight} onPress={goNext} activeOpacity={1} />
-            </View>
+                <View style={viewerStyles.tapZones} pointerEvents="box-none">
+                  <TouchableOpacity style={viewerStyles.tapLeft} onPress={goPrev} activeOpacity={1} />
+                  <TouchableOpacity style={viewerStyles.tapRight} onPress={goNext} activeOpacity={1} />
+                </View>
 
-            <View style={viewerStyles.overlay}>
-              <View style={viewerStyles.sellerRow}>
-                <Avatar
-                  uri={activeStory.seller.avatar_url}
-                  initials={activeStory.seller.username[0]?.toUpperCase()}
-                  size="small"
-                />
-                <Text style={viewerStyles.sellerName}>@{activeStory.seller.username}</Text>
-                <Badge label={activeStory.category} active style={viewerStyles.categoryBadge} />
-              </View>
+                {activeStory.imageUrl ? (
+                  // Image-based app story
+                  <>
+                    <Image
+                      source={{ uri: activeStory.imageUrl }}
+                      style={viewerStyles.fullImage}
+                      resizeMode="cover"
+                    />
+                    <View style={viewerStyles.scrimBottom} />
+                    <View style={viewerStyles.overlay}>
+                      {activeStory.headline ? (
+                        <Text style={viewerStyles.storyTitle}>{activeStory.headline}</Text>
+                      ) : null}
+                      <View style={viewerStyles.ctaRow}>
+                        <Button
+                          label={activeStory.ctaLabel}
+                          size="md"
+                          onPress={() => {
+                            close();
+                            router.push(activeStory.ctaRoute as any);
+                          }}
+                          style={viewerStyles.viewBtn}
+                        />
+                      </View>
+                    </View>
+                  </>
+                ) : (
+                  // Text-only app story
+                  <View style={viewerStyles.appCardCenter}>
+                    <Text style={viewerStyles.appWordmark}>Dukanoh</Text>
+                    <Text style={viewerStyles.appHeadline}>{activeStory.headline}</Text>
+                    <Text style={viewerStyles.appBody}>{activeStory.body}</Text>
+                    <Button
+                      label={activeStory.ctaLabel}
+                      size="md"
+                      onPress={() => {
+                        close();
+                        router.push(activeStory.ctaRoute as any);
+                      }}
+                      style={viewerStyles.appCta}
+                    />
+                  </View>
+                )}
+              </>
+            ) : (
+              // Regular listing story viewer
+              <>
+                {(activeStory as StoryListing).images?.[0] ? (
+                  <Image
+                    source={{ uri: (activeStory as StoryListing).images[0] }}
+                    style={viewerStyles.fullImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[viewerStyles.fullImage, viewerStyles.fullImagePlaceholder]} />
+                )}
 
-              <Text style={viewerStyles.storyTitle} numberOfLines={2}>
-                {activeStory.title}
-              </Text>
-              <Text style={viewerStyles.storyPrice}>£{activeStory.price?.toFixed(2)}</Text>
+                <View style={viewerStyles.scrimTop} />
+                <View style={viewerStyles.scrimBottom} />
 
-              <View style={viewerStyles.ctaRow}>
-                <Button
-                  label="View Listing"
-                  size="md"
-                  onPress={() => {
-                    close();
-                    router.push(`/listing/${activeStory.id}`);
-                  }}
-                  style={viewerStyles.viewBtn}
-                />
-              </View>
-            </View>
+                <View style={viewerStyles.progressBar}>
+                  {stories.map((_, i) => (
+                    <View key={i} style={viewerStyles.progressSegmentContainer}>
+                      <View
+                        style={[
+                          viewerStyles.progressSegment,
+                          i < (activeIndex ?? 0) && viewerStyles.progressDone,
+                          i === activeIndex && viewerStyles.progressActive,
+                        ]}
+                      />
+                    </View>
+                  ))}
+                </View>
+
+                <TouchableOpacity style={viewerStyles.closeButton} onPress={close} hitSlop={16}>
+                  <Ionicons name="close" size={26} color="#fff" />
+                </TouchableOpacity>
+
+                <View style={viewerStyles.tapZones} pointerEvents="box-none">
+                  <TouchableOpacity style={viewerStyles.tapLeft} onPress={goPrev} activeOpacity={1} />
+                  <TouchableOpacity style={viewerStyles.tapRight} onPress={goNext} activeOpacity={1} />
+                </View>
+
+                <View style={viewerStyles.overlay}>
+                  <View style={viewerStyles.sellerRow}>
+                    <Avatar
+                      uri={(activeStory as StoryListing).seller.avatar_url}
+                      initials={(activeStory as StoryListing).seller.username[0]?.toUpperCase()}
+                      size="small"
+                    />
+                    <Text style={viewerStyles.sellerName}>@{(activeStory as StoryListing).seller.username}</Text>
+                    <Badge label={(activeStory as StoryListing).category} active style={viewerStyles.categoryBadge} />
+                  </View>
+
+                  <Text style={viewerStyles.storyTitle} numberOfLines={2}>
+                    {(activeStory as StoryListing).title}
+                  </Text>
+                  <Text style={viewerStyles.storyPrice}>£{(activeStory as StoryListing).price?.toFixed(2)}</Text>
+
+                  <View style={viewerStyles.ctaRow}>
+                    <Button
+                      label="View Listing"
+                      size="md"
+                      onPress={() => {
+                        close();
+                        router.push(`/listing/${activeStory.id}`);
+                      }}
+                      style={viewerStyles.viewBtn}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
           </View>
         )}
       </Modal>
@@ -197,6 +284,9 @@ function getRowStyles(colors: ColorTokens) {
     ringViewed: {
       backgroundColor: colors.border,
     },
+    ringApp: {
+      backgroundColor: colors.primary,
+    },
     ringInner: {
       flex: 1,
       borderRadius: 29,
@@ -206,6 +296,16 @@ function getRowStyles(colors: ColorTokens) {
     },
     bubblePlaceholder: {
       backgroundColor: colors.surface,
+    },
+    appBubble: {
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    appBubbleLetter: {
+      ...Typography.subheading,
+      color: colors.background,
+      fontFamily: 'Inter_700Bold',
     },
     bubbleLabel: {
       ...Typography.caption,
@@ -330,4 +430,34 @@ const viewerStyles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   viewBtn: { flex: 1 },
+  // App story card styles
+  appCardCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing['2xl'],
+    gap: Spacing.base,
+    paddingTop: 80,
+    paddingBottom: Spacing['3xl'],
+  },
+  appWordmark: {
+    ...Typography.display,
+    color: '#C7F75E',
+    marginBottom: Spacing.xs,
+  },
+  appHeadline: {
+    ...Typography.heading,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  appBody: {
+    ...Typography.body,
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  appCta: {
+    marginTop: Spacing.md,
+    alignSelf: 'stretch',
+  },
 });

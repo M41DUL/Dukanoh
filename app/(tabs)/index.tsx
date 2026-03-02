@@ -17,7 +17,7 @@ import { StoriesRow } from '@/components/StoriesRow';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useStories } from '@/hooks/useStories';
+import { useStories, getAppStory } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -261,21 +261,34 @@ function getNudgeStyles(colors: ColorTokens) {
   });
 }
 
+const CATEGORY_ICON: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  Men: 'man-outline',
+  Women: 'woman-outline',
+  Casualwear: 'shirt-outline',
+  Partywear: 'sparkles-outline',
+  Festive: 'ribbon-outline',
+  Formal: 'briefcase-outline',
+  Achkan: 'person-outline',
+  Wedding: 'heart-outline',
+  'Pathani Suit': 'body-outline',
+  Shoes: 'walk-outline',
+};
+
 function TrendingStrip({ categories, colors }: { categories: string[]; colors: ColorTokens }) {
   const styles = useMemo(() => getTrendingStyles(colors), [colors]);
   if (categories.length === 0) return null;
   return (
-    <View style={feedStaticStyles.trendingRow}>
-      <Text style={[feedStaticStyles.trendingLabel, { color: colors.textSecondary }]}>Trending</Text>
+    <View style={feedStaticStyles.section}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={feedStaticStyles.trendingContent}
+        contentContainerStyle={styles.row}
+        style={styles.scroll}
       >
         {categories.map(cat => (
           <TouchableOpacity
             key={cat}
-            style={[styles.pill]}
+            style={styles.tile}
             onPress={() =>
               router.push({
                 pathname: '/listings',
@@ -284,7 +297,8 @@ function TrendingStrip({ categories, colors }: { categories: string[]; colors: C
             }
             activeOpacity={0.7}
           >
-            <Text style={[feedStaticStyles.trendingPillText, { color: colors.textPrimary }]}>{cat}</Text>
+            <Ionicons name={CATEGORY_ICON[cat] ?? 'pricetag-outline'} size={20} color={colors.textPrimary} />
+            <Text style={styles.label} numberOfLines={1}>{cat}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -294,11 +308,21 @@ function TrendingStrip({ categories, colors }: { categories: string[]; colors: C
 
 function getTrendingStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    pill: {
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 5,
-      borderRadius: BorderRadius.full,
+    scroll: { marginHorizontal: -Spacing.base },
+    row: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.xs, alignItems: 'center' },
+    tile: {
+      width: 110,
+      height: 110,
       backgroundColor: colors.surface,
+      borderRadius: BorderRadius.large,
+      padding: Spacing.base,
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    label: {
+      ...Typography.caption,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
     },
   });
 }
@@ -386,25 +410,11 @@ const feedStaticStyles = StyleSheet.create({
   },
   gridRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
   emptyCell: { flex: 1 },
-  trendingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.xl,
-  },
-  trendingLabel: {
-    ...Typography.caption,
-    fontFamily: 'Inter_600SemiBold',
-    marginRight: Spacing.sm,
-  },
-  trendingContent: { gap: Spacing.xs },
-  trendingPillText: {
-    ...Typography.caption,
-    fontFamily: 'Inter_600SemiBold',
-  },
 });
 
 export default function HomeScreen() {
   const { stories, loading: storiesLoading, markViewed } = useStories();
+  const allStories = [getAppStory(), ...stories];
   const { user } = useAuth();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -539,15 +549,13 @@ export default function HomeScreen() {
             }
             contentContainerStyle={styles.feedContent}
           >
-            {!storiesLoading && stories.length > 0 && (
-              <StoriesRow stories={stories} onView={markViewed} />
+            {!storiesLoading && (
+              <StoriesRow stories={allStories} onView={markViewed} />
             )}
 
             {!profileComplete && !nudgeDismissed && (
               <ProfileNudgeCard onDismiss={dismissNudge} />
             )}
-
-            <TrendingStrip categories={trending} colors={colors} />
 
             <PriceDropsRow drops={priceDrops} colors={colors} />
 
@@ -569,6 +577,8 @@ export default function HomeScreen() {
                 <ListingsGrid items={suggested} />
               </View>
             )}
+
+            <TrendingStrip categories={trending} colors={colors} />
 
             {newArrivals.length > 0 ? (
               <View style={feedStaticStyles.section}>

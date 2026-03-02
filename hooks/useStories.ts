@@ -2,7 +2,52 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
 
+export interface AppStory {
+  type: 'app';
+  id: 'dukanoh-app-story';
+  imageUrl?: string;
+  headline: string;
+  body: string;
+  ctaLabel: string;
+  ctaRoute: string;
+}
+
+const APP_MESSAGES: Array<Omit<AppStory, 'type' | 'id'>> = [
+  {
+    // imageUrl: 'https://YOUR_SUPABASE_URL/storage/v1/object/public/app-stories/welcome.jpg',
+    headline: 'Welcome to Dukanoh',
+    body: 'South Asian fashion, resold with love. Tap any listing to discover something new.',
+    ctaLabel: 'Browse listings',
+    ctaRoute: '/listings',
+  },
+  {
+    headline: 'List in minutes',
+    body: 'Got something you no longer wear? Snap a photo and reach buyers instantly.',
+    ctaLabel: 'Start selling',
+    ctaRoute: '/(tabs)/sell',
+  },
+  {
+    headline: 'Save what you love',
+    body: 'Tap the heart on any listing to save it and track price drops.',
+    ctaLabel: 'Explore new arrivals',
+    ctaRoute: '/listings',
+  },
+  {
+    headline: 'Festive season incoming',
+    body: 'Find the perfect outfit for Eid, Diwali, or your next wedding — all pre-loved.',
+    ctaLabel: 'Shop festive',
+    ctaRoute: '/listings',
+  },
+];
+
+export function getAppStory(): AppStory {
+  const weekNumber = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  const msg = APP_MESSAGES[weekNumber % APP_MESSAGES.length];
+  return { type: 'app', id: 'dukanoh-app-story', ...msg };
+}
+
 export interface StoryListing {
+  type?: never;
   id: string;
   title: string;
   price: number;
