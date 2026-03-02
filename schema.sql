@@ -122,8 +122,16 @@ ALTER TABLE public.messages       ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public profiles are viewable"
   ON public.users FOR SELECT USING (true);
 
+-- WITH CHECK prevents users from directly writing to rating fields.
+-- update_seller_rating is SECURITY DEFINER (runs as postgres, bypasses RLS) so it is exempt.
 CREATE POLICY "Users can update own profile"
-  ON public.users FOR UPDATE USING (auth.uid() = id);
+  ON public.users FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (
+    auth.uid() = id
+    AND rating_avg IS NOT DISTINCT FROM (SELECT u.rating_avg FROM public.users u WHERE u.id = auth.uid())
+    AND rating_count IS NOT DISTINCT FROM (SELECT u.rating_count FROM public.users u WHERE u.id = auth.uid())
+  );
 
 -- Invites
 CREATE POLICY "Anyone can check invite codes"
@@ -223,10 +231,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_review_change
   AFTER INSERT OR DELETE ON public.reviews
   FOR EACH ROW EXECUTE FUNCTION public.update_seller_rating();
-
--- Prevent authenticated users from directly writing to rating fields.
--- update_seller_rating is SECURITY DEFINER (runs as owner) so it is exempt.
-REVOKE UPDATE (rating_avg, rating_count) ON public.users FROM authenticated;
 
 -- Saved items (wishlist)
 CREATE TABLE public.saved_items (
