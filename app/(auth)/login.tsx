@@ -73,7 +73,7 @@ export default function LoginScreen() {
           <Button
             label="Sign up"
             variant="ghost"
-            onPress={() => router.push('/(auth)/signup')}
+            onPress={() => router.push('/(auth)/invite')}
           />
         </View>
       </View>
