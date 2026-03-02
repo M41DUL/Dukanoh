@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
@@ -59,6 +60,8 @@ export default function ListingsScreen() {
     categories?: string;
   }>();
   const { user } = useAuth();
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const categoriesStr = Array.isArray(categoriesParam) ? categoriesParam[0] : (categoriesParam ?? '');
   const categories = categoriesStr ? categoriesStr.split(',').filter(Boolean) : [];
@@ -131,16 +134,14 @@ export default function ListingsScreen() {
 
   return (
     <ScreenWrapper>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* Sort + Filter controls */}
       <View style={styles.controls}>
         <TouchableOpacity
           style={[styles.controlBtn, isSorted && styles.controlBtnActive]}
@@ -150,7 +151,7 @@ export default function ListingsScreen() {
           <Ionicons
             name="swap-vertical-outline"
             size={15}
-            color={isSorted ? Colors.background : Colors.textPrimary}
+            color={isSorted ? colors.background : colors.textPrimary}
           />
           <Text style={[styles.controlText, isSorted && styles.controlTextActive]}>Sort</Text>
         </TouchableOpacity>
@@ -163,7 +164,7 @@ export default function ListingsScreen() {
           <Ionicons
             name="options-outline"
             size={15}
-            color={isFiltered ? Colors.background : Colors.textPrimary}
+            color={isFiltered ? colors.background : colors.textPrimary}
           />
           <Text style={[styles.controlText, isFiltered && styles.controlTextActive]}>
             {isFiltered ? condition : 'Filter'}
@@ -172,7 +173,7 @@ export default function ListingsScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
+        <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
       ) : (
         <FlatList
           data={listings}
@@ -192,12 +193,12 @@ export default function ListingsScreen() {
           onEndReachedThreshold={0.4}
           ListFooterComponent={
             loadingMore ? (
-              <ActivityIndicator size="small" color={Colors.primary} style={styles.footerSpinner} />
+              <ActivityIndicator size="small" color={colors.primary} style={styles.footerSpinner} />
             ) : null
           }
           ListEmptyComponent={
             <EmptyState
-              icon={<Ionicons name="shirt-outline" size={48} color={Colors.textSecondary} />}
+              icon={<Ionicons name="shirt-outline" size={48} color={colors.textSecondary} />}
               heading="No listings found"
               subtext="Try adjusting your sort or filter."
             />
@@ -208,51 +209,53 @@ export default function ListingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-  },
-  backBtn: { padding: Spacing.xs },
-  headerTitle: {
-    ...Typography.subheading,
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: 'center',
-  },
-  headerSpacer: { width: 32 },
-  controls: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    paddingBottom: Spacing.md,
-  },
-  controlBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xs,
-    height: 42,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  controlBtnActive: {
-    backgroundColor: Colors.textPrimary,
-    borderColor: Colors.textPrimary,
-  },
-  controlText: {
-    ...Typography.body,
-    color: Colors.textPrimary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  controlTextActive: {
-    color: Colors.background,
-  },
-  loader: { flex: 1 },
-  content: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
-  row: { gap: Spacing.sm, marginBottom: Spacing.sm },
-  footerSpinner: { paddingVertical: Spacing.base },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: Spacing.sm,
+    },
+    backBtn: { padding: Spacing.xs },
+    headerTitle: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+      flex: 1,
+      textAlign: 'center',
+    },
+    headerSpacer: { width: 32 },
+    controls: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      paddingBottom: Spacing.md,
+    },
+    controlBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      height: 42,
+      borderRadius: BorderRadius.full,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    controlBtnActive: {
+      backgroundColor: colors.textPrimary,
+      borderColor: colors.textPrimary,
+    },
+    controlText: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    controlTextActive: {
+      color: colors.background,
+    },
+    loader: { flex: 1 },
+    content: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
+    row: { gap: Spacing.sm, marginBottom: Spacing.sm },
+    footerSpinner: { paddingVertical: Spacing.base },
+  });
+}

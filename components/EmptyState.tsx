@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { Typography, Spacing, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Button } from './Button';
 
 interface EmptyStateProps {
@@ -12,6 +13,9 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ icon, heading, subtext, ctaLabel, onCta }: EmptyStateProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       {icon ? <View style={styles.icon}>{icon}</View> : null}
@@ -24,25 +28,27 @@ export function EmptyState({ icon, heading, subtext, ctaLabel, onCta }: EmptySta
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing['2xl'],
-    gap: Spacing.sm,
-  },
-  icon: { marginBottom: Spacing.sm },
-  heading: {
-    ...Typography.subheading,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  subtext: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  cta: { marginTop: Spacing.base, width: '100%' },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: Spacing['2xl'],
+      gap: Spacing.sm,
+    },
+    icon: { marginBottom: Spacing.sm },
+    heading: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+      textAlign: 'center',
+    },
+    subtext: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    cta: { marginTop: Spacing.base, width: '100%' },
+  });
+}

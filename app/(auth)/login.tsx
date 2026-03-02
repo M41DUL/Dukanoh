@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { Typography, Spacing, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 
 export default function LoginScreen() {
@@ -12,6 +13,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -78,26 +81,28 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingVertical: Spacing['3xl'],
-    gap: Spacing['2xl'],
-  },
-  header: { gap: Spacing.sm },
-  wordmark: {
-    ...Typography.display,
-    color: Colors.primary,
-    marginBottom: Spacing.base,
-  },
-  heading: { ...Typography.heading, color: Colors.textPrimary },
-  subtext: { ...Typography.body, color: Colors.textSecondary },
-  form: { gap: Spacing.base },
-  error: { ...Typography.caption, color: Colors.error },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  footerText: { ...Typography.body, color: Colors.textSecondary },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      paddingVertical: Spacing['3xl'],
+      gap: Spacing['2xl'],
+    },
+    header: { gap: Spacing.sm },
+    wordmark: {
+      ...Typography.display,
+      color: colors.primary,
+      marginBottom: Spacing.base,
+    },
+    heading: { ...Typography.heading, color: colors.textPrimary },
+    subtext: { ...Typography.body, color: colors.textSecondary },
+    form: { gap: Spacing.base },
+    error: { ...Typography.caption, color: colors.error },
+    footer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    footerText: { ...Typography.body, color: colors.textSecondary },
+  });
+}

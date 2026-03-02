@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Badge } from '@/components/Badge';
-import { Colors, Typography, Spacing, BorderRadius, Categories } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, Categories, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -45,6 +46,8 @@ export default function SellScreen() {
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<ListingForm & { images: string }>>({});
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const update = (key: keyof ListingForm) => (value: string) => {
     setForm(f => ({ ...f, [key]: value }));
@@ -199,14 +202,14 @@ export default function SellScreen() {
                   onPress={() => removeImage(i)}
                   hitSlop={4}
                 >
-                  <Ionicons name="close-circle" size={20} color={Colors.background} />
+                  <Ionicons name="close-circle" size={20} color="#fff" />
                 </TouchableOpacity>
                 {i === 0 && <View style={styles.coverBadge}><Text style={styles.coverText}>Cover</Text></View>}
               </View>
             ))}
             {images.length < 8 && (
               <TouchableOpacity style={styles.addPhotoBtn} onPress={showPhotoOptions} activeOpacity={0.8}>
-                <Ionicons name="camera-outline" size={28} color={Colors.textSecondary} />
+                <Ionicons name="camera-outline" size={28} color={colors.textSecondary} />
                 <Text style={styles.addPhotoLabel}>
                   {images.length === 0 ? 'Add Photos' : 'Add More'}
                 </Text>
@@ -295,62 +298,64 @@ export default function SellScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: Spacing.base,
-    paddingBottom: Spacing['4xl'],
-    gap: Spacing.base,
-  },
-  imageRow: { flexDirection: 'row' },
-  imageThumb: {
-    width: 120,
-    height: 120,
-    borderRadius: BorderRadius.medium,
-    marginRight: Spacing.sm,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  thumbImage: { width: '100%', height: '100%' },
-  removeImage: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-  },
-  coverBadge: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
-  },
-  coverText: {
-    ...Typography.caption,
-    color: Colors.background,
-    fontSize: 10,
-  },
-  addPhotoBtn: {
-    width: 120,
-    height: 120,
-    borderRadius: BorderRadius.medium,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    backgroundColor: Colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  addPhotoLabel: { ...Typography.caption, color: Colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
-  addPhotoSub: { ...Typography.caption, color: Colors.textSecondary },
-  multiline: { height: 100, textAlignVertical: 'top' },
-  sectionLabel: {
-    ...Typography.label,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-  errorText: { ...Typography.caption, color: Colors.error, marginTop: Spacing.xs },
-  submit: { marginTop: Spacing.md },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    content: {
+      paddingTop: Spacing.base,
+      paddingBottom: Spacing['4xl'],
+      gap: Spacing.base,
+    },
+    imageRow: { flexDirection: 'row' },
+    imageThumb: {
+      width: 120,
+      height: 120,
+      borderRadius: BorderRadius.medium,
+      marginRight: Spacing.sm,
+      overflow: 'hidden',
+      position: 'relative',
+    },
+    thumbImage: { width: '100%', height: '100%' },
+    removeImage: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+    },
+    coverBadge: {
+      position: 'absolute',
+      bottom: 6,
+      left: 6,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: BorderRadius.full,
+    },
+    coverText: {
+      ...Typography.caption,
+      color: '#fff',
+      fontSize: 10,
+    },
+    addPhotoBtn: {
+      width: 120,
+      height: 120,
+      borderRadius: BorderRadius.medium,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+    },
+    addPhotoLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
+    addPhotoSub: { ...Typography.caption, color: colors.textSecondary },
+    multiline: { height: 100, textAlignVertical: 'top' },
+    sectionLabel: {
+      ...Typography.label,
+      color: colors.textPrimary,
+      marginBottom: Spacing.sm,
+    },
+    chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+    errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
+    submit: { marginTop: Spacing.md },
+  });
+}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, Image, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -7,16 +7,28 @@ import { Button } from '@/components/Button';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Divider } from '@/components/Divider';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
+import type { ThemePreference } from '@/context/ThemeContext';
+
+const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
+  { label: 'System', value: 'system' },
+  { label: 'Light', value: 'light' },
+  { label: 'Dark', value: 'dark' },
+];
 
 export default function ProfileScreen() {
   const { user, signOut, refreshProfile } = useAuth();
+  const { preference, setPreference } = useTheme();
   const [listings, setListings] = useState<Listing[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const fetchListings = useCallback(async () => {
     if (!user) return;
@@ -78,7 +90,7 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
         renderItem={({ item }) => (
           <ListingCard
@@ -140,6 +152,29 @@ export default function ProfileScreen() {
         }
         ListFooterComponent={
           <View style={styles.footer}>
+            {/* Theme picker */}
+            <View style={styles.themeRow}>
+              {THEME_OPTIONS.map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.themeBtn,
+                    preference === opt.value && styles.themeBtnActive,
+                  ]}
+                  onPress={() => setPreference(opt.value)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.themeBtnText,
+                      preference === opt.value && styles.themeBtnTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <Button
               label="Reset feed preferences"
               variant="ghost"
@@ -158,48 +193,74 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
-    paddingBottom: Spacing['3xl'],
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.base,
-    paddingVertical: Spacing.xl,
-  },
-  info: { flex: 1, gap: Spacing.xs },
-  name: { ...Typography.subheading, color: Colors.textPrimary },
-  username: { ...Typography.body, color: Colors.textSecondary },
-  bio: { ...Typography.body, color: Colors.textSecondary, marginTop: Spacing.xs },
-  sectionLabel: {
-    ...Typography.label,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.md,
-  },
-  recentSection: { marginBottom: Spacing.xs },
-  recentScroll: { marginHorizontal: -Spacing.base },
-  recentContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.base },
-  recentCard: { width: 120 },
-  recentImage: {
-    width: 120,
-    height: 150,
-    borderRadius: BorderRadius.medium,
-    backgroundColor: Colors.surface,
-    marginBottom: Spacing.xs,
-  },
-  recentTitle: {
-    ...Typography.caption,
-    color: Colors.textPrimary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  recentPrice: {
-    ...Typography.caption,
-    color: Colors.primary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  row: { gap: Spacing.sm, marginBottom: Spacing.sm },
-  footer: { gap: Spacing.sm, marginTop: Spacing.xl },
-  signOut: {},
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    content: {
+      flexGrow: 1,
+      paddingBottom: Spacing['3xl'],
+    },
+    profileHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: Spacing.base,
+      paddingVertical: Spacing.xl,
+    },
+    info: { flex: 1, gap: Spacing.xs },
+    name: { ...Typography.subheading, color: colors.textPrimary },
+    username: { ...Typography.body, color: colors.textSecondary },
+    bio: { ...Typography.body, color: colors.textSecondary, marginTop: Spacing.xs },
+    sectionLabel: {
+      ...Typography.label,
+      color: colors.textPrimary,
+      marginBottom: Spacing.md,
+    },
+    recentSection: { marginBottom: Spacing.xs },
+    recentScroll: { marginHorizontal: -Spacing.base },
+    recentContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.base },
+    recentCard: { width: 120 },
+    recentImage: {
+      width: 120,
+      height: 150,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      marginBottom: Spacing.xs,
+    },
+    recentTitle: {
+      ...Typography.caption,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    recentPrice: {
+      ...Typography.caption,
+      color: colors.primary,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    row: { gap: Spacing.sm, marginBottom: Spacing.sm },
+    footer: { gap: Spacing.sm, marginTop: Spacing.xl },
+    signOut: {},
+    // Theme picker
+    themeRow: {
+      flexDirection: 'row',
+      borderRadius: BorderRadius.full,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    themeBtn: {
+      flex: 1,
+      paddingVertical: Spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    themeBtnActive: {
+      backgroundColor: colors.primary,
+    },
+    themeBtnText: {
+      ...Typography.label,
+      color: colors.textSecondary,
+    },
+    themeBtnTextActive: {
+      color: colors.background,
+    },
+  });
+}

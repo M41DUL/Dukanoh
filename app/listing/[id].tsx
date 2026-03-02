@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import { Avatar } from '@/components/Avatar';
 import { Badge } from '@/components/Badge';
 import { Divider } from '@/components/Divider';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
 import { useBasket } from '@/hooks/useBasket';
@@ -31,6 +32,8 @@ export default function ListingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
   const { addItem, removeItem, isInBasket } = useBasket();
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   useEffect(() => {
     if (!id) return;
@@ -53,7 +56,6 @@ export default function ListingDetailScreen() {
   if (!listing) return null;
 
   const handleMessage = () => {
-    // TODO: create or fetch existing conversation, then navigate
     router.push(`/conversation/${id}`);
   };
 
@@ -61,7 +63,6 @@ export default function ListingDetailScreen() {
     <ScreenWrapper>
       <Header showBack />
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Image carousel — break out of ScreenWrapper horizontal padding */}
         <View style={styles.imageBreakout}>
         <View style={styles.imageContainer}>
           {listing.images?.length > 0 ? (
@@ -97,7 +98,6 @@ export default function ListingDetailScreen() {
         </View>
 
         <View style={styles.content}>
-          {/* Title + category */}
           <View style={styles.titleRow}>
             <Text style={styles.title} numberOfLines={3}>
               {listing.title}
@@ -110,7 +110,6 @@ export default function ListingDetailScreen() {
 
           <Divider />
 
-          {/* Seller */}
           <TouchableOpacity style={styles.sellerRow} activeOpacity={0.8}>
             <Avatar
               uri={listing.seller?.avatar_url}
@@ -125,7 +124,6 @@ export default function ListingDetailScreen() {
 
           <Divider />
 
-          {/* Description */}
           <Text style={styles.sectionLabel}>Description</Text>
           <Text style={styles.description}>{listing.description ?? '—'}</Text>
         </View>
@@ -142,7 +140,7 @@ export default function ListingDetailScreen() {
           <Ionicons
             name={isInBasket(id ?? '') ? 'cart' : 'cart-outline'}
             size={24}
-            color={isInBasket(id ?? '') ? Colors.primary : Colors.textPrimary}
+            color={isInBasket(id ?? '') ? colors.primary : colors.textPrimary}
           />
         </TouchableOpacity>
         <Button
@@ -155,65 +153,67 @@ export default function ListingDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  imageBreakout: { marginHorizontal: -Spacing.base },
-  imageContainer: { width, height: 360, backgroundColor: Colors.surface },
-  image: { width, height: 360 },
-  imagePlaceholder: { flex: 1 },
-  dots: {
-    position: 'absolute',
-    bottom: Spacing.sm,
-    flexDirection: 'row',
-    gap: Spacing.xs,
-    alignSelf: 'center',
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-  },
-  dotActive: { backgroundColor: Colors.background },
-  content: { paddingVertical: Spacing.base, gap: Spacing.sm },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: Spacing.sm,
-  },
-  title: { ...Typography.heading, color: Colors.textPrimary, flex: 1 },
-  price: { ...Typography.heading, color: Colors.primary },
-  conditionBadge: { alignSelf: 'flex-start' },
-  sellerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.base,
-  },
-  sellerName: { ...Typography.body, color: Colors.textPrimary, fontWeight: '600' },
-  sellerSub: { ...Typography.caption, color: Colors.textSecondary },
-  sectionLabel: { ...Typography.label, color: Colors.textPrimary },
-  description: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    lineHeight: 22,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.base,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  basketToggle: {
-    width: 52,
-    height: 52,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  messageBtn: { flex: 1 },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    imageBreakout: { marginHorizontal: -Spacing.base },
+    imageContainer: { width, height: 360, backgroundColor: colors.surface },
+    image: { width, height: 360 },
+    imagePlaceholder: { flex: 1 },
+    dots: {
+      position: 'absolute',
+      bottom: Spacing.sm,
+      flexDirection: 'row',
+      gap: Spacing.xs,
+      alignSelf: 'center',
+    },
+    dot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: 'rgba(255,255,255,0.5)',
+    },
+    dotActive: { backgroundColor: colors.background },
+    content: { paddingVertical: Spacing.base, gap: Spacing.sm },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: Spacing.sm,
+    },
+    title: { ...Typography.heading, color: colors.textPrimary, flex: 1 },
+    price: { ...Typography.heading, color: colors.primary },
+    conditionBadge: { alignSelf: 'flex-start' },
+    sellerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.base,
+    },
+    sellerName: { ...Typography.body, color: colors.textPrimary, fontWeight: '600' },
+    sellerSub: { ...Typography.caption, color: colors.textSecondary },
+    sectionLabel: { ...Typography.label, color: colors.textPrimary },
+    description: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      lineHeight: 22,
+    },
+    footer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      paddingVertical: Spacing.base,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    basketToggle: {
+      width: 52,
+      height: 52,
+      borderRadius: BorderRadius.full,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    messageBtn: { flex: 1 },
+  });
+}

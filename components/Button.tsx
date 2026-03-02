@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   TouchableOpacity,
   Text,
@@ -6,7 +6,8 @@ import {
   StyleSheet,
   ViewStyle,
 } from 'react-native';
-import { Colors, BorderRadius, Spacing } from '@/constants/theme';
+import { BorderRadius, Spacing, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
 
@@ -43,6 +44,8 @@ export function Button({
   disabled = false,
   style,
 }: ButtonProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const sz = sizeStyles[size];
 
   return (
@@ -63,7 +66,7 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? Colors.background : Colors.primary}
+          color={variant === 'primary' ? colors.background : colors.primary}
           size="small"
         />
       ) : (
@@ -84,27 +87,29 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primary: { backgroundColor: Colors.primary },
-  secondary: { backgroundColor: Colors.secondary },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-  },
-  ghost: { backgroundColor: 'transparent' },
-  disabled: { opacity: 0.5 },
-  label: {
-    fontFamily: 'Inter_600SemiBold',
-    letterSpacing: 0.2,
-  },
-  primaryText: { color: Colors.background },
-  secondaryText: { color: Colors.textPrimary },
-  outlineText: { color: Colors.primary },
-  ghostText: { color: Colors.primary },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    base: {
+      borderRadius: BorderRadius.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    primary: { backgroundColor: colors.primary },
+    secondary: { backgroundColor: colors.secondary },
+    outline: {
+      backgroundColor: 'transparent',
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+    },
+    ghost: { backgroundColor: 'transparent' },
+    disabled: { opacity: 0.5 },
+    label: {
+      fontFamily: 'Inter_600SemiBold',
+      letterSpacing: 0.2,
+    },
+    primaryText: { color: colors.background },
+    secondaryText: { color: colors.textPrimary },
+    outlineText: { color: colors.primary },
+    ghostText: { color: colors.primary },
+  });
+}

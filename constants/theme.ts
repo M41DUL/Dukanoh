@@ -1,14 +1,31 @@
-export const Colors = {
+export const lightColors = {
   primary: '#3735C5',
   secondary: '#C7F75E',
   background: '#FFFFFF',
-  surface: '#F5F5F5',
+  surface: '#F2F2F2',
   textPrimary: '#0D0D0D',
   textSecondary: '#6B6B6B',
   border: '#E8E8E8',
   error: '#FF4444',
   success: '#22C55E',
 };
+
+export const darkColors = {
+  primary: '#6B69E8',
+  secondary: '#C7F75E',
+  background: '#0D0D0D',
+  surface: '#1C1C1C',
+  textPrimary: '#F5F5F5',
+  textSecondary: '#9B9B9B',
+  border: '#2A2A2A',
+  error: '#FF6B6B',
+  success: '#4ADE80',
+};
+
+export type ColorTokens = typeof lightColors;
+
+// Static fallback — screens should use useThemeColors() hook instead
+export const Colors = lightColors;
 
 export const FontFamily = {
   regular: 'Inter_400Regular',

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, ViewStyle, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Spacing } from '@/constants/theme';
+import { Spacing, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface ScreenWrapperProps {
   children: React.ReactNode;
@@ -16,6 +17,9 @@ export function ScreenWrapper({
   style,
   contentStyle,
 }: ScreenWrapperProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   if (scrollable) {
     return (
       <SafeAreaView style={[styles.safe, style]} edges={['top']}>
@@ -37,12 +41,14 @@ export function ScreenWrapper({
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  content: { flex: 1, paddingHorizontal: Spacing.base },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing['3xl'],
-  },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    content: { flex: 1, paddingHorizontal: Spacing.base },
+    scrollContent: {
+      flexGrow: 1,
+      paddingHorizontal: Spacing.base,
+      paddingBottom: Spacing['3xl'],
+    },
+  });
+}

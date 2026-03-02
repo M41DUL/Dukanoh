@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,11 @@ import {
   Dimensions,
   StyleSheet,
   StatusBar,
-  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -30,6 +30,8 @@ interface StoriesRowProps {
 export function StoriesRow({ stories, onView }: StoriesRowProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const { addItem, removeItem, isInBasket } = useBasket();
+  const colors = useThemeColors();
+  const rowStyles = useMemo(() => getRowStyles(colors), [colors]);
 
   if (stories.length === 0) return null;
 
@@ -65,27 +67,27 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
         data={stories}
         keyExtractor={item => item.id}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.row}
+        contentContainerStyle={rowStyles.row}
         renderItem={({ item, index }) => (
           <TouchableOpacity
-            style={styles.bubble}
+            style={rowStyles.bubble}
             onPress={() => openStory(index)}
             activeOpacity={0.9}
           >
-            <View style={[styles.ring, item.viewed && styles.ringViewed]}>
-              <View style={styles.ringInner}>
+            <View style={[rowStyles.ring, item.viewed && rowStyles.ringViewed]}>
+              <View style={rowStyles.ringInner}>
                 {item.images?.[0] ? (
                   <Image
                     source={{ uri: item.images[0] }}
-                    style={styles.bubbleImage}
+                    style={viewerStyles.bubbleImage}
                     resizeMode="cover"
                   />
                 ) : (
-                  <View style={[styles.bubbleImage, styles.bubblePlaceholder]} />
+                  <View style={[viewerStyles.bubbleImage, rowStyles.bubblePlaceholder]} />
                 )}
               </View>
             </View>
-            <Text style={styles.bubbleLabel} numberOfLines={1}>
+            <Text style={rowStyles.bubbleLabel} numberOfLines={1}>
               @{item.seller.username}
             </Text>
           </TouchableOpacity>
@@ -99,72 +101,66 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
         onRequestClose={close}
       >
         {activeStory && (
-          <View style={styles.viewer}>
+          <View style={viewerStyles.viewer}>
             <StatusBar hidden />
 
-            {/* Full screen image */}
             {activeStory.images?.[0] ? (
               <Image
                 source={{ uri: activeStory.images[0] }}
-                style={styles.fullImage}
+                style={viewerStyles.fullImage}
                 resizeMode="cover"
               />
             ) : (
-              <View style={[styles.fullImage, styles.fullImagePlaceholder]} />
+              <View style={[viewerStyles.fullImage, viewerStyles.fullImagePlaceholder]} />
             )}
 
-            {/* Dark scrim at top and bottom */}
-            <View style={styles.scrimTop} />
-            <View style={styles.scrimBottom} />
+            <View style={viewerStyles.scrimTop} />
+            <View style={viewerStyles.scrimBottom} />
 
-            {/* Progress bar */}
-            <View style={styles.progressBar}>
+            <View style={viewerStyles.progressBar}>
               {stories.map((_, i) => (
-                <View key={i} style={styles.progressSegmentContainer}>
+                <View key={i} style={viewerStyles.progressSegmentContainer}>
                   <View
                     style={[
-                      styles.progressSegment,
-                      i < (activeIndex ?? 0) && styles.progressDone,
-                      i === activeIndex && styles.progressActive,
+                      viewerStyles.progressSegment,
+                      i < (activeIndex ?? 0) && viewerStyles.progressDone,
+                      i === activeIndex && viewerStyles.progressActive,
                     ]}
                   />
                 </View>
               ))}
             </View>
 
-            {/* Close button */}
-            <TouchableOpacity style={styles.closeButton} onPress={close} hitSlop={16}>
-              <Ionicons name="close" size={26} color={Colors.background} />
+            <TouchableOpacity style={viewerStyles.closeButton} onPress={close} hitSlop={16}>
+              <Ionicons name="close" size={26} color="#fff" />
             </TouchableOpacity>
 
-            {/* Tap zones for navigation */}
-            <View style={styles.tapZones} pointerEvents="box-none">
-              <TouchableOpacity style={styles.tapLeft} onPress={goPrev} activeOpacity={1} />
-              <TouchableOpacity style={styles.tapRight} onPress={goNext} activeOpacity={1} />
+            <View style={viewerStyles.tapZones} pointerEvents="box-none">
+              <TouchableOpacity style={viewerStyles.tapLeft} onPress={goPrev} activeOpacity={1} />
+              <TouchableOpacity style={viewerStyles.tapRight} onPress={goNext} activeOpacity={1} />
             </View>
 
-            {/* Product info overlay */}
-            <View style={styles.overlay}>
-              <View style={styles.sellerRow}>
+            <View style={viewerStyles.overlay}>
+              <View style={viewerStyles.sellerRow}>
                 <Avatar
                   uri={activeStory.seller.avatar_url}
                   initials={activeStory.seller.username[0]?.toUpperCase()}
                   size="small"
                 />
-                <Text style={styles.sellerName}>@{activeStory.seller.username}</Text>
-                <Badge label={activeStory.category} active style={styles.categoryBadge} />
+                <Text style={viewerStyles.sellerName}>@{activeStory.seller.username}</Text>
+                <Badge label={activeStory.category} active style={viewerStyles.categoryBadge} />
               </View>
 
-              <Text style={styles.storyTitle} numberOfLines={2}>
+              <Text style={viewerStyles.storyTitle} numberOfLines={2}>
                 {activeStory.title}
               </Text>
-              <Text style={styles.storyPrice}>£{activeStory.price?.toFixed(2)}</Text>
+              <Text style={viewerStyles.storyPrice}>£{activeStory.price?.toFixed(2)}</Text>
 
-              <View style={styles.ctaRow}>
+              <View style={viewerStyles.ctaRow}>
                 <TouchableOpacity
                   style={[
-                    styles.basketBtn,
-                    isInBasket(activeStory.id) && styles.basketBtnActive,
+                    viewerStyles.basketBtn,
+                    isInBasket(activeStory.id) && viewerStyles.basketBtnActive,
                   ]}
                   onPress={() =>
                     isInBasket(activeStory.id)
@@ -176,7 +172,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                   <Ionicons
                     name={isInBasket(activeStory.id) ? 'cart' : 'cart-outline'}
                     size={20}
-                    color={isInBasket(activeStory.id) ? Colors.primary : Colors.background}
+                    color={isInBasket(activeStory.id) ? colors.primary : '#fff'}
                   />
                 </TouchableOpacity>
 
@@ -187,7 +183,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                     close();
                     router.push(`/listing/${activeStory.id}`);
                   }}
-                  style={styles.viewBtn}
+                  style={viewerStyles.viewBtn}
                 />
               </View>
             </View>
@@ -198,52 +194,56 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  // Row
-  row: {
-    paddingRight: Spacing.base,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.base,
-    gap: Spacing.md,
-  },
-  bubble: {
-    alignItems: 'center',
-    gap: Spacing.xs,
-    width: 64,
-  },
-  ring: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    padding: 2.5,
-    backgroundColor: Colors.primary,
-  },
-  ringViewed: {
-    backgroundColor: Colors.border,
-  },
-  ringInner: {
-    flex: 1,
-    borderRadius: 29,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: Colors.background,
-  },
+// Row bubbles — themed
+function getRowStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    row: {
+      paddingRight: Spacing.base,
+      paddingTop: Spacing.sm,
+      paddingBottom: Spacing.base,
+      gap: Spacing.md,
+    },
+    bubble: {
+      alignItems: 'center',
+      gap: Spacing.xs,
+      width: 64,
+    },
+    ring: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      padding: 2.5,
+      backgroundColor: colors.primary,
+    },
+    ringViewed: {
+      backgroundColor: colors.border,
+    },
+    ringInner: {
+      flex: 1,
+      borderRadius: 29,
+      overflow: 'hidden',
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    bubblePlaceholder: {
+      backgroundColor: colors.surface,
+    },
+    bubbleLabel: {
+      ...Typography.caption,
+      color: colors.textPrimary,
+      textAlign: 'center',
+      width: 64,
+    },
+  });
+}
+
+// Viewer — always dark, static
+const viewerStyles = StyleSheet.create({
   bubbleImage: {
     width: '100%',
     height: '100%',
     borderRadius: 29,
   },
-  bubblePlaceholder: {
-    backgroundColor: Colors.surface,
-  },
-  bubbleLabel: {
-    ...Typography.caption,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    width: 64,
-  },
-
-  // Viewer
   viewer: {
     flex: 1,
     backgroundColor: '#000',
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   fullImagePlaceholder: {
-    backgroundColor: Colors.surface,
+    backgroundColor: '#1C1C1C',
   },
   scrimTop: {
     position: 'absolute',
@@ -262,9 +262,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 120,
-    backgroundColor: 'transparent',
-    backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)',
-    // RN doesn't support backgroundImage — use opacity overlay instead
     opacity: 0,
   },
   scrimBottom: {
@@ -295,7 +292,7 @@ const styles = StyleSheet.create({
   progressSegment: {
     height: '100%',
     width: '0%',
-    backgroundColor: Colors.background,
+    backgroundColor: '#fff',
     borderRadius: 2,
   },
   progressDone: { width: '100%' },
@@ -317,8 +314,6 @@ const styles = StyleSheet.create({
   },
   tapLeft: { flex: 1 },
   tapRight: { flex: 2 },
-
-  // Overlay
   overlay: {
     position: 'absolute',
     bottom: 0,
@@ -336,18 +331,18 @@ const styles = StyleSheet.create({
   },
   sellerName: {
     ...Typography.label,
-    color: Colors.background,
+    color: '#fff',
   },
   categoryBadge: {
     borderColor: 'transparent',
   },
   storyTitle: {
     ...Typography.subheading,
-    color: Colors.background,
+    color: '#fff',
   },
   storyPrice: {
     ...Typography.heading,
-    color: Colors.secondary,
+    color: '#C7F75E',
   },
   ctaRow: {
     flexDirection: 'row',
@@ -365,8 +360,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   basketBtnActive: {
-    backgroundColor: Colors.secondary,
-    borderColor: Colors.secondary,
+    backgroundColor: '#C7F75E',
+    borderColor: '#C7F75E',
   },
   viewBtn: { flex: 1 },
 });

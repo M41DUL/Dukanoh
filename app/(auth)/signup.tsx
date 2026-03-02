@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { Typography, Spacing, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 
 export default function SignUpScreen() {
@@ -17,6 +18,8 @@ export default function SignUpScreen() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const update = (key: keyof typeof form) => (value: string) =>
     setForm(f => ({ ...f, [key]: value }));
@@ -104,12 +107,14 @@ export default function SignUpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    padding: Spacing.base,
-    gap: Spacing.base,
-    paddingBottom: Spacing['3xl'],
-  },
-  error: { ...Typography.caption, color: Colors.error },
-  submit: { marginTop: Spacing.sm },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    content: {
+      padding: Spacing.base,
+      gap: Spacing.base,
+      paddingBottom: Spacing['3xl'],
+    },
+    error: { ...Typography.caption, color: colors.error },
+    submit: { marginTop: Spacing.sm },
+  });
+}

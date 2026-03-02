@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
-import { Colors, Typography, BorderRadius, Spacing } from '@/constants/theme';
+import { Typography, BorderRadius, Spacing, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 export interface Listing {
   id: string;
@@ -30,6 +31,8 @@ export function ListingCard({
   onPress,
   style,
 }: ListingCardProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const isGrid = variant === 'grid';
   const meta = [listing.condition, listing.size].filter(Boolean).join(' · ');
 
@@ -62,39 +65,41 @@ export function ListingCard({
   );
 }
 
-const styles = StyleSheet.create({
-  grid: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.medium,
-  },
-  featured: {
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.large,
-    marginBottom: Spacing.base,
-  },
-  imageContainer: {
-    backgroundColor: Colors.surface,
-    overflow: 'hidden',
-  },
-  imageContainerGrid: {
-    aspectRatio: 4 / 5,
-    borderRadius: BorderRadius.medium,
-  },
-  imageContainerFeatured: {
-    height: 280,
-    borderRadius: BorderRadius.large,
-  },
-  image: { width: '100%', height: '100%' },
-  imagePlaceholder: { flex: 1, backgroundColor: Colors.surface },
-  content: { paddingVertical: Spacing.sm, gap: 3 },
-  title: { ...Typography.body, color: Colors.textPrimary, fontWeight: '500' },
-  meta: { ...Typography.caption, color: Colors.textSecondary },
-  price: {
-    fontSize: 15,
-    fontWeight: '700',
-    fontFamily: 'Inter_700Bold',
-    color: Colors.textPrimary,
-    marginTop: 1,
-  },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    grid: {
+      flex: 1,
+      backgroundColor: colors.background,
+      borderRadius: BorderRadius.medium,
+    },
+    featured: {
+      backgroundColor: colors.background,
+      borderRadius: BorderRadius.large,
+      marginBottom: Spacing.base,
+    },
+    imageContainer: {
+      backgroundColor: colors.surface,
+      overflow: 'hidden',
+    },
+    imageContainerGrid: {
+      aspectRatio: 4 / 5,
+      borderRadius: BorderRadius.medium,
+    },
+    imageContainerFeatured: {
+      height: 280,
+      borderRadius: BorderRadius.large,
+    },
+    image: { width: '100%', height: '100%' },
+    imagePlaceholder: { flex: 1, backgroundColor: colors.surface },
+    content: { paddingVertical: Spacing.sm, gap: 3 },
+    title: { ...Typography.body, color: colors.textPrimary, fontWeight: '500' },
+    meta: { ...Typography.caption, color: colors.textSecondary },
+    price: {
+      fontSize: 15,
+      fontWeight: '700',
+      fontFamily: 'Inter_700Bold',
+      color: colors.textPrimary,
+      marginTop: 1,
+    },
+  });
+}

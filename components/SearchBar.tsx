@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   TextInput,
@@ -7,7 +7,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, BorderRadius, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Spacing, Typography, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface SearchBarProps {
   value: string;
@@ -25,6 +26,8 @@ export function SearchBar({
   style,
 }: SearchBarProps) {
   const [focused, setFocused] = useState(false);
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const handleClear = () => {
     onChangeText('');
@@ -36,7 +39,7 @@ export function SearchBar({
       <Ionicons
         name="search-outline"
         size={18}
-        color={Colors.textSecondary}
+        color={colors.textSecondary}
         style={styles.icon}
       />
       <TextInput
@@ -44,7 +47,7 @@ export function SearchBar({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={Colors.textSecondary}
+        placeholderTextColor={colors.textSecondary}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         returnKeyType="search"
@@ -52,34 +55,36 @@ export function SearchBar({
       />
       {value.length > 0 && (
         <TouchableOpacity onPress={handleClear} hitSlop={8}>
-          <Ionicons name="close-circle" size={18} color={Colors.textSecondary} />
+          <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
         </TouchableOpacity>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.base,
-    height: 46,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-  },
-  focused: {
-    borderColor: Colors.primary,
-  },
-  icon: {
-    marginRight: Spacing.sm,
-  },
-  input: {
-    flex: 1,
-    ...Typography.body,
-    color: Colors.textPrimary,
-    paddingVertical: 0,
-  },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.base,
+      height: 46,
+      borderWidth: 1.5,
+      borderColor: 'transparent',
+    },
+    focused: {
+      borderColor: colors.primary,
+    },
+    icon: {
+      marginRight: Spacing.sm,
+    },
+    input: {
+      flex: 1,
+      ...Typography.body,
+      color: colors.textPrimary,
+      paddingVertical: 0,
+    },
+  });
+}

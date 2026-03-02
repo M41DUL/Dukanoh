@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 type AvatarSize = 'small' | 'medium' | 'large';
 
@@ -14,6 +14,7 @@ const sizeMap: Record<AvatarSize, number> = { small: 28, medium: 40, large: 64 }
 const fontSizeMap: Record<AvatarSize, number> = { small: 10, medium: 14, large: 22 };
 
 export function Avatar({ uri, initials = '?', size = 'medium' }: AvatarProps) {
+  const colors = useThemeColors();
   const dimension = sizeMap[size];
   const fontSize = fontSizeMap[size];
 
@@ -21,13 +22,13 @@ export function Avatar({ uri, initials = '?', size = 'medium' }: AvatarProps) {
     <View
       style={[
         styles.container,
-        { width: dimension, height: dimension, borderRadius: dimension / 2 },
+        { width: dimension, height: dimension, borderRadius: dimension / 2, backgroundColor: colors.primary },
       ]}
     >
       {uri ? (
         <Image source={{ uri }} style={styles.image} />
       ) : (
-        <Text style={[styles.initials, { fontSize }]}>{initials}</Text>
+        <Text style={[styles.initials, { fontSize, color: colors.background }]}>{initials}</Text>
       )}
     </View>
   );
@@ -35,11 +36,10 @@ export function Avatar({ uri, initials = '?', size = 'medium' }: AvatarProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   image: { width: '100%', height: '100%' },
-  initials: { color: Colors.background, fontFamily: 'Inter_600SemiBold' },
+  initials: { fontFamily: 'Inter_600SemiBold' },
 });

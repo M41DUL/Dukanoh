@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Colors, Typography, Spacing } from '@/constants/theme';
+import { Typography, Spacing, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface HeaderProps {
   title?: string;
@@ -11,12 +12,15 @@ interface HeaderProps {
 }
 
 export function Header({ title, showBack = false, rightAction }: HeaderProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <View style={styles.side}>
         {showBack ? (
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={Colors.textPrimary} />
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -30,19 +34,21 @@ export function Header({ title, showBack = false, rightAction }: HeaderProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  side: { width: 40 },
-  sideRight: { alignItems: 'flex-end' },
-  backButton: { padding: Spacing.xs },
-  title: { ...Typography.subheading, color: Colors.textPrimary },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.md,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    side: { width: 40 },
+    sideRight: { alignItems: 'flex-end' },
+    backButton: { padding: Spacing.xs },
+    title: { ...Typography.subheading, color: colors.textPrimary },
+  });
+}
