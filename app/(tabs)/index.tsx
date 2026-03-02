@@ -21,7 +21,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const NUDGE_DISMISSED_KEY = '@dukanoh/profile_nudge_dismissed';
+const nudgeKey = (userId: string) => `@dukanoh/profile_nudge_dismissed/${userId}`;
 
 async function fetchTrendingCategories(): Promise<string[]> {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -226,13 +226,15 @@ export default function HomeScreen() {
   const hasMounted = useRef(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(NUDGE_DISMISSED_KEY).then(val => {
+    if (!user) return;
+    AsyncStorage.getItem(nudgeKey(user.id)).then(val => {
       setNudgeDismissed(val === 'true');
     });
-  }, []);
+  }, [user]);
 
   const dismissNudge = useCallback(async () => {
-    await AsyncStorage.setItem(NUDGE_DISMISSED_KEY, 'true');
+    if (!user) return;
+    await AsyncStorage.setItem(nudgeKey(user.id), 'true');
     setNudgeDismissed(true);
   }, []);
 
