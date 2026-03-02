@@ -34,6 +34,19 @@ import { recordView } from '@/hooks/useRecentlyViewed';
 
 const { width } = Dimensions.get('window');
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -41,6 +54,7 @@ export default function ListingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
   const [canReview, setCanReview] = useState(false);
+  const [sellerListings, setSellerListings] = useState<Listing[]>([]);
   const [offerVisible, setOfferVisible] = useState(false);
   const [offerAmount, setOfferAmount] = useState('');
   const [offerSending, setOfferSending] = useState(false);
@@ -67,6 +81,17 @@ export default function ListingDetailScreen() {
           supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }).then(({ data: rate }) => {
             if (rate !== null) setResponseRate(rate as number);
           });
+          supabase
+            .from('listings')
+            .select('*, seller:users(username, avatar_url)')
+            .eq('seller_id', data.seller_id)
+            .eq('status', 'available')
+            .neq('id', id)
+            .order('created_at', { ascending: false })
+            .limit(6)
+            .then(({ data: others }) => {
+              if (others) setSellerListings(others as unknown as Listing[]);
+            });
           if (data.status !== 'draft') {
             recordView(id);
             supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
@@ -286,13 +311,10 @@ export default function ListingDetailScreen() {
                 ))}
               </ScrollView>
               {listing.images.length > 1 && (
-                <View style={styles.dots}>
-                  {listing.images.map((_, i) => (
-                    <View
-                      key={i}
-                      style={[styles.dot, i === imageIndex && styles.dotActive]}
-                    />
-                  ))}
+                <View style={styles.imageCounter}>
+                  <Text style={styles.imageCounterText}>
+                    {imageIndex + 1} / {listing.images.length}
+                  </Text>
                 </View>
               )}
             </>
@@ -319,18 +341,27 @@ export default function ListingDetailScreen() {
               <Badge label="Draft" style={styles.draftBadge} />
             )}
           </View>
-          <Badge label={listing.condition} style={styles.conditionBadge} />
+          <View style={styles.metaRow}>
+            <Badge label={listing.condition} />
+            {listing.size ? <Badge label={listing.size} /> : null}
+          </View>
 
-          {(listing.view_count ?? 0) > 0 && (
-            <View style={styles.viewRow}>
-              <Ionicons name="eye-outline" size={13} color={colors.textSecondary} />
-              <Text style={styles.viewCount}>{listing.view_count} views</Text>
-            </View>
-          )}
+          <View style={styles.viewRow}>
+            {(listing.view_count ?? 0) > 0 && (
+              <>
+                <Ionicons name="eye-outline" size={13} color={colors.textSecondary} />
+                <Text style={styles.viewCount}>{listing.view_count} views</Text>
+                <Text style={styles.viewCount}>·</Text>
+              </>
+            )}
+            {listing.created_at && (
+              <Text style={styles.viewCount}>Listed {timeAgo(listing.created_at)}</Text>
+            )}
+          </View>
 
           <Divider />
 
-          <TouchableOpacity style={styles.sellerRow} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.sellerRow} activeOpacity={0.8} onPress={() => router.push(`/user/${listing.seller_id}`)}>
             <Avatar
               uri={listing.seller?.avatar_url}
               initials={listing.seller?.username?.[0]?.toUpperCase()}
@@ -371,6 +402,42 @@ export default function ListingDetailScreen() {
               <Ionicons name="star-outline" size={16} color={colors.primary} />
               <Text style={styles.reviewBtnText}>Rate this seller</Text>
             </TouchableOpacity>
+          )}
+
+          {sellerListings.length > 0 && (
+            <>
+              <Divider />
+              <TouchableOpacity
+                style={styles.moreTitleRow}
+                onPress={() => router.push(`/user/${listing.seller_id}`)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.sectionLabel}>More from @{listing.seller?.username}</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.moreRow}
+                style={styles.moreScroll}
+              >
+                {sellerListings.map(item => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.moreCard}
+                    onPress={() => router.push(`/listing/${item.id}`)}
+                    activeOpacity={0.8}
+                  >
+                    {item.images?.[0] ? (
+                      <Image source={{ uri: item.images[0] }} style={styles.moreImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.moreImage, { backgroundColor: colors.surface }]} />
+                    )}
+                    <Text style={styles.morePrice}>£{item.price.toFixed(2)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
           )}
         </View>
       </ScrollView>
@@ -561,20 +628,20 @@ function getStyles(colors: ColorTokens) {
     imageContainer: { width, height: 360, backgroundColor: colors.surface },
     image: { width, height: 360 },
     imagePlaceholder: { flex: 1 },
-    dots: {
+    imageCounter: {
       position: 'absolute',
       bottom: Spacing.sm,
-      flexDirection: 'row',
-      gap: Spacing.xs,
-      alignSelf: 'center',
+      right: Spacing.sm,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      borderRadius: 12,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 3,
     },
-    dot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: 'rgba(255,255,255,0.5)',
+    imageCounterText: {
+      ...Typography.caption,
+      color: '#fff',
+      fontFamily: 'Inter_600SemiBold',
     },
-    dotActive: { backgroundColor: colors.background },
     content: { paddingVertical: Spacing.base, gap: Spacing.sm },
     titleRow: {
       flexDirection: 'row',
@@ -587,7 +654,7 @@ function getStyles(colors: ColorTokens) {
     price: { ...Typography.heading, color: colors.primary },
     soldBadge: { backgroundColor: '#FF4444', borderColor: '#FF4444' },
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
-    conditionBadge: { alignSelf: 'flex-start' },
+    metaRow: { flexDirection: 'row', gap: Spacing.xs },
     viewRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     viewCount: { ...Typography.caption, color: colors.textSecondary },
     soldFooter: {
@@ -692,5 +759,25 @@ function getStyles(colors: ColorTokens) {
     },
     modalCancelBtn: { flex: 1 },
     modalSendBtn: { flex: 2 },
+    moreTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: Spacing.sm,
+    },
+    moreScroll: { marginHorizontal: -Spacing.base },
+    moreRow: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.xs },
+    moreCard: { width: 100 },
+    moreImage: {
+      width: 100,
+      height: 130,
+      borderRadius: BorderRadius.medium,
+      marginBottom: Spacing.xs,
+    },
+    morePrice: {
+      ...Typography.caption,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
+    },
   });
 }

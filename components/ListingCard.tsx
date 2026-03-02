@@ -16,6 +16,7 @@ export interface Listing {
   size?: string;
   status: 'available' | 'sold' | 'draft';
   view_count?: number;
+  created_at?: string;
   seller: {
     username: string;
     avatar_url?: string;
