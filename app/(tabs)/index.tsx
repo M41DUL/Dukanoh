@@ -181,12 +181,11 @@ function ProfileNudgeCard({ onDismiss }: { onDismiss: () => void }) {
 function TrendingStrip({ categories }: { categories: string[] }) {
   if (categories.length === 0) return null;
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Trending this week</Text>
+    <View style={styles.trendingRow}>
+      <Text style={styles.trendingLabel}>Trending</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={styles.recentScroll}
         contentContainerStyle={styles.trendingContent}
       >
         {categories.map(cat => (
@@ -199,7 +198,7 @@ function TrendingStrip({ categories }: { categories: string[] }) {
                 params: { title: cat, categories: cat },
               })
             }
-            activeOpacity={0.75}
+            activeOpacity={0.7}
           >
             <Text style={styles.trendingPillText}>{cat}</Text>
           </TouchableOpacity>
@@ -522,17 +521,26 @@ const styles = StyleSheet.create({
   },
   nudgeClose: { padding: Spacing.xs },
   // Trending categories
-  trendingContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm },
+  trendingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  trendingLabel: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    fontFamily: 'Inter_600SemiBold',
+    marginRight: Spacing.sm,
+  },
+  trendingContent: { gap: Spacing.xs },
   trendingPill: {
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
     borderRadius: BorderRadius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.surface,
   },
   trendingPillText: {
-    ...Typography.body,
+    ...Typography.caption,
     color: Colors.textPrimary,
     fontFamily: 'Inter_600SemiBold',
   },
