@@ -1,22 +1,40 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, Image, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Divider } from '@/components/Divider';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
+import { useSaved } from '@/context/SavedContext';
+import { StarRating } from '@/components/StarRating';
+import type { ThemePreference } from '@/context/ThemeContext';
+
+const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
+  { label: 'System', value: 'system' },
+  { label: 'Light', value: 'light' },
+  { label: 'Dark', value: 'dark' },
+];
 
 export default function ProfileScreen() {
   const { user, signOut, refreshProfile } = useAuth();
+  const { preference, setPreference } = useTheme();
+  const { savedIds } = useSaved();
   const [listings, setListings] = useState<Listing[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [ratingAvg, setRatingAvg] = useState(0);
+  const [ratingCount, setRatingCount] = useState(0);
   const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const fetchListings = useCallback(async () => {
     if (!user) return;
@@ -28,17 +46,31 @@ export default function ProfileScreen() {
     setListings((data ?? []) as unknown as Listing[]);
   }, [user]);
 
+  const fetchRating = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('users')
+      .select('rating_avg, rating_count')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (data) {
+      setRatingAvg(data.rating_avg ?? 0);
+      setRatingCount(data.rating_count ?? 0);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchListings();
-  }, [fetchListings]);
+    fetchRating();
+  }, [fetchListings, fetchRating]);
 
   useFocusEffect(useCallback(() => { reloadRecent(); }, [reloadRecent]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchListings(), reloadRecent()]);
+    await Promise.all([fetchListings(), fetchRating(), reloadRecent()]);
     setRefreshing(false);
-  }, [fetchListings, reloadRecent]);
+  }, [fetchListings, fetchRating, reloadRecent]);
 
   const handleResetPreferences = () => {
     Alert.alert(
@@ -68,17 +100,20 @@ export default function ProfileScreen() {
   const bio = user?.user_metadata?.bio ?? '';
   const avatarUrl = user?.user_metadata?.avatar_url;
 
+  const publishedListings = listings.filter(l => l.status !== 'draft');
+  const draftListings = listings.filter(l => l.status === 'draft');
+
   return (
     <ScreenWrapper>
       <FlatList
-        data={listings}
+        data={publishedListings}
         keyExtractor={item => item.id}
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
         renderItem={({ item }) => (
           <ListingCard
@@ -94,9 +129,32 @@ export default function ProfileScreen() {
               <View style={styles.info}>
                 <Text style={styles.name}>{fullName}</Text>
                 <Text style={styles.username}>@{username}</Text>
+                {ratingCount > 0 && (
+                  <View style={styles.ratingRow}>
+                    <StarRating rating={ratingAvg} size={13} />
+                    <Text style={styles.ratingText}>
+                      {ratingAvg.toFixed(1)} ({ratingCount})
+                    </Text>
+                  </View>
+                )}
                 {bio ? <Text style={styles.bio}>{bio}</Text> : null}
               </View>
             </View>
+            <Divider />
+            <TouchableOpacity
+              style={styles.savedRow}
+              onPress={() => router.push('/saved')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="heart-outline" size={20} color={colors.textPrimary} />
+              <Text style={styles.savedRowLabel}>Saved items</Text>
+              {savedIds.size > 0 && (
+                <View style={styles.savedBadge}>
+                  <Text style={styles.savedBadgeText}>{savedIds.size}</Text>
+                </View>
+              )}
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} style={styles.savedChevron} />
+            </TouchableOpacity>
             <Divider />
             {recentItems.length > 0 && (
               <View style={styles.recentSection}>
@@ -127,6 +185,43 @@ export default function ProfileScreen() {
                 <Divider />
               </View>
             )}
+            {draftListings.length > 0 && (
+              <View style={styles.draftsSection}>
+                <Text style={styles.sectionLabel}>Drafts ({draftListings.length})</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.draftsScroll}
+                  contentContainerStyle={styles.draftsContent}
+                >
+                  {draftListings.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.draftCard}
+                      onPress={() => router.push(`/listing/${item.id}`)}
+                      activeOpacity={0.8}
+                    >
+                      {item.images?.[0] ? (
+                        <Image
+                          source={{ uri: item.images[0] }}
+                          style={styles.draftImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.draftImagePlaceholder}>
+                          <Ionicons name="image-outline" size={22} color={colors.textSecondary} />
+                        </View>
+                      )}
+                      <Text style={styles.draftTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={styles.draftPrice}>
+                        {item.price > 0 ? `£${item.price.toFixed(2)}` : 'No price set'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <Divider />
+              </View>
+            )}
             <Text style={styles.sectionLabel}>Listings</Text>
           </View>
         }
@@ -140,6 +235,29 @@ export default function ProfileScreen() {
         }
         ListFooterComponent={
           <View style={styles.footer}>
+            {/* Theme picker */}
+            <View style={styles.themeRow}>
+              {THEME_OPTIONS.map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.themeBtn,
+                    preference === opt.value && styles.themeBtnActive,
+                  ]}
+                  onPress={() => setPreference(opt.value)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.themeBtnText,
+                      preference === opt.value && styles.themeBtnTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <Button
               label="Reset feed preferences"
               variant="ghost"
@@ -158,48 +276,128 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
-    paddingBottom: Spacing['3xl'],
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.base,
-    paddingVertical: Spacing.xl,
-  },
-  info: { flex: 1, gap: Spacing.xs },
-  name: { ...Typography.subheading, color: Colors.textPrimary },
-  username: { ...Typography.body, color: Colors.textSecondary },
-  bio: { ...Typography.body, color: Colors.textSecondary, marginTop: Spacing.xs },
-  sectionLabel: {
-    ...Typography.label,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.md,
-  },
-  recentSection: { marginBottom: Spacing.xs },
-  recentScroll: { marginHorizontal: -Spacing.base },
-  recentContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.base },
-  recentCard: { width: 120 },
-  recentImage: {
-    width: 120,
-    height: 150,
-    borderRadius: BorderRadius.medium,
-    backgroundColor: Colors.surface,
-    marginBottom: Spacing.xs,
-  },
-  recentTitle: {
-    ...Typography.caption,
-    color: Colors.textPrimary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  recentPrice: {
-    ...Typography.caption,
-    color: Colors.primary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  row: { gap: Spacing.sm, marginBottom: Spacing.sm },
-  footer: { gap: Spacing.sm, marginTop: Spacing.xl },
-  signOut: {},
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    content: {
+      flexGrow: 1,
+      paddingBottom: Spacing['3xl'],
+    },
+    profileHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: Spacing.base,
+      paddingVertical: Spacing.xl,
+    },
+    info: { flex: 1, gap: Spacing.xs },
+    name: { ...Typography.subheading, color: colors.textPrimary },
+    username: { ...Typography.body, color: colors.textSecondary },
+    bio: { ...Typography.body, color: colors.textSecondary, marginTop: Spacing.xs },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+    ratingText: { ...Typography.caption, color: colors.textSecondary },
+    sectionLabel: {
+      ...Typography.label,
+      color: colors.textPrimary,
+      marginBottom: Spacing.md,
+    },
+    recentSection: { marginBottom: Spacing.xs },
+    recentScroll: { marginHorizontal: -Spacing.base },
+    recentContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.base },
+    recentCard: { width: 120 },
+    recentImage: {
+      width: 120,
+      height: 150,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      marginBottom: Spacing.xs,
+    },
+    recentTitle: {
+      ...Typography.caption,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    recentPrice: {
+      ...Typography.caption,
+      color: colors.primary,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    draftsSection: { marginBottom: Spacing.xs },
+    draftsScroll: { marginHorizontal: -Spacing.base },
+    draftsContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.base },
+    draftCard: { width: 120 },
+    draftImage: {
+      width: 120,
+      height: 150,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      marginBottom: Spacing.xs,
+    },
+    draftImagePlaceholder: {
+      width: 120,
+      height: 150,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      marginBottom: Spacing.xs,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+    },
+    draftTitle: { ...Typography.caption, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+    draftPrice: { ...Typography.caption, color: colors.textSecondary },
+    row: { gap: Spacing.sm, marginBottom: Spacing.sm },
+    savedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      paddingVertical: Spacing.md,
+    },
+    savedRowLabel: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    savedBadge: {
+      backgroundColor: colors.primary,
+      borderRadius: BorderRadius.full,
+      minWidth: 20,
+      height: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 6,
+    },
+    savedBadgeText: {
+      ...Typography.caption,
+      color: colors.background,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 11,
+    },
+    savedChevron: { marginLeft: Spacing.xs },
+    footer: { gap: Spacing.sm, marginTop: Spacing.xl },
+    signOut: {},
+    // Theme picker
+    themeRow: {
+      flexDirection: 'row',
+      borderRadius: BorderRadius.full,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    themeBtn: {
+      flex: 1,
+      paddingVertical: Spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    themeBtnActive: {
+      backgroundColor: colors.primary,
+    },
+    themeBtnText: {
+      ...Typography.label,
+      color: colors.textSecondary,
+    },
+    themeBtnTextActive: {
+      color: colors.background,
+    },
+  });
+}

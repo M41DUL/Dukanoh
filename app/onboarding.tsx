@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,8 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Badge } from '@/components/Badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
@@ -37,7 +38,6 @@ interface OnboardingListing {
   images: string[];
 }
 
-// Dummy listings used to pad when the DB doesn't have enough yet
 const DUMMY_POOL: OnboardingListing[] = [
   { id: 'd1', title: 'Embroidered Anarkali Suit', price: 45, category: 'Women', images: ['https://picsum.photos/seed/anarkali/400/560'] },
   { id: 'd2', title: "Men's Sherwani — Navy & Gold", price: 120, category: 'Wedding', images: ['https://picsum.photos/seed/sherwani/400/560'] },
@@ -52,6 +52,8 @@ export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const indexRef = useRef(0);
   const likedRef = useRef<string[]>([]);
@@ -74,7 +76,6 @@ export default function OnboardingScreen() {
         .limit(6);
 
       const real = (data ?? []) as OnboardingListing[];
-      // Pad with dummy listings until we have 6
       const dummyNeeded = Math.max(0, 6 - real.length);
       const padded = [...real, ...DUMMY_POOL.slice(0, dummyNeeded)];
 
@@ -215,13 +216,13 @@ export default function OnboardingScreen() {
             />
 
             <Animated.View style={[styles.indicator, styles.likeIndicator, likeOpacity]}>
-              <Ionicons name="heart" size={24} color={Colors.secondary} />
-              <Text style={[styles.indicatorLabel, { color: Colors.secondary }]}>LIKE</Text>
+              <Ionicons name="heart" size={24} color={colors.secondary} />
+              <Text style={[styles.indicatorLabel, { color: colors.secondary }]}>LIKE</Text>
             </Animated.View>
 
             <Animated.View style={[styles.indicator, styles.skipIndicator, skipOpacity]}>
-              <Ionicons name="close" size={24} color={Colors.error} />
-              <Text style={[styles.indicatorLabel, { color: Colors.error }]}>SKIP</Text>
+              <Ionicons name="close" size={24} color={colors.error} />
+              <Text style={[styles.indicatorLabel, { color: colors.error }]}>SKIP</Text>
             </Animated.View>
 
             <View style={styles.cardInfo}>
@@ -239,7 +240,7 @@ export default function OnboardingScreen() {
           onPress={() => swipeOut('skip')}
           activeOpacity={0.8}
         >
-          <Ionicons name="close" size={28} color={Colors.textSecondary} />
+          <Ionicons name="close" size={28} color={colors.textSecondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -247,7 +248,7 @@ export default function OnboardingScreen() {
           onPress={() => swipeOut('like')}
           activeOpacity={0.8}
         >
-          <Ionicons name="heart" size={28} color={Colors.background} />
+          <Ionicons name="heart" size={28} color={colors.background} />
         </TouchableOpacity>
       </View>
 
@@ -258,143 +259,145 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    paddingTop: 64,
-    paddingBottom: Spacing['2xl'],
-  },
-  header: {
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginBottom: Spacing.xl,
-    paddingHorizontal: Spacing.base,
-  },
-  title: {
-    ...Typography.heading,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  subtitle: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  progressDots: {
-    flexDirection: 'row',
-    gap: Spacing.xs,
-    marginTop: Spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.border,
-  },
-  dotDone: {
-    backgroundColor: Colors.primary,
-    opacity: 0.35,
-  },
-  dotActive: {
-    backgroundColor: Colors.primary,
-    width: 22,
-  },
-  cardStack: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  card: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
-    borderRadius: BorderRadius.large,
-    overflow: 'hidden',
-    backgroundColor: Colors.surface,
-    position: 'absolute',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    elevation: 5,
-  },
-  nextCard: {
-    transform: [{ scale: 0.95 }],
-  },
-  cardImage: {
-    width: '100%',
-    height: '72%',
-  },
-  cardInfo: {
-    flex: 1,
-    padding: Spacing.base,
-    gap: Spacing.xs,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-  },
-  cardTitle: {
-    ...Typography.body,
-    color: Colors.textPrimary,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  cardPrice: {
-    ...Typography.subheading,
-    color: Colors.primary,
-  },
-  indicator: {
-    position: 'absolute',
-    top: Spacing.base,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 2.5,
-    borderRadius: BorderRadius.medium,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  likeIndicator: {
-    right: Spacing.base,
-    borderColor: Colors.secondary,
-  },
-  skipIndicator: {
-    left: Spacing.base,
-    borderColor: Colors.error,
-  },
-  indicatorLabel: {
-    ...Typography.label,
-    fontSize: 13,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: Spacing['3xl'],
-    marginTop: Spacing.xl,
-  },
-  actionBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  skipBtn: {
-    backgroundColor: Colors.background,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-  },
-  likeBtn: {
-    backgroundColor: Colors.primary,
-  },
-  skipText: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xl,
-    textDecorationLine: 'underline',
-  },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+      paddingTop: 64,
+      paddingBottom: Spacing['2xl'],
+    },
+    header: {
+      alignItems: 'center',
+      gap: Spacing.xs,
+      marginBottom: Spacing.xl,
+      paddingHorizontal: Spacing.base,
+    },
+    title: {
+      ...Typography.heading,
+      color: colors.textPrimary,
+      textAlign: 'center',
+    },
+    subtitle: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    progressDots: {
+      flexDirection: 'row',
+      gap: Spacing.xs,
+      marginTop: Spacing.sm,
+    },
+    dot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.border,
+    },
+    dotDone: {
+      backgroundColor: colors.primary,
+      opacity: 0.35,
+    },
+    dotActive: {
+      backgroundColor: colors.primary,
+      width: 22,
+    },
+    cardStack: {
+      width: CARD_WIDTH,
+      height: CARD_HEIGHT,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    card: {
+      width: CARD_WIDTH,
+      height: CARD_HEIGHT,
+      borderRadius: BorderRadius.large,
+      overflow: 'hidden',
+      backgroundColor: colors.surface,
+      position: 'absolute',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.1,
+      shadowRadius: 14,
+      elevation: 5,
+    },
+    nextCard: {
+      transform: [{ scale: 0.95 }],
+    },
+    cardImage: {
+      width: '100%',
+      height: '72%',
+    },
+    cardInfo: {
+      flex: 1,
+      padding: Spacing.base,
+      gap: Spacing.xs,
+      backgroundColor: colors.background,
+      justifyContent: 'center',
+    },
+    cardTitle: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    cardPrice: {
+      ...Typography.subheading,
+      color: colors.primary,
+    },
+    indicator: {
+      position: 'absolute',
+      top: Spacing.base,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      borderWidth: 2.5,
+      borderRadius: BorderRadius.medium,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: Spacing.xs,
+    },
+    likeIndicator: {
+      right: Spacing.base,
+      borderColor: colors.secondary,
+    },
+    skipIndicator: {
+      left: Spacing.base,
+      borderColor: colors.error,
+    },
+    indicatorLabel: {
+      ...Typography.label,
+      fontSize: 13,
+    },
+    actions: {
+      flexDirection: 'row',
+      gap: Spacing['3xl'],
+      marginTop: Spacing.xl,
+    },
+    actionBtn: {
+      width: 64,
+      height: 64,
+      borderRadius: BorderRadius.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    skipBtn: {
+      backgroundColor: colors.background,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+    },
+    likeBtn: {
+      backgroundColor: colors.primary,
+    },
+    skipText: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      marginTop: Spacing.xl,
+      textDecorationLine: 'underline',
+    },
+  });
+}

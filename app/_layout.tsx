@@ -10,10 +10,12 @@ import {
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
+import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { SavedProvider } from '@/context/SavedContext';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function RootNavigator() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_600SemiBold,
@@ -23,6 +25,7 @@ export default function RootLayout() {
   const { session, loading, onboardingCompleted } = useAuth();
   const router = useRouter();
   const segments = useSegments();
+  const { isDark } = useTheme();
 
   useEffect(() => {
     if (fontsLoaded && !loading) {
@@ -34,12 +37,10 @@ export default function RootLayout() {
     if (!fontsLoaded || loading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
-    const inOnboarding = segments[0] === 'onboarding';
 
     if (!session) {
       if (!inAuthGroup) router.replace('/(auth)/login');
     } else if (inAuthGroup) {
-      // Coming from login/signup — check if onboarding is needed
       router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
     }
   }, [session, loading, fontsLoaded, segments, router, onboardingCompleted]);
@@ -47,7 +48,7 @@ export default function RootLayout() {
   if (!fontsLoaded || loading) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
@@ -64,8 +65,28 @@ export default function RootLayout() {
           name="conversation/[id]"
           options={{ animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="saved"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="review/[listingId]"
+          options={{ animation: 'slide_from_right' }}
+        />
       </Stack>
-      <StatusBar style="dark" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+    </>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <SavedProvider>
+          <RootNavigator />
+        </SavedProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { Colors, Typography, BorderRadius, Spacing } from '@/constants/theme';
+import { Typography, BorderRadius, Spacing, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface BadgeProps {
   label: string;
@@ -10,6 +11,9 @@ interface BadgeProps {
 }
 
 export function Badge({ label, active = false, onPress, style }: BadgeProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   if (onPress) {
     return (
       <TouchableOpacity
@@ -33,16 +37,18 @@ export function Badge({ label, active = false, onPress, style }: BadgeProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  badge: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1.5,
-  },
-  active: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  inactive: { backgroundColor: Colors.background, borderColor: Colors.border },
-  label: { ...Typography.label },
-  activeText: { color: Colors.background },
-  inactiveText: { color: Colors.textSecondary },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    badge: {
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.xs + 2,
+      borderRadius: BorderRadius.full,
+      borderWidth: 1.5,
+    },
+    active: { backgroundColor: colors.primary, borderColor: colors.primary },
+    inactive: { backgroundColor: colors.background, borderColor: colors.border },
+    label: { ...Typography.label },
+    activeText: { color: colors.background },
+    inactiveText: { color: colors.textSecondary },
+  });
+}

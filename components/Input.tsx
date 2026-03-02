@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   TextInputProps,
   ViewStyle,
 } from 'react-native';
-import { Colors, Typography, BorderRadius, Spacing } from '@/constants/theme';
+import { Typography, BorderRadius, Spacing, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -18,6 +19,8 @@ interface InputProps extends TextInputProps {
 
 export function Input({ label, error, icon, containerStyle, ...props }: InputProps) {
   const [focused, setFocused] = useState(false);
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -32,7 +35,7 @@ export function Input({ label, error, icon, containerStyle, ...props }: InputPro
         {icon ? <View style={styles.icon}>{icon}</View> : null}
         <TextInput
           style={styles.input}
-          placeholderTextColor={Colors.textSecondary}
+          placeholderTextColor={colors.textSecondary}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           {...props}
@@ -43,27 +46,29 @@ export function Input({ label, error, icon, containerStyle, ...props }: InputPro
   );
 }
 
-const styles = StyleSheet.create({
-  container: { gap: Spacing.xs },
-  label: { ...Typography.label, color: Colors.textPrimary },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.medium,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.base,
-    minHeight: 52,
-  },
-  focused: { borderColor: Colors.primary },
-  errorBorder: { borderColor: Colors.error },
-  icon: { marginRight: Spacing.sm },
-  input: {
-    flex: 1,
-    ...Typography.body,
-    color: Colors.textPrimary,
-    paddingVertical: Spacing.base,
-  },
-  error: { ...Typography.caption, color: Colors.error },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    container: { gap: Spacing.xs },
+    label: { ...Typography.label, color: colors.textPrimary },
+    inputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.medium,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      paddingHorizontal: Spacing.base,
+      minHeight: 52,
+    },
+    focused: { borderColor: colors.primary },
+    errorBorder: { borderColor: colors.error },
+    icon: { marginRight: Spacing.sm },
+    input: {
+      flex: 1,
+      ...Typography.body,
+      color: colors.textPrimary,
+      paddingVertical: Spacing.base,
+    },
+    error: { ...Typography.caption, color: colors.error },
+  });
+}

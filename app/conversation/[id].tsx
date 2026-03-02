@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -12,7 +12,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
-import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,11 +32,12 @@ export default function ConversationScreen() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   useEffect(() => {
     if (!id) return;
 
-    // Initial fetch
     supabase
       .from('messages')
       .select('*')
@@ -45,7 +47,6 @@ export default function ConversationScreen() {
         if (data) setMessages(data as Message[]);
       });
 
-    // Realtime subscription
     const channel = supabase
       .channel(`conversation:${id}`)
       .on(
@@ -81,6 +82,20 @@ export default function ConversationScreen() {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isOwn = item.sender_id === user?.id;
+
+    if (item.content.startsWith('__OFFER__:')) {
+      const amount = item.content.slice('__OFFER__:'.length);
+      return (
+        <View style={[styles.offerBubble, isOwn ? styles.offerOwn : styles.offerOther]}>
+          <Ionicons name="pricetag-outline" size={14} color={isOwn ? colors.background : '#F59E0B'} />
+          <View>
+            <Text style={[styles.offerLabel, isOwn ? styles.textOnPrimary : styles.textMuted]}>Offer</Text>
+            <Text style={[styles.offerAmount, isOwn ? styles.textOnPrimary : styles.textAmber]}>£{amount}</Text>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}>
         <Text style={[styles.bubbleText, isOwn && styles.bubbleTextOwn]}>
@@ -123,7 +138,7 @@ export default function ConversationScreen() {
             disabled={!text.trim() || sending}
             activeOpacity={0.8}
           >
-            <Ionicons name="arrow-up" size={20} color={Colors.background} />
+            <Ionicons name="arrow-up" size={20} color={colors.background} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -131,47 +146,76 @@ export default function ConversationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  messageList: {
-    paddingVertical: Spacing.base,
-    gap: Spacing.sm,
-  },
-  bubble: {
-    maxWidth: '78%',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.large,
-  },
-  bubbleOwn: {
-    backgroundColor: Colors.primary,
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: BorderRadius.small,
-  },
-  bubbleOther: {
-    backgroundColor: Colors.surface,
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: BorderRadius.small,
-  },
-  bubbleText: { ...Typography.body, color: Colors.textPrimary },
-  bubbleTextOwn: { color: Colors.background },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingVertical: Spacing.base,
-    gap: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.background,
-  },
-  inputContainer: { flex: 1 },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendDisabled: { opacity: 0.4 },
-});
+function getStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    flex: { flex: 1 },
+    messageList: {
+      paddingVertical: Spacing.base,
+      gap: Spacing.sm,
+    },
+    bubble: {
+      maxWidth: '78%',
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.large,
+    },
+    bubbleOwn: {
+      backgroundColor: colors.primary,
+      alignSelf: 'flex-end',
+      borderBottomRightRadius: BorderRadius.small,
+    },
+    bubbleOther: {
+      backgroundColor: colors.surface,
+      alignSelf: 'flex-start',
+      borderBottomLeftRadius: BorderRadius.small,
+    },
+    bubbleText: { ...Typography.body, color: colors.textPrimary },
+    bubbleTextOwn: { color: colors.background },
+    offerBubble: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      maxWidth: '78%',
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.large,
+      borderWidth: 1.5,
+    },
+    offerOwn: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary,
+      alignSelf: 'flex-end',
+      borderBottomRightRadius: BorderRadius.small,
+    },
+    offerOther: {
+      borderColor: '#F59E0B',
+      backgroundColor: 'rgba(245,158,11,0.08)',
+      alignSelf: 'flex-start',
+      borderBottomLeftRadius: BorderRadius.small,
+    },
+    offerLabel: { ...Typography.caption, fontFamily: 'Inter_600SemiBold' },
+    offerAmount: { ...Typography.subheading },
+    textOnPrimary: { color: colors.background },
+    textMuted: { color: colors.textSecondary },
+    textAmber: { color: '#F59E0B' },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      paddingVertical: Spacing.base,
+      gap: Spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    inputContainer: { flex: 1 },
+    sendButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sendDisabled: { opacity: 0.4 },
+  });
+}
