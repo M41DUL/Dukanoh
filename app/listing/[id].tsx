@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,6 +47,7 @@ export default function ListingDetailScreen() {
   const [lowerPriceVisible, setLowerPriceVisible] = useState(false);
   const [newPrice, setNewPrice] = useState('');
   const [lowerPriceSending, setLowerPriceSending] = useState(false);
+  const [bumped, setBumped] = useState(false);
   const { isSaved, toggleSave } = useSaved();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -62,6 +64,9 @@ export default function ListingDetailScreen() {
         if (data) {
           setListing(data as unknown as Listing);
           recordView(id);
+          supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
+            setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
+          });
         }
         setLoading(false);
       });
@@ -133,6 +138,21 @@ export default function ListingDetailScreen() {
     );
   };
 
+  const handleBump = async () => {
+    await supabase
+      .from('listings')
+      .update({ created_at: new Date().toISOString() })
+      .eq('id', id!);
+    setBumped(true);
+    Alert.alert('Listing bumped', 'Your listing is now at the top of the feed.');
+  };
+
+  const handleShare = () => {
+    Share.share({
+      message: `${listing.title} — £${listing.price.toFixed(2)} on Dukanoh`,
+    });
+  };
+
   const handleOffer = async () => {
     const amount = parseFloat(offerAmount.replace(/[^0-9.]/g, ''));
     if (!amount || amount <= 0 || !user) return;
@@ -156,7 +176,14 @@ export default function ListingDetailScreen() {
 
   return (
     <ScreenWrapper>
-      <Header showBack />
+      <Header
+        showBack
+        rightAction={
+          <TouchableOpacity onPress={handleShare} hitSlop={8} activeOpacity={0.7}>
+            <Ionicons name="share-outline" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+        }
+      />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.imageBreakout}>
         <View style={styles.imageContainer}>
@@ -208,6 +235,13 @@ export default function ListingDetailScreen() {
           </View>
           <Badge label={listing.condition} style={styles.conditionBadge} />
 
+          {(listing.view_count ?? 0) > 0 && (
+            <View style={styles.viewRow}>
+              <Ionicons name="eye-outline" size={13} color={colors.textSecondary} />
+              <Text style={styles.viewCount}>{listing.view_count} views</Text>
+            </View>
+          )}
+
           <Divider />
 
           <TouchableOpacity style={styles.sellerRow} activeOpacity={0.8}>
@@ -258,6 +292,18 @@ export default function ListingDetailScreen() {
             </View>
           ) : (
             <>
+              <TouchableOpacity
+                style={styles.footerIconBtn}
+                onPress={handleBump}
+                disabled={bumped}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="arrow-up-circle-outline"
+                  size={24}
+                  color={bumped ? colors.textSecondary : colors.primary}
+                />
+              </TouchableOpacity>
               <Button
                 label="Lower price"
                 variant="outline"
@@ -434,6 +480,8 @@ function getStyles(colors: ColorTokens) {
     price: { ...Typography.heading, color: colors.primary },
     soldBadge: { backgroundColor: '#FF4444', borderColor: '#FF4444' },
     conditionBadge: { alignSelf: 'flex-start' },
+    viewRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    viewCount: { ...Typography.caption, color: colors.textSecondary },
     soldFooter: {
       flex: 1,
       flexDirection: 'row',

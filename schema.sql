@@ -45,6 +45,7 @@ CREATE TABLE public.listings (
   size        TEXT,
   images      TEXT[] DEFAULT '{}',
   status      TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold')),
+  view_count  INT DEFAULT 0,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -242,3 +243,13 @@ CREATE INDEX idx_saved_items_user    ON public.saved_items (user_id);
 CREATE INDEX idx_saved_items_listing ON public.saved_items (listing_id);
 CREATE INDEX idx_reviews_seller      ON public.reviews (seller_id);
 CREATE INDEX idx_reviews_reviewer    ON public.reviews (reviewer_id);
+
+-- View count
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION public.increment_view_count(listing_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.listings SET view_count = view_count + 1 WHERE id = listing_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
