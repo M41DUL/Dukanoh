@@ -138,6 +138,11 @@ export default function SellScreen() {
     return urls;
   };
 
+  const resetForm = () => {
+    setForm({ title: '', description: '', price: '', size: '', category: '', condition: '' });
+    setImages([]);
+  };
+
   const handleSubmit = async () => {
     if (!validate() || !user) return;
 
@@ -160,24 +165,42 @@ export default function SellScreen() {
       if (error) throw error;
 
       Alert.alert('Listed!', 'Your item is now live.', [
-        {
-          text: 'View profile',
-          onPress: () => {
-            setForm({ title: '', description: '', price: '', size: '', category: '', condition: '' });
-            setImages([]);
-            router.push('/(tabs)/profile');
-          },
-        },
-        {
-          text: 'List another',
-          onPress: () => {
-            setForm({ title: '', description: '', price: '', size: '', category: '', condition: '' });
-            setImages([]);
-          },
-        },
+        { text: 'View profile', onPress: () => { resetForm(); router.push('/(tabs)/profile'); } },
+        { text: 'List another', onPress: resetForm },
       ]);
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to create listing.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!validate() || !user) return;
+
+    setLoading(true);
+    try {
+      const imageUrls = await uploadImages();
+
+      const { error } = await supabase.from('listings').insert({
+        seller_id: user.id,
+        title: form.title.trim(),
+        description: form.description.trim() || null,
+        price: parseFloat(form.price),
+        category: form.category,
+        condition: form.condition,
+        size: form.size.trim() || null,
+        images: imageUrls,
+        status: 'draft',
+      });
+
+      if (error) throw error;
+
+      Alert.alert('Draft saved', 'Find it in your profile to publish when ready.', [
+        { text: 'OK', onPress: resetForm },
+      ]);
+    } catch (err: unknown) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save draft.');
     } finally {
       setLoading(false);
     }
@@ -287,12 +310,21 @@ export default function SellScreen() {
           {errors.condition ? <Text style={styles.errorText}>{errors.condition}</Text> : null}
         </View>
 
-        <Button
-          label="List Item"
-          onPress={handleSubmit}
-          loading={loading}
-          style={styles.submit}
-        />
+        <View style={styles.submitRow}>
+          <Button
+            label="Save draft"
+            variant="outline"
+            onPress={handleSaveDraft}
+            loading={loading}
+            style={styles.draftBtn}
+          />
+          <Button
+            label="List Item"
+            onPress={handleSubmit}
+            loading={loading}
+            style={styles.listBtn}
+          />
+        </View>
       </ScrollView>
     </ScreenWrapper>
   );
@@ -356,6 +388,8 @@ function getStyles(colors: ColorTokens) {
     },
     chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
-    submit: { marginTop: Spacing.md },
+    submitRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
+    draftBtn: { flex: 1 },
+    listBtn: { flex: 2 },
   });
 }

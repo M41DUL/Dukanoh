@@ -14,7 +14,7 @@ export interface Listing {
   images: string[];
   condition: string;
   size?: string;
-  status: 'available' | 'sold';
+  status: 'available' | 'sold' | 'draft';
   view_count?: number;
   seller: {
     username: string;

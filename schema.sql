@@ -44,7 +44,7 @@ CREATE TABLE public.listings (
   condition   TEXT NOT NULL,
   size        TEXT,
   images      TEXT[] DEFAULT '{}',
-  status      TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold')),
+  status      TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold', 'draft')),
   view_count  INT DEFAULT 0,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -134,7 +134,7 @@ CREATE POLICY "Authenticated users can update invites"
 
 -- Listings
 CREATE POLICY "Listings are publicly viewable"
-  ON public.listings FOR SELECT USING (true);
+  ON public.listings FOR SELECT USING (status != 'draft' OR auth.uid() = seller_id);
 
 CREATE POLICY "Sellers can create listings"
   ON public.listings FOR INSERT WITH CHECK (auth.uid() = seller_id);
@@ -246,6 +246,15 @@ CREATE INDEX idx_reviews_reviewer    ON public.reviews (reviewer_id);
 
 -- View count
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
+
+-- Draft listings: extend status constraint + update RLS
+ALTER TABLE public.listings DROP CONSTRAINT IF EXISTS listings_status_check;
+ALTER TABLE public.listings ADD CONSTRAINT listings_status_check
+  CHECK (status IN ('available', 'sold', 'draft'));
+
+DROP POLICY IF EXISTS "Listings are publicly viewable" ON public.listings;
+CREATE POLICY "Listings are publicly viewable"
+  ON public.listings FOR SELECT USING (status != 'draft' OR auth.uid() = seller_id);
 
 CREATE OR REPLACE FUNCTION public.increment_view_count(listing_id UUID)
 RETURNS void AS $$

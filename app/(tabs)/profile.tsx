@@ -100,10 +100,13 @@ export default function ProfileScreen() {
   const bio = user?.user_metadata?.bio ?? '';
   const avatarUrl = user?.user_metadata?.avatar_url;
 
+  const publishedListings = listings.filter(l => l.status !== 'draft');
+  const draftListings = listings.filter(l => l.status === 'draft');
+
   return (
     <ScreenWrapper>
       <FlatList
-        data={listings}
+        data={publishedListings}
         keyExtractor={item => item.id}
         numColumns={2}
         columnWrapperStyle={styles.row}
@@ -176,6 +179,43 @@ export default function ProfileScreen() {
                       />
                       <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
                       <Text style={styles.recentPrice}>£{item.price?.toFixed(2)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <Divider />
+              </View>
+            )}
+            {draftListings.length > 0 && (
+              <View style={styles.draftsSection}>
+                <Text style={styles.sectionLabel}>Drafts ({draftListings.length})</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.draftsScroll}
+                  contentContainerStyle={styles.draftsContent}
+                >
+                  {draftListings.map(item => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.draftCard}
+                      onPress={() => router.push(`/listing/${item.id}`)}
+                      activeOpacity={0.8}
+                    >
+                      {item.images?.[0] ? (
+                        <Image
+                          source={{ uri: item.images[0] }}
+                          style={styles.draftImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.draftImagePlaceholder}>
+                          <Ionicons name="image-outline" size={22} color={colors.textSecondary} />
+                        </View>
+                      )}
+                      <Text style={styles.draftTitle} numberOfLines={1}>{item.title}</Text>
+                      <Text style={styles.draftPrice}>
+                        {item.price > 0 ? `£${item.price.toFixed(2)}` : 'No price set'}
+                      </Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -280,6 +320,31 @@ function getStyles(colors: ColorTokens) {
       color: colors.primary,
       fontFamily: 'Inter_600SemiBold',
     },
+    draftsSection: { marginBottom: Spacing.xs },
+    draftsScroll: { marginHorizontal: -Spacing.base },
+    draftsContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.base },
+    draftCard: { width: 120 },
+    draftImage: {
+      width: 120,
+      height: 150,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      marginBottom: Spacing.xs,
+    },
+    draftImagePlaceholder: {
+      width: 120,
+      height: 150,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      marginBottom: Spacing.xs,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+    },
+    draftTitle: { ...Typography.caption, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+    draftPrice: { ...Typography.caption, color: colors.textSecondary },
     row: { gap: Spacing.sm, marginBottom: Spacing.sm },
     savedRow: {
       flexDirection: 'row',

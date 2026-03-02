@@ -63,10 +63,12 @@ export default function ListingDetailScreen() {
       .then(({ data }) => {
         if (data) {
           setListing(data as unknown as Listing);
-          recordView(id);
-          supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
-            setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
-          });
+          if (data.status !== 'draft') {
+            recordView(id);
+            supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
+              setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
+            });
+          }
         }
         setLoading(false);
       });
@@ -136,6 +138,26 @@ export default function ListingDetailScreen() {
         },
       ]
     );
+  };
+
+  const handlePublish = async () => {
+    await supabase.from('listings').update({ status: 'available' }).eq('id', id!);
+    setListing(prev => prev ? { ...prev, status: 'available' } : prev);
+    Alert.alert('Published!', 'Your listing is now live on the feed.');
+  };
+
+  const handleDeleteDraft = () => {
+    Alert.alert('Delete draft', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.from('listings').delete().eq('id', id!);
+          router.back();
+        },
+      },
+    ]);
   };
 
   const handleBump = async () => {
@@ -232,6 +254,9 @@ export default function ListingDetailScreen() {
             {listing.status === 'sold' && (
               <Badge label="Sold" active style={styles.soldBadge} />
             )}
+            {listing.status === 'draft' && (
+              <Badge label="Draft" style={styles.draftBadge} />
+            )}
           </View>
           <Badge label={listing.condition} style={styles.conditionBadge} />
 
@@ -285,7 +310,21 @@ export default function ListingDetailScreen() {
 
       <View style={styles.footer}>
         {user?.id === listing.seller_id ? (
-          listing.status === 'sold' ? (
+          listing.status === 'draft' ? (
+            <>
+              <Button
+                label="Delete draft"
+                variant="outline"
+                onPress={handleDeleteDraft}
+                style={styles.offerBtn}
+              />
+              <Button
+                label="Publish"
+                onPress={handlePublish}
+                style={styles.messageBtn}
+              />
+            </>
+          ) : listing.status === 'sold' ? (
             <View style={styles.soldFooter}>
               <Ionicons name="checkmark-circle" size={18} color={colors.textSecondary} />
               <Text style={styles.soldFooterText}>Marked as sold</Text>
@@ -479,6 +518,7 @@ function getStyles(colors: ColorTokens) {
     priceRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     price: { ...Typography.heading, color: colors.primary },
     soldBadge: { backgroundColor: '#FF4444', borderColor: '#FF4444' },
+    draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
     conditionBadge: { alignSelf: 'flex-start' },
     viewRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     viewCount: { ...Typography.caption, color: colors.textSecondary },
