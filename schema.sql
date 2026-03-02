@@ -208,12 +208,16 @@ CREATE TRIGGER on_review_change
 
 -- Saved items (wishlist)
 CREATE TABLE public.saved_items (
-  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id     UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-  listing_id  UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  id             UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id        UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  listing_id     UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
+  price_at_save  NUMERIC(10,2),
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (user_id, listing_id)
 );
+
+-- Price drop alert support
+ALTER TABLE public.saved_items ADD COLUMN IF NOT EXISTS price_at_save NUMERIC(10,2);
 
 ALTER TABLE public.saved_items ENABLE ROW LEVEL SECURITY;
 

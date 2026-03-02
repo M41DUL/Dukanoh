@@ -82,6 +82,20 @@ export default function ConversationScreen() {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isOwn = item.sender_id === user?.id;
+
+    if (item.content.startsWith('__OFFER__:')) {
+      const amount = item.content.slice('__OFFER__:'.length);
+      return (
+        <View style={[styles.offerBubble, isOwn ? styles.offerOwn : styles.offerOther]}>
+          <Ionicons name="pricetag-outline" size={14} color={isOwn ? colors.background : '#F59E0B'} />
+          <View>
+            <Text style={[styles.offerLabel, isOwn ? styles.textOnPrimary : styles.textMuted]}>Offer</Text>
+            <Text style={[styles.offerAmount, isOwn ? styles.textOnPrimary : styles.textAmber]}>£{amount}</Text>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}>
         <Text style={[styles.bubbleText, isOwn && styles.bubbleTextOwn]}>
@@ -157,6 +171,33 @@ function getStyles(colors: ColorTokens) {
     },
     bubbleText: { ...Typography.body, color: colors.textPrimary },
     bubbleTextOwn: { color: colors.background },
+    offerBubble: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      maxWidth: '78%',
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.large,
+      borderWidth: 1.5,
+    },
+    offerOwn: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary,
+      alignSelf: 'flex-end',
+      borderBottomRightRadius: BorderRadius.small,
+    },
+    offerOther: {
+      borderColor: '#F59E0B',
+      backgroundColor: 'rgba(245,158,11,0.08)',
+      alignSelf: 'flex-start',
+      borderBottomLeftRadius: BorderRadius.small,
+    },
+    offerLabel: { ...Typography.caption, fontFamily: 'Inter_600SemiBold' },
+    offerAmount: { ...Typography.subheading },
+    textOnPrimary: { color: colors.background },
+    textMuted: { color: colors.textSecondary },
+    textAmber: { color: '#F59E0B' },
     inputRow: {
       flexDirection: 'row',
       alignItems: 'flex-end',

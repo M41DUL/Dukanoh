@@ -59,18 +59,25 @@ export function ListingCard({
         ) : (
           <View style={styles.imagePlaceholder} />
         )}
-        <TouchableOpacity
-          style={styles.heartBtn}
-          onPress={() => toggleSave(listing.id)}
-          hitSlop={8}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name={saved ? 'heart' : 'heart-outline'}
-            size={18}
-            color={saved ? '#FF4444' : 'rgba(255,255,255,0.9)'}
-          />
-        </TouchableOpacity>
+        {listing.status === 'sold' && (
+          <View style={styles.soldOverlay}>
+            <Text style={styles.soldLabel}>SOLD</Text>
+          </View>
+        )}
+        {listing.status !== 'sold' && (
+          <TouchableOpacity
+            style={styles.heartBtn}
+            onPress={() => toggleSave(listing.id, listing.price)}
+            hitSlop={8}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={saved ? 'heart' : 'heart-outline'}
+              size={18}
+              color={saved ? '#FF4444' : 'rgba(255,255,255,0.9)'}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.content}>
@@ -110,6 +117,19 @@ function getStyles(colors: ColorTokens) {
     },
     image: { width: '100%', height: '100%' },
     imagePlaceholder: { flex: 1, backgroundColor: colors.surface },
+    soldOverlay: {
+      position: 'absolute',
+      top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    soldLabel: {
+      color: '#fff',
+      fontSize: 13,
+      fontFamily: 'Inter_700Bold',
+      letterSpacing: 1.5,
+    },
     heartBtn: {
       position: 'absolute',
       top: Spacing.xs,

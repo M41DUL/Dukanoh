@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 interface SavedContextValue {
   savedIds: Set<string>;
   isSaved: (id: string) => boolean;
-  toggleSave: (listingId: string) => Promise<void>;
+  toggleSave: (listingId: string, price?: number) => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -35,14 +35,18 @@ export function SavedProvider({ children }: { children: React.ReactNode }) {
 
   const isSaved = useCallback((id: string) => savedIds.has(id), [savedIds]);
 
-  const toggleSave = useCallback(async (listingId: string) => {
+  const toggleSave = useCallback(async (listingId: string, price?: number) => {
     if (!user) return;
     if (savedIds.has(listingId)) {
       setSavedIds(prev => { const s = new Set(prev); s.delete(listingId); return s; });
       await supabase.from('saved_items').delete().eq('user_id', user.id).eq('listing_id', listingId);
     } else {
       setSavedIds(prev => new Set([...prev, listingId]));
-      await supabase.from('saved_items').insert({ user_id: user.id, listing_id: listingId });
+      await supabase.from('saved_items').insert({
+        user_id: user.id,
+        listing_id: listingId,
+        price_at_save: price ?? null,
+      });
     }
   }, [user, savedIds]);
 

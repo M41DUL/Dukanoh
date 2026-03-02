@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Animated,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +17,6 @@ import { StoriesRow } from '@/components/StoriesRow';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useBasket } from '@/hooks/useBasket';
 import { useStories } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -303,6 +303,68 @@ function getTrendingStyles(colors: ColorTokens) {
   });
 }
 
+interface PriceDrop {
+  listingId: string;
+  title: string;
+  images: string[];
+  currentPrice: number;
+  savedPrice: number;
+}
+
+function PriceDropsRow({ drops, colors }: { drops: PriceDrop[]; colors: ColorTokens }) {
+  const styles = useMemo(() => getPriceDropStyles(colors), [colors]);
+  if (drops.length === 0) return null;
+  return (
+    <View style={feedStaticStyles.section}>
+      <Text style={[feedStaticStyles.sectionTitle, { color: colors.textPrimary, marginBottom: Spacing.md }]}>
+        Price drops
+      </Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+        style={styles.scroll}
+      >
+        {drops.map(drop => (
+          <TouchableOpacity
+            key={drop.listingId}
+            style={styles.card}
+            onPress={() => router.push(`/listing/${drop.listingId}`)}
+            activeOpacity={0.8}
+          >
+            <Image source={{ uri: drop.images?.[0] }} style={styles.image} resizeMode="cover" />
+            <Text style={styles.title} numberOfLines={1}>{drop.title}</Text>
+            <Text style={styles.oldPrice}>£{drop.savedPrice.toFixed(2)}</Text>
+            <Text style={styles.newPrice}>£{drop.currentPrice.toFixed(2)}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function getPriceDropStyles(colors: ColorTokens) {
+  return StyleSheet.create({
+    scroll: { marginHorizontal: -Spacing.base },
+    row: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.xs },
+    card: { width: 110 },
+    image: {
+      width: 110,
+      height: 140,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      marginBottom: Spacing.xs,
+    },
+    title: { ...Typography.caption, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+    oldPrice: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      textDecorationLine: 'line-through',
+    },
+    newPrice: { ...Typography.caption, color: '#22C55E', fontFamily: 'Inter_700Bold' },
+  });
+}
+
 // Static styles (layout/spacing only, no colors)
 const feedStaticStyles = StyleSheet.create({
   section: { marginBottom: Spacing.xl },
@@ -342,7 +404,6 @@ const feedStaticStyles = StyleSheet.create({
 });
 
 export default function HomeScreen() {
-  const { count } = useBasket();
   const { stories, loading: storiesLoading, markViewed } = useStories();
   const { user } = useAuth();
   const colors = useThemeColors();
@@ -352,6 +413,7 @@ export default function HomeScreen() {
   const [newArrivals, setNewArrivals] = useState<Listing[]>([]);
   const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
   const [trending, setTrending] = useState<string[]>([]);
+  const [priceDrops, setPriceDrops] = useState<PriceDrop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [profileComplete, setProfileComplete] = useState(true);
@@ -383,7 +445,7 @@ export default function HomeScreen() {
     setPreferredCategories(cats);
     setProfileComplete(!!(profile?.avatar_url && profile?.bio));
 
-    const [suggestedItems, newArrivalItems, trendingCats, listingCountResult] = await Promise.all([
+    const [suggestedItems, newArrivalItems, trendingCats, listingCountResult, savedPrices] = await Promise.all([
       cats.length > 0 ? fetchSection(user.id, cats) : Promise.resolve([]),
       fetchSection(user.id, []),
       fetchTrendingCategories(),
@@ -391,12 +453,34 @@ export default function HomeScreen() {
         .from('listings')
         .select('id', { count: 'exact', head: true })
         .eq('seller_id', user.id),
+      supabase
+        .from('saved_items')
+        .select('listing_id, price_at_save, listings(id, title, price, images, status)')
+        .eq('user_id', user.id)
+        .not('price_at_save', 'is', null),
     ]);
 
     setSuggested(suggestedItems);
     setNewArrivals(newArrivalItems);
     setTrending(trendingCats);
     setHasListings((listingCountResult.count ?? 0) > 0);
+
+    const drops: PriceDrop[] = (savedPrices.data ?? [])
+      .filter(s => {
+        const l = s.listings as { price: number; status: string } | null;
+        return l && l.price < (s.price_at_save as number) && l.status === 'available';
+      })
+      .map(s => {
+        const l = s.listings as { id: string; title: string; price: number; images: string[] };
+        return {
+          listingId: s.listing_id as string,
+          title: l.title,
+          images: l.images,
+          currentPrice: l.price,
+          savedPrice: s.price_at_save as number,
+        };
+      });
+    setPriceDrops(drops);
   }, [user]);
 
   useEffect(() => {
@@ -433,18 +517,6 @@ export default function HomeScreen() {
               <Text style={styles.placeholder}>Search for anything</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.basketButton}
-              onPress={() => router.push('/basket')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="cart-outline" size={24} color={colors.textPrimary} />
-              {count > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -474,6 +546,8 @@ export default function HomeScreen() {
             )}
 
             <TrendingStrip categories={trending} colors={colors} />
+
+            <PriceDropsRow drops={priceDrops} colors={colors} />
 
             {suggested.length > 0 && (
               <View style={feedStaticStyles.section}>
@@ -553,25 +627,6 @@ function getStyles(colors: ColorTokens) {
     placeholder: {
       ...Typography.body,
       color: colors.textSecondary,
-    },
-    basketButton: { position: 'relative', padding: Spacing.xs },
-    badge: {
-      position: 'absolute',
-      top: 0,
-      right: 0,
-      backgroundColor: colors.primary,
-      borderRadius: BorderRadius.full,
-      minWidth: 16,
-      height: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 3,
-    },
-    badgeText: {
-      color: colors.background,
-      fontSize: 9,
-      fontFamily: 'Inter_700Bold',
-      lineHeight: 12,
     },
     feedContent: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
   });

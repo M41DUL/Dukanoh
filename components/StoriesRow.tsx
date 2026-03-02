@@ -17,7 +17,6 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { Button } from './Button';
-import { useBasket } from '@/hooks/useBasket';
 import { StoryListing } from '@/hooks/useStories';
 
 const { width, height } = Dimensions.get('window');
@@ -29,7 +28,6 @@ interface StoriesRowProps {
 
 export function StoriesRow({ stories, onView }: StoriesRowProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const { addItem, removeItem, isInBasket } = useBasket();
   const colors = useThemeColors();
   const rowStyles = useMemo(() => getRowStyles(colors), [colors]);
 
@@ -157,25 +155,6 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
               <Text style={viewerStyles.storyPrice}>£{activeStory.price?.toFixed(2)}</Text>
 
               <View style={viewerStyles.ctaRow}>
-                <TouchableOpacity
-                  style={[
-                    viewerStyles.basketBtn,
-                    isInBasket(activeStory.id) && viewerStyles.basketBtnActive,
-                  ]}
-                  onPress={() =>
-                    isInBasket(activeStory.id)
-                      ? removeItem(activeStory.id)
-                      : addItem(activeStory.id)
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name={isInBasket(activeStory.id) ? 'cart' : 'cart-outline'}
-                    size={20}
-                    color={isInBasket(activeStory.id) ? colors.primary : '#fff'}
-                  />
-                </TouchableOpacity>
-
                 <Button
                   label="View Listing"
                   size="md"
@@ -349,19 +328,6 @@ const viewerStyles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     marginTop: Spacing.sm,
-  },
-  basketBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  basketBtnActive: {
-    backgroundColor: '#C7F75E',
-    borderColor: '#C7F75E',
   },
   viewBtn: { flex: 1 },
 });
