@@ -23,15 +23,19 @@ import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
 import { useBasket } from '@/hooks/useBasket';
 import { useSaved } from '@/context/SavedContext';
+import { useAuth } from '@/hooks/useAuth';
+import { StarRating } from '@/components/StarRating';
 import { recordView } from '@/hooks/useRecentlyViewed';
 
 const { width } = Dimensions.get('window');
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
+  const [canReview, setCanReview] = useState(false);
   const { addItem, removeItem, isInBasket } = useBasket();
   const { isSaved, toggleSave } = useSaved();
   const colors = useThemeColors();
@@ -42,7 +46,7 @@ export default function ListingDetailScreen() {
 
     supabase
       .from('listings')
-      .select('*, seller:users(username, avatar_url)')
+      .select('*, seller:users(username, avatar_url, rating_avg, rating_count)')
       .eq('id', id)
       .single()
       .then(({ data }) => {
@@ -53,6 +57,18 @@ export default function ListingDetailScreen() {
         setLoading(false);
       });
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !user || !listing) return;
+    if (listing.seller_id === user.id) return;
+
+    Promise.all([
+      supabase.from('conversations').select('id').eq('listing_id', id).eq('buyer_id', user.id).maybeSingle(),
+      supabase.from('reviews').select('id').eq('reviewer_id', user.id).eq('listing_id', id).maybeSingle(),
+    ]).then(([{ data: conv }, { data: review }]) => {
+      setCanReview(!!conv && !review);
+    });
+  }, [id, user, listing]);
 
   if (loading) return <LoadingSpinner />;
   if (!listing) return null;
@@ -118,9 +134,18 @@ export default function ListingDetailScreen() {
               initials={listing.seller?.username?.[0]?.toUpperCase()}
               size="medium"
             />
-            <View>
+            <View style={styles.sellerInfo}>
               <Text style={styles.sellerName}>@{listing.seller?.username}</Text>
-              <Text style={styles.sellerSub}>View profile</Text>
+              {(listing.seller?.rating_count ?? 0) > 0 ? (
+                <View style={styles.sellerRating}>
+                  <StarRating rating={listing.seller?.rating_avg ?? 0} size={12} />
+                  <Text style={styles.sellerSub}>
+                    {(listing.seller?.rating_avg ?? 0).toFixed(1)} ({listing.seller?.rating_count})
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.sellerSub}>No reviews yet</Text>
+              )}
             </View>
           </TouchableOpacity>
 
@@ -128,6 +153,17 @@ export default function ListingDetailScreen() {
 
           <Text style={styles.sectionLabel}>Description</Text>
           <Text style={styles.description}>{listing.description ?? '—'}</Text>
+
+          {canReview && (
+            <TouchableOpacity
+              style={styles.reviewBtn}
+              onPress={() => router.push(`/review/${id}?sellerName=${listing.seller?.username ?? ''}&listingTitle=${encodeURIComponent(listing.title)}`)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="star-outline" size={16} color={colors.primary} />
+              <Text style={styles.reviewBtnText}>Rate this seller</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
@@ -201,8 +237,26 @@ function getStyles(colors: ColorTokens) {
       alignItems: 'center',
       gap: Spacing.base,
     },
+    sellerInfo: { flex: 1, gap: 2 },
     sellerName: { ...Typography.body, color: colors.textPrimary, fontWeight: '600' },
+    sellerRating: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     sellerSub: { ...Typography.caption, color: colors.textSecondary },
+    reviewBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      alignSelf: 'flex-start',
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      borderRadius: BorderRadius.full,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      marginTop: Spacing.xs,
+    },
+    reviewBtnText: {
+      ...Typography.label,
+      color: colors.primary,
+    },
     sectionLabel: { ...Typography.label, color: colors.textPrimary },
     description: {
       ...Typography.body,

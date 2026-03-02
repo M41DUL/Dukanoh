@@ -164,6 +164,48 @@ CREATE POLICY "Participants can view messages"
 CREATE POLICY "Users can send messages"
   ON public.messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
+-- Reviews
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS rating_avg NUMERIC(3,2) DEFAULT 0;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS rating_count INT DEFAULT 0;
+
+CREATE TABLE public.reviews (
+  id           UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  reviewer_id  UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  seller_id    UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  listing_id   UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
+  rating       SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment      TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (reviewer_id, listing_id)
+);
+
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Reviews are publicly viewable"
+  ON public.reviews FOR SELECT USING (true);
+CREATE POLICY "Users can create reviews"
+  ON public.reviews FOR INSERT WITH CHECK (auth.uid() = reviewer_id);
+CREATE POLICY "Users can delete own reviews"
+  ON public.reviews FOR DELETE USING (auth.uid() = reviewer_id);
+
+CREATE OR REPLACE FUNCTION public.update_seller_rating()
+RETURNS TRIGGER AS $$
+DECLARE target_seller UUID;
+BEGIN
+  target_seller := CASE WHEN TG_OP = 'DELETE' THEN OLD.seller_id ELSE NEW.seller_id END;
+  UPDATE public.users
+  SET
+    rating_count = (SELECT COUNT(*)       FROM public.reviews WHERE seller_id = target_seller),
+    rating_avg   = COALESCE((SELECT AVG(rating) FROM public.reviews WHERE seller_id = target_seller), 0)
+  WHERE id = target_seller;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_review_change
+  AFTER INSERT OR DELETE ON public.reviews
+  FOR EACH ROW EXECUTE FUNCTION public.update_seller_rating();
+
 -- Saved items (wishlist)
 CREATE TABLE public.saved_items (
   id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -194,3 +236,5 @@ CREATE INDEX idx_conversations_buyer  ON public.conversations (buyer_id);
 CREATE INDEX idx_conversations_seller ON public.conversations (seller_id);
 CREATE INDEX idx_saved_items_user    ON public.saved_items (user_id);
 CREATE INDEX idx_saved_items_listing ON public.saved_items (listing_id);
+CREATE INDEX idx_reviews_seller      ON public.reviews (seller_id);
+CREATE INDEX idx_reviews_reviewer    ON public.reviews (reviewer_id);

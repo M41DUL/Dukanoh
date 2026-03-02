@@ -7,6 +7,7 @@ import { useSaved } from '@/context/SavedContext';
 
 export interface Listing {
   id: string;
+  seller_id: string;
   title: string;
   price: number;
   category: string;
@@ -17,6 +18,8 @@ export interface Listing {
   seller: {
     username: string;
     avatar_url?: string;
+    rating_avg?: number;
+    rating_count?: number;
   };
 }
 

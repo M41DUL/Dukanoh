@@ -69,6 +69,10 @@ function RootNavigator() {
           name="saved"
           options={{ animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="review/[listingId]"
+          options={{ animation: 'slide_from_right' }}
+        />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </>

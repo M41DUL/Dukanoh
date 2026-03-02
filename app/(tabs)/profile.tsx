@@ -15,6 +15,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useSaved } from '@/context/SavedContext';
+import { StarRating } from '@/components/StarRating';
 import type { ThemePreference } from '@/context/ThemeContext';
 
 const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
@@ -29,6 +30,8 @@ export default function ProfileScreen() {
   const { savedIds } = useSaved();
   const [listings, setListings] = useState<Listing[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [ratingAvg, setRatingAvg] = useState(0);
+  const [ratingCount, setRatingCount] = useState(0);
   const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -43,17 +46,31 @@ export default function ProfileScreen() {
     setListings((data ?? []) as unknown as Listing[]);
   }, [user]);
 
+  const fetchRating = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('users')
+      .select('rating_avg, rating_count')
+      .eq('id', user.id)
+      .single();
+    if (data) {
+      setRatingAvg(data.rating_avg ?? 0);
+      setRatingCount(data.rating_count ?? 0);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchListings();
-  }, [fetchListings]);
+    fetchRating();
+  }, [fetchListings, fetchRating]);
 
   useFocusEffect(useCallback(() => { reloadRecent(); }, [reloadRecent]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchListings(), reloadRecent()]);
+    await Promise.all([fetchListings(), fetchRating(), reloadRecent()]);
     setRefreshing(false);
-  }, [fetchListings, reloadRecent]);
+  }, [fetchListings, fetchRating, reloadRecent]);
 
   const handleResetPreferences = () => {
     Alert.alert(
@@ -109,6 +126,14 @@ export default function ProfileScreen() {
               <View style={styles.info}>
                 <Text style={styles.name}>{fullName}</Text>
                 <Text style={styles.username}>@{username}</Text>
+                {ratingCount > 0 && (
+                  <View style={styles.ratingRow}>
+                    <StarRating rating={ratingAvg} size={13} />
+                    <Text style={styles.ratingText}>
+                      {ratingAvg.toFixed(1)} ({ratingCount})
+                    </Text>
+                  </View>
+                )}
                 {bio ? <Text style={styles.bio}>{bio}</Text> : null}
               </View>
             </View>
@@ -227,6 +252,8 @@ function getStyles(colors: ColorTokens) {
     name: { ...Typography.subheading, color: colors.textPrimary },
     username: { ...Typography.body, color: colors.textSecondary },
     bio: { ...Typography.body, color: colors.textSecondary, marginTop: Spacing.xs },
+    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+    ratingText: { ...Typography.caption, color: colors.textSecondary },
     sectionLabel: {
       ...Typography.label,
       color: colors.textPrimary,
