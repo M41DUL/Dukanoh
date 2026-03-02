@@ -175,6 +175,56 @@ export default function ListingDetailScreen() {
     });
   };
 
+  const submitReport = async (reason: string) => {
+    if (!user) return;
+    await supabase.from('reports').insert({
+      reporter_id: user.id,
+      listing_id: id!,
+      seller_id: listing.seller_id,
+      reason,
+    });
+    Alert.alert('Report submitted', 'Thank you for helping keep Dukanoh safe.');
+  };
+
+  const handleReport = () => {
+    Alert.alert('Report listing', 'Why are you reporting this?', [
+      { text: 'Spam or misleading', onPress: () => submitReport('Spam or misleading') },
+      { text: 'Counterfeit or fake', onPress: () => submitReport('Counterfeit or fake') },
+      { text: 'Inappropriate content', onPress: () => submitReport('Inappropriate content') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const handleBlock = () => {
+    Alert.alert(
+      'Block seller',
+      `Block @${listing.seller?.username}? You won't see their listings.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            if (!user) return;
+            await supabase.from('blocked_users').insert({
+              blocker_id: user.id,
+              blocked_id: listing.seller_id,
+            });
+            router.back();
+          },
+        },
+      ]
+    );
+  };
+
+  const handleMoreOptions = () => {
+    Alert.alert('Options', undefined, [
+      { text: 'Report listing', onPress: handleReport },
+      { text: 'Block seller', onPress: handleBlock },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   const handleOffer = async () => {
     const amount = parseFloat(offerAmount.replace(/[^0-9.]/g, ''));
     if (!amount || amount <= 0 || !user) return;
@@ -201,9 +251,16 @@ export default function ListingDetailScreen() {
       <Header
         showBack
         rightAction={
-          <TouchableOpacity onPress={handleShare} hitSlop={8} activeOpacity={0.7}>
-            <Ionicons name="share-outline" size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={handleShare} hitSlop={8} activeOpacity={0.7}>
+              <Ionicons name="share-outline" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+            {user?.id !== listing.seller_id && (
+              <TouchableOpacity onPress={handleMoreOptions} hitSlop={8} activeOpacity={0.7}>
+                <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
+              </TouchableOpacity>
+            )}
+          </View>
         }
       />
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -489,6 +546,7 @@ export default function ListingDetailScreen() {
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
     imageBreakout: { marginHorizontal: -Spacing.base },
     imageContainer: { width, height: 360, backgroundColor: colors.surface },
     image: { width, height: 360 },

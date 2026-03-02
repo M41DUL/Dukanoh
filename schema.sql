@@ -256,6 +256,38 @@ DROP POLICY IF EXISTS "Listings are publicly viewable" ON public.listings;
 CREATE POLICY "Listings are publicly viewable"
   ON public.listings FOR SELECT USING (status != 'draft' OR auth.uid() = seller_id);
 
+-- Reports
+CREATE TABLE public.reports (
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  reporter_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  listing_id  UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
+  seller_id   UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  reason      TEXT NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (reporter_id, listing_id)
+);
+
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can create reports"
+  ON public.reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+CREATE POLICY "Users can view own reports"
+  ON public.reports FOR SELECT USING (auth.uid() = reporter_id);
+
+-- Blocked users
+CREATE TABLE public.blocked_users (
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  blocker_id  UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  blocked_id  UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (blocker_id, blocked_id)
+);
+
+ALTER TABLE public.blocked_users ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own blocks"
+  ON public.blocked_users FOR ALL USING (auth.uid() = blocker_id);
+
 CREATE OR REPLACE FUNCTION public.increment_view_count(listing_id UUID)
 RETURNS void AS $$
 BEGIN
