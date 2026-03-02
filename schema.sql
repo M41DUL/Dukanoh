@@ -150,12 +150,29 @@ CREATE POLICY "Participants can view conversations"
   ON public.conversations FOR SELECT
   USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
 
+-- INSERT: buyer must be the caller, seller_id must match the listing's actual seller,
+-- listing must be available, and buyer cannot be the seller of their own listing.
 CREATE POLICY "Buyers can create conversations"
-  ON public.conversations FOR INSERT WITH CHECK (auth.uid() = buyer_id);
+  ON public.conversations FOR INSERT WITH CHECK (
+    auth.uid() = buyer_id
+    AND auth.uid() != seller_id
+    AND seller_id = (
+      SELECT l.seller_id FROM public.listings l
+      WHERE l.id = listing_id AND l.status = 'available'
+    )
+  );
 
+-- UPDATE: participants may only change last_message / updated_at —
+-- core identity fields (buyer_id, seller_id, listing_id) must stay the same.
 CREATE POLICY "Participants can update conversations"
   ON public.conversations FOR UPDATE
-  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+  USING (auth.uid() = buyer_id OR auth.uid() = seller_id)
+  WITH CHECK (
+    (auth.uid() = buyer_id OR auth.uid() = seller_id)
+    AND buyer_id   = (SELECT c.buyer_id   FROM public.conversations c WHERE c.id = conversations.id)
+    AND seller_id  = (SELECT c.seller_id  FROM public.conversations c WHERE c.id = conversations.id)
+    AND listing_id = (SELECT c.listing_id FROM public.conversations c WHERE c.id = conversations.id)
+  );
 
 -- Messages
 CREATE POLICY "Participants can view messages"
@@ -206,6 +223,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_review_change
   AFTER INSERT OR DELETE ON public.reviews
   FOR EACH ROW EXECUTE FUNCTION public.update_seller_rating();
+
+-- Prevent authenticated users from directly writing to rating fields.
+-- update_seller_rating is SECURITY DEFINER (runs as owner) so it is exempt.
+REVOKE UPDATE (rating_avg, rating_count) ON public.users FROM authenticated;
 
 -- Saved items (wishlist)
 CREATE TABLE public.saved_items (
@@ -316,5 +337,21 @@ CREATE OR REPLACE FUNCTION public.increment_view_count(listing_id UUID)
 RETURNS void AS $$
 BEGIN
   UPDATE public.listings SET view_count = view_count + 1 WHERE id = listing_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Atomically consume an invite code (returns true if consumed, false if already used/not found)
+-- Runs as SECURITY DEFINER so it's callable by unauthenticated users during signup
+CREATE OR REPLACE FUNCTION public.consume_invite(p_code TEXT)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_updated INT;
+BEGIN
+  UPDATE public.invites
+  SET is_used = TRUE, used_at = NOW()
+  WHERE code = p_code AND is_used = FALSE;
+
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  RETURN v_updated > 0;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

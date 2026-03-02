@@ -52,7 +52,7 @@ export default function ProfileScreen() {
       .from('users')
       .select('rating_avg, rating_count')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
     if (data) {
       setRatingAvg(data.rating_avg ?? 0);
       setRatingCount(data.rating_count ?? 0);

@@ -130,10 +130,10 @@ export default function SellScreen() {
         .from('listings')
         .upload(fileName, arrayBuffer, { contentType: `image/${ext}` });
 
-      if (!error) {
-        const { data } = supabase.storage.from('listings').getPublicUrl(fileName);
-        urls.push(data.publicUrl);
-      }
+      if (error) throw new Error(`Failed to upload photo: ${error.message}`);
+
+      const { data } = supabase.storage.from('listings').getPublicUrl(fileName);
+      urls.push(data.publicUrl);
     }
     return urls;
   };
