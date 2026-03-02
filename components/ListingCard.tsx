@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Typography, BorderRadius, Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useSaved } from '@/context/SavedContext';
 
 export interface Listing {
   id: string;
@@ -33,8 +35,10 @@ export function ListingCard({
 }: ListingCardProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
+  const { isSaved, toggleSave } = useSaved();
   const isGrid = variant === 'grid';
   const meta = [listing.condition, listing.size].filter(Boolean).join(' · ');
+  const saved = isSaved(listing.id);
 
   return (
     <TouchableOpacity
@@ -52,6 +56,18 @@ export function ListingCard({
         ) : (
           <View style={styles.imagePlaceholder} />
         )}
+        <TouchableOpacity
+          style={styles.heartBtn}
+          onPress={() => toggleSave(listing.id)}
+          hitSlop={8}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name={saved ? 'heart' : 'heart-outline'}
+            size={18}
+            color={saved ? '#FF4444' : 'rgba(255,255,255,0.9)'}
+          />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
@@ -91,6 +107,14 @@ function getStyles(colors: ColorTokens) {
     },
     image: { width: '100%', height: '100%' },
     imagePlaceholder: { flex: 1, backgroundColor: colors.surface },
+    heartBtn: {
+      position: 'absolute',
+      top: Spacing.xs,
+      right: Spacing.xs,
+      backgroundColor: 'rgba(0,0,0,0.22)',
+      borderRadius: BorderRadius.full,
+      padding: 6,
+    },
     content: { paddingVertical: Spacing.sm, gap: 3 },
     title: { ...Typography.body, color: colors.textPrimary, fontWeight: '500' },
     meta: { ...Typography.caption, color: colors.textSecondary },

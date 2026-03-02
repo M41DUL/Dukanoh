@@ -164,6 +164,24 @@ CREATE POLICY "Participants can view messages"
 CREATE POLICY "Users can send messages"
   ON public.messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
+-- Saved items (wishlist)
+CREATE TABLE public.saved_items (
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id     UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  listing_id  UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (user_id, listing_id)
+);
+
+ALTER TABLE public.saved_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own saved"
+  ON public.saved_items FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can save listings"
+  ON public.saved_items FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can unsave listings"
+  ON public.saved_items FOR DELETE USING (auth.uid() = user_id);
+
 -- =============================================================
 -- INDEXES (performance)
 -- =============================================================
@@ -174,3 +192,5 @@ CREATE INDEX idx_listings_status      ON public.listings (status);
 CREATE INDEX idx_messages_conversation ON public.messages (conversation_id, created_at DESC);
 CREATE INDEX idx_conversations_buyer  ON public.conversations (buyer_id);
 CREATE INDEX idx_conversations_seller ON public.conversations (seller_id);
+CREATE INDEX idx_saved_items_user    ON public.saved_items (user_id);
+CREATE INDEX idx_saved_items_listing ON public.saved_items (listing_id);

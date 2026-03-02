@@ -11,6 +11,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { SavedProvider } from '@/context/SavedContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -64,6 +65,10 @@ function RootNavigator() {
           name="conversation/[id]"
           options={{ animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="saved"
+          options={{ animation: 'slide_from_right' }}
+        />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </>
@@ -74,7 +79,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <RootNavigator />
+        <SavedProvider>
+          <RootNavigator />
+        </SavedProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

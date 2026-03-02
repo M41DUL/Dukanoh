@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, Image, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -13,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
+import { useSaved } from '@/context/SavedContext';
 import type { ThemePreference } from '@/context/ThemeContext';
 
 const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
@@ -24,6 +26,7 @@ const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
 export default function ProfileScreen() {
   const { user, signOut, refreshProfile } = useAuth();
   const { preference, setPreference } = useTheme();
+  const { savedIds } = useSaved();
   const [listings, setListings] = useState<Listing[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
@@ -109,6 +112,21 @@ export default function ProfileScreen() {
                 {bio ? <Text style={styles.bio}>{bio}</Text> : null}
               </View>
             </View>
+            <Divider />
+            <TouchableOpacity
+              style={styles.savedRow}
+              onPress={() => router.push('/saved')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="heart-outline" size={20} color={colors.textPrimary} />
+              <Text style={styles.savedRowLabel}>Saved items</Text>
+              {savedIds.size > 0 && (
+                <View style={styles.savedBadge}>
+                  <Text style={styles.savedBadgeText}>{savedIds.size}</Text>
+                </View>
+              )}
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} style={styles.savedChevron} />
+            </TouchableOpacity>
             <Divider />
             {recentItems.length > 0 && (
               <View style={styles.recentSection}>
@@ -236,6 +254,33 @@ function getStyles(colors: ColorTokens) {
       fontFamily: 'Inter_600SemiBold',
     },
     row: { gap: Spacing.sm, marginBottom: Spacing.sm },
+    savedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      paddingVertical: Spacing.md,
+    },
+    savedRowLabel: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    savedBadge: {
+      backgroundColor: colors.primary,
+      borderRadius: BorderRadius.full,
+      minWidth: 20,
+      height: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 6,
+    },
+    savedBadgeText: {
+      ...Typography.caption,
+      color: colors.background,
+      fontFamily: 'Inter_700Bold',
+      fontSize: 11,
+    },
+    savedChevron: { marginLeft: Spacing.xs },
     footer: { gap: Spacing.sm, marginTop: Spacing.xl },
     signOut: {},
     // Theme picker

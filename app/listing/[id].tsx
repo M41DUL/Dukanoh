@@ -22,6 +22,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
 import { useBasket } from '@/hooks/useBasket';
+import { useSaved } from '@/context/SavedContext';
 import { recordView } from '@/hooks/useRecentlyViewed';
 
 const { width } = Dimensions.get('window');
@@ -32,6 +33,7 @@ export default function ListingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
   const { addItem, removeItem, isInBasket } = useBasket();
+  const { isSaved, toggleSave } = useSaved();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -131,7 +133,18 @@ export default function ListingDetailScreen() {
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.basketToggle}
+          style={styles.footerIconBtn}
+          onPress={() => id && toggleSave(id)}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name={isSaved(id ?? '') ? 'heart' : 'heart-outline'}
+            size={24}
+            color={isSaved(id ?? '') ? '#FF4444' : colors.textPrimary}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.footerIconBtn}
           onPress={() =>
             id && (isInBasket(id) ? removeItem(id) : addItem(id))
           }
@@ -205,7 +218,7 @@ function getStyles(colors: ColorTokens) {
       borderTopColor: colors.border,
       backgroundColor: colors.background,
     },
-    basketToggle: {
+    footerIconBtn: {
       width: 52,
       height: 52,
       borderRadius: BorderRadius.full,
