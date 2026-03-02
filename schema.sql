@@ -288,6 +288,30 @@ ALTER TABLE public.blocked_users ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own blocks"
   ON public.blocked_users FOR ALL USING (auth.uid() = blocker_id);
 
+-- Seller response rate
+CREATE OR REPLACE FUNCTION public.get_seller_response_rate(p_seller_id UUID)
+RETURNS NUMERIC AS $$
+DECLARE
+  total_convs   INT;
+  replied_convs INT;
+BEGIN
+  SELECT COUNT(*) INTO total_convs
+  FROM public.conversations
+  WHERE seller_id = p_seller_id;
+
+  IF total_convs = 0 THEN RETURN NULL; END IF;
+
+  SELECT COUNT(DISTINCT conversation_id) INTO replied_convs
+  FROM public.messages
+  WHERE sender_id = p_seller_id
+    AND conversation_id IN (
+      SELECT id FROM public.conversations WHERE seller_id = p_seller_id
+    );
+
+  RETURN ROUND((replied_convs::NUMERIC / total_convs::NUMERIC) * 100);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE OR REPLACE FUNCTION public.increment_view_count(listing_id UUID)
 RETURNS void AS $$
 BEGIN

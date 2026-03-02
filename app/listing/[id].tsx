@@ -48,6 +48,7 @@ export default function ListingDetailScreen() {
   const [newPrice, setNewPrice] = useState('');
   const [lowerPriceSending, setLowerPriceSending] = useState(false);
   const [bumped, setBumped] = useState(false);
+  const [responseRate, setResponseRate] = useState<number | null>(null);
   const { isSaved, toggleSave } = useSaved();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -63,6 +64,9 @@ export default function ListingDetailScreen() {
       .then(({ data }) => {
         if (data) {
           setListing(data as unknown as Listing);
+          supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }).then(({ data: rate }) => {
+            if (rate !== null) setResponseRate(rate as number);
+          });
           if (data.status !== 'draft') {
             recordView(id);
             supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
@@ -344,6 +348,12 @@ export default function ListingDetailScreen() {
               ) : (
                 <Text style={styles.sellerSub}>No reviews yet</Text>
               )}
+              {responseRate !== null && (
+                <View style={styles.responseRow}>
+                  <Ionicons name="chatbubble-outline" size={11} color={colors.textSecondary} />
+                  <Text style={styles.sellerSub}>Responds to {responseRate}% of messages</Text>
+                </View>
+              )}
             </View>
           </TouchableOpacity>
 
@@ -596,6 +606,7 @@ function getStyles(colors: ColorTokens) {
     sellerInfo: { flex: 1, gap: 2 },
     sellerName: { ...Typography.body, color: colors.textPrimary, fontWeight: '600' },
     sellerRating: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+    responseRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     sellerSub: { ...Typography.caption, color: colors.textSecondary },
     reviewBtn: {
       flexDirection: 'row',
