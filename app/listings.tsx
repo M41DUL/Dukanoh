@@ -29,6 +29,7 @@ const SORT_LABELS: Record<SortOption, string> = {
 };
 
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'] as const;
+const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'] as const;
 
 async function fetchPage(
   page: number,
@@ -36,6 +37,7 @@ async function fetchPage(
   categories: string[],
   sort: SortOption,
   condition: string | null,
+  occasion: string | null,
 ): Promise<Listing[]> {
   let query = supabase
     .from('listings')
@@ -45,6 +47,7 @@ async function fetchPage(
 
   if (categories.length > 0) query = query.in('category', categories);
   if (condition) query = query.eq('condition', condition);
+  if (occasion) query = query.eq('occasion', occasion);
 
   if (sort === 'price_asc') query = query.order('price', { ascending: true });
   else if (sort === 'price_desc') query = query.order('price', { ascending: false });
@@ -72,12 +75,13 @@ export default function ListingsScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [sort, setSort] = useState<SortOption>('newest');
   const [condition, setCondition] = useState<string | null>(null);
+  const [occasion, setOccasion] = useState<string | null>(null);
   const pageRef = useRef(0);
 
   const load = useCallback(async (reset: boolean) => {
     if (!user) return;
     const pageNum = reset ? 0 : pageRef.current;
-    const items = await fetchPage(pageNum, user.id, categories, sort, condition);
+    const items = await fetchPage(pageNum, user.id, categories, sort, condition, occasion);
     if (reset) {
       setListings(items);
       pageRef.current = 1;
@@ -87,7 +91,7 @@ export default function ListingsScreen() {
     }
     setHasMore(items.length === PAGE_SIZE);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, categoriesStr, sort, condition]);
+  }, [user, categoriesStr, sort, condition, occasion]);
 
   useEffect(() => {
     setLoading(true);
@@ -117,6 +121,19 @@ export default function ListingsScreen() {
 
   const showFilterSheet = () => {
     Alert.alert(
+      'Filter',
+      undefined,
+      [
+        { text: 'Condition', onPress: showConditionSheet },
+        { text: 'Occasion', onPress: showOccasionSheet },
+        ...((condition || occasion) ? [{ text: 'Clear all filters', style: 'destructive' as const, onPress: () => { setCondition(null); setOccasion(null); } }] : []),
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+    );
+  };
+
+  const showConditionSheet = () => {
+    Alert.alert(
       'Filter by condition',
       undefined,
       [
@@ -124,13 +141,27 @@ export default function ListingsScreen() {
           text: condition === cond ? `✓  ${cond}` : cond,
           onPress: () => setCondition(prev => (prev === cond ? null : cond)),
         })),
-        { text: condition ? 'Clear filter' : 'Cancel', style: 'cancel' as const, onPress: () => setCondition(null) },
+        { text: condition ? 'Clear' : 'Cancel', style: 'cancel' as const, onPress: () => setCondition(null) },
+      ],
+    );
+  };
+
+  const showOccasionSheet = () => {
+    Alert.alert(
+      'Filter by occasion',
+      undefined,
+      [
+        ...OCCASIONS.map(occ => ({
+          text: occasion === occ ? `✓  ${occ}` : occ,
+          onPress: () => setOccasion(prev => (prev === occ ? null : occ)),
+        })),
+        { text: occasion ? 'Clear' : 'Cancel', style: 'cancel' as const, onPress: () => setOccasion(null) },
       ],
     );
   };
 
   const isSorted = sort !== 'newest';
-  const isFiltered = condition !== null;
+  const isFiltered = condition !== null || occasion !== null;
 
   return (
     <ScreenWrapper>
@@ -167,7 +198,7 @@ export default function ListingsScreen() {
             color={isFiltered ? colors.background : colors.textPrimary}
           />
           <Text style={[styles.controlText, isFiltered && styles.controlTextActive]}>
-            {isFiltered ? condition : 'Filter'}
+            {occasion ?? condition ?? 'Filter'}
           </Text>
         </TouchableOpacity>
       </View>

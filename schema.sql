@@ -42,8 +42,11 @@ CREATE TABLE public.listings (
   price       NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
   category    TEXT NOT NULL,
   condition   TEXT NOT NULL,
-  size        TEXT,
-  images      TEXT[] DEFAULT '{}',
+  size         TEXT,
+  occasion     TEXT,
+  measurements JSONB,
+  worn_at      TEXT,
+  images       TEXT[] DEFAULT '{}',
   status      TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold', 'draft')),
   view_count  INT DEFAULT 0,
   created_at  TIMESTAMPTZ DEFAULT NOW()

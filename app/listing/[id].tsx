@@ -13,6 +13,7 @@ import {
   Platform,
   Alert,
   Share,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -204,6 +205,17 @@ export default function ListingDetailScreen() {
     });
   };
 
+  const handleWhatsAppShare = async () => {
+    const text = encodeURIComponent(`${listing.title} — £${listing.price.toFixed(2)} on Dukanoh`);
+    const url = `whatsapp://send?text=${text}`;
+    const canOpen = await Linking.canOpenURL(url);
+    if (canOpen) {
+      Linking.openURL(url);
+    } else {
+      Share.share({ message: `${listing.title} — £${listing.price.toFixed(2)} on Dukanoh` });
+    }
+  };
+
   const submitReport = async (reason: string) => {
     if (!user) return;
     await supabase.from('reports').insert({
@@ -281,6 +293,9 @@ export default function ListingDetailScreen() {
         showBack
         rightAction={
           <View style={styles.headerActions}>
+            <TouchableOpacity onPress={handleWhatsAppShare} hitSlop={8} activeOpacity={0.7}>
+              <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
+            </TouchableOpacity>
             <TouchableOpacity onPress={handleShare} hitSlop={8} activeOpacity={0.7}>
               <Ionicons name="share-outline" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
@@ -344,7 +359,31 @@ export default function ListingDetailScreen() {
           <View style={styles.metaRow}>
             <Badge label={listing.condition} />
             {listing.size ? <Badge label={listing.size} /> : null}
+            {listing.occasion ? <Badge label={listing.occasion} /> : null}
           </View>
+
+          {listing.measurements && (Object.values(listing.measurements).some(v => v != null)) && (
+            <View style={styles.measureRow}>
+              {listing.measurements.chest ? (
+                <View style={styles.measureItem}>
+                  <Text style={styles.measureValue}>{listing.measurements.chest}"</Text>
+                  <Text style={styles.measureLabel}>Chest</Text>
+                </View>
+              ) : null}
+              {listing.measurements.waist ? (
+                <View style={styles.measureItem}>
+                  <Text style={styles.measureValue}>{listing.measurements.waist}"</Text>
+                  <Text style={styles.measureLabel}>Waist</Text>
+                </View>
+              ) : null}
+              {listing.measurements.length ? (
+                <View style={styles.measureItem}>
+                  <Text style={styles.measureValue}>{listing.measurements.length}"</Text>
+                  <Text style={styles.measureLabel}>Length</Text>
+                </View>
+              ) : null}
+            </View>
+          )}
 
           <View style={styles.viewRow}>
             {(listing.view_count ?? 0) > 0 && (
@@ -392,6 +431,13 @@ export default function ListingDetailScreen() {
 
           <Text style={styles.sectionLabel}>Description</Text>
           <Text style={styles.description}>{listing.description ?? '—'}</Text>
+
+          {listing.worn_at ? (
+            <View style={styles.wornAtCard}>
+              <Ionicons name="sparkles-outline" size={14} color={colors.primary} />
+              <Text style={styles.wornAtText}>{listing.worn_at}</Text>
+            </View>
+          ) : null}
 
           {canReview && (
             <TouchableOpacity
@@ -655,6 +701,17 @@ function getStyles(colors: ColorTokens) {
     soldBadge: { backgroundColor: '#FF4444', borderColor: '#FF4444' },
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
     metaRow: { flexDirection: 'row', gap: Spacing.xs },
+    measureRow: {
+      flexDirection: 'row',
+      gap: Spacing.xl,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.base,
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.medium,
+    },
+    measureItem: { alignItems: 'center', gap: 2 },
+    measureValue: { ...Typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+    measureLabel: { ...Typography.caption, color: colors.textSecondary },
     viewRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     viewCount: { ...Typography.caption, color: colors.textSecondary },
     soldFooter: {
@@ -696,6 +753,25 @@ function getStyles(colors: ColorTokens) {
       ...Typography.body,
       color: colors.textSecondary,
       lineHeight: 22,
+    },
+    wornAtCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: Spacing.xs,
+      backgroundColor: colors.surface,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
+      borderRadius: BorderRadius.small,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      marginTop: Spacing.xs,
+    },
+    wornAtText: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      flex: 1,
+      lineHeight: 20,
+      fontStyle: 'italic',
     },
     footer: {
       flexDirection: 'row',

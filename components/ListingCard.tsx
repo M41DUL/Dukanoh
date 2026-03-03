@@ -14,6 +14,9 @@ export interface Listing {
   images: string[];
   condition: string;
   size?: string;
+  occasion?: string;
+  measurements?: { chest?: number; waist?: number; length?: number };
+  worn_at?: string;
   status: 'available' | 'sold' | 'draft';
   view_count?: number;
   created_at?: string;

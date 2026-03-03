@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const SELL_CATEGORIES = Categories.filter(c => c !== 'All');
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'] as const;
+const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'] as const;
 
 interface ListingForm {
   title: string;
@@ -31,6 +32,8 @@ interface ListingForm {
   size: string;
   category: string;
   condition: string;
+  occasion: string;
+  worn_at: string;
 }
 
 export default function SellScreen() {
@@ -42,7 +45,10 @@ export default function SellScreen() {
     size: '',
     category: '',
     condition: '',
+    occasion: '',
+    worn_at: '',
   });
+  const [measurements, setMeasurements] = useState({ chest: '', waist: '', length: '' });
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Partial<ListingForm & { images: string }>>({});
@@ -139,8 +145,20 @@ export default function SellScreen() {
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', price: '', size: '', category: '', condition: '' });
+    setForm({ title: '', description: '', price: '', size: '', category: '', condition: '', occasion: '', worn_at: '' });
+    setMeasurements({ chest: '', waist: '', length: '' });
     setImages([]);
+  };
+
+  const buildMeasurements = () => {
+    const chest = parseFloat(measurements.chest);
+    const waist = parseFloat(measurements.waist);
+    const length = parseFloat(measurements.length);
+    const obj: Record<string, number> = {};
+    if (!isNaN(chest) && chest > 0) obj.chest = chest;
+    if (!isNaN(waist) && waist > 0) obj.waist = waist;
+    if (!isNaN(length) && length > 0) obj.length = length;
+    return Object.keys(obj).length > 0 ? obj : null;
   };
 
   const handleSubmit = async () => {
@@ -158,6 +176,9 @@ export default function SellScreen() {
         category: form.category,
         condition: form.condition,
         size: form.size.trim() || null,
+        occasion: form.occasion || null,
+        measurements: buildMeasurements(),
+        worn_at: form.worn_at.trim() || null,
         images: imageUrls,
         status: 'available',
       });
@@ -190,6 +211,9 @@ export default function SellScreen() {
         category: form.category,
         condition: form.condition,
         size: form.size.trim() || null,
+        occasion: form.occasion || null,
+        measurements: buildMeasurements(),
+        worn_at: form.worn_at.trim() || null,
         images: imageUrls,
         status: 'draft',
       });
@@ -260,6 +284,13 @@ export default function SellScreen() {
           style={styles.multiline}
         />
         <Input
+          label="My story (optional)"
+          placeholder="e.g. Worn once at Eid 2023 in Birmingham"
+          value={form.worn_at}
+          onChangeText={update('worn_at')}
+          maxLength={100}
+        />
+        <Input
           label="Price (£)"
           placeholder="0.00"
           value={form.price}
@@ -273,6 +304,36 @@ export default function SellScreen() {
           value={form.size}
           onChangeText={update('size')}
         />
+
+        <View>
+          <Text style={styles.sectionLabel}>Measurements <Text style={styles.optionalLabel}>(optional, in inches)</Text></Text>
+          <View style={styles.measureRow}>
+            <Input
+              label="Chest"
+              placeholder="38"
+              value={measurements.chest}
+              onChangeText={v => setMeasurements(m => ({ ...m, chest: v }))}
+              keyboardType="decimal-pad"
+              style={styles.measureInput}
+            />
+            <Input
+              label="Waist"
+              placeholder="32"
+              value={measurements.waist}
+              onChangeText={v => setMeasurements(m => ({ ...m, waist: v }))}
+              keyboardType="decimal-pad"
+              style={styles.measureInput}
+            />
+            <Input
+              label="Length"
+              placeholder="44"
+              value={measurements.length}
+              onChangeText={v => setMeasurements(m => ({ ...m, length: v }))}
+              keyboardType="decimal-pad"
+              style={styles.measureInput}
+            />
+          </View>
+        </View>
 
         <View>
           <Text style={styles.sectionLabel}>Category</Text>
@@ -308,6 +369,20 @@ export default function SellScreen() {
             ))}
           </View>
           {errors.condition ? <Text style={styles.errorText}>{errors.condition}</Text> : null}
+        </View>
+
+        <View>
+          <Text style={styles.sectionLabel}>Occasion <Text style={styles.optionalLabel}>(optional)</Text></Text>
+          <View style={styles.chipGrid}>
+            {OCCASIONS.map(occ => (
+              <Badge
+                key={occ}
+                label={occ}
+                active={form.occasion === occ}
+                onPress={() => setForm(f => ({ ...f, occasion: f.occasion === occ ? '' : occ }))}
+              />
+            ))}
+          </View>
         </View>
 
         <View style={styles.submitRow}>
@@ -387,6 +462,9 @@ function getStyles(colors: ColorTokens) {
       marginBottom: Spacing.sm,
     },
     chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+    optionalLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_400Regular' },
+    measureRow: { flexDirection: 'row', gap: Spacing.sm },
+    measureInput: { flex: 1 },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
     submitRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
     draftBtn: { flex: 1 },
