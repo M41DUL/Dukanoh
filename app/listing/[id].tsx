@@ -434,7 +434,7 @@ export default function ListingDetailScreen() {
 
           {listing.worn_at ? (
             <View style={styles.wornAtCard}>
-              <Ionicons name="sparkles-outline" size={14} color={colors.primary} />
+              <Ionicons name="sparkles-outline" size={14} color={colors.primaryText} />
               <Text style={styles.wornAtText}>{listing.worn_at}</Text>
             </View>
           ) : null}
@@ -445,7 +445,7 @@ export default function ListingDetailScreen() {
               onPress={() => router.push(`/review/${id}?sellerName=${listing.seller?.username ?? ''}&listingTitle=${encodeURIComponent(listing.title)}`)}
               activeOpacity={0.8}
             >
-              <Ionicons name="star-outline" size={16} color={colors.primary} />
+              <Ionicons name="star-outline" size={16} color={colors.primaryText} />
               <Text style={styles.reviewBtnText}>Rate this seller</Text>
             </TouchableOpacity>
           )}
@@ -520,7 +520,7 @@ export default function ListingDetailScreen() {
                 <Ionicons
                   name="arrow-up-circle-outline"
                   size={24}
-                  color={bumped ? colors.textSecondary : colors.primary}
+                  color={bumped ? colors.textSecondary : colors.primaryText}
                 />
               </TouchableOpacity>
               <Button
@@ -697,7 +697,7 @@ function getStyles(colors: ColorTokens) {
     },
     title: { ...Typography.heading, color: colors.textPrimary, flex: 1 },
     priceRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-    price: { ...Typography.heading, color: colors.primary },
+    price: { ...Typography.heading, color: colors.primaryText },
     soldBadge: { backgroundColor: '#FF4444', borderColor: '#FF4444' },
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
     metaRow: { flexDirection: 'row', gap: Spacing.xs },
@@ -746,7 +746,7 @@ function getStyles(colors: ColorTokens) {
     },
     reviewBtnText: {
       ...Typography.label,
-      color: colors.primary,
+      color: colors.primaryText,
     },
     sectionLabel: { ...Typography.label, color: colors.textPrimary },
     description: {

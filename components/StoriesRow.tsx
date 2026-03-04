@@ -304,7 +304,7 @@ function getRowStyles(colors: ColorTokens) {
     },
     appBubbleLetter: {
       ...Typography.subheading,
-      color: colors.background,
+      color: '#FFFFFF',
       fontFamily: 'Inter_700Bold',
     },
     bubbleLabel: {

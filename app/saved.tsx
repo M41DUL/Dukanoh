@@ -58,7 +58,7 @@ export default function SavedScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
+        <ActivityIndicator size="large" color={colors.primaryText} style={styles.loader} />
       ) : (
         <FlatList
           data={items}

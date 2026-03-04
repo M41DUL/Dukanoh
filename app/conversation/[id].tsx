@@ -170,7 +170,7 @@ function getStyles(colors: ColorTokens) {
       borderBottomLeftRadius: BorderRadius.small,
     },
     bubbleText: { ...Typography.body, color: colors.textPrimary },
-    bubbleTextOwn: { color: colors.background },
+    bubbleTextOwn: { color: '#FFFFFF' },
     offerBubble: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -195,7 +195,7 @@ function getStyles(colors: ColorTokens) {
     },
     offerLabel: { ...Typography.caption, fontFamily: 'Inter_600SemiBold' },
     offerAmount: { ...Typography.subheading },
-    textOnPrimary: { color: colors.background },
+    textOnPrimary: { color: '#FFFFFF' },
     textMuted: { color: colors.textSecondary },
     textAmber: { color: '#F59E0B' },
     inputRow: {

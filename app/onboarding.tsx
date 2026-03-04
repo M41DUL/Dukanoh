@@ -343,7 +343,7 @@ function getStyles(colors: ColorTokens) {
     },
     cardPrice: {
       ...Typography.subheading,
-      color: colors.primary,
+      color: colors.primaryText,
     },
     indicator: {
       position: 'absolute',

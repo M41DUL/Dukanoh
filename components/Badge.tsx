@@ -48,7 +48,7 @@ function getStyles(colors: ColorTokens) {
     active: { backgroundColor: colors.primary, borderColor: colors.primary },
     inactive: { backgroundColor: colors.background, borderColor: colors.border },
     label: { ...Typography.label },
-    activeText: { color: colors.background },
+    activeText: { color: '#FFFFFF' },
     inactiveText: { color: colors.textSecondary },
   });
 }

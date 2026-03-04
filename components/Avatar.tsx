@@ -28,7 +28,7 @@ export function Avatar({ uri, initials = '?', size = 'medium' }: AvatarProps) {
       {uri ? (
         <Image source={{ uri }} style={styles.image} />
       ) : (
-        <Text style={[styles.initials, { fontSize, color: colors.background }]}>{initials}</Text>
+        <Text style={[styles.initials, { fontSize, color: '#FFFFFF' }]}>{initials}</Text>
       )}
     </View>
   );

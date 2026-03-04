@@ -66,7 +66,7 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? colors.background : colors.primary}
+          color={variant === 'primary' ? '#FFFFFF' : colors.primaryText}
           size="small"
         />
       ) : (
@@ -107,9 +107,9 @@ function getStyles(colors: ColorTokens) {
       fontFamily: 'Inter_600SemiBold',
       letterSpacing: 0.2,
     },
-    primaryText: { color: colors.background },
+    primaryText: { color: '#FFFFFF' },
     secondaryText: { color: colors.textPrimary },
-    outlineText: { color: colors.primary },
-    ghostText: { color: colors.primary },
+    outlineText: { color: colors.primaryText },
+    ghostText: { color: colors.primaryText },
   });
 }

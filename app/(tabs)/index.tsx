@@ -117,7 +117,7 @@ function SectionHeader({ title, onSeeAll, colors }: { title: string; onSeeAll: (
     <View style={feedStaticStyles.sectionHeaderRow}>
       <Text style={[feedStaticStyles.sectionTitle, { color: colors.textPrimary }]}>{title}</Text>
       <TouchableOpacity onPress={onSeeAll} hitSlop={8}>
-        <Text style={[feedStaticStyles.seeAll, { color: colors.primary }]}>See all</Text>
+        <Text style={[feedStaticStyles.seeAll, { color: colors.primaryText }]}>See all</Text>
       </TouchableOpacity>
     </View>
   );
@@ -199,7 +199,7 @@ function getReEngageStyles(colors: ColorTokens) {
     },
     btnText: {
       ...Typography.body,
-      color: colors.background,
+      color: '#FFFFFF',
       fontFamily: 'Inter_600SemiBold',
     },
   });
@@ -544,7 +544,7 @@ export default function HomeScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                tintColor={colors.primary}
+                tintColor={colors.primaryText}
               />
             }
             contentContainerStyle={styles.feedContent}

@@ -113,7 +113,7 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryText} />
         }
         renderItem={({ item }) => (
           <ListingCard
@@ -317,7 +317,7 @@ function getStyles(colors: ColorTokens) {
     },
     recentPrice: {
       ...Typography.caption,
-      color: colors.primary,
+      color: colors.primaryText,
       fontFamily: 'Inter_600SemiBold',
     },
     draftsSection: { marginBottom: Spacing.xs },
@@ -368,7 +368,7 @@ function getStyles(colors: ColorTokens) {
     },
     savedBadgeText: {
       ...Typography.caption,
-      color: colors.background,
+      color: '#FFFFFF',
       fontFamily: 'Inter_700Bold',
       fontSize: 11,
     },
@@ -397,7 +397,7 @@ function getStyles(colors: ColorTokens) {
       color: colors.textSecondary,
     },
     themeBtnTextActive: {
-      color: colors.background,
+      color: '#FFFFFF',
     },
   });
 }

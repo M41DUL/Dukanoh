@@ -98,7 +98,7 @@ function getStyles(colors: ColorTokens) {
     header: { gap: Spacing.sm },
     wordmark: {
       ...Typography.display,
-      color: colors.primary,
+      color: colors.primaryText,
       marginBottom: Spacing.base,
     },
     heading: { ...Typography.heading, color: colors.textPrimary },

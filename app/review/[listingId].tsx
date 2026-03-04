@@ -115,7 +115,7 @@ export default function ReviewScreen() {
           disabled={rating === 0 || submitting}
           style={styles.submitBtn}
         />
-        {submitting && <ActivityIndicator color={colors.primary} style={styles.spinner} />}
+        {submitting && <ActivityIndicator color={colors.primaryText} style={styles.spinner} />}
       </View>
     </ScreenWrapper>
   );

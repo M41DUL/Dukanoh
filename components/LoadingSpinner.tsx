@@ -6,7 +6,7 @@ export function LoadingSpinner() {
   const colors = useThemeColors();
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color={colors.primary} />
+      <ActivityIndicator size="large" color={colors.primaryText} />
     </View>
   );
 }
