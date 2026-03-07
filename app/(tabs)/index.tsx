@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { StoriesRow } from '@/components/StoriesRow';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { SectionHeader } from '@/components/SectionHeader';
+import { SearchBar } from '@/components/SearchBar';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStories, getAppStory } from '@/hooks/useStories';
@@ -393,6 +394,7 @@ export default function HomeScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
+  const [query, setQuery] = useState('');
   const [suggested, setSuggested] = useState<Listing[]>([]);
   const [newArrivals, setNewArrivals] = useState<Listing[]>([]);
   const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
@@ -493,17 +495,15 @@ export default function HomeScreen() {
     <ScreenWrapper>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <View style={styles.searchRow}>
-            <TouchableOpacity
-              style={styles.searchBar}
-              onPress={() => router.push('/(tabs)/search')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.placeholder}>Search for anything</Text>
-            </TouchableOpacity>
-
-          </View>
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            onSubmit={(q) => {
+              if (q.trim()) {
+                router.push({ pathname: '/listings', params: { title: `"${q}"`, query: q } });
+              }
+            }}
+          />
         </View>
 
         {loading ? (
@@ -590,27 +590,6 @@ function getStyles(colors: ColorTokens) {
     topBar: {
       paddingTop: Spacing.sm,
       paddingBottom: Spacing.xs,
-      gap: Spacing.xs,
-    },
-    searchRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      paddingVertical: Spacing.xs,
-    },
-    searchBar: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.full,
-      paddingHorizontal: Spacing.base,
-      height: 46,
-    },
-    placeholder: {
-      ...Typography.body,
-      color: colors.textSecondary,
     },
     feedContent: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
   });

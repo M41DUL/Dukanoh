@@ -38,6 +38,7 @@ async function fetchPage(
   sort: SortOption,
   condition: string | null,
   occasion: string | null,
+  searchQuery?: string,
 ): Promise<Listing[]> {
   let query = supabase
     .from('listings')
@@ -48,6 +49,7 @@ async function fetchPage(
   if (categories.length > 0) query = query.in('category', categories);
   if (condition) query = query.eq('condition', condition);
   if (occasion) query = query.eq('occasion', occasion);
+  if (searchQuery?.trim()) query = query.ilike('title', `%${searchQuery.trim()}%`);
 
   if (sort === 'price_asc') query = query.order('price', { ascending: true });
   else if (sort === 'price_desc') query = query.order('price', { ascending: false });
@@ -58,9 +60,10 @@ async function fetchPage(
 }
 
 export default function ListingsScreen() {
-  const { title = 'Listings', categories: categoriesParam } = useLocalSearchParams<{
+  const { title = 'Listings', categories: categoriesParam, query: queryParam } = useLocalSearchParams<{
     title: string;
     categories?: string;
+    query?: string;
   }>();
   const { user } = useAuth();
   const colors = useThemeColors();
@@ -68,6 +71,7 @@ export default function ListingsScreen() {
 
   const categoriesStr = Array.isArray(categoriesParam) ? categoriesParam[0] : (categoriesParam ?? '');
   const categories = categoriesStr ? categoriesStr.split(',').filter(Boolean) : [];
+  const searchQuery = Array.isArray(queryParam) ? queryParam[0] : (queryParam ?? '');
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +85,7 @@ export default function ListingsScreen() {
   const load = useCallback(async (reset: boolean) => {
     if (!user) return;
     const pageNum = reset ? 0 : pageRef.current;
-    const items = await fetchPage(pageNum, user.id, categories, sort, condition, occasion);
+    const items = await fetchPage(pageNum, user.id, categories, sort, condition, occasion, searchQuery);
     if (reset) {
       setListings(items);
       pageRef.current = 1;
@@ -91,7 +95,7 @@ export default function ListingsScreen() {
     }
     setHasMore(items.length === PAGE_SIZE);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, categoriesStr, sort, condition, occasion]);
+  }, [user, categoriesStr, searchQuery, sort, condition, occasion]);
 
   useEffect(() => {
     setLoading(true);

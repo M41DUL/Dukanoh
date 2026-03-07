@@ -15,6 +15,9 @@ interface SearchBarProps {
   onChangeText: (text: string) => void;
   placeholder?: string;
   onClear?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  onSubmit?: (query: string) => void;
   style?: ViewStyle;
 }
 
@@ -23,6 +26,9 @@ export function SearchBar({
   onChangeText,
   placeholder = 'Search for anything',
   onClear,
+  onFocus,
+  onBlur,
+  onSubmit,
   style,
 }: SearchBarProps) {
   const [focused, setFocused] = useState(false);
@@ -48,8 +54,9 @@ export function SearchBar({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={colors.textSecondary}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={() => { setFocused(true); onFocus?.(); }}
+        onBlur={() => { setFocused(false); onBlur?.(); }}
+        onSubmitEditing={() => onSubmit?.(value)}
         returnKeyType="search"
         clearButtonMode="never"
       />
