@@ -13,7 +13,6 @@ import {
   Platform,
   Alert,
   Share,
-  Linking,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -205,17 +204,6 @@ export default function ListingDetailScreen() {
     });
   };
 
-  const handleWhatsAppShare = async () => {
-    const text = encodeURIComponent(`${listing.title} — £${listing.price.toFixed(2)} on Dukanoh`);
-    const url = `whatsapp://send?text=${text}`;
-    const canOpen = await Linking.canOpenURL(url);
-    if (canOpen) {
-      Linking.openURL(url);
-    } else {
-      Share.share({ message: `${listing.title} — £${listing.price.toFixed(2)} on Dukanoh` });
-    }
-  };
-
   const submitReport = async (reason: string) => {
     if (!user) return;
     await supabase.from('reports').insert({
@@ -293,9 +281,6 @@ export default function ListingDetailScreen() {
         showBack
         rightAction={
           <View style={styles.headerActions}>
-            <TouchableOpacity onPress={handleWhatsAppShare} hitSlop={8} activeOpacity={0.7}>
-              <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
-            </TouchableOpacity>
             <TouchableOpacity onPress={handleShare} hitSlop={8} activeOpacity={0.7}>
               <Ionicons name="share-outline" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
