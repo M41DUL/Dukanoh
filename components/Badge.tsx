@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { Typography, BorderRadius, Spacing, ColorTokens } from '@/constants/theme';
+import { Typography, BorderRadius, BorderWidth, Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface BadgeProps {
@@ -43,7 +43,7 @@ function getStyles(colors: ColorTokens) {
       paddingHorizontal: Spacing.md,
       paddingVertical: Spacing.xs + 2,
       borderRadius: BorderRadius.full,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
     },
     active: { backgroundColor: colors.primary, borderColor: colors.primary },
     inactive: { backgroundColor: colors.background, borderColor: colors.border },

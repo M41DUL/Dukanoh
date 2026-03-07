@@ -16,7 +16,7 @@ import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Badge } from '@/components/Badge';
-import { Typography, Spacing, BorderRadius, Categories, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, Categories, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -445,7 +445,7 @@ function getStyles(colors: ColorTokens) {
       width: 120,
       height: 120,
       borderRadius: BorderRadius.medium,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: colors.border,
       borderStyle: 'dashed',
       backgroundColor: colors.surface,

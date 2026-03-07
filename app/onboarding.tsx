@@ -20,7 +20,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Badge } from '@/components/Badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -387,7 +387,7 @@ function getStyles(colors: ColorTokens) {
     },
     skipBtn: {
       backgroundColor: colors.background,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: colors.border,
     },
     likeBtn: {

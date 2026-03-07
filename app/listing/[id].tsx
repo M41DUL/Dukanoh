@@ -24,7 +24,7 @@ import { Avatar } from '@/components/Avatar';
 import { Badge } from '@/components/Badge';
 import { Divider } from '@/components/Divider';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
@@ -546,7 +546,7 @@ export default function ListingDetailScreen() {
               <Ionicons
                 name={isSaved(id ?? '') ? 'heart' : 'heart-outline'}
                 size={24}
-                color={isSaved(id ?? '') ? '#FF4444' : colors.textPrimary}
+                color={isSaved(id ?? '') ? colors.error : colors.textPrimary}
               />
             </TouchableOpacity>
             {listing.status === 'available' && (
@@ -698,7 +698,7 @@ function getStyles(colors: ColorTokens) {
     title: { ...Typography.heading, color: colors.textPrimary, flex: 1 },
     priceRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     price: { ...Typography.heading, color: colors.primaryText },
-    soldBadge: { backgroundColor: '#FF4444', borderColor: '#FF4444' },
+    soldBadge: { backgroundColor: colors.error, borderColor: colors.error },
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
     metaRow: { flexDirection: 'row', gap: Spacing.xs },
     measureRow: {
@@ -740,7 +740,7 @@ function getStyles(colors: ColorTokens) {
       paddingVertical: Spacing.sm,
       paddingHorizontal: Spacing.md,
       borderRadius: BorderRadius.full,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: colors.primary,
       marginTop: Spacing.xs,
     },
@@ -786,7 +786,7 @@ function getStyles(colors: ColorTokens) {
       width: 52,
       height: 52,
       borderRadius: BorderRadius.full,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: colors.border,
       alignItems: 'center',
       justifyContent: 'center',

@@ -15,6 +15,7 @@ import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { EmptyState } from '@/components/EmptyState';
 import { StoriesRow } from '@/components/StoriesRow';
 import { ListingCard, Listing } from '@/components/ListingCard';
+import { SectionHeader } from '@/components/SectionHeader';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStories, getAppStory } from '@/hooks/useStories';
@@ -112,16 +113,6 @@ function SkeletonSection() {
   );
 }
 
-function SectionHeader({ title, onSeeAll, colors }: { title: string; onSeeAll: () => void; colors: ColorTokens }) {
-  return (
-    <View style={feedStaticStyles.sectionHeaderRow}>
-      <Text style={[feedStaticStyles.sectionTitle, { color: colors.textPrimary }]}>{title}</Text>
-      <TouchableOpacity onPress={onSeeAll} hitSlop={8}>
-        <Text style={[feedStaticStyles.seeAll, { color: colors.primaryText }]}>See all</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 function ListingsGrid({ items }: { items: Listing[] }) {
   const rows: Listing[][] = [];
@@ -389,25 +380,8 @@ function getPriceDropStyles(colors: ColorTokens) {
   });
 }
 
-// Static styles (layout/spacing only, no colors)
 const feedStaticStyles = StyleSheet.create({
   section: { marginBottom: Spacing.xl },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
-  sectionTitle: {
-    ...Typography.subheading,
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    fontWeight: '700',
-  },
-  seeAll: {
-    ...Typography.body,
-    fontFamily: 'Inter_600SemiBold',
-  },
   gridRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
   emptyCell: { flex: 1 },
 });
@@ -563,7 +537,6 @@ export default function HomeScreen() {
               <View style={feedStaticStyles.section}>
                 <SectionHeader
                   title="Suggested for you"
-                  colors={colors}
                   onSeeAll={() =>
                     router.push({
                       pathname: '/listings',
@@ -584,7 +557,6 @@ export default function HomeScreen() {
               <View style={feedStaticStyles.section}>
                 <SectionHeader
                   title="New arrivals"
-                  colors={colors}
                   onSeeAll={() =>
                     router.push({
                       pathname: '/listings',

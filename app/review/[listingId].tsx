@@ -89,7 +89,7 @@ export default function ReviewScreen() {
               <Ionicons
                 name={i <= rating ? 'star' : 'star-outline'}
                 size={40}
-                color={i <= rating ? '#F59E0B' : colors.border}
+                color={i <= rating ? colors.amber : colors.border}
               />
             </TouchableOpacity>
           ))}
@@ -162,7 +162,7 @@ function getStyles(colors: ColorTokens) {
     },
     ratingLabel: {
       ...Typography.subheading,
-      color: '#F59E0B',
+      color: colors.amber,
       marginTop: -Spacing.xs,
     },
     commentInput: {

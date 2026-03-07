@@ -7,7 +7,7 @@ import {
   TextInputProps,
   ViewStyle,
 } from 'react-native';
-import { Typography, BorderRadius, Spacing, ColorTokens } from '@/constants/theme';
+import { Typography, BorderRadius, BorderWidth, Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface InputProps extends TextInputProps {
@@ -55,7 +55,7 @@ function getStyles(colors: ColorTokens) {
       alignItems: 'center',
       backgroundColor: colors.surface,
       borderRadius: BorderRadius.medium,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: colors.border,
       paddingHorizontal: Spacing.base,
       minHeight: 52,

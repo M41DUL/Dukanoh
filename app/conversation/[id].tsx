@@ -12,7 +12,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -87,7 +87,7 @@ export default function ConversationScreen() {
       const amount = item.content.slice('__OFFER__:'.length);
       return (
         <View style={[styles.offerBubble, isOwn ? styles.offerOwn : styles.offerOther]}>
-          <Ionicons name="pricetag-outline" size={14} color={isOwn ? colors.background : '#F59E0B'} />
+          <Ionicons name="pricetag-outline" size={14} color={isOwn ? '#FFFFFF' : colors.amber} />
           <View>
             <Text style={[styles.offerLabel, isOwn ? styles.textOnPrimary : styles.textMuted]}>Offer</Text>
             <Text style={[styles.offerAmount, isOwn ? styles.textOnPrimary : styles.textAmber]}>£{amount}</Text>
@@ -179,7 +179,7 @@ function getStyles(colors: ColorTokens) {
       paddingHorizontal: Spacing.md,
       paddingVertical: Spacing.sm,
       borderRadius: BorderRadius.large,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
     },
     offerOwn: {
       borderColor: colors.primary,
@@ -188,7 +188,7 @@ function getStyles(colors: ColorTokens) {
       borderBottomRightRadius: BorderRadius.small,
     },
     offerOther: {
-      borderColor: '#F59E0B',
+      borderColor: colors.amber,
       backgroundColor: 'rgba(245,158,11,0.08)',
       alignSelf: 'flex-start',
       borderBottomLeftRadius: BorderRadius.small,
@@ -197,7 +197,7 @@ function getStyles(colors: ColorTokens) {
     offerAmount: { ...Typography.subheading },
     textOnPrimary: { color: '#FFFFFF' },
     textMuted: { color: colors.textSecondary },
-    textAmber: { color: '#F59E0B' },
+    textAmber: { color: colors.amber },
     inputRow: {
       flexDirection: 'row',
       alignItems: 'flex-end',

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface StarRatingProps {
   rating: number;
@@ -8,7 +9,9 @@ interface StarRatingProps {
   color?: string;
 }
 
-export function StarRating({ rating, size = 14, color = '#F59E0B' }: StarRatingProps) {
+export function StarRating({ rating, size = 14, color }: StarRatingProps) {
+  const colors = useThemeColors();
+  const starColor = color ?? colors.amber;
   return (
     <View style={styles.row}>
       {[1, 2, 3, 4, 5].map(i => (
@@ -16,7 +19,7 @@ export function StarRating({ rating, size = 14, color = '#F59E0B' }: StarRatingP
           key={i}
           name={i <= Math.round(rating) ? 'star' : 'star-outline'}
           size={size}
-          color={color}
+          color={starColor}
         />
       ))}
     </View>

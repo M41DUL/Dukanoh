@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -268,7 +268,7 @@ function getStyles(colors: ColorTokens) {
       gap: Spacing.xs,
       height: 42,
       borderRadius: BorderRadius.full,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: colors.border,
       backgroundColor: colors.background,
     },

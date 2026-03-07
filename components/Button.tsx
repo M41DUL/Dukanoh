@@ -6,7 +6,7 @@ import {
   StyleSheet,
   ViewStyle,
 } from 'react-native';
-import { BorderRadius, Spacing, ColorTokens } from '@/constants/theme';
+import { BorderRadius, BorderWidth, Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost';
@@ -98,7 +98,7 @@ function getStyles(colors: ColorTokens) {
     secondary: { backgroundColor: colors.secondary },
     outline: {
       backgroundColor: 'transparent',
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: colors.primary,
     },
     ghost: { backgroundColor: 'transparent' },

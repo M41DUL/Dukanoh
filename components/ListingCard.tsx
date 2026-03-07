@@ -79,7 +79,7 @@ export function ListingCard({
             <Ionicons
               name={saved ? 'heart' : 'heart-outline'}
               size={18}
-              color={saved ? '#FF4444' : 'rgba(255,255,255,0.9)'}
+              color={saved ? colors.error : 'rgba(255,255,255,0.9)'}
             />
           </TouchableOpacity>
         )}

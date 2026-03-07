@@ -7,7 +7,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BorderRadius, Spacing, Typography, ColorTokens } from '@/constants/theme';
+import { BorderRadius, BorderWidth, Spacing, Typography, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface SearchBarProps {
@@ -71,7 +71,7 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.full,
       paddingHorizontal: Spacing.base,
       height: 46,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: 'transparent',
     },
     focused: {

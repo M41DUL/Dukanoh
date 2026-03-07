@@ -9,6 +9,7 @@ export const lightColors = {
   border: '#E8E8E8',
   error: '#FF4444',
   success: '#22C55E',
+  amber: '#F59E0B',
 };
 
 export const darkColors = {
@@ -22,6 +23,7 @@ export const darkColors = {
   border: '#2A2A2A',
   error: '#FF6B6B',
   success: '#4ADE80',
+  amber: '#F59E0B',
 };
 
 export type ColorTokens = typeof lightColors;
@@ -86,6 +88,10 @@ export const BorderRadius = {
   medium: 12,
   large: 16,
   full: 999,
+};
+
+export const BorderWidth = {
+  standard: 1.5,
 };
 
 export const Categories = [

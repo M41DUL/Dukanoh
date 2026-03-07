@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Divider } from '@/components/Divider';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context/ThemeContext';
@@ -339,7 +339,7 @@ function getStyles(colors: ColorTokens) {
       marginBottom: Spacing.xs,
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: colors.border,
       borderStyle: 'dashed',
     },
@@ -379,7 +379,7 @@ function getStyles(colors: ColorTokens) {
     themeRow: {
       flexDirection: 'row',
       borderRadius: BorderRadius.full,
-      borderWidth: 1.5,
+      borderWidth: BorderWidth.standard,
       borderColor: colors.border,
       overflow: 'hidden',
     },
