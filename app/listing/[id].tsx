@@ -16,8 +16,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ScreenWrapper } from '@/components/ScreenWrapper';
-import { Header } from '@/components/Header';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
 import { Badge } from '@/components/Badge';
@@ -33,6 +32,7 @@ import { StarRating } from '@/components/StarRating';
 import { recordView } from '@/hooks/useRecentlyViewed';
 
 const { width } = Dimensions.get('window');
+const IMAGE_HEIGHT = Math.round(width * 1.25);
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -58,11 +58,14 @@ export default function ListingDetailScreen() {
   const [offerVisible, setOfferVisible] = useState(false);
   const [offerAmount, setOfferAmount] = useState('');
   const [offerSending, setOfferSending] = useState(false);
+  const [offerError, setOfferError] = useState('');
   const [lowerPriceVisible, setLowerPriceVisible] = useState(false);
   const [newPrice, setNewPrice] = useState('');
   const [lowerPriceSending, setLowerPriceSending] = useState(false);
   const [bumped, setBumped] = useState(false);
   const [responseRate, setResponseRate] = useState<number | null>(null);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const insets = useSafeAreaInsets();
   const { isSaved, toggleSave } = useSaved();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -256,7 +259,10 @@ export default function ListingDetailScreen() {
 
   const handleOffer = async () => {
     const amount = parseFloat(offerAmount.replace(/[^0-9.]/g, ''));
-    if (!amount || amount <= 0 || !user) return;
+    if (!amount || amount <= 0) { setOfferError('Please enter a valid amount.'); return; }
+    if (amount >= listing.price) { setOfferError(`Offer must be less than £${listing.price.toFixed(2)}.`); return; }
+    if (!user) return;
+    setOfferError('');
     setOfferSending(true);
     const convId = await findOrCreateConversation();
     if (convId) {
@@ -276,25 +282,24 @@ export default function ListingDetailScreen() {
   };
 
   return (
-    <ScreenWrapper>
-      <Header
-        showBack
-        rightAction={
-          <View style={styles.headerActions}>
-            <TouchableOpacity onPress={handleShare} hitSlop={8} activeOpacity={0.7}>
-              <Ionicons name="share-outline" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
-            {user?.id !== listing.seller_id && (
-              <TouchableOpacity onPress={handleMoreOptions} hitSlop={8} activeOpacity={0.7}>
-                <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
-              </TouchableOpacity>
-            )}
-          </View>
-        }
-      />
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.imageBreakout}>
         <View style={styles.imageContainer}>
+          <View style={[styles.floatingHeader, { paddingTop: insets.top + Spacing.xs }]} pointerEvents="box-none">
+            <TouchableOpacity style={styles.floatingBtn} onPress={() => router.back()} activeOpacity={0.8}>
+              <Ionicons name="arrow-back" size={22} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.floatingRight} pointerEvents="box-none">
+              <TouchableOpacity style={styles.floatingBtn} onPress={handleShare} activeOpacity={0.8}>
+                <Ionicons name="share-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+              {user?.id !== listing.seller_id && (
+                <TouchableOpacity style={styles.floatingBtn} onPress={handleMoreOptions} activeOpacity={0.8}>
+                  <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
           {listing.images?.length > 0 ? (
             <>
               <ScrollView
@@ -311,10 +316,10 @@ export default function ListingDetailScreen() {
                 ))}
               </ScrollView>
               {listing.images.length > 1 && (
-                <View style={styles.imageCounter}>
-                  <Text style={styles.imageCounterText}>
-                    {imageIndex + 1} / {listing.images.length}
-                  </Text>
+                <View style={styles.dots}>
+                  {listing.images.map((_, i) => (
+                    <View key={i} style={[styles.dot, i === imageIndex && styles.dotActive]} />
+                  ))}
                 </View>
               )}
             </>
@@ -322,7 +327,13 @@ export default function ListingDetailScreen() {
             <View style={styles.imagePlaceholder} />
           )}
         </View>
-        </View>
+
+        {listing.status === 'sold' && user?.id !== listing.seller_id && (
+          <View style={styles.soldBanner}>
+            <Ionicons name="checkmark-circle" size={15} color={colors.textSecondary} />
+            <Text style={styles.soldBannerText}>This item has been sold</Text>
+          </View>
+        )}
 
         <View style={styles.content}>
           <View style={styles.titleRow}>
@@ -415,7 +426,14 @@ export default function ListingDetailScreen() {
           <Divider />
 
           <Text style={styles.sectionLabel}>Description</Text>
-          <Text style={styles.description}>{listing.description ?? '—'}</Text>
+          <Text style={styles.description} numberOfLines={descExpanded ? undefined : 3}>
+            {listing.description ?? '—'}
+          </Text>
+          {(listing.description?.length ?? 0) > 120 && (
+            <TouchableOpacity onPress={() => setDescExpanded(v => !v)} activeOpacity={0.7}>
+              <Text style={styles.readMore}>{descExpanded ? 'Read less' : 'Read more'}</Text>
+            </TouchableOpacity>
+          )}
 
           {listing.worn_at ? (
             <View style={styles.wornAtCard}>
@@ -473,7 +491,7 @@ export default function ListingDetailScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.base) }]}>
         {user?.id === listing.seller_id ? (
           listing.status === 'draft' ? (
             <>
@@ -497,7 +515,7 @@ export default function ListingDetailScreen() {
           ) : (
             <>
               <TouchableOpacity
-                style={styles.footerIconBtn}
+                style={styles.bumpBtn}
                 onPress={handleBump}
                 disabled={bumped}
                 activeOpacity={0.8}
@@ -507,6 +525,9 @@ export default function ListingDetailScreen() {
                   size={24}
                   color={bumped ? colors.textSecondary : colors.primaryText}
                 />
+                <Text style={[styles.bumpLabel, bumped && { color: colors.textSecondary }]}>
+                  {bumped ? 'Boosted' : 'Boost'}
+                </Text>
               </TouchableOpacity>
               <Button
                 label="Lower price"
@@ -623,18 +644,19 @@ export default function ListingDetailScreen() {
               <TextInput
                 style={styles.amountInput}
                 value={offerAmount}
-                onChangeText={setOfferAmount}
+                onChangeText={(v) => { setOfferAmount(v); setOfferError(''); }}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
                 placeholderTextColor={colors.textSecondary}
                 autoFocus
               />
             </View>
+            {offerError ? <Text style={styles.modalError}>{offerError}</Text> : null}
             <View style={styles.modalActions}>
               <Button
                 label="Cancel"
                 variant="ghost"
-                onPress={() => { setOfferVisible(false); setOfferAmount(''); }}
+                onPress={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); }}
                 style={styles.modalCancelBtn}
               />
               <Button
@@ -648,32 +670,57 @@ export default function ListingDetailScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </ScreenWrapper>
+    </View>
   );
 }
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-    imageBreakout: { marginHorizontal: -Spacing.base },
-    imageContainer: { width, height: 360, backgroundColor: colors.surface },
-    image: { width, height: 360 },
+    root: { flex: 1 },
+    imageContainer: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
+    image: { width, height: IMAGE_HEIGHT },
     imagePlaceholder: { flex: 1 },
-    imageCounter: {
+    floatingHeader: {
       position: 'absolute',
-      bottom: Spacing.sm,
-      right: Spacing.sm,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      borderRadius: 12,
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 3,
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.md,
     },
-    imageCounterText: {
-      ...Typography.caption,
-      color: '#fff',
-      fontFamily: 'Inter_600SemiBold',
+    floatingBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(0,0,0,0.38)',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    content: { paddingVertical: Spacing.base, gap: Spacing.sm },
+    floatingRight: { flexDirection: 'row', gap: Spacing.md },
+    dots: {
+      position: 'absolute',
+      bottom: Spacing.md,
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    dot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: 'rgba(255,255,255,0.5)',
+    },
+    dotActive: {
+      width: 18,
+      backgroundColor: '#fff',
+    },
+    content: { paddingVertical: Spacing.base, paddingHorizontal: Spacing.base, gap: Spacing.sm },
     titleRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -739,6 +786,11 @@ function getStyles(colors: ColorTokens) {
       color: colors.textSecondary,
       lineHeight: 22,
     },
+    readMore: {
+      ...Typography.label,
+      color: colors.primary,
+      marginTop: Spacing.xs,
+    },
     wornAtCard: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -763,6 +815,7 @@ function getStyles(colors: ColorTokens) {
       alignItems: 'center',
       gap: Spacing.md,
       paddingVertical: Spacing.base,
+      paddingHorizontal: Spacing.base,
       borderTopWidth: 1,
       borderTopColor: colors.border,
       backgroundColor: colors.background,
@@ -778,6 +831,29 @@ function getStyles(colors: ColorTokens) {
     },
     offerBtn: { flex: 1 },
     messageBtn: { flex: 1 },
+    bumpBtn: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 3,
+      width: 52,
+    },
+    bumpLabel: {
+      ...Typography.caption,
+      color: colors.primaryText,
+      fontSize: 10,
+    },
+    soldBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      paddingVertical: Spacing.sm,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    soldBannerText: { ...Typography.label, color: colors.textSecondary },
+    modalError: { ...Typography.caption, color: colors.error },
     // Offer modal
     modalOverlay: {
       flex: 1,

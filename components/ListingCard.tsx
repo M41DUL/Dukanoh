@@ -16,6 +16,7 @@ export interface Listing {
   size?: string;
   occasion?: string;
   measurements?: { chest?: number; waist?: number; length?: number };
+  description?: string;
   worn_at?: string;
   status: 'available' | 'sold' | 'draft';
   view_count?: number;
