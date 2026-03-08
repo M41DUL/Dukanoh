@@ -336,12 +336,9 @@ export default function ListingDetailScreen() {
         )}
 
         <View style={styles.content}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title} numberOfLines={3}>
-              {listing.title}
-            </Text>
-            <Badge label={listing.category} active />
-          </View>
+          <Text style={styles.title} numberOfLines={3}>
+            {listing.title}
+          </Text>
 
           <View style={styles.priceRow}>
             <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
@@ -353,6 +350,7 @@ export default function ListingDetailScreen() {
             )}
           </View>
           <View style={styles.metaRow}>
+            <Badge label={listing.category} active />
             <Badge label={listing.condition} />
             {listing.size ? <Badge label={listing.size} /> : null}
             {listing.occasion ? <Badge label={listing.occasion} /> : null}
@@ -421,6 +419,7 @@ export default function ListingDetailScreen() {
                 </View>
               )}
             </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
 
           <Divider />
@@ -721,13 +720,7 @@ function getStyles(colors: ColorTokens) {
       backgroundColor: '#fff',
     },
     content: { paddingVertical: Spacing.base, paddingHorizontal: Spacing.base, gap: Spacing.sm },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      gap: Spacing.sm,
-    },
-    title: { ...Typography.heading, color: colors.textPrimary, flex: 1 },
+    title: { ...Typography.heading, color: colors.textPrimary },
     priceRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     price: { ...Typography.heading, color: colors.primaryText },
     soldBadge: { backgroundColor: colors.error, borderColor: colors.error },
@@ -904,10 +897,10 @@ function getStyles(colors: ColorTokens) {
     },
     moreScroll: { marginHorizontal: -Spacing.base },
     moreRow: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.xs },
-    moreCard: { width: 100 },
+    moreCard: { width: 120 },
     moreImage: {
-      width: 100,
-      height: 130,
+      width: 120,
+      height: 160,
       borderRadius: BorderRadius.medium,
       marginBottom: Spacing.xs,
     },
