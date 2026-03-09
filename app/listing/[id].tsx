@@ -257,6 +257,31 @@ export default function ListingDetailScreen() {
     ]);
   };
 
+  const handleSellerOptions = () => {
+    if (listing.status === 'draft') {
+      Alert.alert('Manage listing', undefined, [
+        { text: 'Edit listing', onPress: () => router.push(`/listing/edit/${id}`) },
+        { text: 'Delete draft', style: 'destructive', onPress: handleDeleteDraft },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    } else if (listing.status === 'available') {
+      Alert.alert('Manage listing', undefined, [
+        { text: 'Edit listing', onPress: () => router.push(`/listing/edit/${id}`) },
+        { text: 'Lower price', onPress: () => setLowerPriceVisible(true) },
+        { text: bumped ? 'Already boosted' : 'Boost listing', onPress: handleBump, ...(bumped ? { style: 'destructive' as const } : {}) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
+  };
+
+  const handleContact = () => {
+    Alert.alert('Contact Seller', undefined, [
+      { text: 'Send a message', onPress: handleMessage },
+      { text: 'Make an offer', onPress: () => setOfferVisible(true) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
   const handleOffer = async () => {
     const amount = parseFloat(offerAmount.replace(/[^0-9.]/g, ''));
     if (!amount || amount <= 0) { setOfferError('Please enter a valid amount.'); return; }
@@ -283,20 +308,34 @@ export default function ListingDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={styles.imageContainer}>
           <View style={[styles.floatingHeader, { paddingTop: insets.top + Spacing.xs }]} pointerEvents="box-none">
             <TouchableOpacity style={styles.floatingBtn} onPress={() => router.back()} activeOpacity={0.8}>
               <Ionicons name="arrow-back" size={22} color="#fff" />
             </TouchableOpacity>
             <View style={styles.floatingRight} pointerEvents="box-none">
-              <TouchableOpacity style={styles.floatingBtn} onPress={handleShare} activeOpacity={0.8}>
-                <Ionicons name="share-outline" size={22} color="#fff" />
-              </TouchableOpacity>
-              {user?.id !== listing.seller_id && (
-                <TouchableOpacity style={styles.floatingBtn} onPress={handleMoreOptions} activeOpacity={0.8}>
-                  <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
-                </TouchableOpacity>
+              {user?.id !== listing.seller_id ? (
+                <>
+                  <TouchableOpacity style={styles.floatingBtn} onPress={() => id && toggleSave(id, listing.price)} activeOpacity={0.8}>
+                    <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={22} color={isSaved(id ?? '') ? '#ff4d6a' : '#fff'} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.floatingBtn} onPress={handleShare} activeOpacity={0.8}>
+                    <Ionicons name="share-outline" size={22} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.floatingBtn} onPress={handleMoreOptions} activeOpacity={0.8}>
+                    <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity style={styles.floatingBtn} onPress={handleShare} activeOpacity={0.8}>
+                    <Ionicons name="share-outline" size={22} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.floatingBtn} onPress={handleSellerOptions} activeOpacity={0.8}>
+                    <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
+                  </TouchableOpacity>
+                </>
               )}
             </View>
           </View>
@@ -340,15 +379,12 @@ export default function ListingDetailScreen() {
             {listing.title}
           </Text>
 
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
-            {listing.status === 'sold' && (
-              <Badge label="Sold" active style={styles.soldBadge} />
-            )}
-            {listing.status === 'draft' && (
-              <Badge label="Draft" style={styles.draftBadge} />
-            )}
-          </View>
+          {(listing.status === 'sold' || listing.status === 'draft') && (
+            <View style={styles.priceRow}>
+              {listing.status === 'sold' && <Badge label="Sold" active style={styles.soldBadge} />}
+              {listing.status === 'draft' && <Badge label="Draft" style={styles.draftBadge} />}
+            </View>
+          )}
           <View style={styles.metaRow}>
             <Badge label={listing.category} active />
             <Badge label={listing.condition} />
@@ -490,86 +526,46 @@ export default function ListingDetailScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.base) }]}>
-        {user?.id === listing.seller_id ? (
-          listing.status === 'draft' ? (
-            <>
-              <Button
-                label="Delete draft"
-                variant="outline"
-                onPress={handleDeleteDraft}
-                style={styles.offerBtn}
-              />
-              <Button
-                label="Publish"
-                onPress={handlePublish}
-                style={styles.messageBtn}
-              />
-            </>
-          ) : listing.status === 'sold' ? (
-            <View style={styles.soldFooter}>
-              <Ionicons name="checkmark-circle" size={18} color={colors.textSecondary} />
-              <Text style={styles.soldFooterText}>Marked as sold</Text>
-            </View>
+      <View style={[styles.footer, { bottom: Math.max(insets.bottom + Spacing.sm, Spacing.base) }]}>
+          {user?.id === listing.seller_id ? (
+            listing.status === 'draft' ? (
+              <>
+                <View style={styles.footerLeft}>
+                  <Text style={styles.footerPrice}>£{listing.price.toFixed(2)}</Text>
+                </View>
+                <Button label="Publish" onPress={handlePublish} />
+              </>
+            ) : listing.status === 'sold' ? (
+              <>
+                <View style={styles.footerLeft}>
+                  <Text style={styles.footerPriceLabel}>Sold for</Text>
+                  <Text style={[styles.footerPrice, { color: colors.textSecondary }]}>£{listing.price.toFixed(2)}</Text>
+                </View>
+                <View style={styles.soldFooter}>
+                  <Ionicons name="checkmark-circle" size={16} color={colors.textSecondary} />
+                  <Text style={styles.soldFooterText}>Marked as sold</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.footerLeft}>
+                  <Text style={styles.footerPriceLabel}>Listed at</Text>
+                  <Text style={styles.footerPrice}>£{listing.price.toFixed(2)}</Text>
+                </View>
+                <Button label="Mark as sold" onPress={handleMarkSold} />
+              </>
+            )
           ) : (
             <>
-              <TouchableOpacity
-                style={styles.bumpBtn}
-                onPress={handleBump}
-                disabled={bumped}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name="arrow-up-circle-outline"
-                  size={24}
-                  color={bumped ? colors.textSecondary : colors.primaryText}
-                />
-                <Text style={[styles.bumpLabel, bumped && { color: colors.textSecondary }]}>
-                  {bumped ? 'Boosted' : 'Boost'}
-                </Text>
-              </TouchableOpacity>
-              <Button
-                label="Lower price"
-                variant="outline"
-                onPress={() => setLowerPriceVisible(true)}
-                style={styles.offerBtn}
-              />
-              <Button
-                label="Mark as sold"
-                onPress={handleMarkSold}
-                style={styles.messageBtn}
-              />
+              <View style={styles.footerLeft}>
+                <Text style={styles.footerPrice}>£{listing.price.toFixed(2)}</Text>
+              </View>
+              {listing.status === 'available' && (
+                <Button label="Contact Seller" onPress={handleContact} />
+              )}
             </>
-          )
-        ) : (
-          <>
-            <TouchableOpacity
-              style={styles.footerIconBtn}
-              onPress={() => id && toggleSave(id, listing.price)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={isSaved(id ?? '') ? 'heart' : 'heart-outline'}
-                size={24}
-                color={isSaved(id ?? '') ? colors.error : colors.textPrimary}
-              />
-            </TouchableOpacity>
-            {listing.status === 'available' && (
-              <Button
-                label="Make offer"
-                variant="outline"
-                onPress={() => setOfferVisible(true)}
-                style={styles.offerBtn}
-              />
-            )}
-            <Button
-              label="Message Seller"
-              onPress={handleMessage}
-              style={styles.messageBtn}
-            />
-          </>
-        )}
-      </View>
+          )}
+        </View>
 
       <Modal
         visible={lowerPriceVisible}
@@ -804,37 +800,26 @@ function getStyles(colors: ColorTokens) {
       fontStyle: 'italic',
     },
     footer: {
+      position: 'absolute',
+      left: Spacing.base,
+      right: Spacing.base,
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.md,
-      paddingVertical: Spacing.base,
-      paddingHorizontal: Spacing.base,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
+      padding: Spacing.base,
+      borderRadius: BorderRadius.large,
       backgroundColor: colors.background,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+      elevation: 8,
     },
-    footerIconBtn: {
-      width: 52,
-      height: 52,
-      borderRadius: BorderRadius.full,
-      borderWidth: BorderWidth.standard,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    offerBtn: { flex: 1 },
-    messageBtn: { flex: 1 },
-    bumpBtn: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 3,
-      width: 52,
-    },
-    bumpLabel: {
-      ...Typography.caption,
-      color: colors.primaryText,
-      fontSize: 10,
-    },
+    footerLeft: { flex: 1, gap: 3 },
+    footerPriceLabel: { ...Typography.caption, color: colors.textSecondary },
+    footerPrice: { ...Typography.subheading, color: colors.textPrimary, fontFamily: 'Inter_700Bold' },
+    footerOffer: { ...Typography.caption, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
+    footerDanger: { ...Typography.caption, color: colors.error, fontFamily: 'Inter_600SemiBold' },
     soldBanner: {
       flexDirection: 'row',
       alignItems: 'center',
