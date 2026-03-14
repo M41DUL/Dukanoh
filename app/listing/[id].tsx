@@ -32,7 +32,7 @@ import { StarRating } from '@/components/StarRating';
 import { recordView } from '@/hooks/useRecentlyViewed';
 
 const { width } = Dimensions.get('window');
-const IMAGE_HEIGHT = Math.round(width * 1.1);
+const IMAGE_HEIGHT = Math.round(width * 1.25);
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -65,6 +65,7 @@ export default function ListingDetailScreen() {
   const [bumped, setBumped] = useState(false);
   const [responseRate, setResponseRate] = useState<number | null>(null);
   const [saveCount, setSaveCount] = useState(0);
+  const [offerCount, setOfferCount] = useState(3); // TODO: remove mock
   const [descOpen, setDescOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
   const imageScrollRef = useRef<ScrollView>(null);
@@ -99,6 +100,15 @@ export default function ListingDetailScreen() {
             .then(({ data: others }) => {
               if (others) setSellerListings(others as unknown as Listing[]);
             });
+          // TODO: restore after UI review
+          // supabase
+          //   .from('messages')
+          //   .select('content')
+          //   .eq('listing_id', id)
+          //   .then(({ data: msgs }) => {
+          //     const count = msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0;
+          //     setOfferCount(count);
+          //   });
           if (data.status !== 'draft') {
             recordView(id);
             supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
@@ -349,17 +359,29 @@ export default function ListingDetailScreen() {
           ) : (
             <View style={styles.imagePlaceholder} />
           )}
-          {(listing.images?.length ?? 0) > 1 && (
-            <View style={styles.imageCounter}>
-              <Text style={styles.imageCounterText}>{imageIndex + 1} / {listing.images.length}</Text>
-            </View>
-          )}
-          {user?.id !== listing.seller_id && (
-            <TouchableOpacity style={styles.savePill} onPress={handleToggleSave} activeOpacity={0.8}>
-              <Text style={styles.savePillText}>{saveCount}</Text>
-              <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={16} color={isSaved(id ?? '') ? '#ff4d6a' : '#FFFFFF'} />
-            </TouchableOpacity>
-          )}
+          <View style={styles.imageBottomBar}>
+            {offerCount > 0 ? (
+              <View style={styles.demandBanner}>
+                <Ionicons name="flame" size={16} color={colors.amber} />
+                <Text style={styles.demandText}>{offerCount} Offers!</Text>
+              </View>
+            ) : (
+              <View style={styles.savePillPlaceholder} />
+            )}
+            {(listing.images?.length ?? 0) > 1 ? (
+              <View style={styles.dotsRow}>
+                {listing.images.map((_, i) => (
+                  <View key={i} style={[styles.dot, i === imageIndex && styles.dotActive]} />
+                ))}
+              </View>
+            ) : <View style={{ flex: 1 }} />}
+            {user?.id !== listing.seller_id ? (
+              <TouchableOpacity style={styles.savePill} onPress={handleToggleSave} activeOpacity={0.8}>
+                <Text style={styles.savePillText}>{saveCount}</Text>
+                <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={16} color={isSaved(id ?? '') ? '#ff4d6a' : '#FFFFFF'} />
+              </TouchableOpacity>
+            ) : <View style={styles.savePillPlaceholder} />}
+          </View>
         </View>
 
         {/* THUMBNAIL STRIP */}
@@ -406,6 +428,7 @@ export default function ListingDetailScreen() {
             <Badge label={listing.condition} />
             {listing.size ? <Badge label={listing.size} /> : null}
           </View>
+
 
           <View style={styles.hairline} />
 
@@ -699,6 +722,7 @@ function getStyles(colors: ColorTokens) {
     },
     headerTitle: {
       ...Typography.body,
+      fontSize: 16,
       fontFamily: 'Inter_600SemiBold',
       color: colors.textPrimary,
       textAlign: 'center',
@@ -710,21 +734,47 @@ function getStyles(colors: ColorTokens) {
     image: { width, height: IMAGE_HEIGHT },
     imagePlaceholder: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
     savePill: {
-      position: 'absolute',
-      top: Spacing.base,
-      right: Spacing.base,
+      width: 100,
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'center',
       gap: Spacing.xs,
       backgroundColor: 'rgba(0,0,0,0.55)',
       paddingHorizontal: Spacing.md,
       paddingVertical: Spacing.sm,
       borderRadius: BorderRadius.full,
-      minWidth: 44,
       minHeight: 44,
-      justifyContent: 'center',
     },
     savePillText: { ...Typography.body, color: '#FFFFFF', fontFamily: 'Inter_600SemiBold' },
+    imageBottomBar: {
+      position: 'absolute',
+      bottom: Spacing.base,
+      left: Spacing.base,
+      right: Spacing.base,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    savePillPlaceholder: { width: 100 },
+    dotsRow: {
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 6,
+      pointerEvents: 'none',
+    },
+    dot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: 'rgba(255,255,255,0.5)',
+    },
+    dotActive: {
+      backgroundColor: '#FFFFFF',
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
     imageCounter: {
       position: 'absolute',
       bottom: Spacing.sm,
@@ -770,6 +820,19 @@ function getStyles(colors: ColorTokens) {
     subtitle: { ...Typography.body, color: colors.textSecondary, marginTop: -Spacing.sm },
     price: { ...Typography.price, color: colors.textPrimary },
     pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
+    demandBanner: {
+      width: 100,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      borderRadius: BorderRadius.full,
+      minHeight: 44,
+    },
+    demandText: { ...Typography.body, color: colors.amber, fontFamily: 'Inter_600SemiBold' },
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
 
     // CTAs
