@@ -75,17 +75,17 @@ export default function ListingDetailScreen() {
   const scrollY = useRef(new Animated.Value(0)).current;
 
   const headerBgOpacity = scrollY.interpolate({
-    inputRange: [0, IMAGE_HEIGHT * 0.5],
+    inputRange: [IMAGE_HEIGHT * 0.6, IMAGE_HEIGHT * 0.85],
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
   const btnBackdropOpacity = scrollY.interpolate({
-    inputRange: [0, IMAGE_HEIGHT * 0.5],
+    inputRange: [IMAGE_HEIGHT * 0.6, IMAGE_HEIGHT * 0.85],
     outputRange: [1, 0],
     extrapolate: 'clamp',
   });
   const titleOpacity = scrollY.interpolate({
-    inputRange: [IMAGE_HEIGHT * 0.35, IMAGE_HEIGHT * 0.5],
+    inputRange: [IMAGE_HEIGHT * 0.75, IMAGE_HEIGHT * 0.85],
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
