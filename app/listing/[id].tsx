@@ -68,7 +68,7 @@ export default function ListingDetailScreen() {
   const [bumped, setBumped] = useState(false);
   const [responseRate, setResponseRate] = useState<number | null>(null);
   const [saveCount, setSaveCount] = useState(0);
-  const [offerCount, setOfferCount] = useState(3); // TODO: remove mock
+  const [offerCount, setOfferCount] = useState(0);
   const [descOpen, setDescOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
   const imageScrollRef = useRef<ScrollView>(null);
@@ -120,15 +120,14 @@ export default function ListingDetailScreen() {
             .then(({ data: others }) => {
               if (others) setSellerListings(others as unknown as Listing[]);
             });
-          // TODO: restore after UI review
-          // supabase
-          //   .from('messages')
-          //   .select('content')
-          //   .eq('listing_id', id)
-          //   .then(({ data: msgs }) => {
-          //     const count = msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0;
-          //     setOfferCount(count);
-          //   });
+          supabase
+            .from('messages')
+            .select('content')
+            .eq('listing_id', id)
+            .then(({ data: msgs }) => {
+              const count = msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0;
+              setOfferCount(count);
+            });
           if (data.status !== 'draft') {
             recordView(id);
             supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
@@ -402,7 +401,7 @@ export default function ListingDetailScreen() {
             style={styles.imageScrim}
           />
           <View style={styles.imageBottomBar}>
-            {offerCount > 0 ? (
+            {offerCount > 0 && user?.id !== listing.seller_id ? (
               <View style={styles.demandBanner}>
                 <Ionicons name="flame" size={16} color={colors.amber} />
                 <Text style={styles.demandText}>{offerCount} Offers!</Text>
