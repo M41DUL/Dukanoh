@@ -27,6 +27,7 @@ export interface Listing {
     avatar_url?: string;
     rating_avg?: number;
     rating_count?: number;
+    created_at?: string;
   };
 }
 

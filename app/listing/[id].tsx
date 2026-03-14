@@ -72,6 +72,7 @@ export default function ListingDetailScreen() {
   const [lowerPriceSending, setLowerPriceSending] = useState(false);
   const [bumped, setBumped] = useState(false);
   const [responseRate, setResponseRate] = useState<number | null>(null);
+  const [soldCount, setSoldCount] = useState<number | null>(null);
   const [saveCount, setSaveCount] = useState(0);
   const [offerCount, setOfferCount] = useState(0);
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -105,7 +106,7 @@ export default function ListingDetailScreen() {
 
     supabase
       .from('listings')
-      .select('*, seller:users(username, avatar_url, rating_avg, rating_count)')
+      .select('*, seller:users(username, avatar_url, rating_avg, rating_count, created_at)')
       .eq('id', id)
       .single()
       .then(({ data }) => {
@@ -115,6 +116,12 @@ export default function ListingDetailScreen() {
           supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }).then(({ data: rate }) => {
             if (rate !== null) setResponseRate(rate as number);
           });
+          supabase
+            .from('listings')
+            .select('id', { count: 'exact', head: true })
+            .eq('seller_id', data.seller_id)
+            .eq('status', 'sold')
+            .then(({ count }) => setSoldCount(count ?? 0));
           supabase
             .from('listings')
             .select('*, seller:users(username, avatar_url)')
@@ -520,16 +527,21 @@ export default function ListingDetailScreen() {
             <View style={styles.sellerInfo}>
               <View style={styles.sellerNameRow}>
                 <Text style={styles.sellerName}>@{listing.seller?.username}</Text>
+                <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
                 {(listing.seller?.rating_count ?? 0) > 0 && (
                   <View style={styles.sellerRating}>
                     <StarRating rating={listing.seller?.rating_avg ?? 0} size={11} />
-                    <Text style={styles.sellerSub}>{(listing.seller?.rating_avg ?? 0).toFixed(1)}</Text>
+                    <Text style={styles.sellerSub}>({listing.seller?.rating_count})</Text>
                   </View>
                 )}
               </View>
-              {responseRate !== null && (
-                <Text style={styles.sellerSub}>Responds to {responseRate}% of messages</Text>
-              )}
+              <Text style={styles.sellerSub}>
+                {[
+                  soldCount != null && soldCount > 0 ? `${soldCount} sold` : null,
+                  listing.seller?.created_at ? `Joined ${new Date(listing.seller.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}` : null,
+                  responseRate != null ? `${responseRate}% response rate` : null,
+                ].filter(Boolean).join(' · ')}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
