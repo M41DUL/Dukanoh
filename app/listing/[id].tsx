@@ -628,8 +628,8 @@ export default function ListingDetailScreen() {
       {/* STICKY BOTTOM CTA — buyers only, available listings */}
       {user?.id !== listing.seller_id && listing.status === 'available' && (
         <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
-          <Button label="Message" onPress={handleMessage} style={styles.ctaBtn} />
-          <Button label="Make an offer" variant="outline" onPress={() => setOfferVisible(true)} style={styles.ctaBtn} />
+          <Button label="Message" variant="outline" onPress={handleMessage} style={styles.ctaBtn} />
+          <Button label="Make an offer" onPress={() => setOfferVisible(true)} style={styles.ctaBtn} />
         </View>
       )}
 
@@ -895,7 +895,7 @@ function getStyles(colors: ColorTokens) {
       flexDirection: 'row',
       gap: Spacing.sm,
       paddingHorizontal: Spacing.base,
-      paddingTop: Spacing.sm,
+      paddingTop: Spacing.base,
       backgroundColor: colors.background,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.border,
