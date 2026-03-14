@@ -308,7 +308,9 @@ export default function ListingDetailScreen() {
         <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.8}>
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{listing.title}</Text>
+        <View style={[styles.headerTitleWrap, { top: insets.top }]} pointerEvents="none">
+          <Text style={styles.headerTitle} numberOfLines={1}>{listing.title}</Text>
+        </View>
         <View style={styles.headerRight}>
           {user?.id !== listing.seller_id && (
             <TouchableOpacity style={styles.headerBtn} onPress={() => id && toggleSave(id, listing.price)} activeOpacity={0.8}>
@@ -675,15 +677,23 @@ function getStyles(colors: ColorTokens) {
       borderBottomColor: colors.border,
     },
     headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    headerTitleWrap: {
+      position: 'absolute',
+      left: 56,
+      right: 56,
+      bottom: 0,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingBottom: Spacing.sm,
+      height: 40 + Spacing.sm,
+    },
     headerTitle: {
-      flex: 1,
       ...Typography.body,
       fontFamily: 'Inter_600SemiBold',
       color: colors.textPrimary,
       textAlign: 'center',
-      marginHorizontal: Spacing.xs,
     },
-    headerRight: { flexDirection: 'row' },
+    headerRight: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end' },
 
     // Image
     imageContainer: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
