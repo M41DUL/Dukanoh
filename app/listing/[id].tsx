@@ -26,11 +26,13 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
-import { Listing, ListingCard } from '@/components/ListingCard';
+import { Listing } from '@/components/ListingCard';
 import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { StarRating } from '@/components/StarRating';
 import { HowItWorks } from '@/components/HowItWorks';
+import { SectionHeader } from '@/components/SectionHeader';
+import { ListingGrid } from '@/components/ListingGrid';
 import { recordView } from '@/hooks/useRecentlyViewed';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -71,7 +73,6 @@ export default function ListingDetailScreen() {
   const [responseRate, setResponseRate] = useState<number | null>(null);
   const [saveCount, setSaveCount] = useState(0);
   const [offerCount, setOfferCount] = useState(0);
-  const [descOpen, setDescOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
   const imageScrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -500,17 +501,11 @@ export default function ListingDetailScreen() {
 
           <View style={styles.hairline} />
 
-          {/* Description (collapsible) */}
-          <TouchableOpacity style={styles.sectionRow} onPress={() => {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setDescOpen(v => !v);
-          }} activeOpacity={0.7}>
+          {/* Description */}
+          <View style={styles.descriptionBlock}>
             <Text style={styles.sectionLabel}>Description</Text>
-            <Ionicons name={descOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-          {descOpen && (
             <Text style={styles.description}>{listing.description ?? '—'}</Text>
-          )}
+          </View>
 
           <View style={styles.hairline} />
 
@@ -587,38 +582,23 @@ export default function ListingDetailScreen() {
 
           <View style={styles.hairline} />
 
-          {/* More from seller */}
-          {sellerListings.length > 0 && (
-            <>
-              <TouchableOpacity style={styles.moreTitleRow} onPress={() => router.push(`/user/${listing.seller_id}`)} activeOpacity={0.8}>
-                <Text style={styles.sectionLabel}>More from @{listing.seller?.username}</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-              </TouchableOpacity>
-              {[0, 2].map(offset => sellerListings[offset] ? (
-                <View key={offset} style={styles.gridRow}>
-                  <ListingCard listing={sellerListings[offset]} onPress={() => router.push(`/listing/${sellerListings[offset].id}`)} />
-                  {sellerListings[offset + 1]
-                    ? <ListingCard listing={sellerListings[offset + 1]} onPress={() => router.push(`/listing/${sellerListings[offset + 1].id}`)} />
-                    : <View style={{ flex: 1 }} />}
-                </View>
-              ) : null)}
-            </>
-          )}
-
           {/* Similar listings */}
           {similarListings.length > 0 && (
-            <>
-              <View style={styles.hairline} />
-              <Text style={styles.sectionLabel}>Similar listings</Text>
-              {[0, 2].map(offset => similarListings[offset] ? (
-                <View key={offset} style={styles.gridRow}>
-                  <ListingCard listing={similarListings[offset]} onPress={() => router.push(`/listing/${similarListings[offset].id}`)} />
-                  {similarListings[offset + 1]
-                    ? <ListingCard listing={similarListings[offset + 1]} onPress={() => router.push(`/listing/${similarListings[offset + 1].id}`)} />
-                    : <View style={{ flex: 1 }} />}
-                </View>
-              ) : null)}
-            </>
+            <View>
+              <SectionHeader title="Similar listings" />
+              <ListingGrid listings={similarListings} />
+            </View>
+          )}
+
+          {/* More from seller */}
+          {sellerListings.length > 0 && (
+            <View>
+              <SectionHeader
+                title={`More from @${listing.seller?.username}`}
+                onSeeAll={() => router.push(`/user/${listing.seller_id}`)}
+              />
+              <ListingGrid listings={sellerListings} />
+            </View>
           )}
 
 
@@ -931,6 +911,7 @@ function getStyles(colors: ColorTokens) {
       fontFamily: FontFamily.semibold,
       color: colors.textPrimary,
     },
+    descriptionBlock: { gap: Spacing.xs },
     description: { ...Typography.body, color: colors.textSecondary, lineHeight: 22 },
 
     // Worn at
@@ -970,8 +951,6 @@ function getStyles(colors: ColorTokens) {
     reviewBtnText: { ...Typography.body, color: colors.primary, fontFamily: FontFamily.semibold },
 
     // More from seller
-    moreTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    gridRow: { flexDirection: 'row', gap: Spacing.sm },
 
     // Footer meta
     footerMeta: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' },
