@@ -4,9 +4,15 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   useFonts,
+  Inter_100Thin,
+  Inter_200ExtraLight,
+  Inter_300Light,
   Inter_400Regular,
+  Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
+  Inter_800ExtraBold,
+  Inter_900Black,
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,9 +23,15 @@ SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const [fontsLoaded] = useFonts({
+    Inter_100Thin,
+    Inter_200ExtraLight,
+    Inter_300Light,
     Inter_400Regular,
+    Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    Inter_800ExtraBold,
+    Inter_900Black,
   });
 
   const { session, loading, onboardingCompleted } = useAuth();

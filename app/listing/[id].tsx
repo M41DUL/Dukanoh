@@ -23,7 +23,7 @@ import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
 import { Badge } from '@/components/Badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
@@ -438,16 +438,16 @@ export default function ListingDetailScreen() {
             </View>
           )}
 
-          {/* Title */}
-          <View style={styles.titleRow}>
-            <Text style={styles.title}>{listing.title}</Text>
-            {listing.status === 'draft' && <Badge label="Draft" style={styles.draftBadge} />}
+          {/* Title + Subtitle */}
+          <View style={styles.titleBlock}>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>{listing.title}</Text>
+              {listing.status === 'draft' && <Badge label="Draft" style={styles.draftBadge} />}
+            </View>
+            <Text style={styles.subtitle}>
+              {[listing.category, listing.occasion].filter(Boolean).join(' · ')}
+            </Text>
           </View>
-
-          {/* Category · Occasion */}
-          <Text style={styles.subtitle}>
-            {[listing.category, listing.occasion].filter(Boolean).join(' · ')}
-          </Text>
 
           {/* Price */}
           <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
@@ -853,10 +853,11 @@ function getStyles(colors: ColorTokens) {
     hairline: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
 
     // Title block
+    titleBlock: { gap: 2 },
     titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-    title: { ...Typography.heading, color: colors.textPrimary, flex: 1 },
-    subtitle: { ...Typography.body, color: colors.textSecondary, marginTop: -Spacing.sm },
-    price: { ...Typography.price, color: colors.textPrimary },
+    title: { ...Typography.heading, fontSize: 20, fontFamily: FontFamily.semibold, fontWeight: '600' as const, color: colors.textPrimary, flex: 1 },
+    subtitle: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.regular, fontWeight: '400' as const, color: colors.textSecondary },
+    price: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.semibold, fontWeight: '600' as const, color: colors.textPrimary },
     pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
     demandBanner: {
       width: 100,
