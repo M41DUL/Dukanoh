@@ -26,7 +26,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
-import { Listing } from '@/components/ListingCard';
+import { Listing, ListingCard } from '@/components/ListingCard';
 import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { StarRating } from '@/components/StarRating';
@@ -59,6 +59,7 @@ export default function ListingDetailScreen() {
   const [imageIndex, setImageIndex] = useState(0);
   const [canReview, setCanReview] = useState(false);
   const [sellerListings, setSellerListings] = useState<Listing[]>([]);
+  const [similarListings, setSimilarListings] = useState<Listing[]>([]);
   const [offerVisible, setOfferVisible] = useState(false);
   const [offerAmount, setOfferAmount] = useState('');
   const [offerSending, setOfferSending] = useState(false);
@@ -117,9 +118,21 @@ export default function ListingDetailScreen() {
             .eq('status', 'available')
             .neq('id', id)
             .order('created_at', { ascending: false })
-            .limit(6)
+            .limit(4)
             .then(({ data: others }) => {
               if (others) setSellerListings(others as unknown as Listing[]);
+            });
+          supabase
+            .from('listings')
+            .select('*, seller:users(username, avatar_url)')
+            .eq('category', data.category)
+            .eq('status', 'available')
+            .neq('id', id)
+            .neq('seller_id', data.seller_id)
+            .order('created_at', { ascending: false })
+            .limit(4)
+            .then(({ data: similar }) => {
+              if (similar) setSimilarListings(similar as unknown as Listing[]);
             });
           supabase
             .from('messages')
@@ -581,18 +594,30 @@ export default function ListingDetailScreen() {
                 <Text style={styles.sectionLabel}>More from @{listing.seller?.username}</Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.moreRow} style={styles.moreScroll}>
-                {sellerListings.map(item => (
-                  <TouchableOpacity key={item.id} style={styles.moreCard} onPress={() => router.push(`/listing/${item.id}`)} activeOpacity={0.8}>
-                    {item.images?.[0] ? (
-                      <Image source={{ uri: item.images[0] }} style={styles.moreImage} resizeMode="cover" />
-                    ) : (
-                      <View style={[styles.moreImage, { backgroundColor: colors.surface }]} />
-                    )}
-                    <Text style={styles.morePrice}>£{item.price.toFixed(2)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              {[0, 2].map(offset => sellerListings[offset] ? (
+                <View key={offset} style={styles.gridRow}>
+                  <ListingCard listing={sellerListings[offset]} onPress={() => router.push(`/listing/${sellerListings[offset].id}`)} />
+                  {sellerListings[offset + 1]
+                    ? <ListingCard listing={sellerListings[offset + 1]} onPress={() => router.push(`/listing/${sellerListings[offset + 1].id}`)} />
+                    : <View style={{ flex: 1 }} />}
+                </View>
+              ) : null)}
+            </>
+          )}
+
+          {/* Similar listings */}
+          {similarListings.length > 0 && (
+            <>
+              <View style={styles.hairline} />
+              <Text style={styles.sectionLabel}>Similar listings</Text>
+              {[0, 2].map(offset => similarListings[offset] ? (
+                <View key={offset} style={styles.gridRow}>
+                  <ListingCard listing={similarListings[offset]} onPress={() => router.push(`/listing/${similarListings[offset].id}`)} />
+                  {similarListings[offset + 1]
+                    ? <ListingCard listing={similarListings[offset + 1]} onPress={() => router.push(`/listing/${similarListings[offset + 1].id}`)} />
+                    : <View style={{ flex: 1 }} />}
+                </View>
+              ) : null)}
             </>
           )}
 
@@ -946,11 +971,7 @@ function getStyles(colors: ColorTokens) {
 
     // More from seller
     moreTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    moreScroll: { marginHorizontal: -Spacing.base },
-    moreRow: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.xs },
-    moreCard: { width: 120 },
-    moreImage: { width: 120, height: 160, borderRadius: BorderRadius.medium, marginBottom: Spacing.xs },
-    morePrice: { ...Typography.caption, color: colors.textPrimary, fontFamily: FontFamily.semibold },
+    gridRow: { flexDirection: 'row', gap: Spacing.sm },
 
     // Footer meta
     footerMeta: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' },
