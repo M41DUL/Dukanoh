@@ -31,6 +31,7 @@ import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { StarRating } from '@/components/StarRating';
 import { HowItWorks } from '@/components/HowItWorks';
+import { ImageViewerModal } from '@/components/ImageViewerModal';
 import { SectionHeader } from '@/components/SectionHeader';
 import { ListingGrid } from '@/components/ListingGrid';
 import { recordView } from '@/hooks/useRecentlyViewed';
@@ -73,6 +74,8 @@ export default function ListingDetailScreen() {
   const [responseRate, setResponseRate] = useState<number | null>(null);
   const [saveCount, setSaveCount] = useState(0);
   const [offerCount, setOfferCount] = useState(0);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
   const [measureOpen, setMeasureOpen] = useState(false);
   const imageScrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -405,7 +408,9 @@ export default function ListingDetailScreen() {
               onMomentumScrollEnd={e => setImageIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
             >
               {listing.images.map((uri, i) => (
-                <Image key={i} source={{ uri }} style={styles.image} resizeMode="cover" />
+                <TouchableOpacity key={i} activeOpacity={0.95} onPress={() => { setViewerIndex(i); setViewerVisible(true); }}>
+                  <Image source={{ uri }} style={styles.image} resizeMode="cover" />
+                </TouchableOpacity>
               ))}
             </ScrollView>
           ) : (
@@ -612,6 +617,13 @@ export default function ListingDetailScreen() {
           <Button label="Make an offer" onPress={() => setOfferVisible(true)} style={styles.ctaBtn} />
         </View>
       )}
+
+      <ImageViewerModal
+        images={listing.images ?? []}
+        initialIndex={viewerIndex}
+        visible={viewerVisible}
+        onClose={() => setViewerVisible(false)}
+      />
 
       <Modal
         visible={lowerPriceVisible}
