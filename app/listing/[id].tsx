@@ -420,7 +420,7 @@ export default function ListingDetailScreen() {
             {user?.id !== listing.seller_id ? (
               <TouchableOpacity style={styles.savePill} onPress={handleToggleSave} activeOpacity={0.8}>
                 <Text style={styles.savePillText}>{saveCount}</Text>
-                <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={16} color={isSaved(id ?? '') ? '#ff4d6a' : '#FFFFFF'} />
+                <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={16} color={isSaved(id ?? '') ? colors.like : '#FFFFFF'} />
               </TouchableOpacity>
             ) : <View style={styles.savePillPlaceholder} />}
           </View>
@@ -438,24 +438,34 @@ export default function ListingDetailScreen() {
             </View>
           )}
 
-          {/* Title + Subtitle */}
-          <View style={styles.titleBlock}>
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>{listing.title}</Text>
-              {listing.status === 'draft' && <Badge label="Draft" style={styles.draftBadge} />}
+          {/* Title + Subtitle + Price */}
+          <View style={styles.titleGroup}>
+            <View style={styles.titleBlock}>
+              <View style={styles.titleRow}>
+                <Text style={styles.title}>{listing.title}</Text>
+                {listing.status === 'draft' && <Badge label="Draft" style={styles.draftBadge} />}
+              </View>
+              <Text style={styles.subtitle} numberOfLines={2}>
+                {[
+                  listing.condition,
+                  listing.size,
+                  listing.category,
+                  listing.occasion,
+                  (listing.view_count ?? 0) > 0 ? `${listing.view_count} views` : null,
+                  listing.created_at ? timeAgo(listing.created_at) : null,
+                ].filter(Boolean).join(' · ')}
+              </Text>
             </View>
-            <Text style={styles.subtitle}>
-              {[listing.category, listing.occasion].filter(Boolean).join(' · ')}
-            </Text>
-          </View>
-
-          {/* Price */}
-          <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
-
-          {/* Condition + Size pills */}
-          <View style={styles.pillRow}>
-            <Badge label={listing.condition} />
-            {listing.size ? <Badge label={listing.size} /> : null}
+            <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
+            {listing.worn_at ? (
+              <View style={styles.wornAtCard}>
+                <View style={styles.wornAtHeader}>
+                  <Ionicons name="sparkles-outline" size={14} color={colors.primary} />
+                  <Text style={styles.wornAtLabel}>Story</Text>
+                </View>
+                <Text style={styles.wornAtText}>{listing.worn_at}</Text>
+              </View>
+            ) : null}
           </View>
 
 
@@ -523,16 +533,6 @@ export default function ListingDetailScreen() {
 
           <View style={styles.hairline} />
 
-          {/* Worn at */}
-          {listing.worn_at ? (
-            <>
-              <View style={styles.wornAtRow}>
-                <Ionicons name="sparkles-outline" size={14} color={colors.primary} />
-                <Text style={styles.wornAtText}>{listing.worn_at}</Text>
-              </View>
-              <View style={styles.hairline} />
-            </>
-          ) : null}
 
           {/* Measurements (collapsible) */}
           {listing.measurements && Object.values(listing.measurements).some(v => v != null) && (
@@ -605,11 +605,6 @@ export default function ListingDetailScreen() {
             </>
           )}
 
-          {/* Views + listed time */}
-          <Text style={styles.footerMeta}>
-            {(listing.view_count ?? 0) > 0 ? `${listing.view_count} views · ` : ''}
-            {listing.created_at ? `Listed ${timeAgo(listing.created_at)}` : ''}
-          </Text>
 
         </View>
       </Animated.ScrollView>
@@ -771,7 +766,7 @@ function getStyles(colors: ColorTokens) {
     headerTitle: {
       ...Typography.body,
       fontSize: 16,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: FontFamily.semibold,
       color: colors.textPrimary,
       textAlign: 'center',
     },
@@ -800,7 +795,7 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.full,
       minHeight: 44,
     },
-    savePillText: { ...Typography.body, color: '#FFFFFF', fontFamily: 'Inter_600SemiBold' },
+    savePillText: { ...Typography.body, color: '#FFFFFF', fontFamily: FontFamily.regular },
     imageBottomBar: {
       position: 'absolute',
       bottom: Spacing.base,
@@ -839,25 +834,26 @@ function getStyles(colors: ColorTokens) {
       paddingVertical: 3,
       borderRadius: BorderRadius.full,
     },
-    imageCounterText: { ...Typography.caption, color: '#FFFFFF', fontFamily: 'Inter_600SemiBold' },
+    imageCounterText: { ...Typography.caption, color: '#FFFFFF', fontFamily: FontFamily.semibold },
 
     // Thumbnails
 
     // Content
     content: {
       paddingHorizontal: Spacing.base,
-      paddingTop: Spacing.xl,
+      paddingTop: Spacing.base,
       paddingBottom: Spacing.base,
       gap: Spacing.lg,
     },
     hairline: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
 
     // Title block
-    titleBlock: { gap: 2 },
+    titleGroup: { gap: Spacing.md },
+    titleBlock: { gap: 4 },
     titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-    title: { ...Typography.heading, fontSize: 20, fontFamily: FontFamily.semibold, fontWeight: '600' as const, color: colors.textPrimary, flex: 1 },
+    title: { ...Typography.heading, fontSize: 18, fontFamily: FontFamily.medium, fontWeight: '500' as const, color: colors.textPrimary, flex: 1 },
     subtitle: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.regular, fontWeight: '400' as const, color: colors.textSecondary },
-    price: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.semibold, fontWeight: '600' as const, color: colors.textPrimary },
+    price: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, fontWeight: '500' as const, color: colors.textPrimary },
     pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
     demandBanner: {
       width: 100,
@@ -871,7 +867,7 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.full,
       minHeight: 44,
     },
-    demandText: { ...Typography.body, color: colors.amber, fontFamily: 'Inter_600SemiBold' },
+    demandText: { ...Typography.body, color: colors.amber, fontFamily: FontFamily.regular },
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
 
     // CTAs
@@ -916,43 +912,51 @@ function getStyles(colors: ColorTokens) {
     },
     sectionLabel: {
       ...Typography.body,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: FontFamily.semibold,
       color: colors.textPrimary,
     },
     description: { ...Typography.body, color: colors.textSecondary, lineHeight: 22 },
 
     // Worn at
-    wornAtRow: {
+    wornAtCard: {
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.medium,
+      padding: Spacing.base,
+      gap: Spacing.xs,
+    },
+    wornAtHeader: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: Spacing.sm,
-      paddingVertical: Spacing.sm,
+      alignItems: 'center',
+      gap: Spacing.xs,
+    },
+    wornAtLabel: {
+      ...Typography.label,
+      color: colors.primary,
+      textTransform: 'uppercase',
     },
     wornAtText: {
       ...Typography.body,
       color: colors.textSecondary,
-      flex: 1,
-      lineHeight: 20,
-      fontStyle: 'italic',
+      lineHeight: 22,
     },
 
     // Measurements
     measureBody: { gap: Spacing.xs, paddingBottom: Spacing.sm },
     measureLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.xs },
     measureKey: { ...Typography.body, color: colors.textSecondary },
-    measureVal: { ...Typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+    measureVal: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
 
     // Seller
     sellerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.base, paddingVertical: Spacing.sm },
     sellerInfo: { flex: 1, gap: 2 },
     sellerNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-    sellerName: { ...Typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+    sellerName: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
     sellerRating: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     sellerSub: { ...Typography.caption, color: colors.textSecondary },
 
     // Review
     reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
-    reviewBtnText: { ...Typography.body, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
+    reviewBtnText: { ...Typography.body, color: colors.primary, fontFamily: FontFamily.semibold },
 
     // More from seller
     moreTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -960,7 +964,7 @@ function getStyles(colors: ColorTokens) {
     moreRow: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.xs },
     moreCard: { width: 120 },
     moreImage: { width: 120, height: 160, borderRadius: BorderRadius.medium, marginBottom: Spacing.xs },
-    morePrice: { ...Typography.caption, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+    morePrice: { ...Typography.caption, color: colors.textPrimary, fontFamily: FontFamily.semibold },
 
     // Footer meta
     footerMeta: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' },

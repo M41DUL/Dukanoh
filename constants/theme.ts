@@ -10,6 +10,7 @@ export const lightColors = {
   error: '#FF4444',
   success: '#22C55E',
   amber: '#F59E0B',
+  like: '#FF4D6A',
 };
 
 export const darkColors = {
@@ -24,6 +25,7 @@ export const darkColors = {
   error: '#FF6B6B',
   success: '#4ADE80',
   amber: '#F59E0B',
+  like: '#FF4D6A',
 };
 
 export type ColorTokens = typeof lightColors;
