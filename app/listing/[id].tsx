@@ -940,15 +940,16 @@ function getStyles(colors: ColorTokens) {
 
     // Worn at
     wornAtCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.secondaryLight,
       borderRadius: BorderRadius.medium,
       padding: Spacing.base,
+
       gap: Spacing.xs,
     },
     wornAtLabel: {
-      ...Typography.label,
-      color: colors.primary,
-      textTransform: 'uppercase',
+      ...Typography.body,
+      fontFamily: FontFamily.semibold,
+      color: colors.textPrimary,
     },
     wornAtText: {
       ...Typography.body,
