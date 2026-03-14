@@ -275,6 +275,25 @@ CREATE INDEX idx_reviews_reviewer    ON public.reviews (reviewer_id);
 -- View count
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS view_count INT DEFAULT 0;
 
+-- Save count (maintained by trigger on saved_items)
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS save_count INTEGER NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION update_save_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    UPDATE public.listings SET save_count = save_count + 1 WHERE id = NEW.listing_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE public.listings SET save_count = save_count - 1 WHERE id = OLD.listing_id;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_save_count
+AFTER INSERT OR DELETE ON public.saved_items
+FOR EACH ROW EXECUTE FUNCTION update_save_count();
+
 -- Draft listings: extend status constraint + update RLS
 ALTER TABLE public.listings DROP CONSTRAINT IF EXISTS listings_status_check;
 ALTER TABLE public.listings ADD CONSTRAINT listings_status_check

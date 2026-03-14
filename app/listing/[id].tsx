@@ -64,6 +64,7 @@ export default function ListingDetailScreen() {
   const [lowerPriceSending, setLowerPriceSending] = useState(false);
   const [bumped, setBumped] = useState(false);
   const [responseRate, setResponseRate] = useState<number | null>(null);
+  const [saveCount, setSaveCount] = useState(0);
   const [descOpen, setDescOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
   const imageScrollRef = useRef<ScrollView>(null);
@@ -83,6 +84,7 @@ export default function ListingDetailScreen() {
       .then(({ data }) => {
         if (data) {
           setListing(data as unknown as Listing);
+          setSaveCount((data as any).save_count ?? 0);
           supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }).then(({ data: rate }) => {
             if (rate !== null) setResponseRate(rate as number);
           });
@@ -253,6 +255,7 @@ export default function ListingDetailScreen() {
 
   const handleMoreOptions = () => {
     Alert.alert('Options', undefined, [
+      { text: 'Share', onPress: handleShare },
       { text: 'Report listing', onPress: handleReport },
       { text: 'Block seller', onPress: handleBlock },
       { text: 'Cancel', style: 'cancel' },
@@ -262,18 +265,27 @@ export default function ListingDetailScreen() {
   const handleSellerOptions = () => {
     if (listing.status === 'draft') {
       Alert.alert('Manage listing', undefined, [
+        { text: 'Share', onPress: handleShare },
         { text: 'Edit listing', onPress: () => router.push(`/listing/edit/${id}`) },
         { text: 'Delete draft', style: 'destructive', onPress: handleDeleteDraft },
         { text: 'Cancel', style: 'cancel' },
       ]);
     } else if (listing.status === 'available') {
       Alert.alert('Manage listing', undefined, [
+        { text: 'Share', onPress: handleShare },
         { text: 'Edit listing', onPress: () => router.push(`/listing/edit/${id}`) },
         { text: 'Lower price', onPress: () => setLowerPriceVisible(true) },
         { text: bumped ? 'Already boosted' : 'Boost listing', onPress: handleBump, ...(bumped ? { style: 'destructive' as const } : {}) },
         { text: 'Cancel', style: 'cancel' },
       ]);
     }
+  };
+
+  const handleToggleSave = () => {
+    if (!id) return;
+    const wasSaved = isSaved(id);
+    setSaveCount(c => wasSaved ? Math.max(0, c - 1) : c + 1);
+    toggleSave(id, listing.price);
   };
 
   const handleOffer = async () => {
@@ -312,14 +324,6 @@ export default function ListingDetailScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{listing.title}</Text>
         </View>
         <View style={styles.headerRight}>
-          {user?.id !== listing.seller_id && (
-            <TouchableOpacity style={styles.headerBtn} onPress={() => id && toggleSave(id, listing.price)} activeOpacity={0.8}>
-              <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={22} color={isSaved(id ?? '') ? '#ff4d6a' : colors.textPrimary} />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={styles.headerBtn} onPress={handleShare} activeOpacity={0.8}>
-            <Ionicons name="share-outline" size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.headerBtn} onPress={user?.id === listing.seller_id ? handleSellerOptions : handleMoreOptions} activeOpacity={0.8}>
             <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
@@ -349,6 +353,12 @@ export default function ListingDetailScreen() {
             <View style={styles.imageCounter}>
               <Text style={styles.imageCounterText}>{imageIndex + 1} / {listing.images.length}</Text>
             </View>
+          )}
+          {user?.id !== listing.seller_id && (
+            <TouchableOpacity style={styles.savePill} onPress={handleToggleSave} activeOpacity={0.8}>
+              <Text style={styles.savePillText}>{saveCount}</Text>
+              <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={16} color={isSaved(id ?? '') ? '#ff4d6a' : '#FFFFFF'} />
+            </TouchableOpacity>
           )}
         </View>
 
@@ -699,6 +709,22 @@ function getStyles(colors: ColorTokens) {
     imageContainer: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
     image: { width, height: IMAGE_HEIGHT },
     imagePlaceholder: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
+    savePill: {
+      position: 'absolute',
+      top: Spacing.base,
+      right: Spacing.base,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.full,
+      minWidth: 44,
+      minHeight: 44,
+      justifyContent: 'center',
+    },
+    savePillText: { ...Typography.body, color: '#FFFFFF', fontFamily: 'Inter_600SemiBold' },
     imageCounter: {
       position: 'absolute',
       bottom: Spacing.sm,

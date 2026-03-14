@@ -20,6 +20,7 @@ export interface Listing {
   worn_at?: string;
   status: 'available' | 'sold' | 'draft';
   view_count?: number;
+  save_count?: number;
   created_at?: string;
   seller: {
     username: string;
