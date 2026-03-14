@@ -48,6 +48,11 @@ export const Typography = {
     fontWeight: '700' as const,
     fontFamily: 'Inter_700Bold',
   },
+  price: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    fontFamily: 'Inter_700Bold',
+  },
   subheading: {
     fontSize: 18,
     fontWeight: '600' as const,

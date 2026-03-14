@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Platform,
   Alert,
   Share,
+  LayoutAnimation,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,9 +21,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
 import { Badge } from '@/components/Badge';
-import { Divider } from '@/components/Divider';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
@@ -32,7 +32,7 @@ import { StarRating } from '@/components/StarRating';
 import { recordView } from '@/hooks/useRecentlyViewed';
 
 const { width } = Dimensions.get('window');
-const IMAGE_HEIGHT = Math.round(width * 1.25);
+const IMAGE_HEIGHT = Math.round(width * 1.1);
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -64,7 +64,9 @@ export default function ListingDetailScreen() {
   const [lowerPriceSending, setLowerPriceSending] = useState(false);
   const [bumped, setBumped] = useState(false);
   const [responseRate, setResponseRate] = useState<number | null>(null);
-  const [descExpanded, setDescExpanded] = useState(false);
+  const [descOpen, setDescOpen] = useState(false);
+  const [measureOpen, setMeasureOpen] = useState(false);
+  const imageScrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const { isSaved, toggleSave } = useSaved();
   const colors = useThemeColors();
@@ -308,210 +310,223 @@ export default function ListingDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        <View style={styles.imageContainer}>
-          <View style={[styles.floatingHeader, { paddingTop: insets.top + Spacing.xs }]} pointerEvents="box-none">
-            <TouchableOpacity style={styles.floatingBtn} onPress={() => router.back()} activeOpacity={0.8}>
-              <Ionicons name="arrow-back" size={22} color="#fff" />
+
+      {/* SOLID HEADER */}
+      <View style={[styles.header, { paddingTop: insets.top }]}>
+        <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.8}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>{listing.title}</Text>
+        <View style={styles.headerRight}>
+          {user?.id !== listing.seller_id && (
+            <TouchableOpacity style={styles.headerBtn} onPress={() => id && toggleSave(id, listing.price)} activeOpacity={0.8}>
+              <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={22} color={isSaved(id ?? '') ? '#ff4d6a' : colors.textPrimary} />
             </TouchableOpacity>
-            <View style={styles.floatingRight} pointerEvents="box-none">
-              {user?.id !== listing.seller_id ? (
-                <>
-                  <TouchableOpacity style={styles.floatingBtn} onPress={() => id && toggleSave(id, listing.price)} activeOpacity={0.8}>
-                    <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={22} color={isSaved(id ?? '') ? '#ff4d6a' : '#fff'} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.floatingBtn} onPress={handleShare} activeOpacity={0.8}>
-                    <Ionicons name="share-outline" size={22} color="#fff" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.floatingBtn} onPress={handleMoreOptions} activeOpacity={0.8}>
-                    <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity style={styles.floatingBtn} onPress={handleShare} activeOpacity={0.8}>
-                    <Ionicons name="share-outline" size={22} color="#fff" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.floatingBtn} onPress={handleSellerOptions} activeOpacity={0.8}>
-                    <Ionicons name="ellipsis-horizontal" size={22} color="#fff" />
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
+          )}
+          <TouchableOpacity style={styles.headerBtn} onPress={handleShare} activeOpacity={0.8}>
+            <Ionicons name="share-outline" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerBtn} onPress={user?.id === listing.seller_id ? handleSellerOptions : handleMoreOptions} activeOpacity={0.8}>
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing['3xl'] }}>
+
+        {/* IMAGE CAROUSEL */}
+        <View style={styles.imageContainer}>
           {listing.images?.length > 0 ? (
-            <>
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={e => {
-                  const index = Math.round(e.nativeEvent.contentOffset.x / width);
-                  setImageIndex(index);
-                }}
-              >
-                {listing.images.map((uri, i) => (
-                  <Image key={i} source={{ uri }} style={styles.image} resizeMode="cover" />
-                ))}
-              </ScrollView>
-              {listing.images.length > 1 && (
-                <View style={styles.dots}>
-                  {listing.images.map((_, i) => (
-                    <View key={i} style={[styles.dot, i === imageIndex && styles.dotActive]} />
-                  ))}
-                </View>
-              )}
-            </>
+            <ScrollView
+              ref={imageScrollRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={e => setImageIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
+            >
+              {listing.images.map((uri, i) => (
+                <Image key={i} source={{ uri }} style={styles.image} resizeMode="cover" />
+              ))}
+            </ScrollView>
           ) : (
             <View style={styles.imagePlaceholder} />
           )}
         </View>
 
-        {listing.status === 'sold' && user?.id !== listing.seller_id && (
-          <View style={styles.soldBanner}>
-            <Ionicons name="checkmark-circle" size={15} color={colors.textSecondary} />
-            <Text style={styles.soldBannerText}>This item has been sold</Text>
-          </View>
+        {/* THUMBNAIL STRIP */}
+        {(listing.images?.length ?? 0) > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbRow} style={styles.thumbScroll}>
+            {listing.images.map((uri, i) => (
+              <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => {
+                imageScrollRef.current?.scrollTo({ x: i * width, animated: true });
+                setImageIndex(i);
+              }}>
+                <Image source={{ uri }} style={[styles.thumb, i === imageIndex && styles.thumbActive]} resizeMode="cover" />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         )}
 
+        {/* CONTENT */}
         <View style={styles.content}>
-          <Text style={styles.title} numberOfLines={3}>
-            {listing.title}
-          </Text>
 
-          {(listing.status === 'sold' || listing.status === 'draft') && (
-            <View style={styles.priceRow}>
-              {listing.status === 'sold' && <Badge label="Sold" active style={styles.soldBadge} />}
-              {listing.status === 'draft' && <Badge label="Draft" style={styles.draftBadge} />}
+          {/* Sold banner */}
+          {listing.status === 'sold' && user?.id !== listing.seller_id && (
+            <View style={styles.soldBanner}>
+              <Ionicons name="checkmark-circle" size={14} color={colors.textSecondary} />
+              <Text style={styles.soldBannerText}>This item has been sold</Text>
             </View>
           )}
-          <View style={styles.metaRow}>
-            <Badge label={listing.category} active />
+
+          {/* Title */}
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>{listing.title}</Text>
+            {listing.status === 'draft' && <Badge label="Draft" style={styles.draftBadge} />}
+          </View>
+
+          {/* Category · Occasion */}
+          <Text style={styles.subtitle}>
+            {[listing.category, listing.occasion].filter(Boolean).join(' · ')}
+          </Text>
+
+          {/* Price */}
+          <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
+
+          {/* Condition + Size pills */}
+          <View style={styles.pillRow}>
             <Badge label={listing.condition} />
             {listing.size ? <Badge label={listing.size} /> : null}
-            {listing.occasion ? <Badge label={listing.occasion} /> : null}
           </View>
 
-          {listing.measurements && (Object.values(listing.measurements).some(v => v != null)) && (
-            <View style={styles.measureRow}>
-              {listing.measurements.chest ? (
-                <View style={styles.measureItem}>
-                  <Text style={styles.measureValue}>{listing.measurements.chest}"</Text>
-                  <Text style={styles.measureLabel}>Chest</Text>
-                </View>
-              ) : null}
-              {listing.measurements.waist ? (
-                <View style={styles.measureItem}>
-                  <Text style={styles.measureValue}>{listing.measurements.waist}"</Text>
-                  <Text style={styles.measureLabel}>Waist</Text>
-                </View>
-              ) : null}
-              {listing.measurements.length ? (
-                <View style={styles.measureItem}>
-                  <Text style={styles.measureValue}>{listing.measurements.length}"</Text>
-                  <Text style={styles.measureLabel}>Length</Text>
-                </View>
-              ) : null}
-            </View>
-          )}
+          <View style={styles.hairline} />
 
-          <View style={styles.viewRow}>
-            {(listing.view_count ?? 0) > 0 && (
-              <>
-                <Ionicons name="eye-outline" size={13} color={colors.textSecondary} />
-                <Text style={styles.viewCount}>{listing.view_count} views</Text>
-                <Text style={styles.viewCount}>·</Text>
-              </>
-            )}
-            {listing.created_at && (
-              <Text style={styles.viewCount}>Listed {timeAgo(listing.created_at)}</Text>
-            )}
-          </View>
-
-          <Divider />
-
-          <TouchableOpacity style={styles.sellerRow} activeOpacity={0.8} onPress={() => router.push(`/user/${listing.seller_id}`)}>
-            <Avatar
-              uri={listing.seller?.avatar_url}
-              initials={listing.seller?.username?.[0]?.toUpperCase()}
-              size="medium"
-            />
-            <View style={styles.sellerInfo}>
-              <Text style={styles.sellerName}>@{listing.seller?.username}</Text>
-              {(listing.seller?.rating_count ?? 0) > 0 ? (
-                <View style={styles.sellerRating}>
-                  <StarRating rating={listing.seller?.rating_avg ?? 0} size={12} />
-                  <Text style={styles.sellerSub}>
-                    {(listing.seller?.rating_avg ?? 0).toFixed(1)} ({listing.seller?.rating_count})
-                  </Text>
-                </View>
-              ) : (
-                <Text style={styles.sellerSub}>No reviews yet</Text>
-              )}
-              {responseRate !== null && (
-                <View style={styles.responseRow}>
-                  <Ionicons name="chatbubble-outline" size={11} color={colors.textSecondary} />
-                  <Text style={styles.sellerSub}>Responds to {responseRate}% of messages</Text>
-                </View>
-              )}
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-
-          <Divider />
-
-          <Text style={styles.sectionLabel}>Description</Text>
-          <Text style={styles.description} numberOfLines={descExpanded ? undefined : 3}>
-            {listing.description ?? '—'}
-          </Text>
-          {(listing.description?.length ?? 0) > 120 && (
-            <TouchableOpacity onPress={() => setDescExpanded(v => !v)} activeOpacity={0.7}>
-              <Text style={styles.readMore}>{descExpanded ? 'Read less' : 'Read more'}</Text>
-            </TouchableOpacity>
-          )}
-
-          {listing.worn_at ? (
-            <View style={styles.wornAtCard}>
-              <Ionicons name="sparkles-outline" size={14} color={colors.primaryText} />
-              <Text style={styles.wornAtText}>{listing.worn_at}</Text>
-            </View>
+          {/* CTAs */}
+          {user?.id === listing.seller_id ? (
+            listing.status === 'draft' ? (
+              <View style={styles.ctaSection}>
+                <Button label="Publish" onPress={handlePublish} style={{ alignSelf: 'stretch' }} />
+                <TouchableOpacity onPress={handleDeleteDraft} activeOpacity={0.7}>
+                  <Text style={styles.dangerLink}>Delete draft</Text>
+                </TouchableOpacity>
+              </View>
+            ) : listing.status === 'sold' ? (
+              <View style={styles.soldForRow}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.textSecondary} />
+                <Text style={styles.soldForText}>Sold for £{listing.price.toFixed(2)}</Text>
+              </View>
+            ) : (
+              <Button label="Mark as sold" onPress={handleMarkSold} style={{ alignSelf: 'stretch' }} />
+            )
+          ) : listing.status === 'available' ? (
+            <Button label="Contact Seller" onPress={handleContact} style={{ alignSelf: 'stretch' }} />
           ) : null}
 
-          {canReview && (
-            <TouchableOpacity
-              style={styles.reviewBtn}
-              onPress={() => router.push(`/review/${id}?sellerName=${listing.seller?.username ?? ''}&listingTitle=${encodeURIComponent(listing.title)}`)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="star-outline" size={16} color={colors.primaryText} />
-              <Text style={styles.reviewBtnText}>Rate this seller</Text>
-            </TouchableOpacity>
+          <View style={styles.hairline} />
+
+          {/* Description (collapsible) */}
+          <TouchableOpacity style={styles.sectionRow} onPress={() => {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setDescOpen(v => !v);
+          }} activeOpacity={0.7}>
+            <Text style={styles.sectionLabel}>Description</Text>
+            <Ionicons name={descOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          {descOpen && (
+            <Text style={styles.description}>{listing.description ?? '—'}</Text>
           )}
 
+          <View style={styles.hairline} />
+
+          {/* Worn at */}
+          {listing.worn_at ? (
+            <>
+              <View style={styles.wornAtRow}>
+                <Ionicons name="sparkles-outline" size={14} color={colors.primary} />
+                <Text style={styles.wornAtText}>{listing.worn_at}</Text>
+              </View>
+              <View style={styles.hairline} />
+            </>
+          ) : null}
+
+          {/* Measurements (collapsible) */}
+          {listing.measurements && Object.values(listing.measurements).some(v => v != null) && (
+            <>
+              <TouchableOpacity style={styles.sectionRow} onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setMeasureOpen(v => !v);
+              }} activeOpacity={0.7}>
+                <Text style={styles.sectionLabel}>Measurements</Text>
+                <Ionicons name={measureOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+              {measureOpen && (
+                <View style={styles.measureBody}>
+                  {listing.measurements.chest ? (
+                    <View style={styles.measureLine}>
+                      <Text style={styles.measureKey}>Chest</Text>
+                      <Text style={styles.measureVal}>{listing.measurements.chest}"</Text>
+                    </View>
+                  ) : null}
+                  {listing.measurements.waist ? (
+                    <View style={styles.measureLine}>
+                      <Text style={styles.measureKey}>Waist</Text>
+                      <Text style={styles.measureVal}>{listing.measurements.waist}"</Text>
+                    </View>
+                  ) : null}
+                  {listing.measurements.length ? (
+                    <View style={styles.measureLine}>
+                      <Text style={styles.measureKey}>Length</Text>
+                      <Text style={styles.measureVal}>{listing.measurements.length}"</Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+              <View style={styles.hairline} />
+            </>
+          )}
+
+          {/* Seller row */}
+          <TouchableOpacity style={styles.sellerRow} activeOpacity={0.8} onPress={() => router.push(`/user/${listing.seller_id}`)}>
+            <Avatar uri={listing.seller?.avatar_url} initials={listing.seller?.username?.[0]?.toUpperCase()} size="small" />
+            <View style={styles.sellerInfo}>
+              <View style={styles.sellerNameRow}>
+                <Text style={styles.sellerName}>@{listing.seller?.username}</Text>
+                {(listing.seller?.rating_count ?? 0) > 0 && (
+                  <View style={styles.sellerRating}>
+                    <StarRating rating={listing.seller?.rating_avg ?? 0} size={11} />
+                    <Text style={styles.sellerSub}>{(listing.seller?.rating_avg ?? 0).toFixed(1)}</Text>
+                  </View>
+                )}
+              </View>
+              {responseRate !== null && (
+                <Text style={styles.sellerSub}>Responds to {responseRate}% of messages</Text>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          {/* Rate this seller */}
+          {canReview && (
+            <>
+              <View style={styles.hairline} />
+              <TouchableOpacity style={styles.reviewBtn} onPress={() => router.push(`/review/${id}?sellerName=${listing.seller?.username ?? ''}&listingTitle=${encodeURIComponent(listing.title)}`)} activeOpacity={0.8}>
+                <Ionicons name="star-outline" size={16} color={colors.primary} />
+                <Text style={styles.reviewBtnText}>Rate this seller</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          <View style={styles.hairline} />
+
+          {/* More from seller */}
           {sellerListings.length > 0 && (
             <>
-              <Divider />
-              <TouchableOpacity
-                style={styles.moreTitleRow}
-                onPress={() => router.push(`/user/${listing.seller_id}`)}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={styles.moreTitleRow} onPress={() => router.push(`/user/${listing.seller_id}`)} activeOpacity={0.8}>
                 <Text style={styles.sectionLabel}>More from @{listing.seller?.username}</Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.moreRow}
-                style={styles.moreScroll}
-              >
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.moreRow} style={styles.moreScroll}>
                 {sellerListings.map(item => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.moreCard}
-                    onPress={() => router.push(`/listing/${item.id}`)}
-                    activeOpacity={0.8}
-                  >
+                  <TouchableOpacity key={item.id} style={styles.moreCard} onPress={() => router.push(`/listing/${item.id}`)} activeOpacity={0.8}>
                     {item.images?.[0] ? (
                       <Image source={{ uri: item.images[0] }} style={styles.moreImage} resizeMode="cover" />
                     ) : (
@@ -523,49 +538,15 @@ export default function ListingDetailScreen() {
               </ScrollView>
             </>
           )}
+
+          {/* Views + listed time */}
+          <Text style={styles.footerMeta}>
+            {(listing.view_count ?? 0) > 0 ? `${listing.view_count} views · ` : ''}
+            {listing.created_at ? `Listed ${timeAgo(listing.created_at)}` : ''}
+          </Text>
+
         </View>
       </ScrollView>
-
-      <View style={[styles.footer, { bottom: Math.max(insets.bottom + Spacing.sm, Spacing.base) }]}>
-          {user?.id === listing.seller_id ? (
-            listing.status === 'draft' ? (
-              <>
-                <View style={styles.footerLeft}>
-                  <Text style={styles.footerPrice}>£{listing.price.toFixed(2)}</Text>
-                </View>
-                <Button label="Publish" onPress={handlePublish} />
-              </>
-            ) : listing.status === 'sold' ? (
-              <>
-                <View style={styles.footerLeft}>
-                  <Text style={styles.footerPriceLabel}>Sold for</Text>
-                  <Text style={[styles.footerPrice, { color: colors.textSecondary }]}>£{listing.price.toFixed(2)}</Text>
-                </View>
-                <View style={styles.soldFooter}>
-                  <Ionicons name="checkmark-circle" size={16} color={colors.textSecondary} />
-                  <Text style={styles.soldFooterText}>Marked as sold</Text>
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.footerLeft}>
-                  <Text style={styles.footerPriceLabel}>Listed at</Text>
-                  <Text style={styles.footerPrice}>£{listing.price.toFixed(2)}</Text>
-                </View>
-                <Button label="Mark as sold" onPress={handleMarkSold} />
-              </>
-            )
-          ) : (
-            <>
-              <View style={styles.footerLeft}>
-                <Text style={styles.footerPrice}>£{listing.price.toFixed(2)}</Text>
-              </View>
-              {listing.status === 'available' && (
-                <Button label="Contact Seller" onPress={handleContact} />
-              )}
-            </>
-          )}
-        </View>
 
       <Modal
         visible={lowerPriceVisible}
@@ -672,125 +653,107 @@ export default function ListingDetailScreen() {
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     root: { flex: 1 },
+
+    // Header
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: Spacing.sm,
+      paddingBottom: Spacing.sm,
+      backgroundColor: colors.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: {
+      flex: 1,
+      ...Typography.body,
+      fontFamily: 'Inter_600SemiBold',
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginHorizontal: Spacing.xs,
+    },
+    headerRight: { flexDirection: 'row' },
+
+    // Image
     imageContainer: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
     image: { width, height: IMAGE_HEIGHT },
-    imagePlaceholder: { flex: 1 },
-    floatingHeader: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 10,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+    imagePlaceholder: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
+
+    // Thumbnails
+    thumbScroll: { backgroundColor: colors.background },
+    thumbRow: {
       paddingHorizontal: Spacing.base,
-      paddingVertical: Spacing.md,
+      paddingVertical: Spacing.sm,
+      gap: Spacing.sm,
     },
-    floatingBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: 'rgba(0,0,0,0.38)',
-      alignItems: 'center',
-      justifyContent: 'center',
+    thumb: {
+      width: 68,
+      height: 68,
+      borderRadius: BorderRadius.small,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
-    floatingRight: { flexDirection: 'row', gap: Spacing.md },
-    dots: {
-      position: 'absolute',
-      bottom: Spacing.md,
-      left: 0,
-      right: 0,
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: 6,
+    thumbActive: {
+      borderWidth: 2,
+      borderColor: colors.textPrimary,
     },
-    dot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-      backgroundColor: 'rgba(255,255,255,0.5)',
+
+    // Content
+    content: {
+      paddingHorizontal: Spacing.base,
+      paddingTop: Spacing.xl,
+      paddingBottom: Spacing.base,
+      gap: Spacing.lg,
     },
-    dotActive: {
-      width: 18,
-      backgroundColor: '#fff',
-    },
-    content: { paddingVertical: Spacing.base, paddingHorizontal: Spacing.base, gap: Spacing.sm },
-    title: { ...Typography.heading, color: colors.textPrimary },
-    priceRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-    price: { ...Typography.heading, color: colors.primaryText },
-    soldBadge: { backgroundColor: colors.error, borderColor: colors.error },
+    hairline: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+
+    // Title block
+    titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
+    title: { ...Typography.heading, color: colors.textPrimary, flex: 1 },
+    subtitle: { ...Typography.body, color: colors.textSecondary, marginTop: -Spacing.sm },
+    price: { ...Typography.price, color: colors.textPrimary },
+    pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
-    metaRow: { flexDirection: 'row', gap: Spacing.xs },
-    measureRow: {
-      flexDirection: 'row',
-      gap: Spacing.xl,
-      paddingVertical: Spacing.sm,
-      paddingHorizontal: Spacing.base,
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.medium,
-    },
-    measureItem: { alignItems: 'center', gap: 2 },
-    measureValue: { ...Typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
-    measureLabel: { ...Typography.caption, color: colors.textSecondary },
-    viewRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    viewCount: { ...Typography.caption, color: colors.textSecondary },
-    soldFooter: {
-      flex: 1,
+
+    // CTAs
+    ctaSection: { gap: Spacing.sm, alignItems: 'center' },
+    dangerLink: { ...Typography.body, color: colors.error },
+    soldForRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
+    soldForText: { ...Typography.subheading, color: colors.textSecondary },
+
+    // Sold banner
+    soldBanner: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: Spacing.xs,
-    },
-    soldFooterText: { ...Typography.body, color: colors.textSecondary },
-    sellerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.base,
-    },
-    sellerInfo: { flex: 1, gap: 2 },
-    sellerName: { ...Typography.body, color: colors.textPrimary, fontWeight: '600' },
-    sellerRating: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-    responseRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    sellerSub: { ...Typography.caption, color: colors.textSecondary },
-    reviewBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.xs,
-      alignSelf: 'flex-start',
       paddingVertical: Spacing.sm,
-      paddingHorizontal: Spacing.md,
-      borderRadius: BorderRadius.full,
-      borderWidth: BorderWidth.standard,
-      borderColor: colors.primary,
-      marginTop: Spacing.xs,
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.small,
     },
-    reviewBtnText: {
-      ...Typography.label,
-      color: colors.primaryText,
+    soldBannerText: { ...Typography.body, color: colors.textSecondary },
+
+    // Collapsible sections
+    sectionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: Spacing.sm,
     },
-    sectionLabel: { ...Typography.label, color: colors.textPrimary },
-    description: {
+    sectionLabel: {
       ...Typography.body,
-      color: colors.textSecondary,
-      lineHeight: 22,
+      fontFamily: 'Inter_600SemiBold',
+      color: colors.textPrimary,
     },
-    readMore: {
-      ...Typography.label,
-      color: colors.primary,
-      marginTop: Spacing.xs,
-    },
-    wornAtCard: {
+    description: { ...Typography.body, color: colors.textSecondary, lineHeight: 22 },
+
+    // Worn at
+    wornAtRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: Spacing.xs,
-      backgroundColor: colors.surface,
-      borderLeftWidth: 3,
-      borderLeftColor: colors.primary,
-      borderRadius: BorderRadius.small,
+      gap: Spacing.sm,
       paddingVertical: Spacing.sm,
-      paddingHorizontal: Spacing.md,
-      marginTop: Spacing.xs,
     },
     wornAtText: {
       ...Typography.body,
@@ -799,48 +762,39 @@ function getStyles(colors: ColorTokens) {
       lineHeight: 20,
       fontStyle: 'italic',
     },
-    footer: {
-      position: 'absolute',
-      left: Spacing.base,
-      right: Spacing.base,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.md,
-      padding: Spacing.base,
-      borderRadius: BorderRadius.large,
-      backgroundColor: colors.background,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 16,
-      elevation: 8,
-    },
-    footerLeft: { flex: 1, gap: 3 },
-    footerPriceLabel: { ...Typography.caption, color: colors.textSecondary },
-    footerPrice: { ...Typography.subheading, color: colors.textPrimary, fontFamily: 'Inter_700Bold' },
-    footerOffer: { ...Typography.caption, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
-    footerDanger: { ...Typography.caption, color: colors.error, fontFamily: 'Inter_600SemiBold' },
-    soldBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      paddingVertical: Spacing.sm,
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    soldBannerText: { ...Typography.label, color: colors.textSecondary },
-    modalError: { ...Typography.caption, color: colors.error },
-    // Offer modal
-    modalOverlay: {
-      flex: 1,
-      justifyContent: 'flex-end',
-    },
-    modalBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-    },
+
+    // Measurements
+    measureBody: { gap: Spacing.xs, paddingBottom: Spacing.sm },
+    measureLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.xs },
+    measureKey: { ...Typography.body, color: colors.textSecondary },
+    measureVal: { ...Typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+
+    // Seller
+    sellerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.base, paddingVertical: Spacing.sm },
+    sellerInfo: { flex: 1, gap: 2 },
+    sellerNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+    sellerName: { ...Typography.body, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+    sellerRating: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+    sellerSub: { ...Typography.caption, color: colors.textSecondary },
+
+    // Review
+    reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
+    reviewBtnText: { ...Typography.body, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
+
+    // More from seller
+    moreTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    moreScroll: { marginHorizontal: -Spacing.base },
+    moreRow: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.xs },
+    moreCard: { width: 120 },
+    moreImage: { width: 120, height: 160, borderRadius: BorderRadius.medium, marginBottom: Spacing.xs },
+    morePrice: { ...Typography.caption, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+
+    // Footer meta
+    footerMeta: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' },
+
+    // Modals
+    modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+    modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
     modalCard: {
       backgroundColor: colors.background,
       borderTopLeftRadius: BorderRadius.large,
@@ -861,38 +815,10 @@ function getStyles(colors: ColorTokens) {
       marginTop: Spacing.sm,
     },
     currencySymbol: { ...Typography.heading, color: colors.textPrimary },
-    amountInput: {
-      ...Typography.heading,
-      color: colors.textPrimary,
-      flex: 1,
-      padding: 0,
-    },
-    modalActions: {
-      flexDirection: 'row',
-      gap: Spacing.sm,
-      marginTop: Spacing.xs,
-    },
+    amountInput: { ...Typography.heading, color: colors.textPrimary, flex: 1, padding: 0 },
+    modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
     modalCancelBtn: { flex: 1 },
     modalSendBtn: { flex: 2 },
-    moreTitleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: Spacing.sm,
-    },
-    moreScroll: { marginHorizontal: -Spacing.base },
-    moreRow: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.xs },
-    moreCard: { width: 120 },
-    moreImage: {
-      width: 120,
-      height: 160,
-      borderRadius: BorderRadius.medium,
-      marginBottom: Spacing.xs,
-    },
-    morePrice: {
-      ...Typography.caption,
-      color: colors.textPrimary,
-      fontFamily: 'Inter_600SemiBold',
-    },
+    modalError: { ...Typography.caption, color: colors.error },
   });
 }
