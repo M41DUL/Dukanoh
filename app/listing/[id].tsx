@@ -276,14 +276,6 @@ export default function ListingDetailScreen() {
     }
   };
 
-  const handleContact = () => {
-    Alert.alert('Contact Seller', undefined, [
-      { text: 'Send a message', onPress: handleMessage },
-      { text: 'Make an offer', onPress: () => setOfferVisible(true) },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
-
   const handleOffer = async () => {
     const amount = parseFloat(offerAmount.replace(/[^0-9.]/g, ''));
     if (!amount || amount <= 0) { setOfferError('Please enter a valid amount.'); return; }
@@ -332,7 +324,7 @@ export default function ListingDetailScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Spacing['3xl'] }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: user?.id !== listing.seller_id && listing.status === 'available' ? 100 + insets.bottom : Spacing['3xl'] }}>
 
         {/* IMAGE CAROUSEL */}
         <View style={styles.imageContainer}>
@@ -350,6 +342,11 @@ export default function ListingDetailScreen() {
             </ScrollView>
           ) : (
             <View style={styles.imagePlaceholder} />
+          )}
+          {(listing.images?.length ?? 0) > 1 && (
+            <View style={styles.imageCounter}>
+              <Text style={styles.imageCounterText}>{imageIndex + 1} / {listing.images.length}</Text>
+            </View>
           )}
         </View>
 
@@ -418,8 +415,33 @@ export default function ListingDetailScreen() {
               <Button label="Mark as sold" onPress={handleMarkSold} style={{ alignSelf: 'stretch' }} />
             )
           ) : listing.status === 'available' ? (
-            <Button label="Contact Seller" onPress={handleContact} style={{ alignSelf: 'stretch' }} />
+            <View style={styles.ctaRow}>
+              <Button label="Message" onPress={handleMessage} style={styles.ctaBtn} />
+              <Button label="Make an offer" variant="outline" onPress={() => setOfferVisible(true)} style={styles.ctaBtn} />
+            </View>
           ) : null}
+
+          <View style={styles.hairline} />
+
+          {/* Seller row */}
+          <TouchableOpacity style={styles.sellerRow} activeOpacity={0.8} onPress={() => router.push(`/user/${listing.seller_id}`)}>
+            <Avatar uri={listing.seller?.avatar_url} initials={listing.seller?.username?.[0]?.toUpperCase()} size="small" />
+            <View style={styles.sellerInfo}>
+              <View style={styles.sellerNameRow}>
+                <Text style={styles.sellerName}>@{listing.seller?.username}</Text>
+                {(listing.seller?.rating_count ?? 0) > 0 && (
+                  <View style={styles.sellerRating}>
+                    <StarRating rating={listing.seller?.rating_avg ?? 0} size={11} />
+                    <Text style={styles.sellerSub}>{(listing.seller?.rating_avg ?? 0).toFixed(1)}</Text>
+                  </View>
+                )}
+              </View>
+              {responseRate !== null && (
+                <Text style={styles.sellerSub}>Responds to {responseRate}% of messages</Text>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
 
           <View style={styles.hairline} />
 
@@ -484,34 +506,14 @@ export default function ListingDetailScreen() {
             </>
           )}
 
-          {/* Seller row */}
-          <TouchableOpacity style={styles.sellerRow} activeOpacity={0.8} onPress={() => router.push(`/user/${listing.seller_id}`)}>
-            <Avatar uri={listing.seller?.avatar_url} initials={listing.seller?.username?.[0]?.toUpperCase()} size="small" />
-            <View style={styles.sellerInfo}>
-              <View style={styles.sellerNameRow}>
-                <Text style={styles.sellerName}>@{listing.seller?.username}</Text>
-                {(listing.seller?.rating_count ?? 0) > 0 && (
-                  <View style={styles.sellerRating}>
-                    <StarRating rating={listing.seller?.rating_avg ?? 0} size={11} />
-                    <Text style={styles.sellerSub}>{(listing.seller?.rating_avg ?? 0).toFixed(1)}</Text>
-                  </View>
-                )}
-              </View>
-              {responseRate !== null && (
-                <Text style={styles.sellerSub}>Responds to {responseRate}% of messages</Text>
-              )}
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
-
           {/* Rate this seller */}
           {canReview && (
             <>
-              <View style={styles.hairline} />
               <TouchableOpacity style={styles.reviewBtn} onPress={() => router.push(`/review/${id}?sellerName=${listing.seller?.username ?? ''}&listingTitle=${encodeURIComponent(listing.title)}`)} activeOpacity={0.8}>
                 <Ionicons name="star-outline" size={16} color={colors.primary} />
                 <Text style={styles.reviewBtnText}>Rate this seller</Text>
               </TouchableOpacity>
+              <View style={styles.hairline} />
             </>
           )}
 
@@ -547,6 +549,14 @@ export default function ListingDetailScreen() {
 
         </View>
       </ScrollView>
+
+      {/* STICKY BOTTOM CTA — buyers only, available listings */}
+      {user?.id !== listing.seller_id && listing.status === 'available' && (
+        <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
+          <Button label="Message" onPress={handleMessage} style={styles.ctaBtn} />
+          <Button label="Make an offer" variant="outline" onPress={() => setOfferVisible(true)} style={styles.ctaBtn} />
+        </View>
+      )}
 
       <Modal
         visible={lowerPriceVisible}
@@ -679,6 +689,16 @@ function getStyles(colors: ColorTokens) {
     imageContainer: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
     image: { width, height: IMAGE_HEIGHT },
     imagePlaceholder: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
+    imageCounter: {
+      position: 'absolute',
+      bottom: Spacing.sm,
+      right: Spacing.sm,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 3,
+      borderRadius: BorderRadius.full,
+    },
+    imageCounterText: { ...Typography.caption, color: '#FFFFFF', fontFamily: 'Inter_600SemiBold' },
 
     // Thumbnails
     thumbScroll: { backgroundColor: colors.background },
@@ -717,6 +737,21 @@ function getStyles(colors: ColorTokens) {
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
 
     // CTAs
+    stickyFooter: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      paddingHorizontal: Spacing.base,
+      paddingTop: Spacing.sm,
+      backgroundColor: colors.background,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    ctaRow: { flexDirection: 'row', gap: Spacing.sm },
+    ctaBtn: { flex: 1 },
     ctaSection: { gap: Spacing.sm, alignItems: 'center' },
     dangerLink: { ...Typography.body, color: colors.error },
     soldForRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
