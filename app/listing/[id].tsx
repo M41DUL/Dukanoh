@@ -30,6 +30,7 @@ import { Listing } from '@/components/ListingCard';
 import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { StarRating } from '@/components/StarRating';
+import { HowItWorks } from '@/components/HowItWorks';
 import { recordView } from '@/hooks/useRecentlyViewed';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -458,20 +459,15 @@ export default function ListingDetailScreen() {
             <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
             {listing.worn_at ? (
               <View style={styles.wornAtCard}>
-                <View style={styles.wornAtHeader}>
-                  <Ionicons name="sparkles-outline" size={14} color={colors.primary} />
-                  <Text style={styles.wornAtLabel}>Story</Text>
-                </View>
+                <Text style={styles.wornAtLabel}>The story</Text>
                 <Text style={styles.wornAtText}>{listing.worn_at}</Text>
               </View>
             ) : null}
           </View>
 
 
-          <View style={styles.hairline} />
-
-          {/* CTAs */}
-          {user?.id === listing.seller_id ? (
+          {/* CTAs — seller only */}
+          {user?.id === listing.seller_id && (
             listing.status === 'draft' ? (
               <View style={styles.ctaSection}>
                 <Button label="Publish" onPress={handlePublish} style={{ alignSelf: 'stretch' }} />
@@ -487,12 +483,21 @@ export default function ListingDetailScreen() {
             ) : (
               <Button label="Mark as sold" onPress={handleMarkSold} style={{ alignSelf: 'stretch' }} />
             )
-          ) : listing.status === 'available' ? (
-            <View style={styles.ctaRow}>
-              <Button label="Message" onPress={handleMessage} style={styles.ctaBtn} />
-              <Button label="Make an offer" variant="outline" onPress={() => setOfferVisible(true)} style={styles.ctaBtn} />
-            </View>
-          ) : null}
+          )}
+
+          <View style={styles.hairline} />
+
+          {/* Description (collapsible) */}
+          <TouchableOpacity style={styles.sectionRow} onPress={() => {
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setDescOpen(v => !v);
+          }} activeOpacity={0.7}>
+            <Text style={styles.sectionLabel}>Description</Text>
+            <Ionicons name={descOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          {descOpen && (
+            <Text style={styles.description}>{listing.description ?? '—'}</Text>
+          )}
 
           <View style={styles.hairline} />
 
@@ -518,20 +523,7 @@ export default function ListingDetailScreen() {
 
           <View style={styles.hairline} />
 
-          {/* Description (collapsible) */}
-          <TouchableOpacity style={styles.sectionRow} onPress={() => {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setDescOpen(v => !v);
-          }} activeOpacity={0.7}>
-            <Text style={styles.sectionLabel}>Description</Text>
-            <Ionicons name={descOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-          {descOpen && (
-            <Text style={styles.description}>{listing.description ?? '—'}</Text>
-          )}
-
-          <View style={styles.hairline} />
-
+          {user?.id !== listing.seller_id && <HowItWorks />}
 
           {/* Measurements (collapsible) */}
           {listing.measurements && Object.values(listing.measurements).some(v => v != null) && (
@@ -921,11 +913,6 @@ function getStyles(colors: ColorTokens) {
       backgroundColor: colors.surface,
       borderRadius: BorderRadius.medium,
       padding: Spacing.base,
-      gap: Spacing.xs,
-    },
-    wornAtHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
       gap: Spacing.xs,
     },
     wornAtLabel: {
