@@ -35,7 +35,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
-const IMAGE_HEIGHT = Math.round(width * 1.25);
+const IMAGE_HEIGHT = Math.round(width * 1.5);
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -426,19 +426,6 @@ export default function ListingDetailScreen() {
           </View>
         </View>
 
-        {/* THUMBNAIL STRIP */}
-        {(listing.images?.length ?? 0) > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbRow} style={styles.thumbScroll}>
-            {listing.images.map((uri, i) => (
-              <TouchableOpacity key={i} activeOpacity={0.8} onPress={() => {
-                imageScrollRef.current?.scrollTo({ x: i * width, animated: true });
-                setImageIndex(i);
-              }}>
-                <Image source={{ uri }} style={[styles.thumb, i === imageIndex && styles.thumbActive]} resizeMode="cover" />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
 
         {/* CONTENT */}
         <View style={styles.content}>
@@ -855,23 +842,6 @@ function getStyles(colors: ColorTokens) {
     imageCounterText: { ...Typography.caption, color: '#FFFFFF', fontFamily: 'Inter_600SemiBold' },
 
     // Thumbnails
-    thumbScroll: { backgroundColor: colors.background },
-    thumbRow: {
-      paddingHorizontal: Spacing.base,
-      paddingVertical: Spacing.sm,
-      gap: Spacing.sm,
-    },
-    thumb: {
-      width: 68,
-      height: 68,
-      borderRadius: BorderRadius.small,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    thumbActive: {
-      borderWidth: 2,
-      borderColor: colors.textPrimary,
-    },
 
     // Content
     content: {
