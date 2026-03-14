@@ -3,6 +3,7 @@ import {
   View,
   Text,
   ScrollView,
+  Animated,
   StyleSheet,
   Image,
   Dimensions,
@@ -30,6 +31,8 @@ import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { StarRating } from '@/components/StarRating';
 import { recordView } from '@/hooks/useRecentlyViewed';
+import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 const IMAGE_HEIGHT = Math.round(width * 1.25);
@@ -69,6 +72,23 @@ export default function ListingDetailScreen() {
   const [descOpen, setDescOpen] = useState(false);
   const [measureOpen, setMeasureOpen] = useState(false);
   const imageScrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const headerBgOpacity = scrollY.interpolate({
+    inputRange: [0, IMAGE_HEIGHT * 0.5],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  const btnBackdropOpacity = scrollY.interpolate({
+    inputRange: [0, IMAGE_HEIGHT * 0.5],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+  const titleOpacity = scrollY.interpolate({
+    inputRange: [IMAGE_HEIGHT * 0.35, IMAGE_HEIGHT * 0.5],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
   const insets = useSafeAreaInsets();
   const { isSaved, toggleSave } = useSaved();
   const colors = useThemeColors();
@@ -324,23 +344,41 @@ export default function ListingDetailScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <StatusBar style="light" />
 
-      {/* SOLID HEADER */}
+      {/* HEADER */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
+        <Animated.View style={[styles.headerBg, { opacity: headerBgOpacity }]} />
+        <Animated.View style={[styles.headerBorderLine, { opacity: headerBgOpacity }]} />
         <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.8}>
-          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          <Animated.View style={[styles.iconLayer, { opacity: btnBackdropOpacity }]}>
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          </Animated.View>
+          <Animated.View style={[styles.iconLayer, { opacity: headerBgOpacity }]}>
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </Animated.View>
         </TouchableOpacity>
-        <View style={[styles.headerTitleWrap, { top: insets.top }]} pointerEvents="none">
+        <Animated.View style={[styles.headerTitleWrap, { top: insets.top, opacity: titleOpacity }]} pointerEvents="none">
           <Text style={styles.headerTitle} numberOfLines={1}>{listing.title}</Text>
-        </View>
+        </Animated.View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerBtn} onPress={user?.id === listing.seller_id ? handleSellerOptions : handleMoreOptions} activeOpacity={0.8}>
-            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
+            <Animated.View style={[styles.iconLayer, { opacity: btnBackdropOpacity }]}>
+              <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
+            </Animated.View>
+            <Animated.View style={[styles.iconLayer, { opacity: headerBgOpacity }]}>
+              <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
+            </Animated.View>
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: user?.id !== listing.seller_id && listing.status === 'available' ? 100 + insets.bottom : Spacing['3xl'] }}>
+      <Animated.ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: user?.id !== listing.seller_id && listing.status === 'available' ? 100 + insets.bottom : Spacing['3xl'] }}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+        scrollEventThrottle={16}
+      >
 
         {/* IMAGE CAROUSEL */}
         <View style={styles.imageContainer}>
@@ -359,6 +397,10 @@ export default function ListingDetailScreen() {
           ) : (
             <View style={styles.imagePlaceholder} />
           )}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.4)', 'transparent']}
+            style={styles.imageScrim}
+          />
           <View style={styles.imageBottomBar}>
             {offerCount > 0 ? (
               <View style={styles.demandBanner}>
@@ -583,7 +625,7 @@ export default function ListingDetailScreen() {
           </Text>
 
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* STICKY BOTTOM CTA — buyers only, available listings */}
       {user?.id !== listing.seller_id && listing.status === 'available' && (
@@ -701,15 +743,34 @@ function getStyles(colors: ColorTokens) {
 
     // Header
     header: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: Spacing.sm,
       paddingBottom: Spacing.sm,
+    },
+    headerBg: {
+      ...StyleSheet.absoluteFillObject,
       backgroundColor: colors.background,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+    },
+    headerBorderLine: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
     },
     headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    iconLayer: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     headerTitleWrap: {
       position: 'absolute',
       left: 56,
@@ -733,6 +794,13 @@ function getStyles(colors: ColorTokens) {
     imageContainer: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
     image: { width, height: IMAGE_HEIGHT },
     imagePlaceholder: { width, height: IMAGE_HEIGHT, backgroundColor: colors.surface },
+    imageScrim: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 150,
+    },
     savePill: {
       width: 100,
       flexDirection: 'row',
