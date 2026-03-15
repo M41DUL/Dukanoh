@@ -93,6 +93,7 @@ export default function ListingDetailScreen() {
   });
   const insets = useSafeAreaInsets();
   const { isSaved, toggleSave } = useSaved();
+  const isSeller = !!user && !!listing && user.id === listing.seller_id;
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -391,12 +392,30 @@ export default function ListingDetailScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{listing.title}</Text>
         </Animated.View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerBtn} onPress={user?.id === listing.seller_id ? handleSellerOptions : handleMoreOptions} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={
+              isSeller && listing.status === 'draft'
+                ? handleSellerOptions
+                : isSeller
+                ? handleShare
+                : handleMoreOptions
+            }
+            activeOpacity={0.8}
+          >
             <Animated.View style={[styles.iconLayer, { opacity: btnBackdropOpacity }]}>
-              <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
+              <Ionicons
+                name={isSeller && listing.status !== 'draft' ? 'share-outline' : 'ellipsis-horizontal'}
+                size={22}
+                color="#FFFFFF"
+              />
             </Animated.View>
             <Animated.View style={[styles.iconLayer, { opacity: headerBgOpacity }]}>
-              <Ionicons name="ellipsis-horizontal" size={22} color={colors.textPrimary} />
+              <Ionicons
+                name={isSeller && listing.status !== 'draft' ? 'share-outline' : 'ellipsis-horizontal'}
+                size={22}
+                color={colors.textPrimary}
+              />
             </Animated.View>
           </TouchableOpacity>
         </View>
@@ -507,10 +526,13 @@ export default function ListingDetailScreen() {
           {/* Boost button — seller, available listings only */}
           {user?.id === listing.seller_id && listing.status === 'available' && (
             boostExpiry ? (
-              <View style={styles.boostedPill}>
-                <Ionicons name="rocket" size={14} color={colors.textSecondary} />
-                <Text style={styles.boostedPillText}>
-                  Boosted · {Math.ceil((boostExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24))}d left
+              <View style={styles.boostedCard}>
+                <View style={styles.boostedCardTop}>
+                  <Ionicons name="rocket" size={18} color="#0D0D0D" />
+                  <Text style={styles.boostedCardTitle}>Listing boosted</Text>
+                </View>
+                <Text style={styles.boostedCardSub}>
+                  {Math.ceil((boostExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days remaining · Showing at the top of the feed
                 </Text>
               </View>
             ) : (
@@ -986,6 +1008,29 @@ function getStyles(colors: ColorTokens) {
     boostedPillText: {
       ...Typography.body,
       color: colors.textSecondary,
+    },
+    boostedCard: {
+      backgroundColor: '#C7F75E',
+      borderRadius: BorderRadius.medium,
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.base,
+      gap: Spacing.xs,
+      alignItems: 'center',
+    },
+    boostedCardTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+    },
+    boostedCardTitle: {
+      fontSize: 15,
+      fontFamily: FontFamily.bold,
+      color: '#0D0D0D',
+    },
+    boostedCardSub: {
+      ...Typography.caption,
+      color: '#0D0D0D',
+      textAlign: 'center',
     },
     boostModalCard: {
       backgroundColor: colors.background,
