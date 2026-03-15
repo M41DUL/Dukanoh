@@ -622,16 +622,16 @@ export default function ListingDetailScreen() {
 
           <View style={styles.hairline} />
 
-          {/* Similar listings */}
-          {similarListings.length > 0 && (
+          {/* Similar listings — buyers only */}
+          {user?.id !== listing.seller_id && similarListings.length > 0 && (
             <View>
               <SectionHeader title="Similar listings" />
               <ListingGrid listings={similarListings} />
             </View>
           )}
 
-          {/* More from seller */}
-          {sellerListings.length > 0 && (
+          {/* More from seller — buyers only */}
+          {user?.id !== listing.seller_id && sellerListings.length > 0 && (
             <View>
               <SectionHeader
                 title={`More from @${listing.seller?.username}`}
