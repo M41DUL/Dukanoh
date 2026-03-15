@@ -29,6 +29,7 @@ import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { StarRating } from '@/components/StarRating';
 import { HowItWorks } from '@/components/HowItWorks';
+import { BottomSheet } from '@/components/BottomSheet';
 import { ImageViewerModal } from '@/components/ImageViewerModal';
 import { SectionHeader } from '@/components/SectionHeader';
 import { ListingGrid } from '@/components/ListingGrid';
@@ -167,6 +168,7 @@ export default function ListingDetailScreen() {
       });
   }, [id]);
 
+
   if (loading) return <LoadingSpinner />;
   if (!listing) return null;
 
@@ -230,6 +232,8 @@ export default function ListingDetailScreen() {
       },
     ]);
   };
+
+  const handleCloseBoost = () => setBoostVisible(false);
 
   const handleBoost = async () => {
     if (!user || !id) return;
@@ -510,10 +514,7 @@ export default function ListingDetailScreen() {
                 </Text>
               </View>
             ) : (
-              <TouchableOpacity style={styles.boostBtn} onPress={() => setBoostVisible(true)} activeOpacity={0.85}>
-                <Ionicons name="rocket-outline" size={15} color="#0D0D0D" />
-                <Text style={styles.boostBtnText}>Boost listing</Text>
-              </TouchableOpacity>
+              <Button label="Boost listing" variant="secondary" onPress={() => setBoostVisible(true)} style={{ alignSelf: 'stretch' }} />
             )
           )}
 
@@ -686,41 +687,6 @@ export default function ListingDetailScreen() {
 
 
       {/* BOOST MODAL */}
-      <Modal
-        visible={boostVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setBoostVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalBackdrop}
-          activeOpacity={1}
-          onPress={() => setBoostVisible(false)}
-        />
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Boost listing</Text>
-          <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-            Push your listing to the top of the feed and get more eyes on your item.
-          </Text>
-          <View style={styles.boostDetailRow}>
-            <Text style={styles.boostDetailKey}>Duration</Text>
-            <Text style={styles.boostDetailVal}>7 days</Text>
-          </View>
-          <View style={styles.boostDetailRow}>
-            <Text style={styles.boostDetailKey}>Price</Text>
-            <View style={styles.boostPriceRow}>
-              <Text style={[styles.boostDetailVal, { textDecorationLine: 'line-through', color: colors.textSecondary }]}>£0.99</Text>
-              <View style={styles.betaBadge}>
-                <Text style={styles.betaBadgeText}>Free during beta</Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.modalActions}>
-            <Button label="Cancel" variant="ghost" onPress={() => setBoostVisible(false)} style={styles.modalCancelBtn} />
-            <Button label="Boost listing" onPress={handleBoost} style={styles.modalSendBtn} />
-          </View>
-        </View>
-      </Modal>
 
       <Modal
         visible={offerVisible}
@@ -771,6 +737,37 @@ export default function ListingDetailScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* BOOST SHEET */}
+      <BottomSheet visible={boostVisible} onClose={handleCloseBoost}>
+        <Text style={styles.boostTitle}>Boost listing</Text>
+        <Text style={styles.boostSubtitle}>
+          Push your listing to the top of the feed and get more eyes on your item.
+        </Text>
+        <View style={styles.hairline} />
+        <View style={styles.boostDetailRow}>
+          <Text style={styles.boostDetailKey}>Duration</Text>
+          <Text style={styles.boostDetailVal}>7 days</Text>
+        </View>
+        <View style={styles.boostDetailRow}>
+          <Text style={styles.boostDetailKey}>Price</Text>
+          <View style={styles.boostPriceRow}>
+            <Text style={[styles.boostDetailVal, { textDecorationLine: 'line-through', color: colors.textSecondary }]}>£0.99</Text>
+            <View style={styles.betaBadge}>
+              <Text style={styles.betaBadgeText}>Free during beta</Text>
+            </View>
+          </View>
+        </View>
+        <View style={[styles.boostStatCard, { marginTop: Spacing.base }]}>
+          <Text style={styles.boostStatLabel}>🚀  Sellers who boost see 3x more views{'\n'}on average</Text>
+        </View>
+        <View style={{ marginTop: Spacing.base, gap: Spacing.sm }}>
+          <Button label="Boost now" variant="secondary" onPress={handleBoost} style={{ alignSelf: 'stretch' }} />
+          <TouchableOpacity onPress={handleCloseBoost} activeOpacity={0.7} style={{ paddingTop: Spacing.base }}>
+            <Text style={[Typography.body, { color: colors.textSecondary, textAlign: 'center' }]}>Maybe later</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -976,20 +973,7 @@ function getStyles(colors: ColorTokens) {
       alignItems: 'center',
       gap: 2,
     },
-    boostBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      backgroundColor: '#C7F75E',
-      borderRadius: BorderRadius.medium,
-      paddingVertical: Spacing.sm,
-    },
-    boostBtnText: {
-      ...Typography.body,
-      fontFamily: FontFamily.semibold,
-      color: '#0D0D0D',
-    },
+
     boostedPill: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1003,13 +987,52 @@ function getStyles(colors: ColorTokens) {
       ...Typography.body,
       color: colors.textSecondary,
     },
+    boostModalCard: {
+      backgroundColor: colors.background,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: Spacing.xl,
+      paddingTop: Spacing.base,
+    },
+    boostHandle: {
+      width: 36,
+      height: 4,
+      borderRadius: BorderRadius.full,
+      backgroundColor: colors.border,
+      alignSelf: 'center',
+      marginBottom: Spacing.xl,
+    },
+    boostTitle: {
+      ...Typography.heading,
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: Spacing.xs,
+    },
+    boostSubtitle: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: Spacing.base,
+    },
+    boostStatCard: {
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.medium,
+      padding: Spacing.base,
+      alignItems: 'center',
+    },
+    boostStatLabel: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
     boostDetailRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingVertical: Spacing.sm,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
+      paddingVertical: Spacing.base,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
     },
     boostDetailKey: {
       ...Typography.body,
