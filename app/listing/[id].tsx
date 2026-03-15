@@ -60,7 +60,6 @@ export default function ListingDetailScreen() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
-  const [canReview, setCanReview] = useState(false);
   const [sellerListings, setSellerListings] = useState<Listing[]>([]);
   const [similarListings, setSimilarListings] = useState<Listing[]>([]);
   const [offerVisible, setOfferVisible] = useState(false);
@@ -163,18 +162,6 @@ export default function ListingDetailScreen() {
         setLoading(false);
       });
   }, [id]);
-
-  useEffect(() => {
-    if (!id || !user || !listing) return;
-    if (listing.seller_id === user.id) return;
-
-    Promise.all([
-      supabase.from('conversations').select('id').eq('listing_id', id).eq('buyer_id', user.id).maybeSingle(),
-      supabase.from('reviews').select('id').eq('reviewer_id', user.id).eq('listing_id', id).maybeSingle(),
-    ]).then(([{ data: conv }, { data: review }]) => {
-      setCanReview(!!conv && !review);
-    });
-  }, [id, user, listing]);
 
   if (loading) return <LoadingSpinner />;
   if (!listing) return null;
@@ -483,13 +470,14 @@ export default function ListingDetailScreen() {
               </Text>
             </View>
             <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
-            {listing.worn_at ? (
-              <View style={styles.wornAtCard}>
-                <Text style={styles.wornAtLabel}>The story</Text>
-                <Text style={styles.wornAtText}>{listing.worn_at}</Text>
-              </View>
-            ) : null}
           </View>
+          <View style={styles.hairline} />
+          {listing.worn_at ? (
+            <View style={styles.wornAtCard}>
+              <Text style={styles.wornAtLabel}>The story</Text>
+              <Text style={styles.wornAtText}>{listing.worn_at}</Text>
+            </View>
+          ) : null}
 
 
           {/* CTAs — seller only */}
@@ -578,17 +566,6 @@ export default function ListingDetailScreen() {
                   ) : null}
                 </View>
               )}
-              <View style={styles.hairline} />
-            </>
-          )}
-
-          {/* Rate this seller */}
-          {canReview && (
-            <>
-              <TouchableOpacity style={styles.reviewBtn} onPress={() => router.push(`/review/${id}?sellerName=${listing.seller?.username ?? ''}&listingTitle=${encodeURIComponent(listing.title)}`)} activeOpacity={0.8}>
-                <Ionicons name="star-outline" size={16} color={colors.primary} />
-                <Text style={styles.reviewBtnText}>Rate this seller</Text>
-              </TouchableOpacity>
               <View style={styles.hairline} />
             </>
           )}
@@ -861,7 +838,7 @@ function getStyles(colors: ColorTokens) {
       paddingHorizontal: Spacing.base,
       paddingTop: Spacing.base,
       paddingBottom: Spacing.base,
-      gap: Spacing.lg,
+      gap: Spacing.base,
     },
     hairline: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
 
@@ -870,7 +847,7 @@ function getStyles(colors: ColorTokens) {
     titleBlock: { gap: 4 },
     titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
     title: { ...Typography.heading, fontSize: 18, fontFamily: FontFamily.medium, fontWeight: '500' as const, color: colors.textPrimary, flex: 1 },
-    subtitle: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.regular, fontWeight: '400' as const, color: colors.textSecondary },
+    subtitle: { ...Typography.body, fontSize: 14, fontFamily: FontFamily.medium, fontWeight: '500' as const, color: colors.textSecondary },
     price: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, fontWeight: '500' as const, color: colors.textPrimary },
     pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
     demandBanner: {
