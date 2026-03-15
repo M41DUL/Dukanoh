@@ -21,7 +21,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
-import { Badge } from '@/components/Badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -322,6 +321,26 @@ export default function ListingDetailScreen() {
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!user || !listing) return;
+    const { data, error } = await supabase.from('listings').insert({
+      seller_id: user.id,
+      title: listing.title,
+      description: listing.description,
+      price: listing.price,
+      category: listing.category,
+      condition: listing.condition,
+      size: listing.size,
+      occasion: listing.occasion,
+      measurements: listing.measurements,
+      images: listing.images,
+      worn_at: listing.worn_at,
+      status: 'draft',
+    }).select('id').single();
+    if (error || !data) { Alert.alert('Error', 'Could not duplicate listing.'); return; }
+    router.push(`/listing/edit/${data.id}`);
+  };
+
   const handleToggleSave = () => {
     if (!id) return;
     const wasSaved = isSaved(id);
@@ -386,7 +405,7 @@ export default function ListingDetailScreen() {
 
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: user?.id !== listing.seller_id && listing.status === 'available' ? 100 + insets.bottom : Spacing['3xl'] }}
+        contentContainerStyle={{ paddingBottom: (user?.id !== listing.seller_id && listing.status === 'available') || (user?.id === listing.seller_id) ? 100 + insets.bottom : Spacing['3xl'] }}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
         scrollEventThrottle={16}
       >
@@ -435,7 +454,13 @@ export default function ListingDetailScreen() {
                 <Text style={styles.savePillText}>{saveCount}</Text>
                 <Ionicons name={isSaved(id ?? '') ? 'heart' : 'heart-outline'} size={16} color={isSaved(id ?? '') ? colors.like : '#FFFFFF'} />
               </TouchableOpacity>
-            ) : <View style={styles.savePillPlaceholder} />}
+            ) : (
+              <View style={[styles.savePill, listing.status === 'draft' ? styles.statusPillDraft : listing.status === 'sold' ? styles.statusPillSold : null]}>
+                <Text style={styles.statusPillText}>
+                  {listing.status === 'draft' ? 'Draft' : listing.status === 'sold' ? 'Sold' : 'Live'}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -451,12 +476,40 @@ export default function ListingDetailScreen() {
             </View>
           )}
 
+          {/* Seller analytics strip */}
+          {user?.id === listing.seller_id && (
+            <View style={styles.analyticsStrip}>
+              <View style={styles.analyticsCell}>
+                <Text style={[styles.analyticsValue, { color: colors.primary }]}>{listing.view_count ?? 0}</Text>
+                <Text style={styles.analyticsLabel}>Views</Text>
+              </View>
+              <View style={styles.analyticsCell}>
+                <Text style={[styles.analyticsValue, { color: colors.primary }]}>{saveCount}</Text>
+                <Text style={styles.analyticsLabel}>Saves</Text>
+              </View>
+              <TouchableOpacity style={styles.analyticsCell} onPress={() => router.push('/(tabs)/inbox')} activeOpacity={0.7}>
+                <Text style={[styles.analyticsValue, { color: colors.primary }]}>{offerCount}</Text>
+                <View style={styles.analyticsLabelRow}>
+                  <Text style={styles.analyticsLabel}>Offers</Text>
+                  <Ionicons name="chevron-forward" size={10} color={colors.textSecondary} />
+                </View>
+              </TouchableOpacity>
+              {listing.status !== 'draft' && listing.created_at && (
+                <View style={styles.analyticsCell}>
+                  <Text style={[styles.analyticsValue, { color: colors.primary }]}>
+                    {Math.floor((Date.now() - new Date(listing.created_at).getTime()) / (1000 * 60 * 60 * 24))}
+                  </Text>
+                  <Text style={styles.analyticsLabel}>Days listed</Text>
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Title + Subtitle + Price */}
           <View style={styles.titleGroup}>
             <View style={styles.titleBlock}>
               <View style={styles.titleRow}>
                 <Text style={styles.title}>{listing.title}</Text>
-                {listing.status === 'draft' && <Badge label="Draft" style={styles.draftBadge} />}
               </View>
               <Text style={styles.subtitle} numberOfLines={2}>
                 {[
@@ -480,23 +533,18 @@ export default function ListingDetailScreen() {
           ) : null}
 
 
-          {/* CTAs — seller only */}
+          {/* Seller status indicators */}
           {user?.id === listing.seller_id && (
             listing.status === 'draft' ? (
-              <View style={styles.ctaSection}>
-                <Button label="Publish" onPress={handlePublish} style={{ alignSelf: 'stretch' }} />
-                <TouchableOpacity onPress={handleDeleteDraft} activeOpacity={0.7}>
-                  <Text style={styles.dangerLink}>Delete draft</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity onPress={handleDeleteDraft} activeOpacity={0.7}>
+                <Text style={styles.dangerLink}>Delete draft</Text>
+              </TouchableOpacity>
             ) : listing.status === 'sold' ? (
               <View style={styles.soldForRow}>
                 <Ionicons name="checkmark-circle" size={16} color={colors.textSecondary} />
                 <Text style={styles.soldForText}>Sold for £{listing.price.toFixed(2)}</Text>
               </View>
-            ) : (
-              <Button label="Mark as sold" onPress={handleMarkSold} style={{ alignSelf: 'stretch' }} />
-            )
+            ) : null
           )}
 
           <View style={styles.hairline} />
@@ -603,6 +651,23 @@ export default function ListingDetailScreen() {
         <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
           <Button label="Message" variant="outline" onPress={handleMessage} style={styles.ctaBtn} />
           <Button label="Make an offer" onPress={() => setOfferVisible(true)} style={styles.ctaBtn} />
+        </View>
+      )}
+
+      {/* STICKY BOTTOM CTA — seller */}
+      {user?.id === listing.seller_id && listing.status !== 'sold' && (
+        <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
+          <Button label="Edit" variant="outline" onPress={() => router.push(`/listing/edit/${id}`)} style={styles.ctaBtn} />
+          {listing.status === 'draft' ? (
+            <Button label="Publish" onPress={handlePublish} style={styles.ctaBtn} />
+          ) : (
+            <Button label="Mark as sold" onPress={handleMarkSold} style={styles.ctaBtn} />
+          )}
+        </View>
+      )}
+      {user?.id === listing.seller_id && listing.status === 'sold' && (
+        <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
+          <Button label="Duplicate listing" onPress={handleDuplicate} style={styles.ctaBtn} />
         </View>
       )}
 
@@ -801,6 +866,9 @@ function getStyles(colors: ColorTokens) {
       alignItems: 'center',
     },
     savePillPlaceholder: { width: 100 },
+    statusPillDraft: { backgroundColor: 'rgba(247,159,0,0.85)' },
+    statusPillSold: { backgroundColor: 'rgba(0,0,0,0.55)' },
+    statusPillText: { ...Typography.body, color: '#FFFFFF', fontFamily: FontFamily.semibold },
     dotsRow: {
       flex: 1,
       flexDirection: 'row',
@@ -886,6 +954,33 @@ function getStyles(colors: ColorTokens) {
     dangerLink: { ...Typography.body, color: colors.error },
     soldForRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
     soldForText: { ...Typography.subheading, color: colors.textSecondary },
+
+    // Seller analytics strip
+    analyticsStrip: {
+      flexDirection: 'row',
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.medium,
+      paddingVertical: Spacing.base,
+    },
+    analyticsCell: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 2,
+    },
+    analyticsValue: {
+      ...Typography.subheading,
+      fontFamily: FontFamily.bold,
+      color: colors.textPrimary,
+    },
+    analyticsLabel: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+    },
+    analyticsLabelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 2,
+    },
 
     // Sold banner
     soldBanner: {
