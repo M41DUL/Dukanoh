@@ -14,7 +14,6 @@ import {
   Platform,
   Alert,
   Share,
-  LayoutAnimation,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -65,17 +64,14 @@ export default function ListingDetailScreen() {
   const [offerAmount, setOfferAmount] = useState('');
   const [offerSending, setOfferSending] = useState(false);
   const [offerError, setOfferError] = useState('');
-  const [lowerPriceVisible, setLowerPriceVisible] = useState(false);
-  const [newPrice, setNewPrice] = useState('');
-  const [lowerPriceSending, setLowerPriceSending] = useState(false);
-  const [bumped, setBumped] = useState(false);
+  const [boostExpiry, setBoostExpiry] = useState<Date | null>(null);
+  const [boostVisible, setBoostVisible] = useState(false);
   const [responseRate, setResponseRate] = useState<number | null>(null);
   const [soldCount, setSoldCount] = useState<number | null>(null);
   const [saveCount, setSaveCount] = useState(0);
   const [offerCount, setOfferCount] = useState(0);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
-  const [measureOpen, setMeasureOpen] = useState(false);
   const imageScrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -157,6 +153,15 @@ export default function ListingDetailScreen() {
               setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
             });
           }
+          supabase
+            .from('boosts')
+            .select('expires_at')
+            .eq('listing_id', id)
+            .gte('expires_at', new Date().toISOString())
+            .maybeSingle()
+            .then(({ data: boost }) => {
+              if (boost) setBoostExpiry(new Date(boost.expires_at));
+            });
         }
         setLoading(false);
       });
@@ -187,16 +192,6 @@ export default function ListingDetailScreen() {
     if (convId) router.push(`/conversation/${convId}`);
   };
 
-  const handleLowerPrice = async () => {
-    const amount = parseFloat(newPrice.replace(/[^0-9.]/g, ''));
-    if (!amount || amount <= 0 || amount >= listing.price) return;
-    setLowerPriceSending(true);
-    await supabase.from('listings').update({ price: amount }).eq('id', id!);
-    setListing(prev => prev ? { ...prev, price: amount } : prev);
-    setLowerPriceSending(false);
-    setLowerPriceVisible(false);
-    setNewPrice('');
-  };
 
   const handleMarkSold = () => {
     Alert.alert(
@@ -236,13 +231,12 @@ export default function ListingDetailScreen() {
     ]);
   };
 
-  const handleBump = async () => {
-    await supabase
-      .from('listings')
-      .update({ created_at: new Date().toISOString() })
-      .eq('id', id!);
-    setBumped(true);
-    Alert.alert('Listing bumped', 'Your listing is now at the top of the feed.');
+  const handleBoost = async () => {
+    if (!user || !id) return;
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from('boosts').insert({ listing_id: id, seller_id: user.id, expires_at: expiresAt, amount_paid: 0 });
+    setBoostExpiry(new Date(expiresAt));
+    setBoostVisible(false);
   };
 
   const handleShare = () => {
@@ -306,16 +300,17 @@ export default function ListingDetailScreen() {
     if (listing.status === 'draft') {
       Alert.alert('Manage listing', undefined, [
         { text: 'Share', onPress: handleShare },
-        { text: 'Edit listing', onPress: () => router.push(`/listing/edit/${id}`) },
         { text: 'Delete draft', style: 'destructive', onPress: handleDeleteDraft },
         { text: 'Cancel', style: 'cancel' },
       ]);
     } else if (listing.status === 'available') {
       Alert.alert('Manage listing', undefined, [
         { text: 'Share', onPress: handleShare },
-        { text: 'Edit listing', onPress: () => router.push(`/listing/edit/${id}`) },
-        { text: 'Lower price', onPress: () => setLowerPriceVisible(true) },
-        { text: bumped ? 'Already boosted' : 'Boost listing', onPress: handleBump, ...(bumped ? { style: 'destructive' as const } : {}) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    } else if (listing.status === 'sold') {
+      Alert.alert('Manage listing', undefined, [
+        { text: 'Share', onPress: handleShare },
         { text: 'Cancel', style: 'cancel' },
       ]);
     }
@@ -505,6 +500,23 @@ export default function ListingDetailScreen() {
             </View>
           )}
 
+          {/* Boost button — seller, available listings only */}
+          {user?.id === listing.seller_id && listing.status === 'available' && (
+            boostExpiry ? (
+              <View style={styles.boostedPill}>
+                <Ionicons name="rocket" size={14} color={colors.textSecondary} />
+                <Text style={styles.boostedPillText}>
+                  Boosted · {Math.ceil((boostExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24))}d left
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.boostBtn} onPress={() => setBoostVisible(true)} activeOpacity={0.85}>
+                <Ionicons name="rocket-outline" size={15} color="#0D0D0D" />
+                <Text style={styles.boostBtnText}>Boost listing</Text>
+              </TouchableOpacity>
+            )
+          )}
+
           {/* Title + Subtitle + Price */}
           <View style={styles.titleGroup}>
             <View style={styles.titleBlock}>
@@ -555,6 +567,36 @@ export default function ListingDetailScreen() {
             <Text style={styles.description}>{listing.description ?? '—'}</Text>
           </View>
 
+          {/* Measurements */}
+          {listing.measurements && Object.values(listing.measurements).some(v => v != null) && (
+            <>
+              <View style={styles.hairline} />
+              <View style={styles.descriptionBlock}>
+                <Text style={styles.sectionLabel}>Measurements</Text>
+                <View style={styles.measureBody}>
+                  {listing.measurements.chest ? (
+                    <View style={styles.measureLine}>
+                      <Text style={styles.measureKey}>Chest</Text>
+                      <Text style={styles.measureVal}>{listing.measurements.chest}"</Text>
+                    </View>
+                  ) : null}
+                  {listing.measurements.waist ? (
+                    <View style={styles.measureLine}>
+                      <Text style={styles.measureKey}>Waist</Text>
+                      <Text style={styles.measureVal}>{listing.measurements.waist}"</Text>
+                    </View>
+                  ) : null}
+                  {listing.measurements.length ? (
+                    <View style={styles.measureLine}>
+                      <Text style={styles.measureKey}>Length</Text>
+                      <Text style={styles.measureVal}>{listing.measurements.length}"</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            </>
+          )}
+
           <View style={styles.hairline} />
 
           {/* Seller row */}
@@ -583,42 +625,6 @@ export default function ListingDetailScreen() {
           </TouchableOpacity>
 
           {user?.id !== listing.seller_id && <HowItWorks />}
-
-          {/* Measurements (collapsible) */}
-          {listing.measurements && Object.values(listing.measurements).some(v => v != null) && (
-            <>
-              <TouchableOpacity style={styles.sectionRow} onPress={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setMeasureOpen(v => !v);
-              }} activeOpacity={0.7}>
-                <Text style={styles.sectionLabel}>Measurements</Text>
-                <Ionicons name={measureOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-              {measureOpen && (
-                <View style={styles.measureBody}>
-                  {listing.measurements.chest ? (
-                    <View style={styles.measureLine}>
-                      <Text style={styles.measureKey}>Chest</Text>
-                      <Text style={styles.measureVal}>{listing.measurements.chest}"</Text>
-                    </View>
-                  ) : null}
-                  {listing.measurements.waist ? (
-                    <View style={styles.measureLine}>
-                      <Text style={styles.measureKey}>Waist</Text>
-                      <Text style={styles.measureVal}>{listing.measurements.waist}"</Text>
-                    </View>
-                  ) : null}
-                  {listing.measurements.length ? (
-                    <View style={styles.measureLine}>
-                      <Text style={styles.measureKey}>Length</Text>
-                      <Text style={styles.measureVal}>{listing.measurements.length}"</Text>
-                    </View>
-                  ) : null}
-                </View>
-              )}
-              <View style={styles.hairline} />
-            </>
-          )}
 
           <View style={styles.hairline} />
 
@@ -678,53 +684,42 @@ export default function ListingDetailScreen() {
         onClose={() => setViewerVisible(false)}
       />
 
+
+      {/* BOOST MODAL */}
       <Modal
-        visible={lowerPriceVisible}
+        visible={boostVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setLowerPriceVisible(false)}
+        onRequestClose={() => setBoostVisible(false)}
       >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={() => setLowerPriceVisible(false)}
-          />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Lower price</Text>
-            <Text style={styles.modalSubtitle}>Current: £{listing.price.toFixed(2)}</Text>
-            <View style={styles.amountRow}>
-              <Text style={styles.currencySymbol}>£</Text>
-              <TextInput
-                style={styles.amountInput}
-                value={newPrice}
-                onChangeText={setNewPrice}
-                keyboardType="decimal-pad"
-                placeholder="New price"
-                placeholderTextColor={colors.textSecondary}
-                autoFocus
-              />
-            </View>
-            <View style={styles.modalActions}>
-              <Button
-                label="Cancel"
-                variant="ghost"
-                onPress={() => { setLowerPriceVisible(false); setNewPrice(''); }}
-                style={styles.modalCancelBtn}
-              />
-              <Button
-                label="Update price"
-                onPress={handleLowerPrice}
-                disabled={!newPrice || lowerPriceSending}
-                loading={lowerPriceSending}
-                style={styles.modalSendBtn}
-              />
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setBoostVisible(false)}
+        />
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Boost listing</Text>
+          <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+            Push your listing to the top of the feed and get more eyes on your item.
+          </Text>
+          <View style={styles.boostDetailRow}>
+            <Text style={styles.boostDetailKey}>Duration</Text>
+            <Text style={styles.boostDetailVal}>7 days</Text>
+          </View>
+          <View style={styles.boostDetailRow}>
+            <Text style={styles.boostDetailKey}>Price</Text>
+            <View style={styles.boostPriceRow}>
+              <Text style={[styles.boostDetailVal, { textDecorationLine: 'line-through', color: colors.textSecondary }]}>£0.99</Text>
+              <View style={styles.betaBadge}>
+                <Text style={styles.betaBadgeText}>Free during beta</Text>
+              </View>
             </View>
           </View>
-        </KeyboardAvoidingView>
+          <View style={styles.modalActions}>
+            <Button label="Cancel" variant="ghost" onPress={() => setBoostVisible(false)} style={styles.modalCancelBtn} />
+            <Button label="Boost listing" onPress={handleBoost} style={styles.modalSendBtn} />
+          </View>
+        </View>
       </Modal>
 
       <Modal
@@ -980,6 +975,66 @@ function getStyles(colors: ColorTokens) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 2,
+    },
+    boostBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      backgroundColor: '#C7F75E',
+      borderRadius: BorderRadius.medium,
+      paddingVertical: Spacing.sm,
+    },
+    boostBtnText: {
+      ...Typography.body,
+      fontFamily: FontFamily.semibold,
+      color: '#0D0D0D',
+    },
+    boostedPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.medium,
+      paddingVertical: Spacing.sm,
+    },
+    boostedPillText: {
+      ...Typography.body,
+      color: colors.textSecondary,
+    },
+    boostDetailRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: Spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    boostDetailKey: {
+      ...Typography.body,
+      color: colors.textSecondary,
+    },
+    boostDetailVal: {
+      ...Typography.body,
+      fontFamily: FontFamily.semibold,
+      color: colors.textPrimary,
+    },
+    boostPriceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    betaBadge: {
+      backgroundColor: colors.primaryLight,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderRadius: BorderRadius.full,
+    },
+    betaBadgeText: {
+      ...Typography.caption,
+      color: colors.primary,
+      fontFamily: FontFamily.semibold,
     },
 
     // Sold banner

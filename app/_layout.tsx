@@ -89,6 +89,10 @@ function RootNavigator() {
           name="user/[id]"
           options={{ animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="listing/edit/[id]"
+          options={{ animation: 'slide_from_right' }}
+        />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
     </>

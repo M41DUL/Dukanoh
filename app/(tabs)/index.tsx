@@ -60,7 +60,20 @@ async function fetchSection(userId: string, categories: string[]): Promise<Listi
   if (categories.length > 0) query = query.in('category', categories);
 
   const { data } = await query;
-  return (data ?? []) as unknown as Listing[];
+  const listings = (data ?? []) as unknown as Listing[];
+  if (listings.length === 0) return listings;
+
+  const now = new Date().toISOString();
+  const { data: boosts } = await supabase
+    .from('boosts')
+    .select('listing_id')
+    .in('listing_id', listings.map(l => l.id))
+    .gte('expires_at', now);
+
+  const boostedIds = new Set((boosts ?? []).map(b => b.listing_id));
+  return listings
+    .map(l => ({ ...l, isBoosted: boostedIds.has(l.id) }))
+    .sort((a, b) => (b.isBoosted ? 1 : 0) - (a.isBoosted ? 1 : 0));
 }
 
 function SkeletonCard() {

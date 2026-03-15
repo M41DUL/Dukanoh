@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Typography, BorderRadius, Spacing, ColorTokens } from '@/constants/theme';
+import { Typography, BorderRadius, Spacing, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useSaved } from '@/context/SavedContext';
 
@@ -22,6 +22,7 @@ export interface Listing {
   view_count?: number;
   save_count?: number;
   created_at?: string;
+  isBoosted?: boolean;
   seller: {
     username: string;
     avatar_url?: string;
@@ -70,6 +71,11 @@ export function ListingCard({
         {listing.status === 'sold' && (
           <View style={styles.soldOverlay}>
             <Text style={styles.soldLabel}>SOLD</Text>
+          </View>
+        )}
+        {listing.isBoosted && listing.status !== 'sold' && (
+          <View style={styles.featuredBadge}>
+            <Text style={styles.featuredText}>Featured</Text>
           </View>
         )}
         {listing.status !== 'sold' && (
@@ -137,6 +143,20 @@ function getStyles(colors: ColorTokens) {
       fontSize: 13,
       fontFamily: 'Inter_700Bold',
       letterSpacing: 1.5,
+    },
+    featuredBadge: {
+      position: 'absolute',
+      top: Spacing.xs,
+      left: Spacing.xs,
+      backgroundColor: '#C7F75E',
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 3,
+      borderRadius: BorderRadius.full,
+    },
+    featuredText: {
+      fontSize: 10,
+      fontFamily: FontFamily.semibold,
+      color: '#0D0D0D',
     },
     heartBtn: {
       position: 'absolute',
