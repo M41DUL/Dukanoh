@@ -254,21 +254,6 @@ export default function SellerProfileScreen() {
         {/* HAIRLINE */}
         <View style={[styles.hairline, { backgroundColor: colors.border }]} />
 
-        {/* LISTINGS SECTION */}
-        <View style={styles.section}>
-          <SectionHeader title="Listings" />
-          {listings.length > 0 ? (
-            <ListingGrid listings={listings} />
-          ) : (
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              No active listings
-            </Text>
-          )}
-        </View>
-
-        {/* HAIRLINE */}
-        <View style={[styles.hairline, { backgroundColor: colors.border }]} />
-
         {/* REVIEWS SECTION */}
         <View style={styles.section}>
           <SectionHeader title="Reviews" />
@@ -333,6 +318,21 @@ export default function SellerProfileScreen() {
           ) : (
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
               No reviews yet
+            </Text>
+          )}
+        </View>
+
+        {/* HAIRLINE */}
+        <View style={[styles.hairline, { backgroundColor: colors.border }]} />
+
+        {/* LISTINGS SECTION */}
+        <View style={styles.section}>
+          <SectionHeader title="Listings" />
+          {listings.length > 0 ? (
+            <ListingGrid listings={listings} />
+          ) : (
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              No active listings
             </Text>
           )}
         </View>
