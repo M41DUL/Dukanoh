@@ -546,10 +546,6 @@ export default function ListingDetailScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
 
-          <View style={styles.hairline} />
-
-          {user?.id !== listing.seller_id && <HowItWorks />}
-
           {/* Measurements (collapsible) */}
           {listing.measurements && Object.values(listing.measurements).some(v => v != null) && (
             <>
@@ -617,6 +613,8 @@ export default function ListingDetailScreen() {
               <ListingGrid listings={sellerListings} />
             </View>
           )}
+
+          {user?.id !== listing.seller_id && <HowItWorks />}
 
 
         </View>
