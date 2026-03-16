@@ -88,11 +88,13 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
 const styles = StyleSheet.create({
   backdrop: {
     backgroundColor: 'rgba(0,0,0,0.45)',
+    zIndex: 100,
   },
   sheetOuter: {
     position: 'absolute',
     left: 0,
     right: 0,
+    zIndex: 101,
   },
   sheet: {
     borderTopLeftRadius: 24,

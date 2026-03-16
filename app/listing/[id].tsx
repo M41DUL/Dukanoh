@@ -62,6 +62,8 @@ export default function ListingDetailScreen() {
   const [offerAmount, setOfferAmount] = useState('');
   const [offerSending, setOfferSending] = useState(false);
   const [offerError, setOfferError] = useState('');
+  const [offerPreset, setOfferPreset] = useState<'10' | '20' | 'custom'>('custom');
+  const offerInputRef = useRef<TextInput>(null);
   const [boostExpiry, setBoostExpiry] = useState<Date | null>(null);
   const [boostVisible, setBoostVisible] = useState(false);
   const [responseRate, setResponseRate] = useState<number | null>(null);
@@ -166,6 +168,12 @@ export default function ListingDetailScreen() {
       });
   }, [id]);
 
+
+  useEffect(() => {
+    if (offerVisible) {
+      setTimeout(() => offerInputRef.current?.focus(), 100);
+    }
+  }, [offerVisible]);
 
   if (loading) return <LoadingSpinner />;
   if (!listing) return null;
@@ -712,36 +720,81 @@ export default function ListingDetailScreen() {
 
       {/* BOOST MODAL */}
 
-      <BottomSheet visible={offerVisible} onClose={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); }}>
+      <BottomSheet
+        visible={offerVisible}
+        onClose={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); setOfferPreset('custom'); }}
+      >
         <Text style={styles.modalTitle}>Make an offer</Text>
-        <Text style={styles.modalSubtitle} numberOfLines={1}>{listing.title}</Text>
+
+        {/* Item card */}
+        <View style={[styles.offerItemCard, { backgroundColor: colors.surface }]}>
+          {listing.images?.[0] ? (
+            <Image source={{ uri: listing.images[0] }} style={styles.offerThumb} resizeMode="cover" />
+          ) : (
+            <View style={[styles.offerThumb, { backgroundColor: colors.border }]} />
+          )}
+          <View style={styles.offerItemInfo}>
+            <Text style={styles.offerItemTitle} numberOfLines={1}>{listing.title}</Text>
+            <Text style={styles.offerItemPrice}>Asking: £{listing.price.toFixed(2)}</Text>
+          </View>
+        </View>
+
+        {/* Presets */}
+        <View style={styles.offerPresets}>
+          {([['10', '10% off'], ['20', '20% off']] as const).map(([pct, label]) => {
+            const amount = (listing.price * (1 - Number(pct) / 100)).toFixed(2);
+            const active = offerPreset === pct;
+            return (
+              <TouchableOpacity
+                key={pct}
+                style={[styles.offerPreset, active && styles.offerPresetActive]}
+                onPress={() => { setOfferPreset(pct); setOfferAmount(amount); setOfferError(''); }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.offerPresetPrice, active && { color: colors.primary }]}>£{amount}</Text>
+                <Text style={[styles.offerPresetLabel, active && { color: colors.primary }]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity
+            style={[styles.offerPreset, offerPreset === 'custom' && styles.offerPresetActive]}
+            onPress={() => { setOfferPreset('custom'); setOfferAmount(''); setOfferError(''); }}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.offerPresetPrice, offerPreset === 'custom' && { color: colors.primary }]}>Custom</Text>
+            <Text style={[styles.offerPresetLabel, offerPreset === 'custom' && { color: colors.primary }]}>Set a price</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Amount input */}
         <View style={styles.amountRow}>
           <Text style={styles.currencySymbol}>£</Text>
           <TextInput
+            ref={offerInputRef}
             style={styles.amountInput}
             value={offerAmount}
-            onChangeText={(v) => { setOfferAmount(v); setOfferError(''); }}
+            onChangeText={(v) => { setOfferAmount(v); setOfferPreset('custom'); setOfferError(''); }}
             keyboardType="decimal-pad"
             placeholder="0.00"
             placeholderTextColor={colors.textSecondary}
           />
         </View>
         {offerError ? <Text style={styles.modalError}>{offerError}</Text> : null}
-        <View style={styles.modalActions}>
-          <Button
-            label="Cancel"
-            variant="ghost"
-            onPress={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); }}
-            style={styles.modalCancelBtn}
-          />
-          <Button
-            label="Send offer"
-            onPress={handleOffer}
-            disabled={!offerAmount || offerSending}
-            loading={offerSending}
-            style={styles.modalSendBtn}
-          />
-        </View>
+
+        <Button
+          label="Send offer"
+          onPress={handleOffer}
+          disabled={!offerAmount || offerSending}
+          loading={offerSending}
+          style={{ alignSelf: 'stretch', marginTop: Spacing.xl }}
+        />
+        <TouchableOpacity
+          onPress={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); setOfferPreset('custom'); }}
+          activeOpacity={0.7}
+          style={{ paddingTop: Spacing.base, alignSelf: 'center' }}
+        >
+          <Text style={[Typography.body, { color: colors.textSecondary }]}>Cancel</Text>
+        </TouchableOpacity>
       </BottomSheet>
 
       {/* BOOST SHEET */}
@@ -1159,8 +1212,50 @@ function getStyles(colors: ColorTokens) {
     footerMeta: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' },
 
     // Offer sheet
-    modalTitle: { ...Typography.subheading, color: colors.textPrimary },
-    modalSubtitle: { ...Typography.body, color: colors.textSecondary, marginTop: -Spacing.xs },
+    modalTitle: { ...Typography.subheading, color: colors.textPrimary, marginBottom: Spacing.base, textAlign: 'center' },
+    offerItemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.base,
+      marginBottom: Spacing.base,
+    },
+    offerItemCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.base,
+      borderRadius: BorderRadius.medium,
+      padding: Spacing.base,
+      marginBottom: Spacing.base,
+    },
+    offerThumb: {
+      width: 56,
+      height: 56,
+      borderRadius: BorderRadius.medium,
+      overflow: 'hidden',
+    },
+    offerItemInfo: { flex: 1, gap: 3 },
+    offerItemTitle: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
+    offerItemPrice: { ...Typography.caption, color: colors.textSecondary },
+    offerPresets: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      marginBottom: Spacing.base,
+    },
+    offerPreset: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: BorderRadius.medium,
+      paddingVertical: Spacing.sm,
+      alignItems: 'center',
+      gap: 2,
+    },
+    offerPresetActive: {
+      borderColor: colors.primary,
+      borderWidth: 2,
+    },
+    offerPresetPrice: { fontSize: 14, fontFamily: FontFamily.semibold, color: colors.textPrimary },
+    offerPresetLabel: { ...Typography.caption, color: colors.textSecondary },
     amountRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1170,11 +1265,8 @@ function getStyles(colors: ColorTokens) {
       gap: Spacing.xs,
       marginTop: Spacing.sm,
     },
-    currencySymbol: { ...Typography.heading, color: colors.textPrimary },
-    amountInput: { ...Typography.heading, color: colors.textPrimary, flex: 1, padding: 0 },
-    modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.xs },
-    modalCancelBtn: { flex: 1 },
-    modalSendBtn: { flex: 2 },
+    currencySymbol: { fontSize: 20, fontFamily: FontFamily.semibold, color: colors.textPrimary },
+    amountInput: { fontSize: 20, fontFamily: FontFamily.semibold, color: colors.textPrimary, flex: 1, padding: 0 },
     modalError: { ...Typography.caption, color: colors.error },
   });
 }
