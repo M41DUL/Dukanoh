@@ -8,10 +8,7 @@ import {
   Image,
   Dimensions,
   TouchableOpacity,
-  Modal,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
   Share,
 } from 'react-native';
@@ -238,6 +235,13 @@ export default function ListingDetailScreen() {
 
   const handleBoost = async () => {
     if (!user || !id) return;
+    const { data: existing } = await supabase
+      .from('boosts')
+      .select('id')
+      .eq('listing_id', id)
+      .gte('expires_at', new Date().toISOString())
+      .maybeSingle();
+    if (existing) { setBoostVisible(false); return; }
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     await supabase.from('boosts').insert({ listing_id: id, seller_id: user.id, expires_at: expiresAt, amount_paid: 0 });
     setBoostExpiry(new Date(expiresAt));
@@ -302,23 +306,11 @@ export default function ListingDetailScreen() {
   };
 
   const handleSellerOptions = () => {
-    if (listing.status === 'draft') {
-      Alert.alert('Manage listing', undefined, [
-        { text: 'Share', onPress: handleShare },
-        { text: 'Delete draft', style: 'destructive', onPress: handleDeleteDraft },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    } else if (listing.status === 'available') {
-      Alert.alert('Manage listing', undefined, [
-        { text: 'Share', onPress: handleShare },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    } else if (listing.status === 'sold') {
-      Alert.alert('Manage listing', undefined, [
-        { text: 'Share', onPress: handleShare },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-    }
+    Alert.alert('Manage listing', undefined, [
+      { text: 'Share', onPress: handleShare },
+      { text: 'Delete draft', style: 'destructive', onPress: handleDeleteDraft },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleDuplicate = async () => {
@@ -369,7 +361,12 @@ export default function ListingDetailScreen() {
     setOfferSending(false);
     setOfferVisible(false);
     setOfferAmount('');
-    if (convId) router.push(`/conversation/${convId}`);
+    if (convId) {
+      Alert.alert('Offer sent!', `Your offer of £${amount.toFixed(2)} has been sent to the seller.`, [
+        { text: 'View conversation', onPress: () => router.push(`/conversation/${convId}`) },
+        { text: 'Stay here', style: 'cancel' },
+      ]);
+    }
   };
 
   return (
@@ -675,11 +672,16 @@ export default function ListingDetailScreen() {
         </View>
       </Animated.ScrollView>
 
-      {/* STICKY BOTTOM CTA — buyers only, available listings */}
+      {/* STICKY BOTTOM CTA — buyers only */}
       {user?.id !== listing.seller_id && listing.status === 'available' && (
         <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
           <Button label="Message" variant="outline" onPress={handleMessage} style={styles.ctaBtn} />
           <Button label="Make an offer" onPress={() => setOfferVisible(true)} style={styles.ctaBtn} />
+        </View>
+      )}
+      {user?.id !== listing.seller_id && listing.status === 'sold' && (
+        <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
+          <Button label="Ask seller a question" variant="outline" onPress={handleMessage} style={{ flex: 1 }} />
         </View>
       )}
 
@@ -710,55 +712,37 @@ export default function ListingDetailScreen() {
 
       {/* BOOST MODAL */}
 
-      <Modal
-        visible={offerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setOfferVisible(false)}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={() => setOfferVisible(false)}
+      <BottomSheet visible={offerVisible} onClose={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); }}>
+        <Text style={styles.modalTitle}>Make an offer</Text>
+        <Text style={styles.modalSubtitle} numberOfLines={1}>{listing.title}</Text>
+        <View style={styles.amountRow}>
+          <Text style={styles.currencySymbol}>£</Text>
+          <TextInput
+            style={styles.amountInput}
+            value={offerAmount}
+            onChangeText={(v) => { setOfferAmount(v); setOfferError(''); }}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+            placeholderTextColor={colors.textSecondary}
           />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Make an offer</Text>
-            <Text style={styles.modalSubtitle} numberOfLines={1}>{listing.title}</Text>
-            <View style={styles.amountRow}>
-              <Text style={styles.currencySymbol}>£</Text>
-              <TextInput
-                style={styles.amountInput}
-                value={offerAmount}
-                onChangeText={(v) => { setOfferAmount(v); setOfferError(''); }}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor={colors.textSecondary}
-                autoFocus
-              />
-            </View>
-            {offerError ? <Text style={styles.modalError}>{offerError}</Text> : null}
-            <View style={styles.modalActions}>
-              <Button
-                label="Cancel"
-                variant="ghost"
-                onPress={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); }}
-                style={styles.modalCancelBtn}
-              />
-              <Button
-                label="Send offer"
-                onPress={handleOffer}
-                disabled={!offerAmount || offerSending}
-                loading={offerSending}
-                style={styles.modalSendBtn}
-              />
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        </View>
+        {offerError ? <Text style={styles.modalError}>{offerError}</Text> : null}
+        <View style={styles.modalActions}>
+          <Button
+            label="Cancel"
+            variant="ghost"
+            onPress={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); }}
+            style={styles.modalCancelBtn}
+          />
+          <Button
+            label="Send offer"
+            onPress={handleOffer}
+            disabled={!offerAmount || offerSending}
+            loading={offerSending}
+            style={styles.modalSendBtn}
+          />
+        </View>
+      </BottomSheet>
 
       {/* BOOST SHEET */}
       <BottomSheet visible={boostVisible} onClose={handleCloseBoost}>
@@ -1174,17 +1158,7 @@ function getStyles(colors: ColorTokens) {
     // Footer meta
     footerMeta: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' },
 
-    // Modals
-    modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-    modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
-    modalCard: {
-      backgroundColor: colors.background,
-      borderTopLeftRadius: BorderRadius.large,
-      borderTopRightRadius: BorderRadius.large,
-      padding: Spacing.xl,
-      paddingBottom: Spacing['3xl'],
-      gap: Spacing.md,
-    },
+    // Offer sheet
     modalTitle: { ...Typography.subheading, color: colors.textPrimary },
     modalSubtitle: { ...Typography.body, color: colors.textSecondary, marginTop: -Spacing.xs },
     amountRow: {

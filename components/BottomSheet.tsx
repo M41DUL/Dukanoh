@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Animated, Keyboard, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -15,6 +15,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const sheetAnim = useRef(new Animated.Value(800)).current;
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -23,12 +24,36 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
         Animated.timing(sheetAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
       ]).start();
     } else {
+      Keyboard.dismiss();
       Animated.parallel([
         Animated.timing(backdropAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
         Animated.timing(sheetAnim, { toValue: 800, duration: 50, useNativeDriver: true }),
       ]).start();
     }
   }, [visible]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const show = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === 'ios' ? e.duration : 150,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hide = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: Platform.OS === 'ios' ? e.duration : 150,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   return (
     <>
@@ -39,18 +64,22 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
         <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onClose} />
       </Animated.View>
       <Animated.View
-        style={[
-          styles.sheet,
-          {
-            backgroundColor: colors.background,
-            paddingBottom: insets.bottom + Spacing.xl,
-            transform: [{ translateY: sheetAnim }],
-          },
-        ]}
+        style={[styles.sheetOuter, { bottom: keyboardOffset }]}
         pointerEvents={visible ? 'auto' : 'none'}
       >
-        <View style={[styles.handle, { backgroundColor: colors.border }]} />
-        {children}
+        <Animated.View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.background,
+              paddingBottom: insets.bottom + Spacing.xl,
+              transform: [{ translateY: sheetAnim }],
+            },
+          ]}
+        >
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          {children}
+        </Animated.View>
       </Animated.View>
     </>
   );
@@ -60,11 +89,12 @@ const styles = StyleSheet.create({
   backdrop: {
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  sheet: {
+  sheetOuter: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+  },
+  sheet: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: Spacing.xl,
