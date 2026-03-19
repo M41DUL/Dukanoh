@@ -40,6 +40,7 @@ function RootNavigator() {
   const segments = useSegments();
   const { isDark } = useTheme();
   const [splashDone, setSplashDone] = useState(false);
+  const [navigatedAfterSplash, setNavigatedAfterSplash] = useState(false);
 
   useEffect(() => {
     if (fontsLoaded && !loading) {
@@ -47,24 +48,38 @@ function RootNavigator() {
     }
   }, [fontsLoaded, loading]);
 
+  // Navigate to the correct route once splash animation finishes
   useEffect(() => {
-    if (!fontsLoaded || loading || !splashDone) return;
+    if (!fontsLoaded || loading || !splashDone || navigatedAfterSplash) return;
+
+    if (!session) {
+      router.replace('/(auth)/intro');
+    } else {
+      router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
+    }
+    // Small delay so the route mounts before we remove the splash overlay
+    setTimeout(() => setNavigatedAfterSplash(true), 50);
+  }, [splashDone, fontsLoaded, loading]);
+
+  // Handle auth state changes after initial navigation (e.g. login/logout)
+  useEffect(() => {
+    if (!fontsLoaded || loading || !navigatedAfterSplash) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!session) {
-      if (!inAuthGroup) router.replace('/(auth)/login');
+      if (!inAuthGroup) router.replace('/(auth)/intro');
     } else if (inAuthGroup) {
       router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
     }
-  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, splashDone]);
+  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, navigatedAfterSplash]);
 
   if (!fontsLoaded || loading) return null;
 
   return (
     <>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(auth)" options={{ animation: 'none' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen
@@ -101,14 +116,8 @@ function RootNavigator() {
         />
       </Stack>
       <StatusBar style="light" />
-      {!splashDone && (
-        <SplashAnimation
-          hasSession={!!session}
-          isAuthScreenActive={segments[0] === '(auth)' && segments.length > 1}
-          onDone={() => setSplashDone(true)}
-          onJoin={() => router.push('/(auth)/signup')}
-          onSignIn={() => router.push('/(auth)/login')}
-        />
+      {!navigatedAfterSplash && (
+        <SplashAnimation onDone={() => setSplashDone(true)} />
       )}
     </>
   );

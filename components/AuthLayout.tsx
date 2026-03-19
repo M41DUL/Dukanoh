@@ -4,9 +4,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   TouchableOpacity,
-  Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,14 +12,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { DukanohLogo } from './DukanohLogo';
 import { lightColors, Spacing } from '@/constants/theme';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const LOGO_FINAL_W = 1300;
-const LOGO_FINAL_H = 234;
-const U_CENTER_SCALED = ((30.3115 + 55.5596) / 2) * (LOGO_FINAL_W / 200);
-const LOGO_TRANSLATE_X = LOGO_FINAL_W / 2 - U_CENTER_SCALED;
-const LOGO_TRANSLATE_Y = (SCREEN_HEIGHT + 60 - LOGO_FINAL_H / 2) - SCREEN_HEIGHT / 2;
+import {
+  LOGO_FINAL_W,
+  LOGO_FINAL_H,
+  LOGO_TRANSLATE_X,
+  LOGO_TRANSLATE_Y,
+} from '@/constants/logoLayout';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
@@ -41,7 +37,6 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             transform: [
               { translateX: LOGO_TRANSLATE_X },
               { translateY: LOGO_TRANSLATE_Y },
-              { scale: 1.0 },
             ],
           }}
         >
@@ -50,24 +45,18 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       </View>
 
       <KeyboardAvoidingView
-        style={styles.flex}
+        style={[styles.content, { paddingTop: insets.top + Spacing.base }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing.base }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Back */}
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.7)" />
-          </TouchableOpacity>
+        {/* Back */}
+        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.7)" />
+        </TouchableOpacity>
 
-          {/* Push content down */}
-          <View style={styles.flex} />
+        {/* Push content down */}
+        <View style={styles.flex} />
 
-          {children}
-        </ScrollView>
+        {children}
       </KeyboardAvoidingView>
     </View>
   );
@@ -85,8 +74,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  scroll: {
-    flexGrow: 1,
+  content: {
+    flex: 1,
     paddingHorizontal: Spacing.base,
     paddingBottom: LOGO_FINAL_H - 60 + Spacing.xl,
   },
