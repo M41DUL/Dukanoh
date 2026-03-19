@@ -16,6 +16,7 @@ export const lightColors = {
   success: '#22C55E',
   amber: '#F59E0B',
   like: '#FF4D6A',
+  overlay: 'rgba(0,0,0,0.2)',
 };
 
 export const darkColors = {
@@ -36,6 +37,7 @@ export const darkColors = {
   success: '#4ADE80',
   amber: '#F59E0B',
   like: '#FF4D6A',
+  overlay: 'rgba(0,0,0,0.2)',
 };
 
 export type ColorTokens = typeof lightColors;

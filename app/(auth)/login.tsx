@@ -1,21 +1,28 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { DukanohLogo } from '@/components/DukanohLogo';
-import { Typography, Spacing, ColorTokens } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
+import { lightColors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
+
+const INPUT_STYLE = {
+  inputContainerStyle: {
+    backgroundColor: lightColors.overlay,
+    borderColor: 'rgba(255,255,255,0.15)',
+    borderRadius: BorderRadius.medium,
+  },
+  placeholderColor: 'rgba(255,255,255,0.4)',
+  style: { color: '#FFFFFF' },
+} as const;
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const colors = useThemeColors();
-  const styles = useMemo(() => getStyles(colors), [colors]);
+  const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -40,65 +47,83 @@ export default function LoginScreen() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Enter your email above, then tap forgot password');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+      if (resetError) throw resetError;
+      setError('Check your email for a reset link');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <ScreenWrapper scrollable>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <DukanohLogo width={120} height={22} color={colors.primary} />
-          <Text style={styles.heading}>Welcome back</Text>
-          <Text style={styles.subtext}>Sign in to continue.</Text>
-        </View>
+    <AuthLayout>
+      <Text style={styles.heading}>Sign in</Text>
 
-        <View style={styles.form}>
-          <Input
-            label="Email"
-            placeholder="you@email.com"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <Input
-            label="Password"
-            placeholder="Your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Button label="Log in" onPress={handleLogin} loading={loading} />
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <Button
-            label="Sign up"
-            variant="ghost"
-            onPress={() => router.push('/(auth)/signup')}
-          />
-        </View>
+      <View style={styles.form}>
+        <Input
+          placeholder="Email"
+          value={email}
+          onChangeText={(v) => { setEmail(v); setError(''); }}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="emailAddress"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          {...INPUT_STYLE}
+        />
+        <Input
+          ref={passwordRef}
+          placeholder="Password"
+          value={password}
+          onChangeText={(v) => { setPassword(v); setError(''); }}
+          secureTextEntry
+          textContentType="password"
+          returnKeyType="done"
+          onSubmitEditing={handleLogin}
+          {...INPUT_STYLE}
+        />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Button
+          label="Sign in"
+          onPress={handleLogin}
+          loading={loading}
+          variant="secondary"
+          style={{ marginTop: Spacing.base }}
+        />
+        <Button
+          label="Forgot your password?"
+          onPress={handleForgotPassword}
+          variant="ghost"
+          size="sm"
+          textColor="rgba(255,255,255,0.7)"
+        />
       </View>
-    </ScreenWrapper>
+    </AuthLayout>
   );
 }
 
-function getStyles(colors: ColorTokens) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      paddingVertical: Spacing['3xl'],
-      gap: Spacing['2xl'],
-    },
-    header: { gap: Spacing.sm },
-    heading: { ...Typography.heading, color: colors.textPrimary, marginTop: Spacing.base },
-    subtext: { ...Typography.body, color: colors.textSecondary },
-    form: { gap: Spacing.base },
-    error: { ...Typography.caption, color: colors.error },
-    footer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    footerText: { ...Typography.body, color: colors.textSecondary },
-  });
-}
+const styles = StyleSheet.create({
+  heading: {
+    ...Typography.display,
+    color: '#FFFFFF',
+    marginBottom: Spacing.xl,
+  },
+  form: {
+    gap: Spacing.sm,
+  },
+  error: {
+    ...Typography.caption,
+    color: lightColors.error,
+  },
+});

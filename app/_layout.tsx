@@ -104,6 +104,7 @@ function RootNavigator() {
       {!splashDone && (
         <SplashAnimation
           hasSession={!!session}
+          isAuthScreenActive={segments[0] === '(auth)' && segments.length > 1}
           onDone={() => setSplashDone(true)}
           onJoin={() => router.push('/(auth)/signup')}
           onSignIn={() => router.push('/(auth)/login')}

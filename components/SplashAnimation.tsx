@@ -40,12 +40,13 @@ const BADGES: { label: string; left: `${number}%`; top: `${number}%`; accent: bo
 
 interface SplashAnimationProps {
   hasSession: boolean;
+  isAuthScreenActive: boolean;
   onDone: () => void;
   onJoin: () => void;
   onSignIn: () => void;
 }
 
-export function SplashAnimation({ hasSession, onDone, onJoin, onSignIn }: SplashAnimationProps) {
+export function SplashAnimation({ hasSession, isAuthScreenActive, onDone, onJoin, onSignIn }: SplashAnimationProps) {
   const logoScale = useRef(new Animated.Value(0)).current;
   const logoTranslateX = useRef(new Animated.Value(0)).current;
   const logoTranslateY = useRef(new Animated.Value(0)).current;
@@ -117,15 +118,12 @@ export function SplashAnimation({ hasSession, onDone, onJoin, onSignIn }: Splash
     });
   };
 
-  const dismiss = (callback: () => void) => {
-    Animated.timing(containerOpacity, { toValue: 0, duration: 300, useNativeDriver: true })
-      .start(() => callback());
-  };
-
   const handleEmail = () => {
     const isJoin = sheetMode === 'join';
     setSheetMode(null);
-    dismiss(() => { isJoin ? onJoin() : onSignIn(); onDone(); });
+    setTimeout(() => {
+      isJoin ? onJoin() : onSignIn();
+    }, 50);
   };
 
   // Main sequence
@@ -168,7 +166,7 @@ export function SplashAnimation({ hasSession, onDone, onJoin, onSignIn }: Splash
   }, []);
 
   return (
-    <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
+    <Animated.View style={[styles.container, { opacity: containerOpacity, zIndex: isAuthScreenActive ? -1 : 999 }]} pointerEvents={isAuthScreenActive ? 'none' : 'auto'}>
       {/* Logo — morphs to bottom-left */}
       <Animated.View
         style={{
@@ -253,7 +251,7 @@ const styles = StyleSheet.create({
     backgroundColor: lightColors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 999,
+    zIndex: 999, // overridden dynamically when auth screen is active
   },
   introContent: {
     ...StyleSheet.absoluteFillObject,

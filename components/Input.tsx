@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { forwardRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,36 +15,42 @@ interface InputProps extends TextInputProps {
   error?: string;
   icon?: React.ReactNode;
   containerStyle?: ViewStyle;
+  inputContainerStyle?: ViewStyle;
+  placeholderColor?: string;
 }
 
-export function Input({ label, error, icon, containerStyle, ...props }: InputProps) {
-  const [focused, setFocused] = useState(false);
-  const colors = useThemeColors();
-  const styles = useMemo(() => getStyles(colors), [colors]);
+export const Input = forwardRef<TextInput, InputProps>(
+  function Input({ label, error, icon, containerStyle, inputContainerStyle, placeholderColor, ...props }, ref) {
+    const [focused, setFocused] = useState(false);
+    const colors = useThemeColors();
+    const styles = useMemo(() => getStyles(colors), [colors]);
 
-  return (
-    <View style={[styles.container, containerStyle]}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View
-        style={[
-          styles.inputContainer,
-          focused && styles.focused,
-          !!error && styles.errorBorder,
-        ]}
-      >
-        {icon ? <View style={styles.icon}>{icon}</View> : null}
-        <TextInput
-          style={styles.input}
-          placeholderTextColor={colors.textSecondary}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          {...props}
-        />
+    return (
+      <View style={[styles.container, containerStyle]}>
+        {label ? <Text style={styles.label}>{label}</Text> : null}
+        <View
+          style={[
+            styles.inputContainer,
+            focused && styles.focused,
+            !!error && styles.errorBorder,
+            inputContainerStyle,
+          ]}
+        >
+          {icon ? <View style={styles.icon}>{icon}</View> : null}
+          <TextInput
+            ref={ref}
+            style={styles.input}
+            placeholderTextColor={placeholderColor ?? colors.textSecondary}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            {...props}
+          />
+        </View>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-    </View>
-  );
-}
+    );
+  }
+);
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
