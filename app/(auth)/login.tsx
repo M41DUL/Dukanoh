@@ -1,9 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, TextInput, Keyboard, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { ForgotPasswordSheet } from '@/components/ForgotPasswordSheet';
 import { lightColors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 
@@ -22,7 +22,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [showForgot, setShowForgot] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
@@ -49,27 +49,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (loading) return;
-    Keyboard.dismiss();
-    if (!email) {
-      setError('Enter your email above, then tap forgot password');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    setSuccess('');
-    try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim());
-      if (resetError) throw resetError;
-      setSuccess('Check your email for a reset link');
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <AuthLayout>
       <Text style={styles.heading}>Sign in</Text>
@@ -78,7 +57,7 @@ export default function LoginScreen() {
         <Input
           placeholder="Email"
           value={email}
-          onChangeText={(v) => { setEmail(v); setError(''); setSuccess(''); }}
+          onChangeText={(v) => { setEmail(v); setError(''); }}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
@@ -91,7 +70,7 @@ export default function LoginScreen() {
           ref={passwordRef}
           placeholder="Password"
           value={password}
-          onChangeText={(v) => { setPassword(v); setError(''); setSuccess(''); }}
+          onChangeText={(v) => { setPassword(v); setError(''); }}
           secureTextEntry
           textContentType="password"
           returnKeyType="done"
@@ -99,7 +78,6 @@ export default function LoginScreen() {
           {...INPUT_STYLE}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {success ? <Text style={styles.success}>{success}</Text> : null}
         <Button
           label="Sign in"
           onPress={handleLogin}
@@ -110,13 +88,19 @@ export default function LoginScreen() {
         />
         <Button
           label="Forgot your password?"
-          onPress={handleForgotPassword}
+          onPress={() => { Keyboard.dismiss(); setShowForgot(true); }}
           variant="ghost"
           size="sm"
           textColor="rgba(255,255,255,0.7)"
           style={{ marginTop: Spacing.xl }}
         />
       </View>
+
+      <ForgotPasswordSheet
+        visible={showForgot}
+        onClose={() => setShowForgot(false)}
+        initialEmail={email.trim()}
+      />
     </AuthLayout>
   );
 }
@@ -133,9 +117,5 @@ const styles = StyleSheet.create({
   error: {
     ...Typography.caption,
     color: lightColors.error,
-  },
-  success: {
-    ...Typography.caption,
-    color: lightColors.secondary,
   },
 });

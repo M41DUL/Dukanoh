@@ -14,14 +14,17 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
+  hint?: string;
+  valid?: boolean;
   icon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
   containerStyle?: ViewStyle;
   inputContainerStyle?: ViewStyle;
   placeholderColor?: string;
 }
 
 export const Input = forwardRef<TextInput, InputProps>(
-  function Input({ label, error, icon, containerStyle, inputContainerStyle, placeholderColor, ...props }, ref) {
+  function Input({ label, error, hint, valid, icon, rightIcon, containerStyle, inputContainerStyle, placeholderColor, ...props }, ref) {
     const innerRef = useRef<TextInput>(null);
     const [focused, setFocused] = useState(false);
     const colors = useThemeColors();
@@ -42,6 +45,7 @@ export const Input = forwardRef<TextInput, InputProps>(
             styles.inputContainer,
             focused && styles.focused,
             !!error && styles.errorBorder,
+            valid && styles.validBorder,
             inputContainerStyle,
           ]}
         >
@@ -54,8 +58,10 @@ export const Input = forwardRef<TextInput, InputProps>(
             onBlur={() => setFocused(false)}
             {...props}
           />
+          {rightIcon ? <View style={styles.rightIcon}>{rightIcon}</View> : null}
         </Pressable>
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {!error && hint ? <Text style={styles.hint}>{hint}</Text> : null}
       </View>
     );
   }
@@ -77,7 +83,9 @@ function getStyles(colors: ColorTokens) {
     },
     focused: { borderColor: colors.primary },
     errorBorder: { borderColor: colors.error },
+    validBorder: { borderColor: colors.success },
     icon: { marginRight: Spacing.sm },
+    rightIcon: { marginLeft: Spacing.sm },
     input: {
       flex: 1,
       ...Typography.body,
@@ -85,5 +93,6 @@ function getStyles(colors: ColorTokens) {
       paddingVertical: Spacing.base,
     },
     error: { ...Typography.caption, color: colors.error },
+    hint: { ...Typography.caption, color: colors.textSecondary },
   });
 }
