@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { lightColors, Spacing, BorderRadius, FontFamily } from '@/constants/theme';
 import { DukanohLogo } from './DukanohLogo';
-import { JoinSheet } from './JoinSheet';
+import { AuthSheet } from './AuthSheet';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -65,7 +65,7 @@ export function SplashAnimation({ hasSession, onDone, onJoin, onSignIn }: Splash
   const badgeOpacities = useRef(BADGES.map(() => new Animated.Value(0))).current;
   const badgeScales = useRef(BADGES.map(() => new Animated.Value(0))).current;
 
-  const [sheetVisible, setSheetVisible] = useState(false);
+  const [sheetMode, setSheetMode] = useState<'join' | 'login' | null>(null);
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -122,12 +122,11 @@ export function SplashAnimation({ hasSession, onDone, onJoin, onSignIn }: Splash
       .start(() => callback());
   };
 
-  const handleEmailSignUp = () => {
-    setSheetVisible(false);
-    dismiss(() => { onJoin(); onDone(); });
+  const handleEmail = () => {
+    const isJoin = sheetMode === 'join';
+    setSheetMode(null);
+    dismiss(() => { isJoin ? onJoin() : onSignIn(); onDone(); });
   };
-
-  const handleSignIn = () => { onSignIn(); dismiss(onDone); };
 
   // Main sequence
   useEffect(() => {
@@ -228,20 +227,21 @@ export function SplashAnimation({ hasSession, onDone, onJoin, onSignIn }: Splash
 
           {/* CTAs */}
           <Animated.View style={[styles.ctaSection, { opacity: ctaOpacity, transform: [{ translateY: ctaY }] }]}>
-            <TouchableOpacity style={styles.joinBtn} onPress={() => setSheetVisible(true)} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.joinBtn} onPress={() => setSheetMode('join')} activeOpacity={0.85}>
               <Text style={styles.joinBtnText}>Join today</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.signInBtn} onPress={handleSignIn} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.signInBtn} onPress={() => setSheetMode('login')} activeOpacity={0.85}>
               <Text style={styles.signInBtnText}>Already have an account</Text>
             </TouchableOpacity>
           </Animated.View>
         </View>
       )}
 
-      <JoinSheet
-        visible={sheetVisible}
-        onClose={() => setSheetVisible(false)}
-        onEmail={handleEmailSignUp}
+      <AuthSheet
+        visible={sheetMode !== null}
+        mode={sheetMode ?? 'join'}
+        onClose={() => setSheetMode(null)}
+        onEmail={handleEmail}
       />
     </Animated.View>
   );

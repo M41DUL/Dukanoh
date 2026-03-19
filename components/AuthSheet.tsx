@@ -24,13 +24,27 @@ function GoogleIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-interface JoinSheetProps {
+const COPY = {
+  join: {
+    title: "Let\u2019s get started",
+    subtitle: 'Create your account to explore more.',
+  },
+  login: {
+    title: 'Sign in',
+    subtitle: 'Pick up where you left off.',
+  },
+} as const;
+
+interface AuthSheetProps {
   visible: boolean;
+  mode: 'join' | 'login';
   onClose: () => void;
   onEmail: () => void;
 }
 
-export function JoinSheet({ visible, onClose, onEmail }: JoinSheetProps) {
+export function AuthSheet({ visible, mode, onClose, onEmail }: AuthSheetProps) {
+  const copy = COPY[mode];
+
   const handleComingSoon = (provider: string) => {
     Alert.alert(`${provider} sign-in`, 'Coming soon!');
   };
@@ -42,8 +56,8 @@ export function JoinSheet({ visible, onClose, onEmail }: JoinSheetProps) {
       backgroundColor={lightColors.primary}
       handleColor="rgba(255,255,255,0.3)"
     >
-      <Text style={styles.title}>Let's get started</Text>
-      <Text style={styles.subtitle}>Create your account to explore more.</Text>
+      <Text style={styles.title}>{copy.title}</Text>
+      <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
       <View style={styles.buttons}>
         <Button
