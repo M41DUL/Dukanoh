@@ -5,6 +5,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,20 +46,25 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={[styles.content, { paddingTop: insets.top + Spacing.base }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        {/* Back */}
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.7)" />
-        </TouchableOpacity>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <KeyboardAvoidingView
+          style={[styles.content, { paddingTop: insets.top + Spacing.base }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          {/* Back */}
+          <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.7)" />
+          </TouchableOpacity>
 
-        {/* Push content down */}
-        <View style={styles.flex} />
+          {/* Push content down */}
+          <View style={styles.flex} />
 
-        {children}
-      </KeyboardAvoidingView>
+          {children}
+
+          {/* Match intro screen spacing above the logo */}
+          <View style={styles.logoSpacer} />
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     </View>
   );
 }
@@ -77,7 +84,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: Spacing.base,
-    paddingBottom: LOGO_FINAL_H - 60 + Spacing.xl,
+  },
+  logoSpacer: {
+    height: LOGO_FINAL_H - 60 + Spacing.xl,
   },
   backBtn: {
     alignSelf: 'flex-start',

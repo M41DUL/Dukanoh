@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Keyboard, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
@@ -22,9 +22,12 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
+    if (loading) return;
+    Keyboard.dismiss();
     if (!email || !password) {
       setError('Please enter your email and password');
       return;
@@ -35,11 +38,10 @@ export default function LoginScreen() {
 
     try {
       const { error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
       if (authError) throw authError;
-      router.replace('/(tabs)/');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid email or password');
     } finally {
@@ -48,16 +50,19 @@ export default function LoginScreen() {
   };
 
   const handleForgotPassword = async () => {
+    if (loading) return;
+    Keyboard.dismiss();
     if (!email) {
       setError('Enter your email above, then tap forgot password');
       return;
     }
     setLoading(true);
     setError('');
+    setSuccess('');
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email);
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim());
       if (resetError) throw resetError;
-      setError('Check your email for a reset link');
+      setSuccess('Check your email for a reset link');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -73,7 +78,7 @@ export default function LoginScreen() {
         <Input
           placeholder="Email"
           value={email}
-          onChangeText={(v) => { setEmail(v); setError(''); }}
+          onChangeText={(v) => { setEmail(v); setError(''); setSuccess(''); }}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
@@ -86,7 +91,7 @@ export default function LoginScreen() {
           ref={passwordRef}
           placeholder="Password"
           value={password}
-          onChangeText={(v) => { setPassword(v); setError(''); }}
+          onChangeText={(v) => { setPassword(v); setError(''); setSuccess(''); }}
           secureTextEntry
           textContentType="password"
           returnKeyType="done"
@@ -94,10 +99,12 @@ export default function LoginScreen() {
           {...INPUT_STYLE}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {success ? <Text style={styles.success}>{success}</Text> : null}
         <Button
           label="Sign in"
           onPress={handleLogin}
           loading={loading}
+          disabled={!email.trim() || !password}
           variant="secondary"
           style={{ marginTop: Spacing.base }}
         />
@@ -107,6 +114,7 @@ export default function LoginScreen() {
           variant="ghost"
           size="sm"
           textColor="rgba(255,255,255,0.7)"
+          style={{ marginTop: Spacing.xl }}
         />
       </View>
     </AuthLayout>
@@ -117,7 +125,7 @@ const styles = StyleSheet.create({
   heading: {
     ...Typography.display,
     color: '#FFFFFF',
-    marginBottom: Spacing.xl,
+    marginBottom: 40,
   },
   form: {
     gap: Spacing.sm,
@@ -125,5 +133,9 @@ const styles = StyleSheet.create({
   error: {
     ...Typography.caption,
     color: lightColors.error,
+  },
+  success: {
+    ...Typography.caption,
+    color: lightColors.secondary,
   },
 });

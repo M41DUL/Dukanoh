@@ -1,8 +1,9 @@
-import React, { forwardRef, useState, useMemo } from 'react';
+import React, { forwardRef, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
   TextInput,
+  Pressable,
   StyleSheet,
   TextInputProps,
   ViewStyle,
@@ -21,14 +22,22 @@ interface InputProps extends TextInputProps {
 
 export const Input = forwardRef<TextInput, InputProps>(
   function Input({ label, error, icon, containerStyle, inputContainerStyle, placeholderColor, ...props }, ref) {
+    const innerRef = useRef<TextInput>(null);
     const [focused, setFocused] = useState(false);
     const colors = useThemeColors();
     const styles = useMemo(() => getStyles(colors), [colors]);
 
+    const setRefs = (node: TextInput | null) => {
+      innerRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) (ref as React.MutableRefObject<TextInput | null>).current = node;
+    };
+
     return (
       <View style={[styles.container, containerStyle]}>
         {label ? <Text style={styles.label}>{label}</Text> : null}
-        <View
+        <Pressable
+          onPress={() => innerRef.current?.focus()}
           style={[
             styles.inputContainer,
             focused && styles.focused,
@@ -38,14 +47,14 @@ export const Input = forwardRef<TextInput, InputProps>(
         >
           {icon ? <View style={styles.icon}>{icon}</View> : null}
           <TextInput
-            ref={ref}
+            ref={setRefs}
             style={styles.input}
             placeholderTextColor={placeholderColor ?? colors.textSecondary}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             {...props}
           />
-        </View>
+        </Pressable>
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
     );
