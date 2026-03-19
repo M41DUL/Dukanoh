@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import {
   Animated,
   Dimensions,
+  Easing,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,19 +13,32 @@ import { DukanohLogo } from './DukanohLogo';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Render the logo at its FINAL large size so SVG stays crisp when we scale up.
-// Phase 1 scales it DOWN to appear small; phase 2b springs back to 1.0 (full size).
 const LOGO_FINAL_W = 1300;
 const LOGO_FINAL_H = 234;
-const LOGO_SMALL_SCALE = 200 / LOGO_FINAL_W; // ≈ 0.154 — appears 200px wide
+const LOGO_SMALL_SCALE = 200 / LOGO_FINAL_W;
 
-// 'u' (second letter) spans x≈30.31–55.56 in the 200-unit SVG viewBox.
-// Scale to logo pixels and offset so 'u' is horizontally centred on screen.
-const U_CENTER_SCALED = ((30.3115 + 55.5596) / 2) * (LOGO_FINAL_W / 200); // ≈ 279px
-const LOGO_TRANSLATE_X = LOGO_FINAL_W / 2 - U_CENTER_SCALED; // ≈ 371
+const U_CENTER_SCALED = ((30.3115 + 55.5596) / 2) * (LOGO_FINAL_W / 200);
+const LOGO_TRANSLATE_X = LOGO_FINAL_W / 2 - U_CENTER_SCALED;
 const LOGO_TRANSLATE_Y = (SCREEN_HEIGHT + 60 - LOGO_FINAL_H / 2) - SCREEN_HEIGHT / 2;
 
-const SCALED_H = LOGO_FINAL_H; // used for layout below
+const SCALED_H = LOGO_FINAL_H;
+const LINE_HEIGHT = 50;
+const LINES = ['Your Fits.', 'Your Culture.', 'On Repeat.'];
+
+// Badges scattered across the upper portion of the card
+// accent: true = lime pill, false = white semi-transparent pill
+// Badges fixed in the upper portion of the card only (above tagline)
+const BADGES = [
+  { label: 'Eid',       left: '6%',  top: '8%',  accent: true  },
+  { label: 'Wedding',   left: '54%', top: '6%',  accent: false },
+  { label: 'Festive',   left: '20%', top: '26%', accent: false },
+  { label: 'Partywear', left: '50%', top: '28%', accent: true  },
+  { label: 'Mehndi',    left: '7%',  top: '46%', accent: false },
+  { label: 'Achkan',    left: '60%', top: '48%', accent: false },
+  { label: 'Diwali',    left: '30%', top: '16%', accent: true  },
+  { label: 'Formal',    left: '65%', top: '18%', accent: false },
+];
+
 
 interface SplashAnimationProps {
   hasSession: boolean;
@@ -34,107 +48,143 @@ interface SplashAnimationProps {
 }
 
 export function SplashAnimation({ hasSession, onDone, onJoin, onSignIn }: SplashAnimationProps) {
-  const logoOpacity = useRef(new Animated.Value(0)).current;
-  // Start scaled down (appears 200px wide), animate to LOGO_SMALL_SCALE in phase 1,
-  // then spring to 1.0 in phase 2b — SVG renders at full res throughout.
-  const logoScale = useRef(new Animated.Value(LOGO_SMALL_SCALE * 0.85)).current;
+  const logoScale = useRef(new Animated.Value(0)).current;
   const logoTranslateX = useRef(new Animated.Value(0)).current;
   const logoTranslateY = useRef(new Animated.Value(0)).current;
   const containerOpacity = useRef(new Animated.Value(1)).current;
   const logoMarkOpacity = useRef(new Animated.Value(0)).current;
-  const logoMarkY = useRef(new Animated.Value(20)).current;
+  const logoMarkY = useRef(new Animated.Value(-250)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
   const taglineY = useRef(new Animated.Value(20)).current;
   const ctaOpacity = useRef(new Animated.Value(0)).current;
   const ctaY = useRef(new Animated.Value(20)).current;
 
-  const dismiss = (callback: () => void) => {
-    Animated.timing(containerOpacity, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => callback());
-  };
 
-  const handleJoin = () => {
-    onJoin();
-    dismiss(onDone);
-  };
+  // Per-line slide-up reveal
+  const lineAnims = useRef(LINES.map(() => new Animated.Value(LINE_HEIGHT))).current;
+  const lineOpacities = useRef(LINES.map(() => new Animated.Value(0))).current;
 
-  const handleSignIn = () => {
-    onSignIn();
-    dismiss(onDone);
-  };
+  // Per-badge opacity + scale
+  const badgeOpacities = useRef(BADGES.map(() => new Animated.Value(0))).current;
+  const badgeScales = useRef(BADGES.map(() => new Animated.Value(0))).current;
 
+
+  const mountedRef = useRef(true);
   useEffect(() => {
-    // Phase 1: logo fades in + grows — snappy 700ms
-    Animated.parallel([
-      Animated.timing(logoOpacity, {
-        toValue: 1,
-        duration: 700,
-        useNativeDriver: true,
-      }),
-      Animated.timing(logoScale, {
-        toValue: LOGO_SMALL_SCALE,
-        duration: 700,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      // Hold 0.8s, then phase 2
-      setTimeout(() => {
-        if (hasSession) {
-          // Phase 2a: fade out → done
-          Animated.timing(containerOpacity, {
-            toValue: 0,
-            duration: 400,
-            useNativeDriver: true,
-          }).start(() => onDone());
-        } else {
-          // Phase 2b: logo springs to bottom, then content slides up + fades in
-          Animated.parallel([
-            Animated.spring(logoScale, {
-              toValue: 1.0,
-              speed: 20,
-              bounciness: 0,
-              useNativeDriver: true,
-            }),
-            Animated.spring(logoTranslateX, {
-              toValue: LOGO_TRANSLATE_X,
-              speed: 20,
-              bounciness: 0,
-              useNativeDriver: true,
-            }),
-            Animated.spring(logoTranslateY, {
-              toValue: LOGO_TRANSLATE_Y,
-              speed: 20,
-              bounciness: 0,
-              useNativeDriver: true,
-            }),
-          ]).start(() => {
-            // Stagger each section in after logo settles
-            const animIn = (opacity: Animated.Value, y: Animated.Value) =>
-              Animated.parallel([
-                Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-                Animated.spring(y, { toValue: 0, speed: 22, bounciness: 3, useNativeDriver: true }),
-              ]);
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
-            Animated.stagger(80, [
-              animIn(logoMarkOpacity, logoMarkY),
-              animIn(taglineOpacity, taglineY),
-              animIn(ctaOpacity, ctaY),
-            ]).start();
-          });
-        }
-      }, 800);
+  const startLineReveal = (onComplete?: () => void) => {
+    Animated.stagger(
+      600,
+      lineAnims.map((anim, i) =>
+        Animated.parallel([
+          Animated.spring(anim, { toValue: 0, speed: 18, bounciness: 0, useNativeDriver: true }),
+          Animated.timing(lineOpacities[i], { toValue: 1, duration: 200, useNativeDriver: true }),
+        ])
+      )
+    ).start(() => onComplete?.());
+  };
+
+
+  // Start badge pop-and-shrink loops
+  const startBadges = () => {
+    BADGES.forEach((_, i) => {
+      const opacity = badgeOpacities[i];
+      const scale = badgeScales[i];
+
+      const runCycle = () => {
+        if (!mountedRef.current) return;
+        const holdDuration = 1400 + Math.random() * 1600;
+
+        // Reset before each cycle
+        scale.setValue(0);
+        opacity.setValue(0);
+
+        Animated.sequence([
+          // Pop in: spring scale + fade
+          Animated.parallel([
+            Animated.spring(scale, { toValue: 1, speed: 10, bounciness: 6, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+          ]),
+          Animated.delay(holdDuration),
+          // Shrink out: scale down + fade
+          Animated.parallel([
+            Animated.timing(scale, { toValue: 0, duration: 400, easing: Easing.in(Easing.ease), useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0, duration: 350, useNativeDriver: true }),
+          ]),
+        ]).start(({ finished }) => {
+          if (!finished || !mountedRef.current) return;
+          setTimeout(runCycle, 600 + Math.random() * 1800);
+        });
+      };
+
+      // Stagger initial starts so they don't all appear together
+      setTimeout(runCycle, i * 350 + Math.random() * 700);
     });
+  };
+
+  const dismiss = (callback: () => void) => {
+    Animated.timing(containerOpacity, { toValue: 0, duration: 300, useNativeDriver: true })
+      .start(() => callback());
+  };
+
+  const handleJoin = () => { onJoin(); dismiss(onDone); };
+  const handleSignIn = () => { onSignIn(); dismiss(onDone); };
+
+
+  // Main sequence
+  useEffect(() => {
+    // Phase 1: scale up from 0 (no fade)
+    Animated.timing(logoScale, { toValue: LOGO_SMALL_SCALE, duration: 600, easing: Easing.out(Easing.ease), useNativeDriver: true })
+      .start(() => {
+        // Hold briefly
+        setTimeout(() => {
+          // Phase 2: scale back down to 0
+          Animated.timing(logoScale, { toValue: 0, duration: 400, easing: Easing.in(Easing.ease), useNativeDriver: true })
+            .start(() => {
+              if (hasSession) {
+                onDone();
+              } else {
+                // Reposition large logo off-screen bottom (invisible at scale 0)
+                logoTranslateX.setValue(LOGO_TRANSLATE_X);
+                logoTranslateY.setValue(SCREEN_HEIGHT);
+                logoScale.setValue(1.0);
+                // Make small wordmark visible, already off-screen top via logoMarkY
+                logoMarkOpacity.setValue(1);
+
+                // Slide both logos into position simultaneously
+                Animated.parallel([
+                  Animated.spring(logoTranslateY, { toValue: LOGO_TRANSLATE_Y, speed: 14, bounciness: 0, useNativeDriver: true }),
+                  Animated.spring(logoMarkY, { toValue: 0, speed: 14, bounciness: 0, useNativeDriver: true }),
+                ]).start();
+
+                // Start content before logos finish landing
+                setTimeout(() => {
+                  const animIn = (opacity: Animated.Value, y: Animated.Value) =>
+                    Animated.parallel([
+                      Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+                      Animated.spring(y, { toValue: 0, speed: 22, bounciness: 3, useNativeDriver: true }),
+                    ]);
+                  Animated.stagger(80, [
+                    animIn(taglineOpacity, taglineY),
+                    animIn(ctaOpacity, ctaY),
+                  ]).start(() => {
+                    setTimeout(() => startLineReveal(startBadges), 100);
+                  });
+                }, 300);
+              }
+            });
+        }, 500);
+      });
   }, []);
 
   return (
     <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
-      {/* Centred logo — morphs to bottom-left in phase 2b */}
+      {/* Logo — morphs to bottom-left */}
       <Animated.View
         style={{
-          opacity: logoOpacity,
           transform: [
             { translateX: logoTranslateX },
             { translateY: logoTranslateY },
@@ -145,17 +195,48 @@ export function SplashAnimation({ hasSession, onDone, onJoin, onSignIn }: Splash
         <DukanohLogo width={LOGO_FINAL_W} height={LOGO_FINAL_H} />
       </Animated.View>
 
-      {/* Intro content — only shown when no session */}
       {!hasSession && (
         <View style={styles.introContent}>
-          {/* Small wordmark — top left */}
+          {/* Wordmark */}
           <Animated.View style={[styles.introHeader, { opacity: logoMarkOpacity, transform: [{ translateY: logoMarkY }] }]}>
             <DukanohLogo width={80} height={14} color={lightColors.secondary} />
           </Animated.View>
 
           {/* Hero card */}
           <Animated.View style={[styles.heroCard, { opacity: taglineOpacity, transform: [{ translateY: taglineY }] }]}>
-            <Text style={styles.tagline}>Your Fits.{'\n'}Your Culture.{'\n'}On Repeat.</Text>
+            {/* Floating badges */}
+            {BADGES.map((badge, i) => (
+              <Animated.View
+                key={badge.label}
+                style={[
+                  styles.badge,
+                  badge.accent ? styles.badgeAccent : styles.badgeMuted,
+                  {
+                    left: badge.left,
+                    top: badge.top,
+                    opacity: badgeOpacities[i],
+                    transform: [{ scale: badgeScales[i] }],
+                  },
+                ]}
+              >
+                <Text style={[styles.badgeText, badge.accent && styles.badgeTextAccent]}>
+                  {badge.label}
+                </Text>
+              </Animated.View>
+            ))}
+
+            {/* Tagline — lines slide up */}
+            <View style={styles.linesContainer}>
+              {LINES.map((line, i) => (
+                <View key={i} style={styles.lineClip}>
+                  <Animated.Text
+                    style={[styles.tagline, { opacity: lineOpacities[i], transform: [{ translateY: lineAnims[i] }] }]}
+                  >
+                    {line}
+                  </Animated.Text>
+                </View>
+              ))}
+            </View>
           </Animated.View>
 
           {/* CTAs */}
@@ -192,21 +273,55 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.15)',
     borderRadius: 24,
+    backgroundColor: '#1E1C8A',
     justifyContent: 'flex-end',
-    padding: Spacing.xl,
     marginBottom: Spacing.base,
+    overflow: 'hidden',
+  },
+  badge: {
+    position: 'absolute',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
+  },
+  badgeMuted: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  badgeAccent: {
+    backgroundColor: 'rgba(199,247,94,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(199,247,94,0.35)',
+  },
+  badgeText: {
+    fontSize: 13,
+    fontFamily: FontFamily.semibold,
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.2,
+  },
+  badgeTextAccent: {
+    color: lightColors.secondary,
+  },
+  linesContainer: {
+    overflow: 'hidden',
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xl,
+  },
+  lineClip: {
+    height: LINE_HEIGHT,
+    overflow: 'hidden',
+    justifyContent: 'flex-start',
   },
   tagline: {
     fontSize: 38,
     fontFamily: FontFamily.black,
     color: '#FFFFFF',
-    lineHeight: 46,
+    lineHeight: LINE_HEIGHT,
   },
   ctaSection: {
     gap: Spacing.sm,
-    // Buttons sit above the visible portion of the large logo (174px) + breathing room
     paddingBottom: SCALED_H - 60 + Spacing.xl,
   },
   joinBtn: {
