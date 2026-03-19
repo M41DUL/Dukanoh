@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { ReactNode, useMemo } from 'react';
 import {
   TouchableOpacity,
   Text,
   ActivityIndicator,
   StyleSheet,
+  View,
   ViewStyle,
 } from 'react-native';
 import { BorderRadius, BorderWidth, Spacing, ColorTokens } from '@/constants/theme';
@@ -26,6 +27,10 @@ interface ButtonProps {
   size?: ButtonSize;
   loading?: boolean;
   disabled?: boolean;
+  icon?: ReactNode;
+  backgroundColor?: string;
+  textColor?: string;
+  borderColor?: string;
   style?: ViewStyle;
 }
 
@@ -42,11 +47,20 @@ export function Button({
   size = 'lg',
   loading = false,
   disabled = false,
+  icon,
+  backgroundColor,
+  textColor,
+  borderColor,
   style,
 }: ButtonProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const sz = sizeStyles[size];
+
+  const colorOverrides: ViewStyle = {
+    ...(backgroundColor ? { backgroundColor } : {}),
+    ...(borderColor ? { borderWidth: BorderWidth.standard, borderColor } : {}),
+  };
 
   return (
     <TouchableOpacity
@@ -57,6 +71,7 @@ export function Button({
         variant === 'secondary' && styles.secondary,
         variant === 'outline' && styles.outline,
         variant === 'ghost' && styles.ghost,
+        colorOverrides,
         (disabled || loading) && styles.disabled,
         style,
       ]}
@@ -66,22 +81,26 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? '#FFFFFF' : colors.primaryText}
+          color={textColor ?? (variant === 'primary' ? '#FFFFFF' : colors.primaryText)}
           size="small"
         />
       ) : (
-        <Text
-          style={[
-            styles.label,
-            { fontSize: sz.fontSize },
-            variant === 'primary' && styles.primaryText,
-            variant === 'secondary' && styles.secondaryText,
-            variant === 'outline' && styles.outlineText,
-            variant === 'ghost' && styles.ghostText,
-          ]}
-        >
-          {label}
-        </Text>
+        <View style={styles.content}>
+          {icon && <View style={styles.iconWrapper}>{icon}</View>}
+          <Text
+            style={[
+              styles.label,
+              { fontSize: sz.fontSize },
+              variant === 'primary' && styles.primaryText,
+              variant === 'secondary' && styles.secondaryText,
+              variant === 'outline' && styles.outlineText,
+              variant === 'ghost' && styles.ghostText,
+              textColor ? { color: textColor } : {},
+            ]}
+          >
+            {label}
+          </Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -93,6 +112,14 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.full,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+    },
+    content: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    iconWrapper: {
+      marginRight: 8,
     },
     primary: { backgroundColor: colors.primary },
     secondary: { backgroundColor: colors.secondary },

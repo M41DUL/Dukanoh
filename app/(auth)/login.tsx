@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { DukanohLogo } from '@/components/DukanohLogo';
 import { Typography, Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
@@ -43,7 +44,7 @@ export default function LoginScreen() {
     <ScreenWrapper scrollable>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.wordmark}>Dukanoh</Text>
+          <DukanohLogo width={120} height={22} color={colors.primary} />
           <Text style={styles.heading}>Welcome back</Text>
           <Text style={styles.subtext}>Sign in to continue.</Text>
         </View>
@@ -89,12 +90,7 @@ function getStyles(colors: ColorTokens) {
       gap: Spacing['2xl'],
     },
     header: { gap: Spacing.sm },
-    wordmark: {
-      ...Typography.display,
-      color: colors.primaryText,
-      marginBottom: Spacing.base,
-    },
-    heading: { ...Typography.heading, color: colors.textPrimary },
+    heading: { ...Typography.heading, color: colors.textPrimary, marginTop: Spacing.base },
     subtext: { ...Typography.body, color: colors.textSecondary },
     form: { gap: Spacing.base },
     error: { ...Typography.caption, color: colors.error },

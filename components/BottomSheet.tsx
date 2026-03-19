@@ -8,9 +8,11 @@ interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  backgroundColor?: string;
+  handleColor?: string;
 }
 
-export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, children, backgroundColor, handleColor }: BottomSheetProps) {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -71,13 +73,13 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
           style={[
             styles.sheet,
             {
-              backgroundColor: colors.background,
+              backgroundColor: backgroundColor ?? colors.background,
               paddingBottom: insets.bottom + Spacing.xl,
               transform: [{ translateY: sheetAnim }],
             },
           ]}
         >
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          <View style={[styles.handle, { backgroundColor: handleColor ?? colors.border }]} />
           {children}
         </Animated.View>
       </Animated.View>
