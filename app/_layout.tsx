@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -18,6 +18,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { SavedProvider } from '@/context/SavedContext';
+import { SplashAnimation } from '@/components/SplashAnimation';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -38,6 +39,7 @@ function RootNavigator() {
   const router = useRouter();
   const segments = useSegments();
   const { isDark } = useTheme();
+  const [splashDone, setSplashDone] = useState(false);
 
   useEffect(() => {
     if (fontsLoaded && !loading) {
@@ -46,7 +48,7 @@ function RootNavigator() {
   }, [fontsLoaded, loading]);
 
   useEffect(() => {
-    if (!fontsLoaded || loading) return;
+    if (!fontsLoaded || loading || !splashDone) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
@@ -55,7 +57,7 @@ function RootNavigator() {
     } else if (inAuthGroup) {
       router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
     }
-  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted]);
+  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, splashDone]);
 
   if (!fontsLoaded || loading) return null;
 
@@ -94,7 +96,8 @@ function RootNavigator() {
           options={{ animation: 'slide_from_right' }}
         />
       </Stack>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar style="light" />
+      {!splashDone && <SplashAnimation onDone={() => setSplashDone(true)} />}
     </>
   );
 }
