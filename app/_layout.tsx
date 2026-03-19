@@ -95,6 +95,10 @@ function RootNavigator() {
           name="listing/edit/[id]"
           options={{ animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="become-seller"
+          options={{ animation: 'slide_from_bottom' }}
+        />
       </Stack>
       <StatusBar style="light" />
       {!splashDone && <SplashAnimation onDone={() => setSplashDone(true)} />}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
@@ -10,7 +10,6 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 
 export default function SignUpScreen() {
-  const { inviteCode } = useLocalSearchParams<{ inviteCode: string }>();
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -26,10 +25,6 @@ export default function SignUpScreen() {
     setForm(f => ({ ...f, [key]: value }));
 
   const handleSignUp = async () => {
-    if (!inviteCode) {
-      setError('No invite code found. Please go back and enter your invite code.');
-      return;
-    }
     if (!form.email || !form.password || !form.username || !form.fullName) {
       setError('Please fill in all fields');
       return;
@@ -39,16 +34,6 @@ export default function SignUpScreen() {
     setError('');
 
     try {
-      // Atomically consume the invite — prevents race conditions and bypasses
-      const { data: consumed, error: consumeError } = await supabase.rpc('consume_invite', {
-        p_code: inviteCode,
-      });
-
-      if (consumeError || !consumed) {
-        setError('Your invite code is invalid or has already been used.');
-        return;
-      }
-
       const { error: authError } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,

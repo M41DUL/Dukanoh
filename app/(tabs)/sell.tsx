@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -38,6 +39,13 @@ interface ListingForm {
 
 export default function SellScreen() {
   const { user } = useAuth();
+
+  useFocusEffect(useCallback(() => {
+    if (!user) return;
+    supabase.from('users').select('is_seller').eq('id', user.id).single().then(({ data }) => {
+      if (!data?.is_seller) router.replace('/become-seller');
+    });
+  }, [user]));
   const [form, setForm] = useState<ListingForm>({
     title: '',
     description: '',

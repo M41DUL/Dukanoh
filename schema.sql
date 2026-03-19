@@ -19,6 +19,7 @@ CREATE TABLE public.users (
   bio                   TEXT,
   preferred_categories  TEXT[] DEFAULT '{}',
   onboarding_completed  BOOLEAN DEFAULT FALSE,
+  is_seller             BOOLEAN DEFAULT FALSE,
   created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
