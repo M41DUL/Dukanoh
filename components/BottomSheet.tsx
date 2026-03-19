@@ -1,8 +1,19 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Keyboard, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef } from 'react';
+import {
+  Animated,
+  BackHandler,
+  Keyboard,
+  PanResponder,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, BorderRadius } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+
+const DISMISS_THRESHOLD = 120;
 
 interface BottomSheetProps {
   visible: boolean;
@@ -19,21 +30,56 @@ export function BottomSheet({ visible, onClose, children, backgroundColor, handl
   const sheetAnim = useRef(new Animated.Value(800)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
 
+  // Stable ref so PanResponder always sees latest callback
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (visible) {
       Animated.parallel([
         Animated.timing(backdropAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
-        Animated.timing(sheetAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+        Animated.spring(sheetAnim, { toValue: 0, speed: 16, bounciness: 4, useNativeDriver: true }),
       ]).start();
     } else {
       Keyboard.dismiss();
       Animated.parallel([
         Animated.timing(backdropAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-        Animated.timing(sheetAnim, { toValue: 800, duration: 50, useNativeDriver: true }),
+        Animated.timing(sheetAnim, { toValue: 800, duration: 200, useNativeDriver: true }),
       ]).start();
     }
   }, [visible]);
 
+  // Android back button
+  useEffect(() => {
+    if (!visible) return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      onCloseRef.current();
+      return true;
+    });
+    return () => handler.remove();
+  }, [visible]);
+
+  // Swipe-to-dismiss
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 8,
+      onPanResponderMove: (_, gesture) => {
+        if (gesture.dy > 0) {
+          sheetAnim.setValue(gesture.dy);
+        }
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy > DISMISS_THRESHOLD || gesture.vy > 0.5) {
+          onCloseRef.current();
+        } else {
+          Animated.spring(sheetAnim, { toValue: 0, speed: 20, bounciness: 4, useNativeDriver: true }).start();
+        }
+      },
+    })
+  ).current;
+
+  // Keyboard avoidance
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -70,6 +116,7 @@ export function BottomSheet({ visible, onClose, children, backgroundColor, handl
         pointerEvents={visible ? 'auto' : 'none'}
       >
         <Animated.View
+          {...panResponder.panHandlers}
           style={[
             styles.sheet,
             {
