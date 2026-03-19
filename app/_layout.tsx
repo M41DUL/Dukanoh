@@ -101,7 +101,14 @@ function RootNavigator() {
         />
       </Stack>
       <StatusBar style="light" />
-      {!splashDone && <SplashAnimation onDone={() => setSplashDone(true)} />}
+      {!splashDone && (
+        <SplashAnimation
+          hasSession={!!session}
+          onDone={() => setSplashDone(true)}
+          onJoin={() => router.push('/(auth)/signup')}
+          onSignIn={() => router.push('/(auth)/login')}
+        />
+      )}
     </>
   );
 }
