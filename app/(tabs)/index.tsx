@@ -7,8 +7,8 @@ import {
   StyleSheet,
   Animated,
   RefreshControl,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -361,7 +361,7 @@ function PriceDropsRow({ drops, colors }: { drops: PriceDrop[]; colors: ColorTok
             onPress={() => router.push(`/listing/${drop.listingId}`)}
             activeOpacity={0.8}
           >
-            <Image source={{ uri: drop.images?.[0] }} style={styles.image} resizeMode="cover" />
+            <Image source={{ uri: drop.images?.[0] }} style={styles.image} contentFit="cover" transition={200} />
             <Text style={styles.title} numberOfLines={1}>{drop.title}</Text>
             <Text style={styles.oldPrice}>£{drop.savedPrice.toFixed(2)}</Text>
             <Text style={styles.newPrice}>£{drop.currentPrice.toFixed(2)}</Text>

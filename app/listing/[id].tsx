@@ -5,13 +5,13 @@ import {
   ScrollView,
   Animated,
   StyleSheet,
-  Image,
   Dimensions,
   TouchableOpacity,
   TextInput,
   Alert,
   Share,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -445,7 +445,7 @@ export default function ListingDetailScreen() {
             >
               {listing.images.map((uri, i) => (
                 <TouchableOpacity key={i} activeOpacity={0.95} onPress={() => { setViewerIndex(i); setViewerVisible(true); }}>
-                  <Image source={{ uri }} style={styles.image} resizeMode="cover" />
+                  <Image source={{ uri }} style={styles.image} contentFit="cover" transition={200} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -729,7 +729,7 @@ export default function ListingDetailScreen() {
         {/* Item card */}
         <View style={[styles.offerItemCard, { backgroundColor: colors.surface }]}>
           {listing.images?.[0] ? (
-            <Image source={{ uri: listing.images[0] }} style={styles.offerThumb} resizeMode="cover" />
+            <Image source={{ uri: listing.images[0] }} style={styles.offerThumb} contentFit="cover" transition={200} />
           ) : (
             <View style={[styles.offerThumb, { backgroundColor: colors.border }]} />
           )}

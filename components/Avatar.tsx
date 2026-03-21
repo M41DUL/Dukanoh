@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 type AvatarSize = 'small' | 'medium' | 'large';
@@ -26,7 +27,7 @@ export function Avatar({ uri, initials = '?', size = 'medium' }: AvatarProps) {
       ]}
     >
       {uri ? (
-        <Image source={{ uri }} style={styles.image} />
+        <Image source={{ uri }} style={styles.image} contentFit="cover" transition={150} />
       ) : (
         <Text style={[styles.initials, { fontSize, color: '#FFFFFF' }]}>{initials}</Text>
       )}

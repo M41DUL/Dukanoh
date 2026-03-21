@@ -5,11 +5,11 @@ import {
   FlatList,
   TouchableOpacity,
   Modal,
-  Image,
   Dimensions,
   StyleSheet,
   StatusBar,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
@@ -89,7 +89,8 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                     <Image
                       source={{ uri: listing!.images[0] }}
                       style={viewerStyles.bubbleImage}
-                      resizeMode="cover"
+                      contentFit="cover"
+                      transition={200}
                     />
                   ) : (
                     <View style={[viewerStyles.bubbleImage, rowStyles.bubblePlaceholder]} />
@@ -146,7 +147,8 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                     <Image
                       source={{ uri: activeStory.imageUrl }}
                       style={viewerStyles.fullImage}
-                      resizeMode="cover"
+                      contentFit="cover"
+                      transition={200}
                     />
                     <View style={viewerStyles.scrimBottom} />
                     <View style={viewerStyles.overlay}>
@@ -191,7 +193,8 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                   <Image
                     source={{ uri: (activeStory as StoryListing).images[0] }}
                     style={viewerStyles.fullImage}
-                    resizeMode="cover"
+                    contentFit="cover"
+                    transition={200}
                   />
                 ) : (
                   <View style={[viewerStyles.fullImage, viewerStyles.fullImagePlaceholder]} />

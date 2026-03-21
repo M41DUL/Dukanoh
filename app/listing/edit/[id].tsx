@@ -5,9 +5,9 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Image,
   Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -222,7 +222,7 @@ export default function EditListingScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRow}>
             {images.map((uri, i) => (
               <View key={i} style={styles.imageThumb}>
-                <Image source={{ uri }} style={styles.thumbImage} resizeMode="cover" />
+                <Image source={{ uri }} style={styles.thumbImage} contentFit="cover" transition={200} />
                 <TouchableOpacity
                   style={styles.removeImage}
                   onPress={() => removeImage(i)}

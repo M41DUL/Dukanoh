@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, BorderRadius, Spacing, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -63,7 +64,8 @@ export function ListingCard({
           <Image
             source={{ uri: listing.images[0] }}
             style={styles.image}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={200}
           />
         ) : (
           <View style={styles.imagePlaceholder} />

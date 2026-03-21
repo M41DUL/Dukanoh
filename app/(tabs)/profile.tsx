@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, Image, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
+import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
+import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -175,7 +176,8 @@ export default function ProfileScreen() {
                       <Image
                         source={{ uri: item.images?.[0] }}
                         style={styles.recentImage}
-                        resizeMode="cover"
+                        contentFit="cover"
+                        transition={200}
                       />
                       <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
                       <Text style={styles.recentPrice}>£{item.price?.toFixed(2)}</Text>
@@ -205,7 +207,8 @@ export default function ProfileScreen() {
                         <Image
                           source={{ uri: item.images[0] }}
                           style={styles.draftImage}
-                          resizeMode="cover"
+                          contentFit="cover"
+                          transition={200}
                         />
                       ) : (
                         <View style={styles.draftImagePlaceholder}>

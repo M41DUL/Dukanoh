@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   Dimensions,
   TouchableOpacity,
 } from 'react-native';
+import { Image } from 'expo-image';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -197,7 +197,8 @@ export default function OnboardingScreen() {
             <Image
               source={{ uri: next.images?.[0] }}
               style={styles.cardImage}
-              resizeMode="cover"
+              contentFit="cover"
+              transition={200}
             />
             <View style={styles.cardInfo}>
               <Badge label={next.category} active />
@@ -212,7 +213,8 @@ export default function OnboardingScreen() {
             <Image
               source={{ uri: current.images?.[0] }}
               style={styles.cardImage}
-              resizeMode="cover"
+              contentFit="cover"
+              transition={200}
             />
 
             <Animated.View style={[styles.indicator, styles.likeIndicator, likeOpacity]}>

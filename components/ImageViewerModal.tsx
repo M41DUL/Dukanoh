@@ -8,11 +8,14 @@ import {
   FlatList,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
+
+const AnimatedImage = Animated.createAnimatedComponent(Image);
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,10 +56,11 @@ function ZoomableImage({ uri }: { uri: string }) {
 
   return (
     <GestureDetector gesture={Gesture.Simultaneous(doubleTap, pinch)}>
-      <Animated.Image
+      <AnimatedImage
         source={{ uri }}
         style={[styles.image, animatedStyle]}
-        resizeMode="contain"
+        contentFit="contain"
+        transition={200}
       />
     </GestureDetector>
   );
