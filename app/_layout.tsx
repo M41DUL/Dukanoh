@@ -116,6 +116,10 @@ function RootNavigator() {
           name="become-seller"
           options={{ animation: 'slide_from_bottom' }}
         />
+        <Stack.Screen
+          name="reset-password"
+          options={{ animation: 'fade' }}
+        />
       </Stack>
       <StatusBar style="light" />
       {splashVisible && (

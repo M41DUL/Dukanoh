@@ -41,7 +41,9 @@ export function ForgotPasswordSheet({ visible, onClose, initialEmail = '' }: For
 
     try {
       const { error: resetError } = await withTimeout(
-        supabase.auth.resetPasswordForEmail(email.trim()),
+        supabase.auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: 'dukanoh://reset-password',
+        }),
       );
       if (resetError) throw resetError;
       setSent(true);
