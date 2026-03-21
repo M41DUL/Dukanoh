@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -30,7 +30,6 @@ import { DukanohLogo } from '@/components/DukanohLogo';
 import { Button } from '@/components/Button';
 import { BottomSheet } from '@/components/BottomSheet';
 
-const { width: SCREEN_W } = Dimensions.get('window');
 
 const ONBOARDING_CATEGORIES = Categories.filter((c) => c !== 'All');
 
@@ -67,21 +66,26 @@ const PARTICLE_COUNT = 6;
 const PARTICLE_COLORS = ['#C7F75E', '#3735C5', '#FF6B6B', '#FFD93D', '#6BCB77', '#9B59B6'];
 
 function ConfettiParticles({ fire, size }: { fire: boolean; size: number }) {
-  const anims = useRef(
+  const progressAnims = useRef(
+    Array.from({ length: PARTICLE_COUNT }, () => new Animated.Value(0)),
+  ).current;
+  const directions = useRef(
     Array.from({ length: PARTICLE_COUNT }, () => ({
-      progress: new Animated.Value(0),
       angle: Math.random() * Math.PI * 2,
       distance: 20 + Math.random() * 30,
     })),
-  ).current;
+  );
 
   useEffect(() => {
     if (!fire) return;
-    anims.forEach((p) => {
-      p.progress.setValue(0);
-      p.angle = Math.random() * Math.PI * 2;
-      p.distance = 20 + Math.random() * 30;
-      Animated.timing(p.progress, {
+    // Randomise directions for each burst
+    directions.current = Array.from({ length: PARTICLE_COUNT }, () => ({
+      angle: Math.random() * Math.PI * 2,
+      distance: 20 + Math.random() * 30,
+    }));
+    progressAnims.forEach((p) => {
+      p.setValue(0);
+      Animated.timing(p, {
         toValue: 1,
         duration: 500,
         easing: Easing.out(Easing.cubic),
@@ -94,45 +98,48 @@ function ConfettiParticles({ fire, size }: { fire: boolean; size: number }) {
 
   return (
     <>
-      {anims.map((p, i) => (
-        <Animated.View
-          key={i}
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: centre - 3,
-            top: centre - 3,
-            width: 6,
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: PARTICLE_COLORS[i % PARTICLE_COLORS.length],
-            opacity: p.progress.interpolate({
-              inputRange: [0, 0.3, 1],
-              outputRange: [0, 1, 0],
-            }),
-            transform: [
-              {
-                translateX: p.progress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, Math.cos(p.angle) * p.distance],
-                }),
-              },
-              {
-                translateY: p.progress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, Math.sin(p.angle) * p.distance],
-                }),
-              },
-              {
-                scale: p.progress.interpolate({
-                  inputRange: [0, 0.5, 1],
-                  outputRange: [0, 1.2, 0.4],
-                }),
-              },
-            ],
-          }}
-        />
-      ))}
+      {progressAnims.map((progress, i) => {
+        const d = directions.current[i];
+        return (
+          <Animated.View
+            key={i}
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: centre - 3,
+              top: centre - 3,
+              width: 6,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: PARTICLE_COLORS[i % PARTICLE_COLORS.length],
+              opacity: progress.interpolate({
+                inputRange: [0, 0.3, 1],
+                outputRange: [0, 1, 0],
+              }),
+              transform: [
+                {
+                  translateX: progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, Math.cos(d.angle) * d.distance],
+                  }),
+                },
+                {
+                  translateY: progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, Math.sin(d.angle) * d.distance],
+                  }),
+                },
+                {
+                  scale: progress.interpolate({
+                    inputRange: [0, 0.5, 1],
+                    outputRange: [0, 1.2, 0.4],
+                  }),
+                },
+              ],
+            }}
+          />
+        );
+      })}
     </>
   );
 }
@@ -148,6 +155,7 @@ function Bubble({
   animate,
   colors,
   areaHeight,
+  screenWidth,
 }: {
   label: string;
   active: boolean;
@@ -157,6 +165,7 @@ function Bubble({
   animate: boolean;
   colors: ColorTokens;
   areaHeight: number;
+  screenWidth: number;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const entrance = useRef(new Animated.Value(animate ? 0 : 1)).current;
@@ -210,6 +219,7 @@ function Bubble({
       float.stopAnimation();
       Animated.timing(float, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     }
+    return () => { float.stopAnimation(); };
   }, [active]);
 
   const handlePress = async () => {
@@ -230,16 +240,16 @@ function Bubble({
     onPress();
   };
 
-  const containerWidth = SCREEN_W - Spacing.base * 2;
+  const containerWidth = screenWidth - Spacing.base * 2;
   const bubbleSize = active ? layout.size * 1.12 : layout.size;
 
   const bgColor = colorAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['rgba(0,0,0,0.06)', colors.secondary],
+    outputRange: [colors.surface, colors.secondary],
   });
   const borderColor = colorAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['rgba(0,0,0,0.12)', colors.secondary],
+    outputRange: [colors.border, colors.secondary],
   });
 
   return (
@@ -308,7 +318,7 @@ const bubbleStyles = StyleSheet.create({
 
 // ─── Shimmer overlay ────────────────────────────────────────
 
-function ShimmerOverlay({ visible }: { visible: boolean }) {
+function ShimmerOverlay({ visible, screenWidth }: { visible: boolean; screenWidth: number }) {
   const shimmer = useRef(new Animated.Value(-1)).current;
 
   useEffect(() => {
@@ -334,7 +344,7 @@ function ShimmerOverlay({ visible }: { visible: boolean }) {
           {
             translateX: shimmer.interpolate({
               inputRange: [-1, 2],
-              outputRange: [-SCREEN_W, SCREEN_W * 2],
+              outputRange: [-screenWidth, screenWidth * 2],
             }),
           },
         ],
@@ -342,7 +352,7 @@ function ShimmerOverlay({ visible }: { visible: boolean }) {
     >
       <View
         style={{
-          width: SCREEN_W * 0.5,
+          width: screenWidth * 0.5,
           height: '100%',
           backgroundColor: 'rgba(255,255,255,0.7)',
           transform: [{ skewX: '-20deg' }],
@@ -361,6 +371,7 @@ export default function OnboardingScreen() {
   const [animateBubbles, setAnimateBubbles] = useState(false);
   const [bubbleAreaHeight, setBubbleAreaHeight] = useState(0);
   const [showShimmer, setShowShimmer] = useState(true);
+  const { width: screenWidth } = useWindowDimensions();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -380,22 +391,44 @@ export default function OnboardingScreen() {
     );
   }, []);
 
+  const [error, setError] = useState('');
+
   const saveAndNavigate = async () => {
     if (saving) return;
     setSaving(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      await supabase
-        .from('users')
-        .update({
-          preferred_categories: selectedCategories,
-          onboarding_completed: true,
-        })
-        .eq('id', user.id);
+    setError('');
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), 8000),
+    );
+    try {
+      await Promise.race([
+        (async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (user) {
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({
+                preferred_categories: selectedCategories,
+                onboarding_completed: true,
+              })
+              .eq('id', user.id);
+            if (updateError) throw updateError;
+          }
+          router.replace('/(tabs)/');
+        })(),
+        timeout,
+      ]);
+    } catch (e) {
+      setError(
+        e instanceof Error && e.message === 'timeout'
+          ? 'Taking too long. Check your connection and try again.'
+          : 'Something went wrong. Please try again.',
+      );
+    } finally {
+      setSaving(false);
     }
-    router.replace('/(tabs)/');
   };
 
   const categoryCount = selectedCategories.length;
@@ -427,7 +460,9 @@ export default function OnboardingScreen() {
         </Text>
 
         <View style={styles.heroCard}>
-          <ShimmerOverlay visible={showShimmer} />
+          <View style={styles.shimmerClip}>
+            <ShimmerOverlay visible={showShimmer} screenWidth={screenWidth} />
+          </View>
           <View
             style={styles.bubbleArea}
             onLayout={(e) => setBubbleAreaHeight(e.nativeEvent.layout.height)}
@@ -443,12 +478,14 @@ export default function OnboardingScreen() {
                 animate={animateBubbles}
                 colors={colors}
                 areaHeight={bubbleAreaHeight}
+                screenWidth={screenWidth}
               />
             ))}
           </View>
         </View>
 
         <View style={styles.footer}>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
           <Button
             label="Show me my feed"
             onPress={saveAndNavigate}
@@ -518,6 +555,10 @@ function getStyles(colors: ColorTokens) {
       backgroundColor: colors.primaryLight,
       marginTop: Spacing.base,
       marginBottom: Spacing.base,
+    },
+    shimmerClip: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 24,
       overflow: 'hidden',
     },
     bubbleArea: {
@@ -527,7 +568,12 @@ function getStyles(colors: ColorTokens) {
 
     // Footer
     footer: {
-      gap: Spacing.base,
+      gap: Spacing.sm,
+    },
+    error: {
+      ...Typography.caption,
+      color: colors.error,
+      textAlign: 'center',
     },
     logoSpacer: {
       height: LOGO_FINAL_H - 60,
