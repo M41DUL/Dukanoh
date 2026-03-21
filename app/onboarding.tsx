@@ -4,14 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  BackHandler,
   Animated,
   Easing,
   Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/lib/supabase';
 import {
@@ -21,62 +19,35 @@ import {
   Categories,
   ColorTokens,
 } from '@/constants/theme';
+import {
+  LOGO_FINAL_W,
+  LOGO_FINAL_H,
+  LOGO_TRANSLATE_X,
+  LOGO_TRANSLATE_Y,
+} from '@/constants/logoLayout';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { DukanohLogo } from '@/components/DukanohLogo';
 import { Button } from '@/components/Button';
+import { BottomSheet } from '@/components/BottomSheet';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-const STEPS = ['welcome', 'categories', 'sizes'] as const;
-type Step = (typeof STEPS)[number];
-
 const ONBOARDING_CATEGORIES = Categories.filter((c) => c !== 'All');
 
-const ALL_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
-
 // ─── Bubble layout data ─────────────────────────────────────
-// Each bubble has a position (% from left/top) and a size.
-// Sizes vary to create the organic feel.
-
 type BubbleLayout = { left: number; top: number; size: number };
 
-// Category bubbles — 10 items, spaced to avoid overlap
-// Max bubble size ~88px + 12% scale on select ≈ 100px.
-// Container width ~360px, so 3 per row with offsets.
 const CATEGORY_LAYOUT: BubbleLayout[] = [
-  // Row 1
-  { left: 0.02, top: 0.00, size: 84 },   // Men
-  { left: 0.30, top: 0.02, size: 88 },   // Women
-  { left: 0.60, top: 0.00, size: 82 },   // Casualwear
-  // Row 2
-  { left: 0.08, top: 0.18, size: 86 },   // Partywear
-  { left: 0.40, top: 0.16, size: 90 },   // Festive
-  { left: 0.72, top: 0.18, size: 80 },   // Formal
-  // Row 3
-  { left: 0.02, top: 0.36, size: 88 },   // Achkan
-  { left: 0.34, top: 0.34, size: 84 },   // Wedding
-  // Row 4
-  { left: 0.12, top: 0.52, size: 86 },   // Pathani Suit
-  { left: 0.48, top: 0.54, size: 82 },   // Shoes
-];
-
-// Size bubbles — letter sizes first, then number sizes
-const SIZE_LAYOUT: BubbleLayout[] = [
-  // Letter sizes — Row 1
-  { left: 0.04, top: 0.00, size: 74 },   // XS
-  { left: 0.30, top: 0.02, size: 78 },   // S
-  { left: 0.58, top: 0.00, size: 74 },   // M
-  // Letter sizes — Row 2
-  { left: 0.10, top: 0.18, size: 76 },   // L
-  { left: 0.38, top: 0.16, size: 74 },   // XL
-  { left: 0.64, top: 0.18, size: 78 },   // XXL
-  // Number sizes — Row 3
-  { left: 0.04, top: 0.36, size: 74 },   // 6
-  { left: 0.30, top: 0.34, size: 76 },   // 8
-  { left: 0.58, top: 0.36, size: 74 },   // 10
-  // Number sizes — Row 4
-  { left: 0.10, top: 0.52, size: 76 },   // 12
-  { left: 0.38, top: 0.54, size: 74 },   // 14
-  { left: 0.64, top: 0.52, size: 76 },   // 16
+  { left: 0.02, top: 0.00, size: 84 },
+  { left: 0.30, top: 0.02, size: 88 },
+  { left: 0.60, top: 0.00, size: 82 },
+  { left: 0.08, top: 0.18, size: 86 },
+  { left: 0.40, top: 0.16, size: 90 },
+  { left: 0.72, top: 0.18, size: 80 },
+  { left: 0.02, top: 0.36, size: 88 },
+  { left: 0.34, top: 0.34, size: 84 },
+  { left: 0.12, top: 0.52, size: 86 },
+  { left: 0.48, top: 0.54, size: 82 },
 ];
 
 // ─── Animated bubble ────────────────────────────────────────
@@ -156,8 +127,8 @@ function Bubble({
             width: bubbleSize,
             height: bubbleSize,
             borderRadius: bubbleSize / 2,
-            backgroundColor: active ? colors.secondary : colors.surface,
-            borderColor: active ? colors.secondary : colors.border,
+            backgroundColor: active ? colors.secondary : 'rgba(0,0,0,0.06)',
+            borderColor: active ? colors.secondary : 'rgba(0,0,0,0.12)',
           },
         ]}
       >
@@ -165,7 +136,7 @@ function Bubble({
           style={[
             bubbleStyles.label,
             {
-              color: active ? '#0D0D0D' : colors.textSecondary,
+              color: active ? '#0D0D0D' : colors.textPrimary,
               fontSize: label.length > 8 ? 11 : 13,
             },
           ]}
@@ -194,34 +165,25 @@ const bubbleStyles = StyleSheet.create({
 // ─── Main screen ────────────────────────────────────────────
 
 export default function OnboardingScreen() {
-  const [step, setStep] = useState<Step>('welcome');
+  const [showWelcome, setShowWelcome] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [animateBubbles, setAnimateBubbles] = useState(false);
   const [bubbleAreaHeight, setBubbleAreaHeight] = useState(0);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
-  const stepIndex = STEPS.indexOf(step);
 
-  // Trigger bubble entrance animation when step changes
+  // Start bubble animation immediately, show welcome sheet after a short delay
   useEffect(() => {
-    if (step === 'categories' || step === 'sizes') {
-      setAnimateBubbles(false);
-      requestAnimationFrame(() => setAnimateBubbles(true));
-    }
-  }, [step]);
+    requestAnimationFrame(() => setAnimateBubbles(true));
+    const timer = setTimeout(() => setShowWelcome(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
 
   const toggleCategory = useCallback((cat: string) => {
     setSelectedCategories((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
-    );
-  }, []);
-
-  const toggleSize = useCallback((size: string) => {
-    setSelectedSizes((prev) =>
-      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size],
     );
   }, []);
 
@@ -236,7 +198,6 @@ export default function OnboardingScreen() {
         .from('users')
         .update({
           preferred_categories: selectedCategories,
-          preferred_sizes: selectedSizes,
           onboarding_completed: true,
         })
         .eq('id', user.id);
@@ -244,83 +205,29 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)/');
   };
 
-  const handleNext = () => {
-    if (step === 'welcome') setStep('categories');
-    else if (step === 'categories') setStep('sizes');
-    else saveAndNavigate();
-  };
-
-  const handleBack = () => {
-    if (step === 'categories') setStep('welcome');
-    else if (step === 'sizes') setStep('categories');
-  };
-
-  // Android hardware back button
-  useEffect(() => {
-    if (step === 'welcome') return;
-    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
-      handleBack();
-      return true;
-    });
-    return () => handler.remove();
-  }, [step]);
-
   const categoryCount = selectedCategories.length;
-  const sizeCount = selectedSizes.length;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Step dots */}
-      <View style={styles.dotsRow}>
-        {STEPS.map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              i < stepIndex && styles.dotDone,
-              i === stepIndex && styles.dotActive,
-            ]}
-          />
-        ))}
+      {/* Big watermark logo at bottom */}
+      <View style={styles.logoContainer}>
+        <View
+          style={{
+            transform: [
+              { translateX: LOGO_TRANSLATE_X },
+              { translateY: LOGO_TRANSLATE_Y },
+            ],
+          }}
+        >
+          <DukanohLogo width={LOGO_FINAL_W} height={LOGO_FINAL_H} />
+        </View>
       </View>
 
-      {/* Back button */}
-      {step !== 'welcome' && (
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={handleBack}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-      )}
+      <View style={styles.content}>
+        <Text style={styles.heading}>What are you into?</Text>
+        <Text style={styles.subtitle}>Pick at least one</Text>
 
-      {/* ─── Welcome ─── */}
-      {step === 'welcome' && (
-        <View style={styles.welcomeContent}>
-          <View style={styles.welcomeCenter}>
-            <Text style={styles.welcomeEmoji}>✨</Text>
-            <Text style={styles.heading}>Let's personalise{'\n'}your feed</Text>
-            <Text style={styles.subtitle}>
-              Pick the categories and sizes you're interested in. We'll show you more of what you love.
-            </Text>
-          </View>
-          <View style={styles.footer}>
-            <Button label="Get started" onPress={handleNext} variant="primary" />
-          </View>
-        </View>
-      )}
-
-      {/* ─── Categories ─── */}
-      {step === 'categories' && (
-        <View style={styles.stepContent}>
-          <Text style={styles.heading}>What are you into?</Text>
-          <Text style={styles.subtitle}>
-            {categoryCount === 0 ? 'Pick at least one' : `${categoryCount} selected`}
-          </Text>
-
+        <View style={styles.heroCard}>
           <View
             style={styles.bubbleArea}
             onLayout={(e) => setBubbleAreaHeight(e.nativeEvent.layout.height)}
@@ -339,58 +246,44 @@ export default function OnboardingScreen() {
               />
             ))}
           </View>
-
-          <View style={styles.footer}>
-            <Button
-              label="Continue"
-              onPress={handleNext}
-              variant="primary"
-              disabled={categoryCount === 0}
-            />
-          </View>
         </View>
-      )}
 
-      {/* ─── Sizes ─── */}
-      {step === 'sizes' && (
-        <View style={styles.stepContent}>
-          <Text style={styles.heading}>What sizes do you wear?</Text>
-          <Text style={styles.subtitle}>
-            {sizeCount === 0 ? 'Select all that apply' : `${sizeCount} selected`}
+        <View style={styles.footer}>
+          <Button
+            label="Finish"
+            onPress={saveAndNavigate}
+            variant="primary"
+            disabled={categoryCount === 0}
+            loading={saving}
+          />
+        </View>
+
+        <View style={styles.logoSpacer} />
+      </View>
+
+      {/* Welcome bottom sheet */}
+      <BottomSheet visible={showWelcome} onClose={() => setShowWelcome(false)}>
+        <View style={styles.sheetContent}>
+          <Text style={styles.sheetHeading}>{"Let\u2019s personalise\nyour feed"}</Text>
+          <Text style={styles.sheetSubtitle}>
+            {"Dukanoh is built around what you love. Tell us what catches your eye and we\u2019ll curate a feed that feels like it was made for you."}
           </Text>
-
-          <View
-            style={styles.bubbleArea}
-            onLayout={(e) => setBubbleAreaHeight(e.nativeEvent.layout.height)}
-          >
-            {bubbleAreaHeight > 0 && ALL_SIZES.map((size, i) => (
-              <Bubble
-                key={size}
-                label={size}
-                active={selectedSizes.includes(size)}
-                onPress={() => toggleSize(size)}
-                layout={SIZE_LAYOUT[i]}
-                index={i}
-                animate={animateBubbles}
-                colors={colors}
-                areaHeight={bubbleAreaHeight}
-              />
-            ))}
-          </View>
-
-          <View style={styles.footer}>
-            <Button
-              label="Finish"
-              onPress={saveAndNavigate}
-              variant="primary"
-              loading={saving}
-            />
-            <TouchableOpacity onPress={saveAndNavigate} disabled={saving}>
-              <Text style={styles.skipText}>Skip this step</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.sheetStep}>
+            <Text style={styles.sheetStepBold}>Pick your categories</Text>
+            {" \u2014 tap the bubbles behind this sheet to select the styles you\u2019re into. Casualwear, festive, wedding \u2014 whatever you\u2019re looking for."}
+          </Text>
+          <Text style={styles.sheetStep}>
+            <Text style={styles.sheetStepBold}>{"We\u2019ll do the rest"}</Text>
+            {" \u2014 your home feed, search results and recommendations will all be shaped by what you choose. You can always update this later in your profile."}
+          </Text>
+          <Button
+            label="Get started"
+            onPress={() => setShowWelcome(false)}
+            variant="primary"
+            style={styles.sheetButton}
+          />
         </View>
-      )}
+      </BottomSheet>
     </View>
   );
 }
@@ -400,53 +293,19 @@ function getStyles(colors: ColorTokens) {
     container: {
       flex: 1,
       backgroundColor: colors.background,
-      paddingHorizontal: Spacing.base,
     },
-
-    // Dots
-    dotsRow: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      marginTop: Spacing.base,
-    },
-    dot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: colors.border,
-    },
-    dotDone: {
-      backgroundColor: colors.primary,
-      opacity: 0.35,
-    },
-    dotActive: {
-      backgroundColor: colors.primary,
-      width: 22,
-    },
-
-    // Back
-    backBtn: {
-      alignSelf: 'flex-start',
-      paddingVertical: Spacing.sm,
-      marginTop: Spacing.xs,
-    },
-
-    // Welcome
-    welcomeContent: {
-      flex: 1,
-      justifyContent: 'space-between',
-    },
-    welcomeCenter: {
-      flex: 1,
-      justifyContent: 'center',
+    logoContainer: {
+      ...StyleSheet.absoluteFillObject,
       alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    content: {
+      flex: 1,
       paddingHorizontal: Spacing.base,
+      paddingTop: Spacing.xl,
     },
-    welcomeEmoji: {
-      fontSize: 48,
-      marginBottom: Spacing.xl,
-    },
+
     heading: {
       ...Typography.heading,
       color: colors.textPrimary,
@@ -460,28 +319,56 @@ function getStyles(colors: ColorTokens) {
       lineHeight: 22,
     },
 
-    // Step content
-    stepContent: {
+    // Hero card
+    heroCard: {
       flex: 1,
-      paddingTop: Spacing.xl,
+      borderRadius: 24,
+      backgroundColor: colors.primaryLight,
+      marginTop: Spacing.base,
+      marginBottom: Spacing.base,
+      overflow: 'hidden',
     },
-
-    // Bubble area
     bubbleArea: {
       flex: 1,
-      marginTop: Spacing.xl,
+      margin: Spacing.base,
     },
 
     // Footer
     footer: {
-      paddingBottom: Spacing['2xl'],
       gap: Spacing.base,
     },
-    skipText: {
+    logoSpacer: {
+      height: LOGO_FINAL_H - 60,
+    },
+
+    // Welcome sheet
+    sheetContent: {
+      paddingHorizontal: Spacing.xs,
+    },
+    sheetHeading: {
+      ...Typography.heading,
+      color: colors.textPrimary,
+      marginBottom: Spacing.sm,
+    },
+    sheetSubtitle: {
       ...Typography.body,
       color: colors.textSecondary,
-      textAlign: 'center',
-      textDecorationLine: 'underline',
+      lineHeight: 22,
+      marginBottom: Spacing.base,
+    },
+    sheetStep: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      lineHeight: 22,
+      marginBottom: Spacing.sm,
+    },
+    sheetStepBold: {
+      fontFamily: FontFamily.semibold,
+      color: colors.textPrimary,
+    },
+    sheetButton: {
+      marginTop: Spacing.base,
+      width: '100%',
     },
   });
 }
