@@ -121,7 +121,7 @@ function RootNavigator() {
           options={{ animation: 'fade' }}
         />
       </Stack>
-      <StatusBar style="light" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       {splashVisible && (
         <SplashAnimation
           onAnimationDone={() => setSplashDone(true)}
