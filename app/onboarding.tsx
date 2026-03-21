@@ -4,12 +4,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  BackHandler,
   Animated,
   Easing,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/lib/supabase';
 import {
@@ -30,7 +31,7 @@ import { DukanohLogo } from '@/components/DukanohLogo';
 import { Button } from '@/components/Button';
 import { BottomSheet } from '@/components/BottomSheet';
 
-
+const BASE_WIDTH = 390; // iPhone 14 baseline for scaling
 const ONBOARDING_CATEGORIES = Categories.filter((c) => c !== 'All');
 
 // ─── Bubble layout data ─────────────────────────────────────
@@ -42,15 +43,15 @@ const CATEGORY_LAYOUT: BubbleLayout[] = [
   { left: 0.30, top: 0.02, size: 96 },   // Women (short)
   { left: 0.62, top: 0.00, size: 110 },  // Casualwear (long)
   // Row 2
-  { left: 0.05, top: 0.22, size: 104 },  // Partywear (long)
-  { left: 0.42, top: 0.20, size: 82 },   // Festive (medium)
-  { left: 0.70, top: 0.22, size: 74 },   // Formal (medium)
+  { left: 0.05, top: 0.24, size: 104 },  // Partywear (long)
+  { left: 0.42, top: 0.22, size: 82 },   // Festive (medium)
+  { left: 0.70, top: 0.24, size: 74 },   // Formal (medium)
   // Row 3
-  { left: 0.02, top: 0.44, size: 86 },   // Achkan (medium)
-  { left: 0.34, top: 0.42, size: 98 },   // Wedding (medium)
+  { left: 0.02, top: 0.48, size: 86 },   // Achkan (medium)
+  { left: 0.34, top: 0.46, size: 98 },   // Wedding (medium)
   // Row 4
-  { left: 0.06, top: 0.66, size: 114 },  // Pathani Suit (long)
-  { left: 0.48, top: 0.68, size: 76 },   // Shoes (short)
+  { left: 0.06, top: 0.72, size: 114 },  // Pathani Suit (long)
+  { left: 0.48, top: 0.74, size: 76 },   // Shoes (short)
 ];
 
 // Pre-compute centre-out distances for staggered entrance
@@ -78,7 +79,6 @@ function ConfettiParticles({ fire, size }: { fire: boolean; size: number }) {
 
   useEffect(() => {
     if (!fire) return;
-    // Randomise directions for each burst
     directions.current = Array.from({ length: PARTICLE_COUNT }, () => ({
       angle: Math.random() * Math.PI * 2,
       distance: 20 + Math.random() * 30,
@@ -189,7 +189,7 @@ function Bubble({
     }).start();
   }, []);
 
-  // Colour fade + confetti on selection
+  // Colour fade + confetti on selection, shrink on deselection
   useEffect(() => {
     Animated.timing(colorAnim, {
       toValue: active ? 1 : 0,
@@ -198,10 +198,16 @@ function Bubble({
       useNativeDriver: false,
     }).start();
 
-    // Fire confetti only on newly selected (not on mount)
     if (active && !wasActive.current) {
+      // Confetti on newly selected
       setFireConfetti(false);
       requestAnimationFrame(() => setFireConfetti(true));
+    } else if (!active && wasActive.current) {
+      // Subtle shrink-bounce on deselect
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 0.9, duration: 100, useNativeDriver: true }),
+        Animated.spring(scale, { toValue: 1, speed: 20, bounciness: 10, useNativeDriver: true }),
+      ]).start();
     }
     wasActive.current = active;
   }, [active]);
@@ -240,8 +246,10 @@ function Bubble({
     onPress();
   };
 
+  const sizeScale = screenWidth / BASE_WIDTH;
   const containerWidth = screenWidth - Spacing.base * 2;
-  const bubbleSize = active ? layout.size * 1.12 : layout.size;
+  const scaledSize = layout.size * sizeScale;
+  const bubbleSize = active ? scaledSize * 1.06 : scaledSize;
 
   const bgColor = colorAnim.interpolate({
     inputRange: [0, 1],
@@ -365,24 +373,40 @@ function ShimmerOverlay({ visible, screenWidth }: { visible: boolean; screenWidt
 // ─── Main screen ────────────────────────────────────────────
 
 export default function OnboardingScreen() {
+  const { reset } = useLocalSearchParams<{ reset?: string }>();
+  const isReset = reset === 'true';
+
   const [showWelcome, setShowWelcome] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [animateBubbles, setAnimateBubbles] = useState(false);
   const [bubbleAreaHeight, setBubbleAreaHeight] = useState(0);
   const [showShimmer, setShowShimmer] = useState(true);
+  const [error, setError] = useState('');
   const { width: screenWidth } = useWindowDimensions();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  // Start bubble animation immediately, show welcome sheet after a short delay
+  // Start bubble animation immediately, show welcome sheet after a short delay (skip on reset)
   useEffect(() => {
     requestAnimationFrame(() => setAnimateBubbles(true));
-    const timer = setTimeout(() => setShowWelcome(true), 400);
-    // Stop shimmer once bubbles have finished entering
+    if (!isReset) {
+      const timer = setTimeout(() => setShowWelcome(true), 400);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Stop shimmer once bubbles have finished entering
+  useEffect(() => {
     const shimmerTimer = setTimeout(() => setShowShimmer(false), 2000);
-    return () => { clearTimeout(timer); clearTimeout(shimmerTimer); };
+    return () => clearTimeout(shimmerTimer);
+  }, []);
+
+  // Android hardware back — consume the event to prevent app exit
+  useEffect(() => {
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => handler.remove();
   }, []);
 
   const toggleCategory = useCallback((cat: string) => {
@@ -390,8 +414,6 @@ export default function OnboardingScreen() {
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
     );
   }, []);
-
-  const [error, setError] = useState('');
 
   const saveAndNavigate = async () => {
     if (saving) return;
@@ -458,6 +480,7 @@ export default function OnboardingScreen() {
               ? `${categoryCount} selected`
               : `${categoryCount} selected \u2014 nice taste!`}
         </Text>
+        <Text style={styles.hint}>These shape your home feed</Text>
 
         <View style={styles.heroCard}>
           <View style={styles.shimmerClip}>
@@ -498,7 +521,7 @@ export default function OnboardingScreen() {
         <View style={styles.logoSpacer} />
       </View>
 
-      {/* Welcome bottom sheet */}
+      {/* Welcome bottom sheet — only on first signup, not profile reset */}
       <BottomSheet visible={showWelcome} onClose={() => setShowWelcome(false)}>
         <View style={styles.sheetContent}>
           <Text style={styles.sheetHeading}>{"Let\u2019s personalise\nyour feed"}</Text>
@@ -546,6 +569,12 @@ function getStyles(colors: ColorTokens) {
       color: colors.textSecondary,
       textAlign: 'center',
       lineHeight: 22,
+    },
+    hint: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: Spacing.xs,
     },
 
     // Hero card

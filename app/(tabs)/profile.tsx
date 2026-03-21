@@ -89,7 +89,7 @@ export default function ProfileScreen() {
               .update({ preferred_categories: [], onboarding_completed: false })
               .eq('id', user.id);
             await refreshProfile();
-            router.replace('/onboarding');
+            router.replace('/onboarding?reset=true');
           },
         },
       ]
