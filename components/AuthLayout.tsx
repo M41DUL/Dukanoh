@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   View,
+  Alert,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -23,10 +24,27 @@ import {
 
 interface AuthLayoutProps {
   children: React.ReactNode;
+  /** When true, back button shows a discard confirmation */
+  isDirty?: boolean;
 }
 
-export function AuthLayout({ children }: AuthLayoutProps) {
+export function AuthLayout({ children, isDirty }: AuthLayoutProps) {
   const insets = useSafeAreaInsets();
+
+  const handleBack = () => {
+    if (isDirty) {
+      Alert.alert(
+        'Discard changes?',
+        "You'll lose what you've entered.",
+        [
+          { text: 'Keep editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => router.back() },
+        ],
+      );
+    } else {
+      router.back();
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -52,7 +70,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           {/* Back */}
-          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
+          <TouchableOpacity onPress={handleBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="arrow-back" size={24} color="rgba(255,255,255,0.7)" />
           </TouchableOpacity>
 

@@ -40,7 +40,8 @@ function RootNavigator() {
   const segments = useSegments();
   const { isDark } = useTheme();
   const [splashDone, setSplashDone] = useState(false);
-  const [navigatedAfterSplash, setNavigatedAfterSplash] = useState(false);
+  const [routeReady, setRouteReady] = useState(false);
+  const [splashVisible, setSplashVisible] = useState(true);
 
   useEffect(() => {
     if (fontsLoaded && !loading) {
@@ -50,20 +51,20 @@ function RootNavigator() {
 
   // Navigate to the correct route once splash animation finishes
   useEffect(() => {
-    if (!fontsLoaded || loading || !splashDone || navigatedAfterSplash) return;
+    if (!fontsLoaded || loading || !splashDone || routeReady) return;
 
     if (!session) {
       router.replace('/(auth)/intro');
     } else {
       router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
     }
-    // Small delay so the route mounts before we remove the splash overlay
-    setTimeout(() => setNavigatedAfterSplash(true), 50);
+    // Wait for route to mount, then tell splash to fade out
+    setTimeout(() => setRouteReady(true), 100);
   }, [splashDone, fontsLoaded, loading]);
 
   // Handle auth state changes after initial navigation (e.g. login/logout)
   useEffect(() => {
-    if (!fontsLoaded || loading || !navigatedAfterSplash) return;
+    if (!fontsLoaded || loading || !routeReady || splashVisible) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
@@ -72,7 +73,7 @@ function RootNavigator() {
     } else if (inAuthGroup) {
       router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
     }
-  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, navigatedAfterSplash]);
+  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, routeReady]);
 
   if (!fontsLoaded || loading) return null;
 
@@ -116,8 +117,12 @@ function RootNavigator() {
         />
       </Stack>
       <StatusBar style="light" />
-      {!navigatedAfterSplash && (
-        <SplashAnimation onDone={() => setSplashDone(true)} />
+      {splashVisible && (
+        <SplashAnimation
+          onAnimationDone={() => setSplashDone(true)}
+          fadeOut={routeReady}
+          onFadeOutDone={() => setSplashVisible(false)}
+        />
       )}
     </>
   );

@@ -157,7 +157,7 @@ export default function SignUpScreen() {
   ) : null;
 
   return (
-    <AuthLayout>
+    <AuthLayout isDirty={username.length > 0 || email.length > 0 || password.length > 0}>
       <Text style={styles.heading}>Create account</Text>
 
       <View style={styles.form}>

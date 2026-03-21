@@ -5,11 +5,17 @@ import { LOGO_FINAL_W, LOGO_FINAL_H, LOGO_SMALL_SCALE } from '@/constants/logoLa
 import { DukanohLogo } from './DukanohLogo';
 
 interface SplashAnimationProps {
-  onDone: () => void;
+  /** Called when logo animation finishes — triggers route navigation */
+  onAnimationDone: () => void;
+  /** When true, splash fades out (set after route has mounted) */
+  fadeOut: boolean;
+  /** Called after fade-out completes — safe to unmount */
+  onFadeOutDone: () => void;
 }
 
-export function SplashAnimation({ onDone }: SplashAnimationProps) {
+export function SplashAnimation({ onAnimationDone, fadeOut, onFadeOutDone }: SplashAnimationProps) {
   const logoScale = useRef(new Animated.Value(0)).current;
+  const containerOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     // Scale up from 0
@@ -27,13 +33,24 @@ export function SplashAnimation({ onDone }: SplashAnimationProps) {
           duration: 400,
           easing: Easing.in(Easing.ease),
           useNativeDriver: true,
-        }).start(() => onDone());
+        }).start(() => onAnimationDone());
       }, 500);
     });
   }, []);
 
+  // Fade out when told to
+  useEffect(() => {
+    if (fadeOut) {
+      Animated.timing(containerOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => onFadeOutDone());
+    }
+  }, [fadeOut]);
+
   return (
-    <Animated.View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: containerOpacity }]}>
       <Animated.View style={{ transform: [{ scale: logoScale }] }}>
         <DukanohLogo width={LOGO_FINAL_W} height={LOGO_FINAL_H} />
       </Animated.View>

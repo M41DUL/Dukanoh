@@ -41,7 +41,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <AuthLayout>
+    <AuthLayout isDirty={email.length > 0 || password.length > 0}>
       <Text style={styles.heading}>Sign in</Text>
 
       <View style={styles.form}>
