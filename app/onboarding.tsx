@@ -17,7 +17,6 @@ import {
   Typography,
   Spacing,
   FontFamily,
-  Categories,
   ColorTokens,
 } from '@/constants/theme';
 import {
@@ -26,40 +25,20 @@ import {
   LOGO_TRANSLATE_X,
   LOGO_TRANSLATE_Y,
 } from '@/constants/logoLayout';
+import {
+  ONBOARDING_CATEGORIES,
+  CATEGORY_LAYOUT,
+  CATEGORY_DISTANCES,
+  MAX_DIST,
+  BASE_WIDTH,
+  getSubtitleText,
+  toggleCategory as toggleCat,
+  BubbleLayout,
+} from '@/constants/onboardingHelpers';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Button } from '@/components/Button';
 import { BottomSheet } from '@/components/BottomSheet';
-
-const BASE_WIDTH = 390; // iPhone 14 baseline for scaling
-const ONBOARDING_CATEGORIES = Categories.filter((c) => c !== 'All');
-
-// ─── Bubble layout data ─────────────────────────────────────
-type BubbleLayout = { left: number; top: number; size: number };
-
-const CATEGORY_LAYOUT: BubbleLayout[] = [
-  // Row 1
-  { left: 0.02, top: 0.00, size: 78 },   // Men (short)
-  { left: 0.30, top: 0.02, size: 96 },   // Women (short)
-  { left: 0.62, top: 0.00, size: 110 },  // Casualwear (long)
-  // Row 2
-  { left: 0.05, top: 0.24, size: 104 },  // Partywear (long)
-  { left: 0.42, top: 0.22, size: 82 },   // Festive (medium)
-  { left: 0.70, top: 0.24, size: 74 },   // Formal (medium)
-  // Row 3
-  { left: 0.02, top: 0.48, size: 86 },   // Achkan (medium)
-  { left: 0.34, top: 0.46, size: 98 },   // Wedding (medium)
-  // Row 4
-  { left: 0.06, top: 0.72, size: 114 },  // Pathani Suit (long)
-  { left: 0.48, top: 0.74, size: 76 },   // Shoes (short)
-];
-
-// Pre-compute centre-out distances for staggered entrance
-const CENTRE = { x: 0.45, y: 0.35 };
-const CATEGORY_DISTANCES = CATEGORY_LAYOUT.map((l) =>
-  Math.sqrt((l.left - CENTRE.x) ** 2 + (l.top - CENTRE.y) ** 2),
-);
-const MAX_DIST = Math.max(...CATEGORY_DISTANCES);
 
 // ─── Confetti particle ──────────────────────────────────────
 
@@ -246,10 +225,8 @@ function Bubble({
     onPress();
   };
 
-  const sizeScale = screenWidth / BASE_WIDTH;
   const containerWidth = screenWidth - Spacing.base * 2;
-  const scaledSize = layout.size * sizeScale;
-  const bubbleSize = active ? scaledSize * 1.06 : scaledSize;
+  const bubbleSize = active ? layout.size * (screenWidth / BASE_WIDTH) * 1.06 : layout.size * (screenWidth / BASE_WIDTH);
 
   const bgColor = colorAnim.interpolate({
     inputRange: [0, 1],
@@ -410,9 +387,7 @@ export default function OnboardingScreen() {
   }, []);
 
   const toggleCategory = useCallback((cat: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
-    );
+    setSelectedCategories((prev) => toggleCat(prev, cat));
   }, []);
 
   const saveAndNavigate = async () => {
@@ -474,11 +449,7 @@ export default function OnboardingScreen() {
       <View style={styles.content}>
         <Text style={styles.heading}>What are you into?</Text>
         <Text style={styles.subtitle}>
-          {categoryCount === 0
-            ? 'Pick at least one'
-            : categoryCount < 3
-              ? `${categoryCount} selected`
-              : `${categoryCount} selected \u2014 nice taste!`}
+          {getSubtitleText(categoryCount)}
         </Text>
         <Text style={styles.hint}>These shape your home feed</Text>
 
