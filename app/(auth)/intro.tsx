@@ -58,9 +58,13 @@ export default function IntroScreen() {
   const badgeScales = useRef(BADGES.map(() => new Animated.Value(0))).current;
 
   const mountedRef = useRef(true);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+      timersRef.current.forEach(clearTimeout);
+    };
   }, []);
 
   const startLineReveal = (onComplete?: () => void) => {
@@ -68,7 +72,7 @@ export default function IntroScreen() {
       600,
       lineAnims.map((anim, i) =>
         Animated.parallel([
-          Animated.spring(anim, { toValue: 0, speed: 18, bounciness: 0, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0, duration: 350, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
           Animated.timing(lineOpacities[i], { toValue: 1, duration: 200, useNativeDriver: true }),
         ])
       )
@@ -90,7 +94,7 @@ export default function IntroScreen() {
 
         Animated.sequence([
           Animated.parallel([
-            Animated.spring(scale, { toValue: 1, speed: 10, bounciness: 6, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1, duration: 350, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }),
             Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
           ]),
           Animated.delay(holdDuration),
@@ -119,24 +123,26 @@ export default function IntroScreen() {
     // Slide both logos into position simultaneously
     logoMarkOpacity.setValue(1);
     Animated.parallel([
-      Animated.spring(logoBottomY, { toValue: 0, speed: 14, bounciness: 0, useNativeDriver: true }),
-      Animated.spring(logoMarkY, { toValue: 0, speed: 14, bounciness: 0, useNativeDriver: true }),
+      Animated.timing(logoBottomY, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(logoMarkY, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
 
     // Start content before logos finish
-    setTimeout(() => {
+    const contentTimer = setTimeout(() => {
       const animIn = (opacity: Animated.Value, y: Animated.Value) =>
         Animated.parallel([
           Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-          Animated.spring(y, { toValue: 0, speed: 22, bounciness: 3, useNativeDriver: true }),
+          Animated.timing(y, { toValue: 0, duration: 300, easing: Easing.out(Easing.back(1.3)), useNativeDriver: true }),
         ]);
       Animated.stagger(80, [
         animIn(taglineOpacity, taglineY),
         animIn(ctaOpacity, ctaY),
       ]).start(() => {
-        setTimeout(() => startLineReveal(startBadges), 100);
+        const lineTimer = setTimeout(() => startLineReveal(startBadges), 100);
+        timersRef.current.push(lineTimer);
       });
     }, 300);
+    timersRef.current.push(contentTimer);
   }, []);
 
   // Restart badge animations when screen regains focus
