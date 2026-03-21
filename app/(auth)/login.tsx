@@ -40,58 +40,60 @@ export default function LoginScreen() {
   };
 
   return (
-    <AuthLayout isDirty={email.length > 0 || password.length > 0}>
-      <Text style={styles.heading}>Sign in</Text>
+    <>
+      <AuthLayout isDirty={email.length > 0 || password.length > 0}>
+        <Text style={styles.heading}>Sign in</Text>
 
-      <View style={styles.form}>
-        <Input
-          placeholder="Email"
-          value={email}
-          onChangeText={(v) => { setEmail(v); setError(''); }}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          textContentType="emailAddress"
-          returnKeyType="next"
-          onSubmitEditing={() => passwordRef.current?.focus()}
-          {...AUTH_INPUT_STYLE}
-        />
-        <Input
-          ref={passwordRef}
-          placeholder="Password"
-          value={password}
-          onChangeText={(v) => { setPassword(v); setError(''); }}
-          secureTextEntry
-          textContentType="password"
-          returnKeyType="done"
-          onSubmitEditing={handleLogin}
-          {...AUTH_INPUT_STYLE}
-        />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Button
-          label="Sign in"
-          onPress={handleLogin}
-          loading={loading}
-          disabled={!EMAIL_REGEX.test(email.trim()) || !password}
-          variant="secondary"
-          style={{ marginTop: Spacing.base }}
-        />
-        <Button
-          label="Forgot your password?"
-          onPress={() => { Keyboard.dismiss(); setShowForgot(true); }}
-          variant="ghost"
-          size="sm"
-          textColor="rgba(255,255,255,0.7)"
-          style={{ marginTop: Spacing.xl }}
-        />
-      </View>
+        <View style={styles.form}>
+          <Input
+            placeholder="Email"
+            value={email}
+            onChangeText={(v) => { setEmail(v); setError(''); }}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="emailAddress"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            {...AUTH_INPUT_STYLE}
+          />
+          <Input
+            ref={passwordRef}
+            placeholder="Password"
+            value={password}
+            onChangeText={(v) => { setPassword(v); setError(''); }}
+            secureTextEntry
+            textContentType="password"
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
+            {...AUTH_INPUT_STYLE}
+          />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Button
+            label="Sign in"
+            onPress={handleLogin}
+            loading={loading}
+            disabled={!EMAIL_REGEX.test(email.trim()) || !password}
+            variant="secondary"
+            style={{ marginTop: Spacing.base }}
+          />
+          <Button
+            label="Forgot your password?"
+            onPress={() => { Keyboard.dismiss(); setShowForgot(true); }}
+            variant="ghost"
+            size="sm"
+            textColor="rgba(255,255,255,0.7)"
+            style={{ marginTop: Spacing.xl }}
+          />
+        </View>
+      </AuthLayout>
 
       <ForgotPasswordSheet
         visible={showForgot}
         onClose={() => setShowForgot(false)}
         initialEmail={email.trim()}
       />
-    </AuthLayout>
+    </>
   );
 }
 

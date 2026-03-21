@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { lightColors, Spacing, BorderRadius, FontFamily } from '@/constants/theme';
 import {
@@ -35,6 +36,9 @@ const BADGES: { label: string; left: `${number}%`; top: `${number}%`; accent: bo
 
 export default function IntroScreen() {
   const [sheetMode, setSheetMode] = useState<'join' | 'login' | null>(null);
+  const isFocused = useIsFocused();
+  const focusedRef = useRef(true);
+  useEffect(() => { focusedRef.current = isFocused; }, [isFocused]);
 
   // Animated values for entrance
   const logoMarkOpacity = useRef(new Animated.Value(0)).current;
@@ -72,12 +76,13 @@ export default function IntroScreen() {
   };
 
   const startBadges = () => {
+    badgesStartedRef.current = true;
     BADGES.forEach((_, i) => {
       const opacity = badgeOpacities[i];
       const scale = badgeScales[i];
 
       const runCycle = () => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || !focusedRef.current) return;
         const holdDuration = 1400 + Math.random() * 1600;
 
         scale.setValue(0);
@@ -94,7 +99,7 @@ export default function IntroScreen() {
             Animated.timing(opacity, { toValue: 0, duration: 350, useNativeDriver: true }),
           ]),
         ]).start(({ finished }) => {
-          if (!finished || !mountedRef.current) return;
+          if (!finished || !mountedRef.current || !focusedRef.current) return;
           setTimeout(runCycle, 600 + Math.random() * 1800);
         });
       };
@@ -133,6 +138,14 @@ export default function IntroScreen() {
       });
     }, 300);
   }, []);
+
+  // Restart badge animations when screen regains focus
+  const badgesStartedRef = useRef(false);
+  useEffect(() => {
+    if (isFocused && badgesStartedRef.current) {
+      startBadges();
+    }
+  }, [isFocused]);
 
   return (
     <View style={styles.container}>

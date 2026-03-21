@@ -61,7 +61,7 @@ export function ForgotPasswordSheet({ visible, onClose, initialEmail = '' }: For
     >
       {sent ? (
         <View style={styles.sentContainer}>
-          <Text style={styles.title}>Check your email</Text>
+          <Text style={styles.title} accessibilityRole="header">Check your email</Text>
           <Text style={styles.subtitle}>
             We sent a reset link to {email.trim()}. Tap the link to set a new password.
           </Text>
@@ -74,7 +74,7 @@ export function ForgotPasswordSheet({ visible, onClose, initialEmail = '' }: For
         </View>
       ) : (
         <>
-          <Text style={styles.title}>Forgot your password?</Text>
+          <Text style={styles.title} accessibilityRole="header">Forgot your password?</Text>
           <Text style={styles.subtitle}>
             Enter the email address linked to your account and we'll send you a reset link.
           </Text>

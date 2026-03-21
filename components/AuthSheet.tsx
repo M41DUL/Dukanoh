@@ -56,7 +56,7 @@ export function AuthSheet({ visible, mode, onClose, onEmail }: AuthSheetProps) {
       backgroundColor={lightColors.primary}
       handleColor="rgba(255,255,255,0.3)"
     >
-      <Text style={styles.title}>{copy.title}</Text>
+      <Text style={styles.title} accessibilityRole="header">{copy.title}</Text>
       <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
       <View style={styles.buttons}>

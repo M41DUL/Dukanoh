@@ -54,7 +54,8 @@ function RootNavigator() {
     if (!fontsLoaded || loading || !splashDone || routeReady) return;
 
     if (!session) {
-      router.replace('/(auth)/intro');
+      const inAuthGroup = segments[0] === '(auth)';
+      if (!inAuthGroup) router.replace('/(auth)/intro');
     } else {
       router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
     }
