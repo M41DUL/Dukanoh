@@ -38,17 +38,104 @@ const ONBOARDING_CATEGORIES = Categories.filter((c) => c !== 'All');
 type BubbleLayout = { left: number; top: number; size: number };
 
 const CATEGORY_LAYOUT: BubbleLayout[] = [
-  { left: 0.02, top: 0.00, size: 84 },
-  { left: 0.30, top: 0.02, size: 88 },
-  { left: 0.60, top: 0.00, size: 82 },
-  { left: 0.08, top: 0.18, size: 86 },
-  { left: 0.40, top: 0.16, size: 90 },
-  { left: 0.72, top: 0.18, size: 80 },
-  { left: 0.02, top: 0.36, size: 88 },
-  { left: 0.34, top: 0.34, size: 84 },
-  { left: 0.12, top: 0.52, size: 86 },
-  { left: 0.48, top: 0.54, size: 82 },
+  // Row 1
+  { left: 0.02, top: 0.00, size: 78 },   // Men (short)
+  { left: 0.30, top: 0.02, size: 96 },   // Women (short)
+  { left: 0.62, top: 0.00, size: 110 },  // Casualwear (long)
+  // Row 2
+  { left: 0.05, top: 0.22, size: 104 },  // Partywear (long)
+  { left: 0.42, top: 0.20, size: 82 },   // Festive (medium)
+  { left: 0.70, top: 0.22, size: 74 },   // Formal (medium)
+  // Row 3
+  { left: 0.02, top: 0.44, size: 86 },   // Achkan (medium)
+  { left: 0.34, top: 0.42, size: 98 },   // Wedding (medium)
+  // Row 4
+  { left: 0.06, top: 0.66, size: 114 },  // Pathani Suit (long)
+  { left: 0.48, top: 0.68, size: 76 },   // Shoes (short)
 ];
+
+// Pre-compute centre-out distances for staggered entrance
+const CENTRE = { x: 0.45, y: 0.35 };
+const CATEGORY_DISTANCES = CATEGORY_LAYOUT.map((l) =>
+  Math.sqrt((l.left - CENTRE.x) ** 2 + (l.top - CENTRE.y) ** 2),
+);
+const MAX_DIST = Math.max(...CATEGORY_DISTANCES);
+
+// ─── Confetti particle ──────────────────────────────────────
+
+const PARTICLE_COUNT = 6;
+const PARTICLE_COLORS = ['#C7F75E', '#3735C5', '#FF6B6B', '#FFD93D', '#6BCB77', '#9B59B6'];
+
+function ConfettiParticles({ fire, size }: { fire: boolean; size: number }) {
+  const anims = useRef(
+    Array.from({ length: PARTICLE_COUNT }, () => ({
+      progress: new Animated.Value(0),
+      angle: Math.random() * Math.PI * 2,
+      distance: 20 + Math.random() * 30,
+    })),
+  ).current;
+
+  useEffect(() => {
+    if (!fire) return;
+    anims.forEach((p) => {
+      p.progress.setValue(0);
+      p.angle = Math.random() * Math.PI * 2;
+      p.distance = 20 + Math.random() * 30;
+      Animated.timing(p.progress, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [fire]);
+
+  const centre = size / 2;
+
+  return (
+    <>
+      {anims.map((p, i) => (
+        <Animated.View
+          key={i}
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: centre - 3,
+            top: centre - 3,
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: PARTICLE_COLORS[i % PARTICLE_COLORS.length],
+            opacity: p.progress.interpolate({
+              inputRange: [0, 0.3, 1],
+              outputRange: [0, 1, 0],
+            }),
+            transform: [
+              {
+                translateX: p.progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, Math.cos(p.angle) * p.distance],
+                }),
+              },
+              {
+                translateY: p.progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, Math.sin(p.angle) * p.distance],
+                }),
+              },
+              {
+                scale: p.progress.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [0, 1.2, 0.4],
+                }),
+              },
+            ],
+          }}
+        />
+      ))}
+    </>
+  );
+}
 
 // ─── Animated bubble ────────────────────────────────────────
 
@@ -73,17 +160,57 @@ function Bubble({
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const entrance = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const float = useRef(new Animated.Value(0)).current;
+  const colorAnim = useRef(new Animated.Value(active ? 1 : 0)).current;
+  const [fireConfetti, setFireConfetti] = useState(false);
+  const wasActive = useRef(active);
+
+  // Centre-out stagger: closer to centre = smaller delay
+  const normDist = CATEGORY_DISTANCES[index] / MAX_DIST;
+  const entranceDelay = 200 + normDist * 800;
 
   useEffect(() => {
     if (!animate) return;
     Animated.timing(entrance, {
       toValue: 1,
       duration: 400,
-      delay: index * 60,
+      delay: entranceDelay,
       easing: Easing.out(Easing.back(1.4)),
       useNativeDriver: true,
     }).start();
   }, []);
+
+  // Colour fade + confetti on selection
+  useEffect(() => {
+    Animated.timing(colorAnim, {
+      toValue: active ? 1 : 0,
+      duration: 250,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+
+    // Fire confetti only on newly selected (not on mount)
+    if (active && !wasActive.current) {
+      setFireConfetti(false);
+      requestAnimationFrame(() => setFireConfetti(true));
+    }
+    wasActive.current = active;
+  }, [active]);
+
+  // Gentle float when selected
+  useEffect(() => {
+    if (active) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(float, { toValue: -4, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(float, { toValue: 4, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ]),
+      ).start();
+    } else {
+      float.stopAnimation();
+      Animated.timing(float, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    }
+  }, [active]);
 
   const handlePress = async () => {
     await Haptics.selectionAsync();
@@ -106,6 +233,15 @@ function Bubble({
   const containerWidth = SCREEN_W - Spacing.base * 2;
   const bubbleSize = active ? layout.size * 1.12 : layout.size;
 
+  const bgColor = colorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(0,0,0,0.06)', colors.secondary],
+  });
+  const borderColor = colorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(0,0,0,0.12)', colors.secondary],
+  });
+
   return (
     <Animated.View
       style={{
@@ -113,7 +249,10 @@ function Bubble({
         left: layout.left * containerWidth,
         top: layout.top * areaHeight,
         opacity: entrance,
-        transform: [{ scale: Animated.multiply(entrance, scale) }],
+        transform: [
+          { scale: Animated.multiply(entrance, scale) },
+          { translateY: float },
+        ],
       }}
     >
       <TouchableOpacity
@@ -121,29 +260,33 @@ function Bubble({
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityState={{ selected: active }}
-        style={[
-          bubbleStyles.bubble,
-          {
-            width: bubbleSize,
-            height: bubbleSize,
-            borderRadius: bubbleSize / 2,
-            backgroundColor: active ? colors.secondary : 'rgba(0,0,0,0.06)',
-            borderColor: active ? colors.secondary : 'rgba(0,0,0,0.12)',
-          },
-        ]}
       >
-        <Text
+        <Animated.View
           style={[
-            bubbleStyles.label,
+            bubbleStyles.bubble,
             {
-              color: active ? '#0D0D0D' : colors.textPrimary,
-              fontSize: label.length > 8 ? 11 : 13,
+              width: bubbleSize,
+              height: bubbleSize,
+              borderRadius: bubbleSize / 2,
+              backgroundColor: bgColor,
+              borderColor: borderColor,
             },
           ]}
-          numberOfLines={1}
         >
-          {label}
-        </Text>
+          <Text
+            style={[
+              bubbleStyles.label,
+              {
+                color: active ? '#0D0D0D' : colors.textPrimary,
+                fontSize: 13,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {label}
+          </Text>
+          <ConfettiParticles fire={fireConfetti} size={bubbleSize} />
+        </Animated.View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -154,6 +297,7 @@ const bubbleStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
+    overflow: 'visible',
   },
   label: {
     fontFamily: FontFamily.semibold,
@@ -161,6 +305,52 @@ const bubbleStyles = StyleSheet.create({
     paddingHorizontal: 4,
   },
 });
+
+// ─── Shimmer overlay ────────────────────────────────────────
+
+function ShimmerOverlay({ visible }: { visible: boolean }) {
+  const shimmer = useRef(new Animated.Value(-1)).current;
+
+  useEffect(() => {
+    if (!visible) return;
+    Animated.loop(
+      Animated.timing(shimmer, {
+        toValue: 2,
+        duration: 1800,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ).start();
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        ...StyleSheet.absoluteFillObject,
+        transform: [
+          {
+            translateX: shimmer.interpolate({
+              inputRange: [-1, 2],
+              outputRange: [-SCREEN_W, SCREEN_W * 2],
+            }),
+          },
+        ],
+      }}
+    >
+      <View
+        style={{
+          width: SCREEN_W * 0.5,
+          height: '100%',
+          backgroundColor: 'rgba(255,255,255,0.7)',
+          transform: [{ skewX: '-20deg' }],
+        }}
+      />
+    </Animated.View>
+  );
+}
 
 // ─── Main screen ────────────────────────────────────────────
 
@@ -170,6 +360,7 @@ export default function OnboardingScreen() {
   const [saving, setSaving] = useState(false);
   const [animateBubbles, setAnimateBubbles] = useState(false);
   const [bubbleAreaHeight, setBubbleAreaHeight] = useState(0);
+  const [showShimmer, setShowShimmer] = useState(true);
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -178,7 +369,9 @@ export default function OnboardingScreen() {
   useEffect(() => {
     requestAnimationFrame(() => setAnimateBubbles(true));
     const timer = setTimeout(() => setShowWelcome(true), 400);
-    return () => clearTimeout(timer);
+    // Stop shimmer once bubbles have finished entering
+    const shimmerTimer = setTimeout(() => setShowShimmer(false), 2000);
+    return () => { clearTimeout(timer); clearTimeout(shimmerTimer); };
   }, []);
 
   const toggleCategory = useCallback((cat: string) => {
@@ -225,9 +418,16 @@ export default function OnboardingScreen() {
 
       <View style={styles.content}>
         <Text style={styles.heading}>What are you into?</Text>
-        <Text style={styles.subtitle}>Pick at least one</Text>
+        <Text style={styles.subtitle}>
+          {categoryCount === 0
+            ? 'Pick at least one'
+            : categoryCount < 3
+              ? `${categoryCount} selected`
+              : `${categoryCount} selected \u2014 nice taste!`}
+        </Text>
 
         <View style={styles.heroCard}>
+          <ShimmerOverlay visible={showShimmer} />
           <View
             style={styles.bubbleArea}
             onLayout={(e) => setBubbleAreaHeight(e.nativeEvent.layout.height)}
@@ -250,7 +450,7 @@ export default function OnboardingScreen() {
 
         <View style={styles.footer}>
           <Button
-            label="Finish"
+            label="Show me my feed"
             onPress={saveAndNavigate}
             variant="primary"
             disabled={categoryCount === 0}
@@ -267,14 +467,6 @@ export default function OnboardingScreen() {
           <Text style={styles.sheetHeading}>{"Let\u2019s personalise\nyour feed"}</Text>
           <Text style={styles.sheetSubtitle}>
             {"Dukanoh is built around what you love. Tell us what catches your eye and we\u2019ll curate a feed that feels like it was made for you."}
-          </Text>
-          <Text style={styles.sheetStep}>
-            <Text style={styles.sheetStepBold}>Pick your categories</Text>
-            {" \u2014 tap the bubbles behind this sheet to select the styles you\u2019re into. Casualwear, festive, wedding \u2014 whatever you\u2019re looking for."}
-          </Text>
-          <Text style={styles.sheetStep}>
-            <Text style={styles.sheetStepBold}>{"We\u2019ll do the rest"}</Text>
-            {" \u2014 your home feed, search results and recommendations will all be shaped by what you choose. You can always update this later in your profile."}
           </Text>
           <Button
             label="Get started"
@@ -343,31 +535,23 @@ function getStyles(colors: ColorTokens) {
 
     // Welcome sheet
     sheetContent: {
+      alignItems: 'center',
       paddingHorizontal: Spacing.xs,
     },
     sheetHeading: {
       ...Typography.heading,
       color: colors.textPrimary,
+      textAlign: 'center',
       marginBottom: Spacing.sm,
     },
     sheetSubtitle: {
       ...Typography.body,
       color: colors.textSecondary,
+      textAlign: 'center',
       lineHeight: 22,
-      marginBottom: Spacing.base,
-    },
-    sheetStep: {
-      ...Typography.body,
-      color: colors.textSecondary,
-      lineHeight: 22,
-      marginBottom: Spacing.sm,
-    },
-    sheetStepBold: {
-      fontFamily: FontFamily.semibold,
-      color: colors.textPrimary,
     },
     sheetButton: {
-      marginTop: Spacing.base,
+      marginTop: Spacing.xl,
       width: '100%',
     },
   });
