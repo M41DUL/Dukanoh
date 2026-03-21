@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Fuse from 'fuse.js';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { SearchBar } from '@/components/SearchBar';
 import { Badge } from '@/components/Badge';
@@ -17,6 +18,16 @@ const RECENT_KEY = '@dukanoh/recent_searches';
 const MAX_RECENT = 6;
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
+const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
+
+type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'most_saved' | 'most_viewed';
+const SORT_OPTIONS: { label: string; value: SortOption }[] = [
+  { label: 'Newest', value: 'newest' },
+  { label: 'Price: Low → High', value: 'price_asc' },
+  { label: 'Price: High → Low', value: 'price_desc' },
+  { label: 'Most saved', value: 'most_saved' },
+  { label: 'Most viewed', value: 'most_viewed' },
+];
 
 interface PriceRange { label: string; min: number; max: number; }
 const PRICE_RANGES: PriceRange[] = [
@@ -54,10 +65,13 @@ export default function SearchScreen() {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [trendingCategories, setTrendingCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('All');
-  const [activeSize, setActiveSize] = useState<string | null>(null);
+  const [activeSizes, setActiveSizes] = useState<string[]>([]);
+  const [activeOccasions, setActiveOccasions] = useState<string[]>([]);
   const [activePriceRange, setActivePriceRange] = useState<PriceRange | null>(null);
+  const [sort, setSort] = useState<SortOption>('newest');
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
+  const fuseRef = useRef<Fuse<Listing> | null>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -94,34 +108,103 @@ export default function SearchScreen() {
     setFocused(false);
   }, []);
 
+  const toggleSize = useCallback((size: string) => {
+    setActiveSizes(prev =>
+      prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]
+    );
+  }, []);
+
+  const toggleOccasion = useCallback((occ: string) => {
+    setActiveOccasions(prev =>
+      prev.includes(occ) ? prev.filter(o => o !== occ) : [...prev, occ]
+    );
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(async () => {
       setLoading(true);
+
+      // Build sort order
+      let orderCol = 'created_at';
+      let ascending = false;
+      if (sort === 'price_asc') { orderCol = 'price'; ascending = true; }
+      else if (sort === 'price_desc') { orderCol = 'price'; ascending = false; }
+      else if (sort === 'most_saved') { orderCol = 'save_count'; ascending = false; }
+      else if (sort === 'most_viewed') { orderCol = 'view_count'; ascending = false; }
 
       let q = supabase
         .from('listings')
         .select('*, seller:users(username, avatar_url)')
         .eq('status', 'available')
-        .order('created_at', { ascending: false });
+        .order(orderCol, { ascending });
 
-      if (query.trim()) q = q.ilike('title', `%${query.trim()}%`);
+      // Apply category filter
       if (activeCategory !== 'All') q = q.eq('category', activeCategory);
-      if (activeSize) q = q.ilike('size', `%${activeSize}%`);
+
+      // Apply multi-select size filter (OR — match any selected size)
+      if (activeSizes.length === 1) {
+        q = q.ilike('size', `%${activeSizes[0]}%`);
+      } else if (activeSizes.length > 1) {
+        // Supabase doesn't support OR on ilike natively, so fetch broader and filter client-side
+      }
+
+      // Apply multi-select occasion filter
+      if (activeOccasions.length === 1) {
+        q = q.eq('occasion', activeOccasions[0]);
+      } else if (activeOccasions.length > 1) {
+        q = q.in('occasion', activeOccasions);
+      }
+
+      // Apply price range
       if (activePriceRange) {
         q = q.gte('price', activePriceRange.min);
         if (activePriceRange.max !== Infinity) q = q.lte('price', activePriceRange.max);
       }
 
+      // For text search, fetch broader set and apply fuzzy matching client-side
+      // ilike for initial narrowing, fuse.js for re-ranking
+      const trimmedQuery = query.trim();
+      if (trimmedQuery) {
+        q = q.or(`title.ilike.%${trimmedQuery}%,category.ilike.%${trimmedQuery}%,occasion.ilike.%${trimmedQuery}%`);
+      }
+
       const { data } = await q;
-      setListings((data ?? []) as unknown as Listing[]);
+      let results = (data ?? []) as unknown as Listing[];
+
+      // Client-side multi-size filter when > 1 size selected
+      if (activeSizes.length > 1) {
+        const sizeLower = activeSizes.map(s => s.toLowerCase());
+        results = results.filter(l =>
+          l.size && sizeLower.some(s => l.size!.toLowerCase().includes(s))
+        );
+      }
+
+      // Fuzzy re-rank with fuse.js when there's a text query
+      if (trimmedQuery && results.length > 0) {
+        fuseRef.current = new Fuse(results, {
+          keys: [
+            { name: 'title', weight: 0.6 },
+            { name: 'category', weight: 0.2 },
+            { name: 'occasion', weight: 0.2 },
+          ],
+          threshold: 0.4,
+          includeScore: true,
+        });
+        const fuseResults = fuseRef.current.search(trimmedQuery);
+        results = fuseResults.map(r => r.item);
+      }
+
+      setListings(results);
       setLoading(false);
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [query, activeCategory, activeSize, activePriceRange]);
+  }, [query, activeCategory, activeSizes, activeOccasions, activePriceRange, sort]);
 
   const showPanel = focused && !query.trim() &&
     (recentSearches.length > 0 || trendingCategories.length > 0);
+
+  const activeFilterCount = activeSizes.length + activeOccasions.length + (activePriceRange ? 1 : 0);
 
   return (
     <ScreenWrapper>
@@ -193,6 +276,7 @@ export default function SearchScreen() {
           )}
           ListHeaderComponent={
             <View style={styles.filters}>
+              {/* Category */}
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -208,7 +292,10 @@ export default function SearchScreen() {
                 ))}
               </ScrollView>
 
-              <Text style={styles.filterLabel}>Size</Text>
+              {/* Size (multi-select) */}
+              <Text style={styles.filterLabel}>
+                Size{activeSizes.length > 0 ? ` (${activeSizes.length})` : ''}
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -218,12 +305,32 @@ export default function SearchScreen() {
                   <Badge
                     key={size}
                     label={size}
-                    active={activeSize === size}
-                    onPress={() => setActiveSize(prev => prev === size ? null : size)}
+                    active={activeSizes.includes(size)}
+                    onPress={() => toggleSize(size)}
                   />
                 ))}
               </ScrollView>
 
+              {/* Occasion (multi-select) */}
+              <Text style={styles.filterLabel}>
+                Occasion{activeOccasions.length > 0 ? ` (${activeOccasions.length})` : ''}
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipRow}
+              >
+                {OCCASIONS.map(occ => (
+                  <Badge
+                    key={occ}
+                    label={occ}
+                    active={activeOccasions.includes(occ)}
+                    onPress={() => toggleOccasion(occ)}
+                  />
+                ))}
+              </ScrollView>
+
+              {/* Price */}
               <Text style={styles.filterLabel}>Price</Text>
               <ScrollView
                 horizontal
@@ -243,10 +350,43 @@ export default function SearchScreen() {
                   />
                 ))}
               </ScrollView>
+
+              {/* Sort */}
+              <Text style={styles.filterLabel}>Sort by</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipRow}
+              >
+                {SORT_OPTIONS.map(opt => (
+                  <Badge
+                    key={opt.value}
+                    label={opt.label}
+                    active={sort === opt.value}
+                    onPress={() => setSort(opt.value)}
+                  />
+                ))}
+              </ScrollView>
+
+              {/* Results count + clear filters */}
               {!loading && (
-                <Text style={styles.resultsCount}>
-                  {listings.length} {listings.length === 1 ? 'result' : 'results'}
-                </Text>
+                <View style={styles.resultsRow}>
+                  <Text style={styles.resultsCount}>
+                    {listings.length} {listings.length === 1 ? 'result' : 'results'}
+                  </Text>
+                  {activeFilterCount > 0 && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setActiveSizes([]);
+                        setActiveOccasions([]);
+                        setActivePriceRange(null);
+                      }}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.clearFilters}>Clear filters</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
             </View>
           }
@@ -277,11 +417,21 @@ function getStyles(colors: ColorTokens) {
       color: colors.textSecondary,
       marginBottom: Spacing.xs,
     },
+    resultsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: Spacing.sm,
+      paddingBottom: Spacing.xs,
+    },
     resultsCount: {
       ...Typography.caption,
       color: colors.textSecondary,
-      paddingTop: Spacing.sm,
-      paddingBottom: Spacing.xs,
+    },
+    clearFilters: {
+      ...Typography.caption,
+      color: colors.primaryText,
+      fontFamily: 'Inter_600SemiBold',
     },
     grid: { flexGrow: 1, paddingTop: Spacing.sm, paddingBottom: Spacing['4xl'] },
     row: { gap: Spacing.sm, marginBottom: Spacing.sm },
