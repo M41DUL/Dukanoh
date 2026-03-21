@@ -14,10 +14,27 @@ export const AUTH_INPUT_STYLE = {
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Returns a user-friendly error message, detecting network failures */
+const TIMEOUT_MS = 30000;
+
+/** Wraps a promise with a timeout */
+export function withTimeout<T>(promise: Promise<T>, ms = TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('__TIMEOUT__')), ms),
+    ),
+  ]);
+}
+
+/** Returns a user-friendly error message, detecting network and timeout failures */
 export function getAuthError(err: unknown, fallback: string): string {
-  if (err instanceof TypeError && err.message.includes('Network request failed')) {
-    return 'No internet connection. Please check your network and try again.';
+  if (err instanceof Error) {
+    if (err.message === '__TIMEOUT__') {
+      return 'Request timed out. Please check your connection and try again.';
+    }
+    if (err.message.includes('Network request failed')) {
+      return 'No internet connection. Please check your network and try again.';
+    }
   }
   return fallback;
 }

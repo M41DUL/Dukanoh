@@ -26,7 +26,7 @@ interface InputProps extends TextInputProps {
 }
 
 export const Input = forwardRef<TextInput, InputProps>(
-  function Input({ label, error, hint, valid, icon, rightIcon, containerStyle, inputContainerStyle, placeholderColor, hintColor, secureTextEntry, style: inputStyle, ...props }, ref) {
+  function Input({ label, error, hint, valid, icon, rightIcon, containerStyle, inputContainerStyle, placeholderColor, hintColor, secureTextEntry, style: inputStyle, onFocus: onFocusProp, onBlur: onBlurProp, ...props }, ref) {
     const innerRef = useRef<TextInput>(null);
     const [focused, setFocused] = useState(false);
     const [hidden, setHidden] = useState(true);
@@ -60,8 +60,8 @@ export const Input = forwardRef<TextInput, InputProps>(
             style={[styles.input, inputStyle]}
             placeholderTextColor={placeholderColor ?? colors.textSecondary}
             secureTextEntry={isSecure}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
+            onFocus={(e) => { setFocused(true); onFocusProp?.(e); }}
+            onBlur={(e) => { setFocused(false); onBlurProp?.(e); }}
             {...props}
           />
           {secureTextEntry ? (

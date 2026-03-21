@@ -5,7 +5,7 @@ import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { lightColors, Typography, Spacing, FontFamily } from '@/constants/theme';
-import { AUTH_INPUT_STYLE, EMAIL_REGEX, getAuthError } from '@/constants/authStyles';
+import { AUTH_INPUT_STYLE, EMAIL_REGEX, getAuthError, withTimeout } from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
 const USERNAME_REGEX = /^[a-z0-9_]+$/;
 const USERNAME_MIN = 3;
@@ -20,9 +20,9 @@ function getPasswordStrength(pw: string): { label: string; color: string } | nul
   const hasNumber = /[0-9]/.test(pw);
   const hasSymbol = /[^a-zA-Z0-9]/.test(pw);
   const variety = [hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
-  if (pw.length >= 10 && variety >= 3) return { label: 'Strong password', color: lightColors.success };
-  if (pw.length >= 8 && variety >= 2) return { label: 'Good password', color: lightColors.secondary };
-  return { label: 'Weak password', color: '#FFA500' };
+  if (pw.length >= 10 && variety >= 3) return { label: 'Strong — 10+ chars with mixed types', color: lightColors.success };
+  if (pw.length >= 8 && variety >= 2) return { label: 'Good — try adding numbers or symbols', color: lightColors.secondary };
+  return { label: 'Weak — use 8+ chars with numbers or symbols', color: '#FFA500' };
 }
 
 export default function SignUpScreen() {
@@ -36,6 +36,8 @@ export default function SignUpScreen() {
   const [usernameError, setUsernameError] = useState('');
   const [usernameValid, setUsernameValid] = useState(false);
   const [checkingUsername, setCheckingUsername] = useState(false);
+
+  const [emailTouched, setEmailTouched] = useState(false);
 
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
@@ -92,8 +94,16 @@ export default function SignUpScreen() {
     }, 500);
   }, []);
 
+  const [usernameHint, setUsernameHint] = useState('');
+
   const handleUsernameChange = (value: string) => {
-    const sanitised = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    const lowered = value.toLowerCase();
+    const sanitised = lowered.replace(/[^a-z0-9_]/g, '');
+    if (sanitised !== lowered) {
+      setUsernameHint('Only letters, numbers, and underscores');
+    } else {
+      setUsernameHint('');
+    }
     setUsername(sanitised);
     setError('');
     checkUsername(sanitised);
@@ -123,15 +133,17 @@ export default function SignUpScreen() {
     setError('');
 
     try {
-      const { error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: {
-            username: username.toLowerCase(),
+      const { error: authError } = await withTimeout(
+        supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: {
+              username: username.toLowerCase(),
+            },
           },
-        },
-      });
+        }),
+      );
       if (authError) throw authError;
       // Root layout auth effect handles navigation
     } catch (err) {
@@ -173,19 +185,20 @@ export default function SignUpScreen() {
           error={usernameError}
           valid={usernameValid}
           rightIcon={usernameRightIcon}
-          hint={!usernameError && !usernameValid && username.length === 0 ? 'Lowercase letters, numbers, and underscores' : undefined}
+          hint={usernameHint || (!usernameError && !usernameValid && username.length === 0 ? 'Lowercase letters, numbers, and underscores' : undefined)}
           {...AUTH_INPUT_STYLE}
         />
         <Input
           ref={emailRef}
           placeholder="Email"
           value={email}
-          onChangeText={(v) => { setEmail(v); setError(''); }}
+          onChangeText={(v) => { setEmail(v); setError(''); setEmailTouched(false); }}
+          onBlur={() => setEmailTouched(true)}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
           textContentType="emailAddress"
-          error={email.trim().length > 0 && !isEmailValid ? 'Enter a valid email address' : undefined}
+          error={emailTouched && email.trim().length > 0 && !isEmailValid ? 'Enter a valid email address' : undefined}
           returnKeyType="next"
           onSubmitEditing={() => passwordRef.current?.focus()}
           {...AUTH_INPUT_STYLE}
