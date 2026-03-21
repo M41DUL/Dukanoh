@@ -21,12 +21,73 @@ import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/them
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useStories, getAppStory } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
+import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const nudgeKey = (userId: string) => `@dukanoh/profile_nudge_dismissed/${userId}`;
+const FEED_CACHE_KEY = (userId: string) => `@dukanoh/feed_cache/${userId}`;
+
+const TRENDING_CACHE_KEY = '@dukanoh/trending_categories';
+const TRENDING_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const RECENTLY_VIEWED_KEY = '@dukanoh/recently_viewed';
+
+interface FeedCache {
+  suggested: Listing[];
+  newArrivals: Listing[];
+  trending: string[];
+  priceDrops: PriceDrop[];
+  preferredCategories: string[];
+  hasListings: boolean;
+  profileComplete: boolean;
+  timestamp: number;
+}
+
+async function getViewedCategories(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
+    if (!raw) return [];
+    const ids: string[] = JSON.parse(raw);
+    if (ids.length === 0) return [];
+    const { data } = await supabase
+      .from('listings')
+      .select('category')
+      .in('id', ids);
+    if (!data) return [];
+    return [...new Set(data.map(d => d.category))];
+  } catch {
+    return [];
+  }
+}
+
+async function getSavedCategories(userId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase
+      .from('saved_items')
+      .select('listings(category)')
+      .eq('user_id', userId)
+      .limit(20);
+    if (!data) return [];
+    return [...new Set(
+      data
+        .map(d => (d.listings as any)?.category)
+        .filter(Boolean) as string[]
+    )];
+  } catch {
+    return [];
+  }
+}
 
 async function fetchTrendingCategories(): Promise<string[]> {
+  // Check cache first
+  try {
+    const cached = await AsyncStorage.getItem(TRENDING_CACHE_KEY);
+    if (cached) {
+      const { categories, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < TRENDING_TTL_MS) return categories;
+    }
+  } catch {}
+
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data } = await supabase
     .from('listings')
@@ -42,10 +103,17 @@ async function fetchTrendingCategories(): Promise<string[]> {
     return acc;
   }, {});
 
-  return Object.entries(counts)
+  const categories = Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([cat]) => cat);
+
+  // Cache the result
+  try {
+    await AsyncStorage.setItem(TRENDING_CACHE_KEY, JSON.stringify({ categories, timestamp: Date.now() }));
+  } catch {}
+
+  return categories;
 }
 
 async function fetchSection(userId: string, categories: string[]): Promise<Listing[]> {
@@ -396,6 +464,8 @@ function getPriceDropStyles(colors: ColorTokens) {
 
 const feedStaticStyles = StyleSheet.create({
   section: { marginBottom: Spacing.xl },
+  sectionTitle: { ...Typography.label },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   gridRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
   emptyCell: { flex: 1 },
 });
@@ -404,6 +474,7 @@ export default function HomeScreen() {
   const { stories, loading: storiesLoading, markViewed } = useStories();
   const allStories = [getAppStory(), ...stories];
   const { user } = useAuth();
+  const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -433,21 +504,37 @@ export default function HomeScreen() {
     setNudgeDismissed(true);
   }, []);
 
+  const applyFeedData = useCallback((data: Omit<FeedCache, 'timestamp'>) => {
+    setSuggested(data.suggested);
+    setNewArrivals(data.newArrivals);
+    setTrending(data.trending);
+    setPriceDrops(data.priceDrops);
+    setPreferredCategories(data.preferredCategories);
+    setHasListings(data.hasListings);
+    setProfileComplete(data.profileComplete);
+  }, []);
+
   const loadData = useCallback(async () => {
     if (!user) return;
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('preferred_categories, avatar_url, bio')
-      .eq('id', user.id)
-      .maybeSingle();
+    const [profile, viewedCats, savedCats] = await Promise.all([
+      supabase
+        .from('users')
+        .select('preferred_categories, avatar_url, bio')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(r => r.data),
+      getViewedCategories(),
+      getSavedCategories(user.id),
+    ]);
 
-    const cats: string[] = profile?.preferred_categories ?? [];
-    setPreferredCategories(cats);
-    setProfileComplete(!!(profile?.avatar_url && profile?.bio));
+    const onboardingCats: string[] = profile?.preferred_categories ?? [];
+    // Merge all category signals — onboarding picks first, then viewed, then saved
+    const allCats = [...new Set([...onboardingCats, ...viewedCats, ...savedCats])];
+    const isComplete = !!(profile?.avatar_url && profile?.bio);
 
     const [suggestedItems, newArrivalItems, trendingCats, listingCountResult, savedPrices] = await Promise.all([
-      cats.length > 0 ? fetchSection(user.id, cats) : Promise.resolve([]),
+      allCats.length > 0 ? fetchSection(user.id, allCats) : Promise.resolve([]),
       fetchSection(user.id, []),
       fetchTrendingCategories(),
       supabase
@@ -461,10 +548,7 @@ export default function HomeScreen() {
         .not('price_at_save', 'is', null),
     ]);
 
-    setSuggested(suggestedItems);
-    setNewArrivals(newArrivalItems);
-    setTrending(trendingCats);
-    setHasListings((listingCountResult.count ?? 0) > 0);
+    const userHasListings = (listingCountResult.count ?? 0) > 0;
 
     const drops: PriceDrop[] = (savedPrices.data ?? [])
       .filter(s => {
@@ -481,28 +565,66 @@ export default function HomeScreen() {
           savedPrice: s.price_at_save as number,
         };
       });
-    setPriceDrops(drops);
-  }, [user]);
 
+    const feedData: Omit<FeedCache, 'timestamp'> = {
+      suggested: suggestedItems,
+      newArrivals: newArrivalItems,
+      trending: trendingCats,
+      priceDrops: drops,
+      preferredCategories: allCats,
+      hasListings: userHasListings,
+      profileComplete: isComplete,
+    };
+
+    applyFeedData(feedData);
+
+    // Persist cache for next visit
+    try {
+      await AsyncStorage.setItem(
+        FEED_CACHE_KEY(user.id),
+        JSON.stringify({ ...feedData, timestamp: Date.now() }),
+      );
+    } catch {}
+  }, [user, applyFeedData]);
+
+  // On mount: load cache instantly, then refresh from network
   useEffect(() => {
-    loadData().finally(() => setLoading(false));
-  }, [loadData]);
+    if (!user) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(FEED_CACHE_KEY(user.id));
+        if (raw && !cancelled) {
+          const cached: FeedCache = JSON.parse(raw);
+          applyFeedData(cached);
+          setLoading(false);
+        }
+      } catch {}
+
+      await loadData();
+      if (!cancelled) setLoading(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [user, loadData, applyFeedData]);
 
   useFocusEffect(
     useCallback(() => {
       if (hasMounted.current) {
         loadData();
+        reloadRecent();
       } else {
         hasMounted.current = true;
       }
-    }, [loadData])
+    }, [loadData, reloadRecent])
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadData();
+    await Promise.all([loadData(), reloadRecent()]);
     setRefreshing(false);
-  }, [loadData]);
+  }, [loadData, reloadRecent]);
 
   return (
     <ScreenWrapper>
@@ -590,6 +712,13 @@ export default function HomeScreen() {
             ) : null}
 
             {!hasListings && <ReEngageCard />}
+
+            {recentItems.length > 0 && (
+              <View style={feedStaticStyles.section}>
+                <SectionHeader title="Recently viewed" />
+                <ListingsGrid items={recentItems} />
+              </View>
+            )}
           </ScrollView>
         )}
       </View>
