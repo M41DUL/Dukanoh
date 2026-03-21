@@ -5,25 +5,18 @@ import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { lightColors, Typography, Spacing, FontFamily } from '@/constants/theme';
-import { AUTH_INPUT_STYLE, EMAIL_REGEX, getAuthError, withTimeout } from '@/constants/authStyles';
+import {
+  AUTH_INPUT_STYLE,
+  EMAIL_REGEX,
+  USERNAME_REGEX,
+  USERNAME_MIN,
+  USERNAME_MAX,
+  PASSWORD_MIN,
+  getAuthError,
+  getPasswordStrength,
+  withTimeout,
+} from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
-const USERNAME_REGEX = /^[a-z0-9_]+$/;
-const USERNAME_MIN = 3;
-const USERNAME_MAX = 20;
-const PASSWORD_MIN = 6;
-
-function getPasswordStrength(pw: string): { label: string; color: string } | null {
-  if (pw.length === 0) return null;
-  if (pw.length < PASSWORD_MIN) return { label: `At least ${PASSWORD_MIN} characters`, color: lightColors.error };
-  const hasUpper = /[A-Z]/.test(pw);
-  const hasLower = /[a-z]/.test(pw);
-  const hasNumber = /[0-9]/.test(pw);
-  const hasSymbol = /[^a-zA-Z0-9]/.test(pw);
-  const variety = [hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
-  if (pw.length >= 10 && variety >= 3) return { label: 'Strong — 10+ chars with mixed types', color: lightColors.success };
-  if (pw.length >= 8 && variety >= 2) return { label: 'Good — try adding numbers or symbols', color: lightColors.secondary };
-  return { label: 'Weak — use 8+ chars with numbers or symbols', color: '#FFA500' };
-}
 
 export default function SignUpScreen() {
   const [username, setUsername] = useState('');

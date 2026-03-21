@@ -14,6 +14,34 @@ export const AUTH_INPUT_STYLE = {
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+export const USERNAME_REGEX = /^[a-z0-9_]+$/;
+export const USERNAME_MIN = 3;
+export const USERNAME_MAX = 20;
+export const PASSWORD_MIN = 6;
+
+/** Returns password strength label and colour, or null for empty input */
+export function getPasswordStrength(pw: string): { label: string; color: string } | null {
+  if (pw.length === 0) return null;
+  if (pw.length < PASSWORD_MIN) return { label: `At least ${PASSWORD_MIN} characters`, color: lightColors.error };
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasLower = /[a-z]/.test(pw);
+  const hasNumber = /[0-9]/.test(pw);
+  const hasSymbol = /[^a-zA-Z0-9]/.test(pw);
+  const variety = [hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
+  if (pw.length >= 10 && variety >= 3) return { label: 'Strong — 10+ chars with mixed types', color: lightColors.success };
+  if (pw.length >= 8 && variety >= 2) return { label: 'Good — try adding numbers or symbols', color: lightColors.secondary };
+  return { label: 'Weak — use 8+ chars with numbers or symbols', color: '#FFA500' };
+}
+
+/** Validates a username and returns an error string, or empty string if valid */
+export function validateUsername(value: string): string {
+  if (value.length === 0) return '';
+  if (value.length < USERNAME_MIN) return `At least ${USERNAME_MIN} characters`;
+  if (value.length > USERNAME_MAX) return `Maximum ${USERNAME_MAX} characters`;
+  if (!USERNAME_REGEX.test(value)) return 'Only lowercase letters, numbers, and underscores';
+  return '';
+}
+
 const TIMEOUT_MS = 30000;
 
 /** Wraps a promise with a timeout */
