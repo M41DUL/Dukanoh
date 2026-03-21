@@ -52,8 +52,8 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           {/* Back */}
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.7)" />
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={24} color="rgba(255,255,255,0.7)" />
           </TouchableOpacity>
 
           {/* Push content down */}

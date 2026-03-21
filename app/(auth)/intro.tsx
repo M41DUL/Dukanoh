@@ -105,10 +105,8 @@ export default function IntroScreen() {
 
   const handleEmail = () => {
     const isJoin = sheetMode === 'join';
+    router.push(isJoin ? '/(auth)/signup' : '/(auth)/login');
     setSheetMode(null);
-    setTimeout(() => {
-      router.push(isJoin ? '/(auth)/signup' : '/(auth)/login');
-    }, 50);
   };
 
   // Entrance animation on mount
@@ -199,10 +197,10 @@ export default function IntroScreen() {
 
         {/* CTAs */}
         <Animated.View style={[styles.ctaSection, { opacity: ctaOpacity, transform: [{ translateY: ctaY }] }]}>
-          <TouchableOpacity style={styles.joinBtn} onPress={() => setSheetMode('join')} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.joinBtn} onPress={() => setSheetMode('join')} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Join today">
             <Text style={styles.joinBtnText}>Join today</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.signInBtn} onPress={() => setSheetMode('login')} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.signInBtn} onPress={() => setSheetMode('login')} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Already have an account">
             <Text style={styles.signInBtnText}>Already have an account</Text>
           </TouchableOpacity>
         </Animated.View>

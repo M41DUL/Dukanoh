@@ -26,7 +26,7 @@ export function ForgotPasswordSheet({ visible, onClose, initialEmail = '' }: For
       setError('');
       setSent(false);
     }
-  }, [visible]);
+  }, [visible, initialEmail]);
 
   const handleSend = async () => {
     if (loading) return;
