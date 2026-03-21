@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
-import { lightColors, Spacing, FontFamily, BorderRadius } from '@/constants/theme';
+import { lightColors, Spacing, FontFamily } from '@/constants/theme';
+import { AUTH_INPUT_STYLE, EMAIL_REGEX } from '@/constants/authStyles';
 import { BottomSheet } from './BottomSheet';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -87,16 +88,14 @@ export function ForgotPasswordSheet({ visible, onClose, initialEmail = '' }: For
               textContentType="emailAddress"
               returnKeyType="done"
               onSubmitEditing={handleSend}
-              inputContainerStyle={styles.inputContainer}
-              placeholderColor="rgba(255,255,255,0.4)"
-              style={{ color: '#FFFFFF' }}
+              {...AUTH_INPUT_STYLE}
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Button
               label="Send reset link"
               onPress={handleSend}
               loading={loading}
-              disabled={!email.trim()}
+              disabled={!EMAIL_REGEX.test(email.trim())}
               variant="secondary"
               style={{ marginTop: Spacing.sm }}
             />
@@ -125,11 +124,6 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: Spacing.sm,
-  },
-  inputContainer: {
-    backgroundColor: lightColors.overlay,
-    borderColor: 'rgba(255,255,255,0.15)',
-    borderRadius: BorderRadius.medium,
   },
   error: {
     fontSize: 13,

@@ -21,10 +21,11 @@ interface InputProps extends TextInputProps {
   containerStyle?: ViewStyle;
   inputContainerStyle?: ViewStyle;
   placeholderColor?: string;
+  hintColor?: string;
 }
 
 export const Input = forwardRef<TextInput, InputProps>(
-  function Input({ label, error, hint, valid, icon, rightIcon, containerStyle, inputContainerStyle, placeholderColor, ...props }, ref) {
+  function Input({ label, error, hint, valid, icon, rightIcon, containerStyle, inputContainerStyle, placeholderColor, hintColor, ...props }, ref) {
     const innerRef = useRef<TextInput>(null);
     const [focused, setFocused] = useState(false);
     const colors = useThemeColors();
@@ -61,7 +62,7 @@ export const Input = forwardRef<TextInput, InputProps>(
           {rightIcon ? <View style={styles.rightIcon}>{rightIcon}</View> : null}
         </Pressable>
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {!error && hint ? <Text style={styles.hint}>{hint}</Text> : null}
+        {!error && hint ? <Text style={[styles.hint, hintColor ? { color: hintColor } : undefined]}>{hint}</Text> : null}
       </View>
     );
   }

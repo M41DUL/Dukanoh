@@ -1,22 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Keyboard, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Keyboard, Linking, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { lightColors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { lightColors, Typography, Spacing } from '@/constants/theme';
+import { AUTH_INPUT_STYLE, EMAIL_REGEX } from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
-
-const INPUT_STYLE = {
-  inputContainerStyle: {
-    backgroundColor: lightColors.overlay,
-    borderColor: 'rgba(255,255,255,0.15)',
-    borderRadius: BorderRadius.medium,
-  },
-  placeholderColor: 'rgba(255,255,255,0.4)',
-  style: { color: '#FFFFFF' },
-} as const;
-
 const USERNAME_REGEX = /^[a-z0-9_]+$/;
 const USERNAME_MIN = 3;
 const USERNAME_MAX = 20;
@@ -26,7 +16,6 @@ export default function SignUpScreen() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,7 +26,6 @@ export default function SignUpScreen() {
 
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
-  const confirmRef = useRef<TextInput>(null);
   const usernameTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Debounced username availability check
@@ -67,22 +55,24 @@ export default function SignUpScreen() {
 
     usernameTimer.current = setTimeout(async () => {
       try {
-        const { data } = await supabase
+        const { data, error: queryError } = await supabase
           .from('users')
           .select('id')
           .eq('username', trimmed)
-          .limit(1)
-          .single();
+          .maybeSingle();
 
-        if (data) {
+        if (queryError) {
+          setUsernameError('Could not check availability');
+          setUsernameValid(false);
+        } else if (data) {
           setUsernameError('Username is taken');
           setUsernameValid(false);
         } else {
           setUsernameValid(true);
         }
       } catch {
-        // No row found = available
-        setUsernameValid(true);
+        setUsernameError('Could not check availability');
+        setUsernameValid(false);
       } finally {
         setCheckingUsername(false);
       }
@@ -96,21 +86,17 @@ export default function SignUpScreen() {
     checkUsername(sanitised);
   };
 
+  const isEmailValid = EMAIL_REGEX.test(email.trim());
+
   const isFormValid =
     usernameValid &&
-    email.trim().length > 0 &&
-    password.length >= PASSWORD_MIN &&
-    confirmPassword.length > 0 &&
-    password === confirmPassword;
+    isEmailValid &&
+    password.length >= PASSWORD_MIN;
 
   const handleSignUp = async () => {
     if (loading) return;
     Keyboard.dismiss();
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
     if (password.length < PASSWORD_MIN) {
       setError(`Password must be at least ${PASSWORD_MIN} characters`);
       return;
@@ -173,7 +159,7 @@ export default function SignUpScreen() {
           valid={usernameValid}
           rightIcon={usernameRightIcon}
           hint={!usernameError && !usernameValid && username.length === 0 ? 'Lowercase letters, numbers, and underscores' : undefined}
-          {...INPUT_STYLE}
+          {...AUTH_INPUT_STYLE}
         />
         <Input
           ref={emailRef}
@@ -184,9 +170,10 @@ export default function SignUpScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           textContentType="emailAddress"
+          error={email.trim().length > 0 && !isEmailValid ? 'Enter a valid email address' : undefined}
           returnKeyType="next"
           onSubmitEditing={() => passwordRef.current?.focus()}
-          {...INPUT_STYLE}
+          {...AUTH_INPUT_STYLE}
         />
         <Input
           ref={passwordRef}
@@ -195,22 +182,10 @@ export default function SignUpScreen() {
           onChangeText={(v) => { setPassword(v); setError(''); }}
           secureTextEntry
           textContentType="newPassword"
-          returnKeyType="next"
-          onSubmitEditing={() => confirmRef.current?.focus()}
-          hint={password.length > 0 && password.length < PASSWORD_MIN ? `At least ${PASSWORD_MIN} characters` : undefined}
-          {...INPUT_STYLE}
-        />
-        <Input
-          ref={confirmRef}
-          placeholder="Confirm password"
-          value={confirmPassword}
-          onChangeText={(v) => { setConfirmPassword(v); setError(''); }}
-          secureTextEntry
-          textContentType="newPassword"
           returnKeyType="done"
           onSubmitEditing={handleSignUp}
-          error={confirmPassword.length > 0 && password !== confirmPassword ? 'Passwords do not match' : undefined}
-          {...INPUT_STYLE}
+          hint={password.length > 0 && password.length < PASSWORD_MIN ? `At least ${PASSWORD_MIN} characters` : undefined}
+          {...AUTH_INPUT_STYLE}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button
@@ -222,7 +197,15 @@ export default function SignUpScreen() {
           style={{ marginTop: Spacing.base }}
         />
         <Text style={styles.terms}>
-          By signing up you agree to our Terms of Service and Privacy Policy.
+          By signing up you agree to our{' '}
+          <Text style={styles.termsLink} onPress={() => Linking.openURL('https://dukanoh.com/terms')}>
+            Terms of Service
+          </Text>
+          {' '}and{' '}
+          <Text style={styles.termsLink} onPress={() => Linking.openURL('https://dukanoh.com/privacy')}>
+            Privacy Policy
+          </Text>
+          .
         </Text>
       </View>
     </AuthLayout>
@@ -245,9 +228,13 @@ const styles = StyleSheet.create({
   terms: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    color: 'rgba(255,255,255,0.4)',
+    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     marginTop: Spacing.sm,
     lineHeight: 18,
+  },
+  termsLink: {
+    textDecorationLine: 'underline',
+    color: 'rgba(255,255,255,0.9)',
   },
 });

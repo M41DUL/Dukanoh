@@ -4,18 +4,9 @@ import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { ForgotPasswordSheet } from '@/components/ForgotPasswordSheet';
-import { lightColors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { lightColors, Typography, Spacing } from '@/constants/theme';
+import { AUTH_INPUT_STYLE, EMAIL_REGEX } from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
-
-const INPUT_STYLE = {
-  inputContainerStyle: {
-    backgroundColor: lightColors.overlay,
-    borderColor: 'rgba(255,255,255,0.15)',
-    borderRadius: BorderRadius.medium,
-  },
-  placeholderColor: 'rgba(255,255,255,0.4)',
-  style: { color: '#FFFFFF' },
-} as const;
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -42,8 +33,8 @@ export default function LoginScreen() {
         password,
       });
       if (authError) throw authError;
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Invalid email or password');
+    } catch {
+      setError('Invalid email or password');
     } finally {
       setLoading(false);
     }
@@ -64,7 +55,7 @@ export default function LoginScreen() {
           textContentType="emailAddress"
           returnKeyType="next"
           onSubmitEditing={() => passwordRef.current?.focus()}
-          {...INPUT_STYLE}
+          {...AUTH_INPUT_STYLE}
         />
         <Input
           ref={passwordRef}
@@ -75,14 +66,14 @@ export default function LoginScreen() {
           textContentType="password"
           returnKeyType="done"
           onSubmitEditing={handleLogin}
-          {...INPUT_STYLE}
+          {...AUTH_INPUT_STYLE}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button
           label="Sign in"
           onPress={handleLogin}
           loading={loading}
-          disabled={!email.trim() || !password}
+          disabled={!EMAIL_REGEX.test(email.trim()) || !password}
           variant="secondary"
           style={{ marginTop: Spacing.base }}
         />
