@@ -552,11 +552,11 @@ export default function HomeScreen() {
 
     const drops: PriceDrop[] = (savedPrices.data ?? [])
       .filter(s => {
-        const l = s.listings as { price: number; status: string } | null;
+        const l = s.listings as unknown as { price: number; status: string } | null;
         return l && l.price < (s.price_at_save as number) && l.status === 'available';
       })
       .map(s => {
-        const l = s.listings as { id: string; title: string; price: number; images: string[] };
+        const l = s.listings as unknown as { id: string; title: string; price: number; images: string[] };
         return {
           listingId: s.listing_id as string,
           title: l.title,
