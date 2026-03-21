@@ -18,6 +18,7 @@ CREATE TABLE public.users (
   avatar_url            TEXT,
   bio                   TEXT,
   preferred_categories  TEXT[] DEFAULT '{}',
+  preferred_sizes       TEXT[] DEFAULT '{}',
   onboarding_completed  BOOLEAN DEFAULT FALSE,
   is_seller             BOOLEAN DEFAULT FALSE,
   created_at            TIMESTAMPTZ DEFAULT NOW()
