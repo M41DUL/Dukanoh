@@ -57,7 +57,7 @@ function RootNavigator() {
       const inAuthGroup = segments[0] === '(auth)';
       if (!inAuthGroup) router.replace('/(auth)/intro');
     } else {
-      router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
+      router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
     }
     // Wait for route to mount, then tell splash to fade out
     setTimeout(() => setRouteReady(true), 100);
@@ -72,7 +72,7 @@ function RootNavigator() {
     if (!session) {
       if (!inAuthGroup) router.replace('/(auth)/intro');
     } else if (inAuthGroup) {
-      router.replace(onboardingCompleted ? '/(tabs)/' : '/onboarding');
+      router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
     }
   }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, routeReady]);
 

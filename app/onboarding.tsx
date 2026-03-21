@@ -413,7 +413,7 @@ export default function OnboardingScreen() {
               .eq('id', user.id);
             if (updateError) throw updateError;
           }
-          router.replace('/(tabs)/');
+          router.replace('/(tabs)');
         })(),
         timeout,
       ]);

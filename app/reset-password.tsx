@@ -50,7 +50,7 @@ export default function ResetPasswordScreen() {
         </Text>
         <Button
           label="Continue"
-          onPress={() => router.replace('/(tabs)/')}
+          onPress={() => router.replace('/(tabs)')}
           variant="secondary"
           style={{ marginTop: Spacing.lg }}
         />
