@@ -5,7 +5,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { ForgotPasswordSheet } from '@/components/ForgotPasswordSheet';
 import { lightColors, Typography, Spacing } from '@/constants/theme';
-import { AUTH_INPUT_STYLE, EMAIL_REGEX } from '@/constants/authStyles';
+import { AUTH_INPUT_STYLE, EMAIL_REGEX, getAuthError } from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
 
 export default function LoginScreen() {
@@ -33,8 +33,8 @@ export default function LoginScreen() {
         password,
       });
       if (authError) throw authError;
-    } catch {
-      setError('Invalid email or password');
+    } catch (err) {
+      setError(getAuthError(err, 'Invalid email or password'));
     } finally {
       setLoading(false);
     }

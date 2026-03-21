@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Keyboard, StyleSheet, Text, View } from 'react-native';
 import { lightColors, Spacing, FontFamily } from '@/constants/theme';
-import { AUTH_INPUT_STYLE, EMAIL_REGEX } from '@/constants/authStyles';
+import { AUTH_INPUT_STYLE, EMAIL_REGEX, getAuthError } from '@/constants/authStyles';
 import { BottomSheet } from './BottomSheet';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -43,8 +43,8 @@ export function ForgotPasswordSheet({ visible, onClose, initialEmail = '' }: For
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim());
       if (resetError) throw resetError;
       setSent(true);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } catch (err) {
+      setError(getAuthError(err, 'Something went wrong'));
     } finally {
       setLoading(false);
     }

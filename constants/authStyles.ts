@@ -13,3 +13,11 @@ export const AUTH_INPUT_STYLE = {
 } as const;
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Returns a user-friendly error message, detecting network failures */
+export function getAuthError(err: unknown, fallback: string): string {
+  if (err instanceof TypeError && err.message.includes('Network request failed')) {
+    return 'No internet connection. Please check your network and try again.';
+  }
+  return fallback;
+}

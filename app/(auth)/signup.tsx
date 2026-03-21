@@ -4,13 +4,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { lightColors, Typography, Spacing } from '@/constants/theme';
-import { AUTH_INPUT_STYLE, EMAIL_REGEX } from '@/constants/authStyles';
+import { lightColors, Typography, Spacing, FontFamily } from '@/constants/theme';
+import { AUTH_INPUT_STYLE, EMAIL_REGEX, getAuthError } from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
 const USERNAME_REGEX = /^[a-z0-9_]+$/;
 const USERNAME_MIN = 3;
 const USERNAME_MAX = 20;
 const PASSWORD_MIN = 6;
+
+function getPasswordStrength(pw: string): { label: string; color: string } | null {
+  if (pw.length === 0) return null;
+  if (pw.length < PASSWORD_MIN) return { label: `At least ${PASSWORD_MIN} characters`, color: lightColors.error };
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasLower = /[a-z]/.test(pw);
+  const hasNumber = /[0-9]/.test(pw);
+  const hasSymbol = /[^a-zA-Z0-9]/.test(pw);
+  const variety = [hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
+  if (pw.length >= 10 && variety >= 3) return { label: 'Strong password', color: lightColors.success };
+  if (pw.length >= 8 && variety >= 2) return { label: 'Good password', color: lightColors.secondary };
+  return { label: 'Weak password', color: '#FFA500' };
+}
 
 export default function SignUpScreen() {
   const [username, setUsername] = useState('');
@@ -121,8 +134,8 @@ export default function SignUpScreen() {
       });
       if (authError) throw authError;
       // Root layout auth effect handles navigation
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    } catch (err) {
+      setError(getAuthError(err, err instanceof Error ? err.message : 'Something went wrong. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -134,6 +147,8 @@ export default function SignUpScreen() {
       if (usernameTimer.current) clearTimeout(usernameTimer.current);
     };
   }, []);
+
+  const passwordStrength = getPasswordStrength(password);
 
   const usernameRightIcon = checkingUsername ? (
     <ActivityIndicator size="small" color="rgba(255,255,255,0.5)" />
@@ -184,8 +199,10 @@ export default function SignUpScreen() {
           textContentType="newPassword"
           returnKeyType="done"
           onSubmitEditing={handleSignUp}
-          hint={password.length > 0 && password.length < PASSWORD_MIN ? `At least ${PASSWORD_MIN} characters` : undefined}
           {...AUTH_INPUT_STYLE}
+          error={passwordStrength && password.length < PASSWORD_MIN ? passwordStrength.label : undefined}
+          hint={passwordStrength && password.length >= PASSWORD_MIN ? passwordStrength.label : undefined}
+          hintColor={passwordStrength?.color}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button
