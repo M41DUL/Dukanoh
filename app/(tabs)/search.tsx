@@ -33,6 +33,7 @@ import {
   ColorTokens,
 } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
 // ─── Constants ──────────────────────────────────────────────
@@ -170,6 +171,23 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState<BrowseTab>('Women');
   const { saveSearch } = useSearchHistory();
+  const { user } = useAuth();
+
+  // Set default tab from user's onboarding preferences
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('users')
+      .select('preferred_categories')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const cats: string[] = data?.preferred_categories ?? [];
+        if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
+        else if (cats.includes('Women')) setActiveTab('Women');
+        else setActiveTab('All');
+      });
+  }, [user]);
 
   // Results state
   const [resultsMode, setResultsMode] = useState(false);
@@ -459,30 +477,22 @@ export default function SearchScreen() {
 
       {/* ── Tab bar + Browse directory ────────────────────── */}
       {!resultsMode && (
-        <>
-          <View style={styles.tabBar}>
-            {BROWSE_TABS.map(tab => (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tab, activeTab === tab && styles.tabActive]}
-                onPress={() => setActiveTab(tab)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.browseScroll}>
-            <HeroBanner
-              source={activeTab === 'Men' ? HERO_BANNER_2 : HERO_BANNER_1}
-              onPress={() => openCategory(activeTab === 'All' ? 'Women' : activeTab)}
-            />
-
-            {/* Categories for this tab */}
-            <Text style={styles.sectionHeading}>Categories</Text>
+            <Text style={styles.shopHeading}>Shop</Text>
+            <View style={styles.tabBar}>
+              {BROWSE_TABS.map(tab => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tab, activeTab === tab && styles.tabActive]}
+                  onPress={() => setActiveTab(tab)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             {TAB_CONFIG[activeTab].categories.map((cat, i) => (
               <React.Fragment key={cat}>
                 <BrowseRow label={cat} onPress={() => openCategory(cat)} colors={colors} />
@@ -490,8 +500,11 @@ export default function SearchScreen() {
               </React.Fragment>
             ))}
 
-            {/* Occasions for this tab */}
-            <Text style={styles.sectionHeading}>Occasions</Text>
+            <HeroBanner
+              source={activeTab === 'Men' ? HERO_BANNER_2 : HERO_BANNER_1}
+              onPress={() => openCategory(activeTab === 'All' ? 'Women' : activeTab)}
+            />
+
             {TAB_CONFIG[activeTab].occasions.map((occ, i) => (
               <React.Fragment key={occ}>
                 <BrowseRow label={occ} onPress={() => openOccasion(occ)} colors={colors} />
@@ -499,7 +512,6 @@ export default function SearchScreen() {
               </React.Fragment>
             ))}
           </ScrollView>
-        </>
       )}
 
       {/* ── Results view ─────────────────────────────────── */}
@@ -691,11 +703,18 @@ function getStyles(colors: ColorTokens) {
       zIndex: 10,
     },
 
-    // Tab bar
+    // Shop heading + tab bar
+    shopHeading: {
+      fontSize: 28,
+      fontFamily: 'Inter_500Medium',
+      color: colors.textPrimary,
+      paddingTop: Spacing.lg,
+      paddingBottom: Spacing.xl,
+    },
     tabBar: {
       flexDirection: 'row',
       gap: Spacing.lg,
-      paddingTop: Spacing.sm,
+      paddingBottom: Spacing.md,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
