@@ -8,6 +8,7 @@ import {
   StyleSheet,
   LayoutAnimation,
   Animated,
+  RefreshControl,
   Platform,
   UIManager,
 } from 'react-native';
@@ -165,6 +166,69 @@ const heroBannerStyles = StyleSheet.create({
   },
 });
 
+// ─── Skeleton loading for results ────────────────────────────
+
+function SkeletonCard({ colors }: { colors: ColorTokens }) {
+  const opacity = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+
+  return (
+    <Animated.View style={[skeletonStyles.card, { opacity }]}>
+      <View style={[skeletonStyles.image, { backgroundColor: colors.surface }]} />
+      <View style={skeletonStyles.content}>
+        <View style={[skeletonStyles.line, { backgroundColor: colors.surface }]} />
+        <View style={[skeletonStyles.line, { backgroundColor: colors.surface, width: '60%' }]} />
+        <View style={[skeletonStyles.line, { backgroundColor: colors.surface, width: '40%', height: 14 }]} />
+      </View>
+    </Animated.View>
+  );
+}
+
+function SkeletonGrid({ colors }: { colors: ColorTokens }) {
+  return (
+    <View style={skeletonStyles.grid}>
+      {[0, 1, 2, 3, 4, 5].map(i => (
+        <SkeletonCard key={i} colors={colors} />
+      ))}
+    </View>
+  );
+}
+
+const skeletonStyles = StyleSheet.create({
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    paddingTop: Spacing.sm,
+  },
+  card: {
+    width: '48.5%',
+  },
+  image: {
+    aspectRatio: 4 / 5,
+    borderRadius: BorderRadius.medium,
+  },
+  content: {
+    paddingVertical: Spacing.sm,
+    gap: 6,
+  },
+  line: {
+    height: 12,
+    borderRadius: 6,
+    width: '85%',
+  },
+});
+
 // ─── Main screen ────────────────────────────────────────────
 
 export default function SearchScreen() {
@@ -215,6 +279,7 @@ export default function SearchScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -455,6 +520,18 @@ export default function SearchScreen() {
     setLoadingMore(false);
   }, [loadingMore, hasMore, loading, page, query, buildQuery, activeSizes]);
 
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setRetryKey(k => k + 1);
+    // refreshing flag is cleared when the fetch effect finishes
+  }, []);
+
+  // Clear refreshing when loading finishes
+  useEffect(() => {
+    if (!loading && refreshing) setRefreshing(false);
+  }, [loading, refreshing]);
+
+
   // ─── Render ─────────────────────────────────────────────
   return (
     <ScreenWrapper>
@@ -566,35 +643,42 @@ export default function SearchScreen() {
             </TouchableOpacity>
           </View>
 
-          <FlatList
-            data={listings}
-            keyExtractor={item => item.id}
-            numColumns={2}
-            columnWrapperStyle={styles.gridRow}
-            contentContainerStyle={styles.gridContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.5}
-            renderItem={({ item }) => (
-              <ListingCard
-                listing={item}
-                variant="grid"
-                highlightTerm={query.trim()}
-                onPress={() => router.push(`/listing/${item.id}`)}
-              />
-            )}
-            ListHeaderComponent={
-              !loading ? (
+          {loading && !refreshing ? (
+            <SkeletonGrid colors={colors} />
+          ) : (
+            <FlatList
+              data={listings}
+              keyExtractor={item => item.id}
+              numColumns={2}
+              columnWrapperStyle={styles.gridRow}
+              contentContainerStyle={styles.gridContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              onEndReached={loadMore}
+              onEndReachedThreshold={0.5}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={colors.primary}
+                />
+              }
+              renderItem={({ item }) => (
+                <ListingCard
+                  listing={item}
+                  variant="grid"
+                  highlightTerm={query.trim()}
+                  onPress={() => router.push(`/listing/${item.id}`)}
+                />
+              )}
+              ListHeaderComponent={
                 <Text style={styles.resultsCount}>
                   {listings.length} {listings.length === 1 ? 'result' : 'results'}
+                  {resultsTitle ? ` for ${resultsTitle}` : ''}
                 </Text>
-              ) : null
-            }
-            ListEmptyComponent={
-              loading
-                ? <LoadingSpinner />
-                : fetchError
+              }
+              ListEmptyComponent={
+                fetchError
                   ? <EmptyState
                       heading="Something went wrong"
                       subtext="Check your connection and try again."
@@ -609,9 +693,10 @@ export default function SearchScreen() {
                       ctaLabel={resultsCategory ? 'Start selling' : undefined}
                       onCta={resultsCategory ? () => router.push('/(tabs)/sell') : undefined}
                     />
-            }
-            ListFooterComponent={loadingMore ? <LoadingSpinner /> : null}
-          />
+              }
+              ListFooterComponent={loadingMore ? <LoadingSpinner /> : null}
+            />
+          )}
         </>
       )}
 
