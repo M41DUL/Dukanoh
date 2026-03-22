@@ -6,13 +6,17 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Swipeable } from 'react-native-gesture-handler';
 import Fuse from 'fuse.js';
+import * as Haptics from 'expo-haptics';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { SearchBar } from '@/components/SearchBar';
 import { Badge } from '@/components/Badge';
@@ -42,6 +46,16 @@ const TEXT_SEARCH_LIMIT = 100;
 const HERO_BANNER_1 = require('@/assets/images/hero-banner-1.png');
 const HERO_BANNER_2 = require('@/assets/images/hero-banner-2.png');
 
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const TRANSITION = LayoutAnimation.create(
+  200,
+  LayoutAnimation.Types.easeInEaseOut,
+  LayoutAnimation.Properties.opacity,
+);
+
 const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
 
 // Exclude categories that overlap with occasions to avoid duplicates in browse
@@ -52,6 +66,7 @@ const MORE_CATEGORIES = BROWSE_CATEGORIES.slice(3);
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'];
+const POPULAR_SEARCHES = ['Lehenga', 'Sherwani', 'Saree', 'Kurta', 'Anarkali', 'Dupatta'];
 
 type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'most_saved' | 'most_viewed';
 const SORT_LABELS: Record<SortOption, string> = {
@@ -108,16 +123,21 @@ const browseRowStyles = StyleSheet.create({
 
 // ─── Hero banner component ──────────────────────────────────
 
-function HeroBanner({ source }: { source: number }) {
+function HeroBanner({ source, onPress }: { source: number; onPress?: () => void }) {
   return (
-    <View style={heroBannerStyles.container}>
+    <TouchableOpacity
+      style={heroBannerStyles.container}
+      onPress={onPress}
+      activeOpacity={0.85}
+      disabled={!onPress}
+    >
       <Image
         source={source}
         style={heroBannerStyles.image}
         contentFit="cover"
         transition={300}
       />
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -157,6 +177,7 @@ export default function SearchScreen() {
   const [activePriceRange, setActivePriceRange] = useState<PriceRange | null>(null);
   const [sort, setSort] = useState<SortOption>('newest');
   const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const [showSortSheet, setShowSortSheet] = useState(false);
 
   // Pagination state
   const [page, setPage] = useState(0);
@@ -185,6 +206,15 @@ export default function SearchScreen() {
     });
   }, []);
 
+  const removeSearch = useCallback((term: string) => {
+    setRecentSearches(prev => {
+      const updated = prev.filter(s => s !== term);
+      if (updated.length === 0) AsyncStorage.removeItem(RECENT_KEY);
+      else AsyncStorage.setItem(RECENT_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const clearSearches = useCallback(() => {
     AsyncStorage.removeItem(RECENT_KEY);
     setRecentSearches([]);
@@ -192,6 +222,7 @@ export default function SearchScreen() {
 
   // ─── Navigation into results ────────────────────────────
   const openCategory = useCallback((cat: string) => {
+    LayoutAnimation.configureNext(TRANSITION);
     setResultsMode(true);
     setResultsTitle(cat);
     setResultsCategory(cat);
@@ -200,6 +231,7 @@ export default function SearchScreen() {
   }, []);
 
   const openOccasion = useCallback((occ: string) => {
+    LayoutAnimation.configureNext(TRANSITION);
     setResultsMode(true);
     setResultsTitle(occ);
     setResultsCategory(null);
@@ -209,6 +241,7 @@ export default function SearchScreen() {
   }, []);
 
   const openSearch = useCallback((term: string) => {
+    LayoutAnimation.configureNext(TRANSITION);
     setQuery(term);
     setResultsMode(true);
     setResultsTitle(`\u201C${term}\u201D`);
@@ -219,6 +252,7 @@ export default function SearchScreen() {
   }, [saveSearch]);
 
   const exitResults = useCallback(() => {
+    LayoutAnimation.configureNext(TRANSITION);
     setResultsMode(false);
     setResultsCategory(null);
     setResultsOccasionPreset(null);
@@ -234,18 +268,21 @@ export default function SearchScreen() {
 
   // ─── Filter helpers ─────────────────────────────────────
   const toggleSize = useCallback((size: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveSizes(prev =>
       prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]
     );
   }, []);
 
   const toggleOccasion = useCallback((occ: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveOccasions(prev =>
       prev.includes(occ) ? prev.filter(o => o !== occ) : [...prev, occ]
     );
   }, []);
 
   const toggleCondition = useCallback((cond: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveConditions(prev =>
       prev.includes(cond) ? prev.filter(c => c !== cond) : [...prev, cond]
     );
@@ -266,15 +303,11 @@ export default function SearchScreen() {
     (activePriceRange ? 1 : 0);
   const isSorted = sort !== 'newest';
 
-  const showSortAlert = () => {
-    Alert.alert('Sort by', undefined, [
-      ...Object.entries(SORT_LABELS).map(([value, label]) => ({
-        text: sort === value ? `\u2713  ${label}` : label,
-        onPress: () => setSort(value as SortOption),
-      })),
-      { text: 'Cancel', style: 'cancel' as const },
-    ]);
-  };
+  const selectSort = useCallback((option: SortOption) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSort(option);
+    setShowSortSheet(false);
+  }, []);
 
   // ─── Build query (shared between initial fetch and load-more) ──
   const buildQuery = useCallback(() => {
@@ -427,7 +460,12 @@ export default function SearchScreen() {
   }, [loadingMore, hasMore, loading, page, query, buildQuery, activeSizes]);
 
   // ─── Determine view state ──────────────────────────────
-  const showRecentPanel = focused && !query.trim() && recentSearches.length > 0;
+  const trimmedInput = query.trim().toLowerCase();
+  const filteredRecent = trimmedInput
+    ? recentSearches.filter(s => s.toLowerCase().includes(trimmedInput))
+    : recentSearches;
+  const showRecentPanel = focused && !resultsMode && filteredRecent.length > 0;
+  const showPopularPanel = focused && !resultsMode && filteredRecent.length === 0 && !trimmedInput;
 
   // ─── Render ─────────────────────────────────────────────
   return (
@@ -444,12 +482,7 @@ export default function SearchScreen() {
         ) : (
           <SearchBar
             value={query}
-            onChangeText={(text) => {
-              setQuery(text);
-              if (text.trim()) {
-                setFocused(false);
-              }
-            }}
+            onChangeText={setQuery}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onSubmit={(term) => {
@@ -468,14 +501,44 @@ export default function SearchScreen() {
               <Text style={styles.clearLink}>Clear all</Text>
             </TouchableOpacity>
           </View>
-          {recentSearches.map(term => (
+          {filteredRecent.map(term => (
+            <Swipeable
+              key={term}
+              renderRightActions={() => (
+                <TouchableOpacity
+                  style={styles.swipeDelete}
+                  onPress={() => removeSearch(term)}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+              overshootRight={false}
+            >
+              <TouchableOpacity
+                style={[styles.recentRow, { backgroundColor: colors.background }]}
+                onPress={() => openSearch(term)}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+                <Text style={styles.recentTerm}>{term}</Text>
+              </TouchableOpacity>
+            </Swipeable>
+          ))}
+        </View>
+      )}
+
+      {/* ── Popular searches (no recent history) ────────── */}
+      {showPopularPanel && (
+        <View style={styles.panel}>
+          <Text style={styles.sectionHeading}>Popular searches</Text>
+          {POPULAR_SEARCHES.map(term => (
             <TouchableOpacity
               key={term}
               style={styles.recentRow}
               onPress={() => openSearch(term)}
               activeOpacity={0.6}
             >
-              <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+              <Ionicons name="trending-up-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.recentTerm}>{term}</Text>
             </TouchableOpacity>
           ))}
@@ -483,8 +546,8 @@ export default function SearchScreen() {
       )}
 
       {/* ── Browse directory ─────────────────────────────── */}
-      {!resultsMode && !showRecentPanel && (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent}>
+      {!resultsMode && !showRecentPanel && !showPopularPanel && (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
           {/* Shop by category */}
           <Text style={styles.sectionHeading}>Shop by category</Text>
           {BROWSE_CATEGORIES.slice(0, 3).map((cat, i) => (
@@ -494,7 +557,7 @@ export default function SearchScreen() {
             </React.Fragment>
           ))}
 
-          <HeroBanner source={HERO_BANNER_1} />
+          <HeroBanner source={HERO_BANNER_1} onPress={() => openCategory('Women')} />
 
           {/* Shop by occasion */}
           <Text style={styles.sectionHeading}>Shop by occasion</Text>
@@ -505,7 +568,7 @@ export default function SearchScreen() {
             </React.Fragment>
           ))}
 
-          <HeroBanner source={HERO_BANNER_2} />
+          <HeroBanner source={HERO_BANNER_2} onPress={() => openOccasion('Wedding')} />
 
           {/* Remaining categories */}
           <Text style={styles.sectionHeading}>More categories</Text>
@@ -524,7 +587,7 @@ export default function SearchScreen() {
           <View style={styles.controls}>
             <TouchableOpacity
               style={[styles.controlBtn, isSorted && styles.controlBtnActive]}
-              onPress={showSortAlert}
+              onPress={() => setShowSortSheet(true)}
               activeOpacity={0.8}
             >
               <Ionicons
@@ -648,21 +711,48 @@ export default function SearchScreen() {
                 key={range.label}
                 label={range.label}
                 active={activePriceRange?.label === range.label}
-                onPress={() =>
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setActivePriceRange(prev =>
                     prev?.label === range.label ? null : range
-                  )
-                }
+                  );
+                }}
               />
             ))}
           </View>
 
           <Button
-            label={filterCount > 0 ? `Show results (${filterCount} active)` : 'Show results'}
+            label={
+              loading
+                ? 'Show results'
+                : `Show ${listings.length} ${listings.length === 1 ? 'result' : 'results'}`
+            }
             onPress={() => setShowFilterSheet(false)}
             variant="primary"
             style={styles.sheetApplyBtn}
           />
+        </View>
+      </BottomSheet>
+
+      {/* ── Sort bottom sheet ────────────────────────────── */}
+      <BottomSheet visible={showSortSheet} onClose={() => setShowSortSheet(false)}>
+        <View style={styles.sheetContent}>
+          <Text style={styles.sheetTitle}>Sort by</Text>
+          {(Object.entries(SORT_LABELS) as [SortOption, string][]).map(([value, label]) => (
+            <TouchableOpacity
+              key={value}
+              style={styles.sortRow}
+              onPress={() => selectSort(value)}
+              activeOpacity={0.6}
+            >
+              <Text style={[styles.sortLabel, sort === value && styles.sortLabelActive]}>
+                {label}
+              </Text>
+              {sort === value && (
+                <Ionicons name="checkmark" size={20} color={colors.primary} />
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
       </BottomSheet>
     </ScreenWrapper>
@@ -730,6 +820,14 @@ function getStyles(colors: ColorTokens) {
     recentTerm: {
       ...Typography.body,
       color: colors.textPrimary,
+    },
+    swipeDelete: {
+      backgroundColor: colors.error,
+      justifyContent: 'center',
+      alignItems: 'center',
+      width: 60,
+      borderRadius: BorderRadius.small,
+      marginVertical: 2,
     },
 
     // Sort & filter controls
@@ -799,6 +897,24 @@ function getStyles(colors: ColorTokens) {
     },
     sheetApplyBtn: {
       marginTop: Spacing.sm,
+    },
+
+    // Sort sheet
+    sortRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: Spacing.md,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    sortLabel: {
+      ...Typography.body,
+      color: colors.textPrimary,
+    },
+    sortLabelActive: {
+      fontFamily: 'Inter_600SemiBold',
+      color: colors.primary,
     },
   });
 }
