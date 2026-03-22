@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -37,6 +37,8 @@ import { supabase } from '@/lib/supabase';
 
 const RECENT_KEY = '@dukanoh/recent_searches';
 const MAX_RECENT = 6;
+const PAGE_SIZE = 20;
+const TEXT_SEARCH_LIMIT = 100;
 const HERO_BANNER_1 = require('@/assets/images/hero-banner-1.png');
 const HERO_BANNER_2 = require('@/assets/images/hero-banner-2.png');
 
@@ -46,6 +48,7 @@ const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'F
 const BROWSE_CATEGORIES = Categories.filter(
   c => c !== 'All' && c !== 'Partywear' && c !== 'Festive' && c !== 'Formal' && c !== 'Wedding',
 );
+const MORE_CATEGORIES = BROWSE_CATEGORIES.slice(3);
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'];
@@ -155,7 +158,12 @@ export default function SearchScreen() {
   const [sort, setSort] = useState<SortOption>('newest');
   const [showFilterSheet, setShowFilterSheet] = useState(false);
 
-  const fuseRef = useRef<Fuse<Listing> | null>(null);
+  // Pagination state
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -220,6 +228,8 @@ export default function SearchScreen() {
     setActiveConditions([]);
     setActivePriceRange(null);
     setSort('newest');
+    setPage(0);
+    setHasMore(true);
   }, []);
 
   // ─── Filter helpers ─────────────────────────────────────
@@ -266,91 +276,155 @@ export default function SearchScreen() {
     ]);
   };
 
-  // ─── Fetch results ──────────────────────────────────────
+  // ─── Build query (shared between initial fetch and load-more) ──
+  const buildQuery = useCallback(() => {
+    let orderCol = 'created_at';
+    let ascending = false;
+    if (sort === 'price_asc') { orderCol = 'price'; ascending = true; }
+    else if (sort === 'price_desc') { orderCol = 'price'; ascending = false; }
+    else if (sort === 'most_saved') { orderCol = 'save_count'; ascending = false; }
+    else if (sort === 'most_viewed') { orderCol = 'view_count'; ascending = false; }
+
+    let q = supabase
+      .from('listings')
+      .select('*, seller:users(username, avatar_url)')
+      .eq('status', 'available')
+      .order(orderCol, { ascending });
+
+    if (resultsCategory) q = q.eq('category', resultsCategory);
+
+    if (activeSizes.length === 1) {
+      q = q.ilike('size', `%${activeSizes[0]}%`);
+    }
+
+    if (activeOccasions.length === 1) {
+      q = q.eq('occasion', activeOccasions[0]);
+    } else if (activeOccasions.length > 1) {
+      q = q.in('occasion', activeOccasions);
+    }
+
+    if (activeConditions.length === 1) {
+      q = q.eq('condition', activeConditions[0]);
+    } else if (activeConditions.length > 1) {
+      q = q.in('condition', activeConditions);
+    }
+
+    if (activePriceRange) {
+      q = q.gte('price', activePriceRange.min);
+      if (activePriceRange.max !== Infinity) q = q.lte('price', activePriceRange.max);
+    }
+
+    const trimmedQuery = query.trim().replace(/[,.()"'\\]/g, '');
+    if (trimmedQuery) {
+      q = q.or(`title.ilike.%${trimmedQuery}%,category.ilike.%${trimmedQuery}%,occasion.ilike.%${trimmedQuery}%`);
+    }
+
+    return { q, trimmedQuery };
+  }, [query, resultsCategory, activeSizes, activeOccasions, activeConditions, activePriceRange, sort]);
+
+  const applyClientFilters = useCallback((data: Listing[], trimmedQuery: string) => {
+    let results = data;
+
+    // Client-side multi-size filter
+    if (activeSizes.length > 1) {
+      const sizeLower = activeSizes.map(s => s.toLowerCase());
+      results = results.filter(l =>
+        l.size && sizeLower.some(s => l.size!.toLowerCase().includes(s))
+      );
+    }
+
+    // Fuzzy re-rank
+    if (trimmedQuery && results.length > 0) {
+      const fuse = new Fuse(results, {
+        keys: [
+          { name: 'title', weight: 0.6 },
+          { name: 'category', weight: 0.2 },
+          { name: 'occasion', weight: 0.2 },
+        ],
+        threshold: 0.4,
+        includeScore: true,
+      });
+      results = fuse.search(trimmedQuery).map(r => r.item);
+    }
+
+    return results;
+  }, [activeSizes]);
+
+  // ─── Fetch results (initial page) ─────────────────────────
   useEffect(() => {
     if (!resultsMode) return;
 
+    const abortController = new AbortController();
+
     const timer = setTimeout(async () => {
       setLoading(true);
+      setFetchError(false);
+      setPage(0);
+      setHasMore(true);
 
-      let orderCol = 'created_at';
-      let ascending = false;
-      if (sort === 'price_asc') { orderCol = 'price'; ascending = true; }
-      else if (sort === 'price_desc') { orderCol = 'price'; ascending = false; }
-      else if (sort === 'most_saved') { orderCol = 'save_count'; ascending = false; }
-      else if (sort === 'most_viewed') { orderCol = 'view_count'; ascending = false; }
+      const { q, trimmedQuery } = buildQuery();
 
-      let q = supabase
-        .from('listings')
-        .select('*, seller:users(username, avatar_url)')
-        .eq('status', 'available')
-        .order(orderCol, { ascending });
+      const isTextSearch = !!trimmedQuery;
+      const limit = isTextSearch ? TEXT_SEARCH_LIMIT : PAGE_SIZE;
+      const { data, error } = await q
+        .range(0, limit - 1)
+        .abortSignal(abortController.signal);
 
-      // Category (from browse tap)
-      if (resultsCategory) q = q.eq('category', resultsCategory);
-
-      // Multi-select size
-      if (activeSizes.length === 1) {
-        q = q.ilike('size', `%${activeSizes[0]}%`);
+      if (abortController.signal.aborted) return;
+      if (error) {
+        setFetchError(true);
+        setLoading(false);
+        return;
       }
 
-      // Multi-select occasion
-      if (activeOccasions.length === 1) {
-        q = q.eq('occasion', activeOccasions[0]);
-      } else if (activeOccasions.length > 1) {
-        q = q.in('occasion', activeOccasions);
-      }
-
-      // Multi-select condition
-      if (activeConditions.length === 1) {
-        q = q.eq('condition', activeConditions[0]);
-      } else if (activeConditions.length > 1) {
-        q = q.in('condition', activeConditions);
-      }
-
-      // Price range
-      if (activePriceRange) {
-        q = q.gte('price', activePriceRange.min);
-        if (activePriceRange.max !== Infinity) q = q.lte('price', activePriceRange.max);
-      }
-
-      // Text search
-      const trimmedQuery = query.trim();
-      if (trimmedQuery) {
-        q = q.or(`title.ilike.%${trimmedQuery}%,category.ilike.%${trimmedQuery}%,occasion.ilike.%${trimmedQuery}%`);
-      }
-
-      const { data } = await q;
-      let results = (data ?? []) as unknown as Listing[];
-
-      // Client-side multi-size filter
-      if (activeSizes.length > 1) {
-        const sizeLower = activeSizes.map(s => s.toLowerCase());
-        results = results.filter(l =>
-          l.size && sizeLower.some(s => l.size!.toLowerCase().includes(s))
-        );
-      }
-
-      // Fuzzy re-rank
-      if (trimmedQuery && results.length > 0) {
-        fuseRef.current = new Fuse(results, {
-          keys: [
-            { name: 'title', weight: 0.6 },
-            { name: 'category', weight: 0.2 },
-            { name: 'occasion', weight: 0.2 },
-          ],
-          threshold: 0.4,
-          includeScore: true,
-        });
-        results = fuseRef.current.search(trimmedQuery).map(r => r.item);
-      }
+      const results = applyClientFilters((data ?? []) as unknown as Listing[], trimmedQuery);
 
       setListings(results);
+      setHasMore(!isTextSearch && (data ?? []).length === PAGE_SIZE);
       setLoading(false);
     }, 300);
 
-    return () => clearTimeout(timer);
-  }, [resultsMode, query, resultsCategory, activeSizes, activeOccasions, activeConditions, activePriceRange, sort]);
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
+  }, [resultsMode, buildQuery, applyClientFilters]);
+
+  // ─── Load more (next page) ────────────────────────────────
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || loading) return;
+
+    const trimmedQuery = query.trim().replace(/[,.()"'\\]/g, '');
+    if (trimmedQuery) return; // Text searches don't paginate
+
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    const from = nextPage * PAGE_SIZE;
+
+    const { q } = buildQuery();
+    const { data, error } = await q.range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      setLoadingMore(false);
+      return;
+    }
+
+    const newItems = (data ?? []) as unknown as Listing[];
+
+    // Client-side multi-size filter on new page
+    let filtered = newItems;
+    if (activeSizes.length > 1) {
+      const sizeLower = activeSizes.map(s => s.toLowerCase());
+      filtered = filtered.filter(l =>
+        l.size && sizeLower.some(s => l.size!.toLowerCase().includes(s))
+      );
+    }
+
+    setListings(prev => [...prev, ...filtered]);
+    setPage(nextPage);
+    setHasMore(newItems.length === PAGE_SIZE);
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, loading, page, query, buildQuery, activeSizes]);
 
   // ─── Determine view state ──────────────────────────────
   const showRecentPanel = focused && !query.trim() && recentSearches.length > 0;
@@ -435,10 +509,10 @@ export default function SearchScreen() {
 
           {/* Remaining categories */}
           <Text style={styles.sectionHeading}>More categories</Text>
-          {BROWSE_CATEGORIES.slice(3).map((cat, i) => (
+          {MORE_CATEGORIES.map((cat, i) => (
             <React.Fragment key={cat}>
               <BrowseRow label={cat} onPress={() => openCategory(cat)} colors={colors} />
-              {i < BROWSE_CATEGORIES.slice(3).length - 1 && <Divider style={styles.rowDivider} />}
+              {i < MORE_CATEGORIES.length - 1 && <Divider style={styles.rowDivider} />}
             </React.Fragment>
           ))}
         </ScrollView>
@@ -485,6 +559,8 @@ export default function SearchScreen() {
             contentContainerStyle={styles.gridContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
             renderItem={({ item }) => (
               <ListingCard
                 listing={item}
@@ -502,11 +578,17 @@ export default function SearchScreen() {
             ListEmptyComponent={
               loading
                 ? <LoadingSpinner />
-                : <EmptyState
-                    heading="No listings found"
-                    subtext="Try adjusting your filters or search term."
-                  />
+                : fetchError
+                  ? <EmptyState
+                      heading="Something went wrong"
+                      subtext="Check your connection and try again."
+                    />
+                  : <EmptyState
+                      heading="No listings found"
+                      subtext="Try adjusting your filters or search term."
+                    />
             }
+            ListFooterComponent={loadingMore ? <LoadingSpinner /> : null}
           />
         </>
       )}
