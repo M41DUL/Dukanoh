@@ -13,12 +13,11 @@ import {
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Swipeable } from 'react-native-gesture-handler';
 import Fuse from 'fuse.js';
 import * as Haptics from 'expo-haptics';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { SearchBar } from '@/components/SearchBar';
-import { useSearchHistory, POPULAR_SEARCHES } from '@/hooks/useSearchHistory';
+import { useSearchHistory } from '@/hooks/useSearchHistory';
 import { Badge } from '@/components/Badge';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -156,8 +155,7 @@ const heroBannerStyles = StyleSheet.create({
 export default function SearchScreen() {
   // Search state
   const [query, setQuery] = useState('');
-  const [focused, setFocused] = useState(false);
-  const { filteredRecent, saveSearch, removeSearch, clearSearches } = useSearchHistory();
+  const { saveSearch } = useSearchHistory();
 
   // Results state
   const [resultsMode, setResultsMode] = useState(false);
@@ -192,7 +190,6 @@ export default function SearchScreen() {
     setResultsTitle(cat);
     setResultsCategory(cat);
     setResultsOccasionPreset(null);
-    setFocused(false);
   }, []);
 
   const openOccasion = useCallback((occ: string) => {
@@ -202,7 +199,6 @@ export default function SearchScreen() {
     setResultsCategory(null);
     setResultsOccasionPreset(occ);
     setActiveOccasions([occ]);
-    setFocused(false);
   }, []);
 
   const openSearch = useCallback((term: string) => {
@@ -212,7 +208,6 @@ export default function SearchScreen() {
     setResultsTitle(`\u201C${term}\u201D`);
     setResultsCategory(null);
     setResultsOccasionPreset(null);
-    setFocused(false);
     saveSearch(term);
   }, [saveSearch]);
 
@@ -424,11 +419,6 @@ export default function SearchScreen() {
     setLoadingMore(false);
   }, [loadingMore, hasMore, loading, page, query, buildQuery, activeSizes]);
 
-  // ─── Determine view state ──────────────────────────────
-  const recentMatches = filteredRecent(query);
-  const showRecentPanel = focused && !resultsMode && recentMatches.length > 0;
-  const showPopularPanel = focused && !resultsMode && recentMatches.length === 0 && !query.trim();
-
   // ─── Render ─────────────────────────────────────────────
   return (
     <ScreenWrapper>
@@ -445,8 +435,7 @@ export default function SearchScreen() {
           <SearchBar
             value={query}
             onChangeText={setQuery}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
+            showHistory
             onSubmit={(term) => {
               if (term.trim()) openSearch(term);
             }}
@@ -454,61 +443,8 @@ export default function SearchScreen() {
         )}
       </View>
 
-      {/* ── Recent searches panel ────────────────────────── */}
-      {showRecentPanel && (
-        <View style={styles.panel}>
-          <View style={styles.panelHeader}>
-            <Text style={styles.sectionHeading}>Recent</Text>
-            <TouchableOpacity onPress={clearSearches} hitSlop={8}>
-              <Text style={styles.clearLink}>Clear all</Text>
-            </TouchableOpacity>
-          </View>
-          {recentMatches.map(term => (
-            <Swipeable
-              key={term}
-              renderRightActions={() => (
-                <TouchableOpacity
-                  style={styles.swipeDelete}
-                  onPress={() => removeSearch(term)}
-                >
-                  <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
-              overshootRight={false}
-            >
-              <TouchableOpacity
-                style={[styles.recentRow, { backgroundColor: colors.background }]}
-                onPress={() => openSearch(term)}
-                activeOpacity={0.6}
-              >
-                <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                <Text style={styles.recentTerm}>{term}</Text>
-              </TouchableOpacity>
-            </Swipeable>
-          ))}
-        </View>
-      )}
-
-      {/* ── Popular searches (no recent history) ────────── */}
-      {showPopularPanel && (
-        <View style={styles.panel}>
-          <Text style={styles.sectionHeading}>Popular searches</Text>
-          {POPULAR_SEARCHES.map(term => (
-            <TouchableOpacity
-              key={term}
-              style={styles.recentRow}
-              onPress={() => openSearch(term)}
-              activeOpacity={0.6}
-            >
-              <Ionicons name="trending-up-outline" size={16} color={colors.textSecondary} />
-              <Text style={styles.recentTerm}>{term}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
       {/* ── Browse directory ─────────────────────────────── */}
-      {!resultsMode && !showRecentPanel && !showPopularPanel && (
+      {!resultsMode && (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
           {/* Shop by category */}
           <Text style={styles.sectionHeading}>Shop by category</Text>
@@ -729,6 +665,7 @@ function getStyles(colors: ColorTokens) {
     searchBarWrapper: {
       paddingTop: Spacing.sm,
       paddingBottom: Spacing.xs,
+      zIndex: 10,
     },
 
     // Results header (replaces search bar)
@@ -760,36 +697,10 @@ function getStyles(colors: ColorTokens) {
       marginVertical: 0,
     },
 
-    // Recent searches panel
-    panel: { paddingTop: Spacing.xs },
-    panelHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: Spacing.xs,
-    },
     clearLink: {
       ...Typography.caption,
       color: colors.primaryText,
       fontFamily: 'Inter_600SemiBold',
-    },
-    recentRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      paddingVertical: Spacing.sm,
-    },
-    recentTerm: {
-      ...Typography.body,
-      color: colors.textPrimary,
-    },
-    swipeDelete: {
-      backgroundColor: colors.error,
-      justifyContent: 'center',
-      alignItems: 'center',
-      width: 60,
-      borderRadius: BorderRadius.small,
-      marginVertical: 2,
     },
 
     // Sort & filter controls
