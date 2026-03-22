@@ -20,7 +20,6 @@ import * as Haptics from 'expo-haptics';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { SearchBar } from '@/components/SearchBar';
 import { useSearchHistory } from '@/hooks/useSearchHistory';
-import { Badge } from '@/components/Badge';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -282,7 +281,6 @@ export default function SearchScreen() {
   const [activePriceRange, setActivePriceRange] = useState<PriceRange | null>(null);
   const [sort, setSort] = useState<SortOption>('newest');
   const [showFilterSheet, setShowFilterSheet] = useState(false);
-  const [showSortSheet, setShowSortSheet] = useState(false);
 
   // Pagination state
   const [page, setPage] = useState(0);
@@ -367,6 +365,7 @@ export default function SearchScreen() {
     setActiveOccasions(resultsOccasionPreset ? [resultsOccasionPreset] : []);
     setActiveConditions([]);
     setActivePriceRange(null);
+    setSort('newest');
   }, [resultsOccasionPreset]);
 
   const filterCount =
@@ -376,11 +375,11 @@ export default function SearchScreen() {
     activeConditions.length +
     (activePriceRange ? 1 : 0);
   const isSorted = sort !== 'newest';
+  const totalFilterCount = filterCount + (isSorted ? 1 : 0);
 
   const selectSort = useCallback((option: SortOption) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSort(option);
-    setShowSortSheet(false);
   }, []);
 
   // ─── Build query (shared between initial fetch and load-more) ──
@@ -564,15 +563,10 @@ export default function SearchScreen() {
               <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.resultsHeaderTitle} numberOfLines={1}>{resultsTitle}</Text>
-            <View style={styles.headerActions}>
-              <TouchableOpacity onPress={() => setShowSortSheet(true)} hitSlop={8} style={styles.headerIconBtn}>
-                <Ionicons name="swap-vertical-outline" size={20} color={isSorted ? colors.primary : colors.textPrimary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowFilterSheet(true)} hitSlop={8} style={styles.headerIconBtn}>
-                <Ionicons name="options-outline" size={20} color={filterCount > 0 ? colors.primary : colors.textPrimary} />
-                {filterCount > 0 && <View style={styles.filterBadge} />}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={() => setShowFilterSheet(true)} hitSlop={8} style={styles.headerIconBtn}>
+              <Ionicons name="options-outline" size={22} color={totalFilterCount > 0 ? colors.primary : colors.textPrimary} />
+              {totalFilterCount > 0 && <View style={styles.filterBadge} />}
+            </TouchableOpacity>
           </View>
         ) : (
           <SearchBar
@@ -729,88 +723,21 @@ export default function SearchScreen() {
         </>
       )}
 
-      {/* ── Filter bottom sheet ──────────────────────────── */}
-      <BottomSheet visible={showFilterSheet} onClose={() => setShowFilterSheet(false)}>
-        <View style={styles.sheetContent}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Filters</Text>
-            {filterCount > 0 && (
-              <TouchableOpacity onPress={clearAllFilters} hitSlop={8}>
-                <Text style={styles.clearLink}>Clear all</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <Text style={styles.sheetSectionLabel}>Size</Text>
-          <View style={styles.sheetChips}>
-            {SIZES.map(size => (
-              <Badge
-                key={size}
-                label={size}
-                active={activeSizes.includes(size)}
-                onPress={() => toggleSize(size)}
-              />
-            ))}
-          </View>
-
-          <Text style={styles.sheetSectionLabel}>Occasion</Text>
-          <View style={styles.sheetChips}>
-            {OCCASIONS.map(occ => (
-              <Badge
-                key={occ}
-                label={occ}
-                active={activeOccasions.includes(occ)}
-                onPress={() => toggleOccasion(occ)}
-              />
-            ))}
-          </View>
-
-          <Text style={styles.sheetSectionLabel}>Condition</Text>
-          <View style={styles.sheetChips}>
-            {CONDITIONS.map(cond => (
-              <Badge
-                key={cond}
-                label={cond}
-                active={activeConditions.includes(cond)}
-                onPress={() => toggleCondition(cond)}
-              />
-            ))}
-          </View>
-
-          <Text style={styles.sheetSectionLabel}>Price</Text>
-          <View style={styles.sheetChips}>
-            {PRICE_RANGES.map(range => (
-              <Badge
-                key={range.label}
-                label={range.label}
-                active={activePriceRange?.label === range.label}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setActivePriceRange(prev =>
-                    prev?.label === range.label ? null : range
-                  );
-                }}
-              />
-            ))}
-          </View>
-
-          <Button
-            label={
-              loading
-                ? 'Show results'
-                : `Show ${listings.length} ${listings.length === 1 ? 'result' : 'results'}`
-            }
-            onPress={() => setShowFilterSheet(false)}
-            variant="primary"
-            style={styles.sheetApplyBtn}
-          />
+      {/* ── Filter full-screen bottom sheet ────────────── */}
+      <BottomSheet
+        visible={showFilterSheet}
+        onClose={() => setShowFilterSheet(false)}
+        fullScreen
+      >
+        <View style={styles.filterHeader}>
+          <Text style={styles.filterTitle}>Filter & Sort</Text>
+          <TouchableOpacity onPress={() => setShowFilterSheet(false)} hitSlop={8} style={styles.filterCloseBtn}>
+            <Ionicons name="close" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
         </View>
-      </BottomSheet>
 
-      {/* ── Sort bottom sheet ────────────────────────────── */}
-      <BottomSheet visible={showSortSheet} onClose={() => setShowSortSheet(false)}>
-        <View style={styles.sheetContent}>
-          <Text style={styles.sheetTitle}>Sort by</Text>
+        <ScrollView showsVerticalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterScrollContent}>
+          <Text style={styles.filterSectionLabel}>Sort by</Text>
           {(Object.entries(SORT_LABELS) as [SortOption, string][]).map(([value, label]) => (
             <TouchableOpacity
               key={value}
@@ -826,6 +753,93 @@ export default function SearchScreen() {
               )}
             </TouchableOpacity>
           ))}
+
+          <Divider style={styles.filterDivider} />
+
+          <Text style={styles.filterSectionLabel}>Size</Text>
+          {SIZES.map(size => {
+            const active = activeSizes.includes(size);
+            return (
+              <TouchableOpacity key={size} style={styles.checkRow} onPress={() => toggleSize(size)} activeOpacity={0.6}>
+                <Text style={[styles.checkLabel, active && styles.checkLabelActive]}>{size}</Text>
+                <View style={[styles.checkbox, active && { borderColor: colors.primary, backgroundColor: colors.primary }]}>
+                  {active && <Ionicons name="checkmark" size={14} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+
+          <Divider style={styles.filterDivider} />
+
+          <Text style={styles.filterSectionLabel}>Occasion</Text>
+          {OCCASIONS.map(occ => {
+            const active = activeOccasions.includes(occ);
+            return (
+              <TouchableOpacity key={occ} style={styles.checkRow} onPress={() => toggleOccasion(occ)} activeOpacity={0.6}>
+                <Text style={[styles.checkLabel, active && styles.checkLabelActive]}>{occ}</Text>
+                <View style={[styles.checkbox, active && { borderColor: colors.primary, backgroundColor: colors.primary }]}>
+                  {active && <Ionicons name="checkmark" size={14} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+
+          <Divider style={styles.filterDivider} />
+
+          <Text style={styles.filterSectionLabel}>Condition</Text>
+          {CONDITIONS.map(cond => {
+            const active = activeConditions.includes(cond);
+            return (
+              <TouchableOpacity key={cond} style={styles.checkRow} onPress={() => toggleCondition(cond)} activeOpacity={0.6}>
+                <Text style={[styles.checkLabel, active && styles.checkLabelActive]}>{cond}</Text>
+                <View style={[styles.checkbox, active && { borderColor: colors.primary, backgroundColor: colors.primary }]}>
+                  {active && <Ionicons name="checkmark" size={14} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+
+          <Divider style={styles.filterDivider} />
+
+          <Text style={styles.filterSectionLabel}>Price</Text>
+          {PRICE_RANGES.map(range => {
+            const active = activePriceRange?.label === range.label;
+            return (
+              <TouchableOpacity
+                key={range.label}
+                style={styles.checkRow}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setActivePriceRange(prev => prev?.label === range.label ? null : range);
+                }}
+                activeOpacity={0.6}
+              >
+                <Text style={[styles.checkLabel, active && styles.checkLabelActive]}>{range.label}</Text>
+                <View style={[styles.checkbox, active && { borderColor: colors.primary, backgroundColor: colors.primary }]}>
+                  {active && <Ionicons name="checkmark" size={14} color="#fff" />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <View style={[styles.filterFooter, { borderTopColor: colors.border }]}>
+          <Button
+            label={totalFilterCount > 0 ? `Reset (${totalFilterCount})` : 'Reset'}
+            variant="outline"
+            onPress={clearAllFilters}
+            borderColor={colors.border}
+            textColor={colors.textPrimary}
+            style={styles.filterBtn}
+          />
+          <Button
+            label="Apply"
+            variant="primary"
+            onPress={() => setShowFilterSheet(false)}
+            backgroundColor={colors.textPrimary}
+            textColor={colors.background}
+            style={styles.filterBtn}
+          />
         </View>
       </BottomSheet>
     </ScreenWrapper>
@@ -889,11 +903,6 @@ function getStyles(colors: ColorTokens) {
       flex: 1,
       textAlign: 'center',
     },
-    headerActions: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-    },
     headerIconBtn: {
       padding: Spacing.xs,
       position: 'relative',
@@ -923,12 +932,6 @@ function getStyles(colors: ColorTokens) {
     },
     rowDivider: {
       marginVertical: 0,
-    },
-
-    clearLink: {
-      ...Typography.caption,
-      color: colors.primaryText,
-      fontFamily: 'Inter_600SemiBold',
     },
 
     // Sub-category tabs
@@ -969,43 +972,68 @@ function getStyles(colors: ColorTokens) {
     gridContent: { flexGrow: 1, paddingBottom: Spacing['4xl'] },
     gridRow: { gap: Spacing.sm, marginBottom: Spacing.sm },
 
-    // Filter sheet
-    sheetContent: {
-      paddingHorizontal: Spacing.xs,
-    },
-    sheetHeader: {
+    // Filter full-screen sheet
+    filterHeader: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: Spacing.base,
+      justifyContent: 'space-between',
+      paddingBottom: Spacing.base,
     },
-    sheetTitle: {
-      ...Typography.subheading,
+    filterTitle: {
+      ...Typography.heading,
       color: colors.textPrimary,
     },
-    sheetSectionLabel: {
-      ...Typography.label,
-      color: colors.textSecondary,
-      marginBottom: Spacing.sm,
+    filterCloseBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: BorderRadius.full,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    sheetChips: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: Spacing.xs,
-      marginBottom: Spacing.base,
+    filterScroll: {
+      flex: 1,
     },
-    sheetApplyBtn: {
+    filterScrollContent: {
+      paddingBottom: Spacing['3xl'],
+    },
+    filterSectionLabel: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+      marginBottom: Spacing.md,
       marginTop: Spacing.sm,
     },
-
-    // Sort sheet
+    checkRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: Spacing.md,
+    },
+    checkLabel: {
+      ...Typography.body,
+      color: colors.textPrimary,
+    },
+    checkLabelActive: {
+      fontFamily: 'Inter_600SemiBold',
+      color: colors.primary,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderRadius: BorderRadius.full,
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterDivider: {
+      marginVertical: Spacing.lg,
+    },
     sortRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingVertical: Spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
     },
     sortLabel: {
       ...Typography.body,
@@ -1014,6 +1042,15 @@ function getStyles(colors: ColorTokens) {
     sortLabelActive: {
       fontFamily: 'Inter_600SemiBold',
       color: colors.primary,
+    },
+    filterFooter: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      paddingVertical: Spacing.base,
+      borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    filterBtn: {
+      flex: 1,
     },
   });
 }

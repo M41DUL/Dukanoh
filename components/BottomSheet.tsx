@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import {
   Animated,
   BackHandler,
+  Dimensions,
   Keyboard,
+  Modal,
   PanResponder,
   Platform,
   StyleSheet,
@@ -14,21 +16,24 @@ import { Spacing, BorderRadius } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 const DISMISS_THRESHOLD = 120;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  fullScreen?: boolean;
   backgroundColor?: string;
   handleColor?: string;
 }
 
-export function BottomSheet({ visible, onClose, children, backgroundColor, handleColor }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, children, fullScreen = false, backgroundColor, handleColor }: BottomSheetProps) {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const backdropAnim = useRef(new Animated.Value(0)).current;
-  const sheetAnim = useRef(new Animated.Value(800)).current;
+  const sheetAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const keyboardOffset = useRef(new Animated.Value(0)).current;
+  const [mounted, setMounted] = React.useState(false);
 
   // Stable ref so PanResponder always sees latest callback
   const onCloseRef = useRef(onClose);
@@ -36,6 +41,7 @@ export function BottomSheet({ visible, onClose, children, backgroundColor, handl
 
   useEffect(() => {
     if (visible) {
+      setMounted(true);
       Animated.parallel([
         Animated.timing(backdropAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
         Animated.spring(sheetAnim, { toValue: 0, speed: 16, bounciness: 4, useNativeDriver: true }),
@@ -44,8 +50,8 @@ export function BottomSheet({ visible, onClose, children, backgroundColor, handl
       Keyboard.dismiss();
       Animated.parallel([
         Animated.timing(backdropAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-        Animated.timing(sheetAnim, { toValue: 800, duration: 200, useNativeDriver: true }),
-      ]).start();
+        Animated.timing(sheetAnim, { toValue: SCREEN_HEIGHT, duration: 200, useNativeDriver: true }),
+      ]).start(() => setMounted(false));
     }
   }, [visible]);
 
@@ -103,7 +109,9 @@ export function BottomSheet({ visible, onClose, children, backgroundColor, handl
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  return (
+  if (!mounted && !visible) return null;
+
+  const content = (
     <>
       <Animated.View
         style={[StyleSheet.absoluteFillObject, styles.backdrop, { opacity: backdropAnim }]}
@@ -112,11 +120,15 @@ export function BottomSheet({ visible, onClose, children, backgroundColor, handl
         <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={onClose} />
       </Animated.View>
       <Animated.View
-        style={[styles.sheetOuter, { bottom: keyboardOffset }]}
+        style={[
+          styles.sheetOuter,
+          { bottom: fullScreen ? 0 : keyboardOffset },
+          fullScreen && { top: insets.top },
+        ]}
         pointerEvents={visible ? 'auto' : 'none'}
       >
         <Animated.View
-          {...panResponder.panHandlers}
+          {...(fullScreen ? {} : panResponder.panHandlers)}
           style={[
             styles.sheet,
             {
@@ -124,14 +136,31 @@ export function BottomSheet({ visible, onClose, children, backgroundColor, handl
               paddingBottom: insets.bottom + Spacing.xl,
               transform: [{ translateY: sheetAnim }],
             },
+            fullScreen && {
+              flex: 1,
+              borderTopLeftRadius: BorderRadius.large,
+              borderTopRightRadius: BorderRadius.large,
+            },
           ]}
         >
-          <View style={[styles.handle, { backgroundColor: handleColor ?? colors.border }]} />
+          {!fullScreen && (
+            <View style={[styles.handle, { backgroundColor: handleColor ?? colors.border }]} />
+          )}
           {children}
         </Animated.View>
       </Animated.View>
     </>
   );
+
+  if (fullScreen) {
+    return (
+      <Modal visible={mounted} transparent statusBarTranslucent animationType="none">
+        {content}
+      </Modal>
+    );
+  }
+
+  return content;
 }
 
 const styles = StyleSheet.create({
