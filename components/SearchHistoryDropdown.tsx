@@ -12,6 +12,7 @@ interface SearchHistoryDropdownProps {
   onSelect: (term: string) => void;
   onRemove: (term: string) => void;
   onClearAll: () => void;
+  inline?: boolean;
 }
 
 export function SearchHistoryDropdown({
@@ -20,9 +21,10 @@ export function SearchHistoryDropdown({
   onSelect,
   onRemove,
   onClearAll,
+  inline = false,
 }: SearchHistoryDropdownProps) {
   const colors = useThemeColors();
-  const styles = useMemo(() => getStyles(colors), [colors]);
+  const styles = useMemo(() => getStyles(colors, inline), [colors, inline]);
 
   const trimmed = query.trim();
   const showRecent = recentFiltered.length > 0;
@@ -72,8 +74,7 @@ export function SearchHistoryDropdown({
               onPress={() => onSelect(term)}
               activeOpacity={0.6}
             >
-              <Ionicons name="trending-up-outline" size={16} color={colors.textSecondary} />
-              <Text style={styles.term}>{term}</Text>
+              <Text style={styles.popularTerm}>{term}</Text>
             </TouchableOpacity>
           ))}
         </>
@@ -82,29 +83,35 @@ export function SearchHistoryDropdown({
   );
 }
 
-function getStyles(colors: ColorTokens) {
+function getStyles(colors: ColorTokens, inline: boolean) {
   return StyleSheet.create({
     container: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      backgroundColor: colors.background,
-      borderRadius: BorderRadius.medium,
-      paddingHorizontal: Spacing.base,
-      paddingVertical: Spacing.sm,
-      ...Platform.select({
-        ios: {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.12,
-          shadowRadius: 12,
-        },
-        android: {
-          elevation: 6,
-        },
-      }),
-      zIndex: 20,
+      ...(inline
+        ? {
+            paddingTop: Spacing.md,
+          }
+        : {
+            position: 'absolute' as const,
+            top: '100%' as any,
+            left: 0,
+            right: 0,
+            backgroundColor: colors.background,
+            borderRadius: BorderRadius.medium,
+            paddingHorizontal: Spacing.base,
+            paddingVertical: Spacing.sm,
+            ...Platform.select({
+              ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.12,
+                shadowRadius: 12,
+              },
+              android: {
+                elevation: 6,
+              },
+            }),
+            zIndex: 20,
+          }),
     },
     clearBtn: {
       alignItems: 'center',
@@ -123,6 +130,11 @@ function getStyles(colors: ColorTokens) {
     },
     term: {
       fontSize: 16,
+      fontFamily: 'Inter_500Medium',
+      color: colors.textPrimary,
+    },
+    popularTerm: {
+      fontSize: 18,
       fontFamily: 'Inter_500Medium',
       color: colors.textPrimary,
     },

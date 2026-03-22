@@ -479,6 +479,7 @@ export default function HomeScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [query, setQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [suggested, setSuggested] = useState<Listing[]>([]);
   const [newArrivals, setNewArrivals] = useState<Listing[]>([]);
   const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
@@ -634,6 +635,7 @@ export default function HomeScreen() {
             value={query}
             onChangeText={setQuery}
             showHistory
+            onFocusChange={setSearchFocused}
             onSubmit={(q) => {
               if (q.trim()) {
                 router.push({ pathname: '/listings', params: { title: `"${q}"`, query: q } });
@@ -642,7 +644,7 @@ export default function HomeScreen() {
           />
         </View>
 
-        {loading ? (
+        {searchFocused ? null : loading ? (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.feedContent}>
             <SkeletonSection />
             <SkeletonSection />

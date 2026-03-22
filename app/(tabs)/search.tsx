@@ -169,6 +169,7 @@ const heroBannerStyles = StyleSheet.create({
 export default function SearchScreen() {
   // Search state
   const [query, setQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [activeTab, setActiveTab] = useState<BrowseTab>('Women');
   const { saveSearch } = useSearchHistory();
   const { user } = useAuth();
@@ -468,6 +469,7 @@ export default function SearchScreen() {
             value={query}
             onChangeText={setQuery}
             showHistory
+            onFocusChange={setSearchFocused}
             onSubmit={(term) => {
               if (term.trim()) openSearch(term);
             }}
@@ -476,7 +478,7 @@ export default function SearchScreen() {
       </View>
 
       {/* ── Tab bar + Browse directory ────────────────────── */}
-      {!resultsMode && (
+      {!resultsMode && !searchFocused && (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.browseScroll}>
             <Text style={styles.shopHeading}>Shop</Text>
             <View style={styles.tabBar}>
