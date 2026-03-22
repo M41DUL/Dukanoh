@@ -633,6 +633,7 @@ export default function HomeScreen() {
           <SearchBar
             value={query}
             onChangeText={setQuery}
+            showHistory
             onSubmit={(q) => {
               if (q.trim()) {
                 router.push({ pathname: '/listings', params: { title: `"${q}"`, query: q } });
@@ -732,6 +733,7 @@ function getStyles(colors: ColorTokens) {
     topBar: {
       paddingTop: Spacing.sm,
       paddingBottom: Spacing.xs,
+      zIndex: 10,
     },
     feedContent: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
   });

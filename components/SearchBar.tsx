@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   TextInput,
@@ -9,6 +9,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BorderRadius, BorderWidth, Spacing, Typography, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useSearchHistory } from '@/hooks/useSearchHistory';
+import { SearchHistoryDropdown } from '@/components/SearchHistoryDropdown';
 
 const PLACEHOLDER_PREFIX = 'Search for ';
 const PLACEHOLDER_TERMS = [
@@ -28,6 +30,7 @@ interface SearchBarProps {
   onFocus?: () => void;
   onBlur?: () => void;
   onSubmit?: (query: string) => void;
+  showHistory?: boolean;
   style?: ViewStyle;
 }
 
@@ -39,16 +42,20 @@ export function SearchBar({
   onFocus,
   onBlur,
   onSubmit,
+  showHistory = false,
   style,
 }: SearchBarProps) {
   const [focused, setFocused] = useState(false);
+  const [dropdownVisible, setDropdownVisible] = useState(false);
   const [animPlaceholder, setAnimPlaceholder] = useState(PLACEHOLDER_PREFIX);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { filteredRecent, saveSearch, removeSearch, clearSearches } = useSearchHistory();
 
   useEffect(() => {
-    // Use static placeholder if one is provided, or pause when focused/has value
     if (placeholder || focused || value.length > 0) return;
 
     let termIdx = 0;
@@ -91,37 +98,85 @@ export function SearchBar({
     };
   }, [placeholder, focused, value]);
 
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+    };
+  }, []);
+
+  const handleFocus = useCallback(() => {
+    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current);
+    setFocused(true);
+    if (showHistory) setDropdownVisible(true);
+    onFocus?.();
+  }, [showHistory, onFocus]);
+
+  const handleBlur = useCallback(() => {
+    setFocused(false);
+    onBlur?.();
+    if (showHistory) {
+      // Delay hiding so tap events on dropdown items register first
+      blurTimeoutRef.current = setTimeout(() => setDropdownVisible(false), 150);
+    }
+  }, [showHistory, onBlur]);
+
+  const handleSubmit = useCallback((term: string) => {
+    if (showHistory && term.trim()) saveSearch(term.trim());
+    setDropdownVisible(false);
+    onSubmit?.(term);
+  }, [showHistory, saveSearch, onSubmit]);
+
+  const handleHistorySelect = useCallback((term: string) => {
+    onChangeText(term);
+    if (showHistory) saveSearch(term);
+    setDropdownVisible(false);
+    onSubmit?.(term);
+  }, [showHistory, saveSearch, onChangeText, onSubmit]);
+
   const handleClear = () => {
     onChangeText('');
     onClear?.();
   };
 
   const displayPlaceholder = placeholder ?? animPlaceholder;
+  const recentFiltered = showHistory ? filteredRecent(value) : [];
 
   return (
-    <View style={[styles.container, focused && styles.focused, style]}>
-      <Ionicons
-        name="search-outline"
-        size={18}
-        color={colors.textSecondary}
-        style={styles.icon}
-      />
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={displayPlaceholder}
-        placeholderTextColor={colors.textSecondary}
-        onFocus={() => { setFocused(true); onFocus?.(); }}
-        onBlur={() => { setFocused(false); onBlur?.(); }}
-        onSubmitEditing={() => onSubmit?.(value)}
-        returnKeyType="search"
-        clearButtonMode="never"
-      />
-      {value.length > 0 && (
-        <TouchableOpacity onPress={handleClear} hitSlop={8}>
-          <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+    <View style={showHistory ? styles.wrapper : undefined}>
+      <View style={[styles.container, focused && styles.focused, style]}>
+        <Ionicons
+          name="search-outline"
+          size={18}
+          color={colors.textSecondary}
+          style={styles.icon}
+        />
+        <TextInput
+          style={styles.input}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={displayPlaceholder}
+          placeholderTextColor={colors.textSecondary}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onSubmitEditing={() => handleSubmit(value)}
+          returnKeyType="search"
+          clearButtonMode="never"
+        />
+        {value.length > 0 && (
+          <TouchableOpacity onPress={handleClear} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {showHistory && dropdownVisible && (
+        <SearchHistoryDropdown
+          query={value}
+          recentFiltered={recentFiltered}
+          onSelect={handleHistorySelect}
+          onRemove={removeSearch}
+          onClearAll={clearSearches}
+        />
       )}
     </View>
   );
@@ -129,6 +184,10 @@ export function SearchBar({
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
+    wrapper: {
+      position: 'relative',
+      zIndex: 10,
+    },
     container: {
       flexDirection: 'row',
       alignItems: 'center',

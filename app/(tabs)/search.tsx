@@ -13,12 +13,12 @@ import {
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Swipeable } from 'react-native-gesture-handler';
 import Fuse from 'fuse.js';
 import * as Haptics from 'expo-haptics';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { SearchBar } from '@/components/SearchBar';
+import { useSearchHistory, POPULAR_SEARCHES } from '@/hooks/useSearchHistory';
 import { Badge } from '@/components/Badge';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -39,8 +39,6 @@ import { supabase } from '@/lib/supabase';
 
 // ─── Constants ──────────────────────────────────────────────
 
-const RECENT_KEY = '@dukanoh/recent_searches';
-const MAX_RECENT = 6;
 const PAGE_SIZE = 20;
 const TEXT_SEARCH_LIMIT = 100;
 const HERO_BANNER_1 = require('@/assets/images/hero-banner-1.png');
@@ -66,7 +64,6 @@ const MORE_CATEGORIES = BROWSE_CATEGORIES.slice(3);
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'];
-const POPULAR_SEARCHES = ['Lehenga', 'Sherwani', 'Saree', 'Kurta', 'Anarkali', 'Dupatta'];
 
 type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'most_saved' | 'most_viewed';
 const SORT_LABELS: Record<SortOption, string> = {
@@ -160,7 +157,7 @@ export default function SearchScreen() {
   // Search state
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const { filteredRecent, saveSearch, removeSearch, clearSearches } = useSearchHistory();
 
   // Results state
   const [resultsMode, setResultsMode] = useState(false);
@@ -187,38 +184,6 @@ export default function SearchScreen() {
 
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
-
-  // ─── Init ───────────────────────────────────────────────
-  useEffect(() => {
-    AsyncStorage.getItem(RECENT_KEY).then(val => {
-      if (val) setRecentSearches(JSON.parse(val));
-    });
-  }, []);
-
-  // ─── Search helpers ─────────────────────────────────────
-  const saveSearch = useCallback((term: string) => {
-    const trimmed = term.trim();
-    if (!trimmed) return;
-    setRecentSearches(prev => {
-      const deduped = [trimmed, ...prev.filter(s => s !== trimmed)].slice(0, MAX_RECENT);
-      AsyncStorage.setItem(RECENT_KEY, JSON.stringify(deduped));
-      return deduped;
-    });
-  }, []);
-
-  const removeSearch = useCallback((term: string) => {
-    setRecentSearches(prev => {
-      const updated = prev.filter(s => s !== term);
-      if (updated.length === 0) AsyncStorage.removeItem(RECENT_KEY);
-      else AsyncStorage.setItem(RECENT_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  const clearSearches = useCallback(() => {
-    AsyncStorage.removeItem(RECENT_KEY);
-    setRecentSearches([]);
-  }, []);
 
   // ─── Navigation into results ────────────────────────────
   const openCategory = useCallback((cat: string) => {
@@ -460,12 +425,9 @@ export default function SearchScreen() {
   }, [loadingMore, hasMore, loading, page, query, buildQuery, activeSizes]);
 
   // ─── Determine view state ──────────────────────────────
-  const trimmedInput = query.trim().toLowerCase();
-  const filteredRecent = trimmedInput
-    ? recentSearches.filter(s => s.toLowerCase().includes(trimmedInput))
-    : recentSearches;
-  const showRecentPanel = focused && !resultsMode && filteredRecent.length > 0;
-  const showPopularPanel = focused && !resultsMode && filteredRecent.length === 0 && !trimmedInput;
+  const recentMatches = filteredRecent(query);
+  const showRecentPanel = focused && !resultsMode && recentMatches.length > 0;
+  const showPopularPanel = focused && !resultsMode && recentMatches.length === 0 && !query.trim();
 
   // ─── Render ─────────────────────────────────────────────
   return (
@@ -501,7 +463,7 @@ export default function SearchScreen() {
               <Text style={styles.clearLink}>Clear all</Text>
             </TouchableOpacity>
           </View>
-          {filteredRecent.map(term => (
+          {recentMatches.map(term => (
             <Swipeable
               key={term}
               renderRightActions={() => (
