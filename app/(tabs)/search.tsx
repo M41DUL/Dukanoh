@@ -31,7 +31,6 @@ import {
   Typography,
   Spacing,
   BorderRadius,
-  BorderWidth,
   ColorTokens,
 } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -261,6 +260,18 @@ export default function SearchScreen() {
   const [resultsTitle, setResultsTitle] = useState('');
   const [resultsCategory, setResultsCategory] = useState<string | null>(null);
   const [resultsOccasionPreset, setResultsOccasionPreset] = useState<string | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState('All');
+
+  // Sub-tabs: show occasions when browsing a category, categories when browsing an occasion
+  const subTabs = useMemo(() => {
+    if (!resultsMode) return [];
+    if (resultsCategory) return ['All', ...OCCASIONS];
+    if (resultsOccasionPreset) {
+      const allCats = TAB_CONFIG.All.categories;
+      return ['All', ...allCats];
+    }
+    return [];
+  }, [resultsMode, resultsCategory, resultsOccasionPreset]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -291,6 +302,7 @@ export default function SearchScreen() {
     setResultsTitle(cat);
     setResultsCategory(cat);
     setResultsOccasionPreset(null);
+    setActiveSubTab('All');
   }, []);
 
   const openOccasion = useCallback((occ: string) => {
@@ -300,6 +312,7 @@ export default function SearchScreen() {
     setResultsCategory(null);
     setResultsOccasionPreset(occ);
     setActiveOccasions([occ]);
+    setActiveSubTab('All');
   }, []);
 
   const openSearch = useCallback((term: string) => {
@@ -387,6 +400,15 @@ export default function SearchScreen() {
 
     if (resultsCategory) q = q.eq('category', resultsCategory);
 
+    // Sub-tab filter: occasion when browsing category, category when browsing occasion
+    if (activeSubTab !== 'All') {
+      if (resultsCategory) {
+        q = q.eq('occasion', activeSubTab);
+      } else if (resultsOccasionPreset) {
+        q = q.eq('category', activeSubTab);
+      }
+    }
+
     if (activeSizes.length === 1) {
       q = q.ilike('size', `%${activeSizes[0]}%`);
     }
@@ -414,7 +436,7 @@ export default function SearchScreen() {
     }
 
     return { q, trimmedQuery };
-  }, [query, resultsCategory, activeSizes, activeOccasions, activeConditions, activePriceRange, sort]);
+  }, [query, resultsCategory, resultsOccasionPreset, activeSubTab, activeSizes, activeOccasions, activeConditions, activePriceRange, sort]);
 
   const applyClientFilters = useCallback((data: Listing[], trimmedQuery: string) => {
     let results = data;
@@ -542,7 +564,15 @@ export default function SearchScreen() {
               <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.resultsHeaderTitle} numberOfLines={1}>{resultsTitle}</Text>
-            <View style={styles.headerSpacer} />
+            <View style={styles.headerActions}>
+              <TouchableOpacity onPress={() => setShowSortSheet(true)} hitSlop={8} style={styles.headerIconBtn}>
+                <Ionicons name="swap-vertical-outline" size={20} color={isSorted ? colors.primary : colors.textPrimary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowFilterSheet(true)} hitSlop={8} style={styles.headerIconBtn}>
+                <Ionicons name="options-outline" size={20} color={filterCount > 0 ? colors.primary : colors.textPrimary} />
+                {filterCount > 0 && <View style={styles.filterBadge} />}
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <SearchBar
@@ -613,35 +643,34 @@ export default function SearchScreen() {
       {/* ── Results view ─────────────────────────────────── */}
       {resultsMode && (
         <>
-          <View style={styles.controls}>
-            <TouchableOpacity
-              style={[styles.controlBtn, isSorted && styles.controlBtnActive]}
-              onPress={() => setShowSortSheet(true)}
-              activeOpacity={0.8}
+          {/* Sub-category tabs */}
+          {subTabs.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.subTabRow}
+              style={styles.subTabScroll}
             >
-              <Ionicons
-                name="swap-vertical-outline"
-                size={15}
-                color={isSorted ? colors.background : colors.textPrimary}
-              />
-              <Text style={[styles.controlText, isSorted && styles.controlTextActive]}>Sort</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.controlBtn, filterCount > 0 && styles.controlBtnActive]}
-              onPress={() => setShowFilterSheet(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="options-outline"
-                size={15}
-                color={filterCount > 0 ? colors.background : colors.textPrimary}
-              />
-              <Text style={[styles.controlText, filterCount > 0 && styles.controlTextActive]}>
-                {filterCount > 0 ? `Filter (${filterCount})` : 'Filter'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+              {subTabs.map(tab => {
+                const isActive = activeSubTab === tab;
+                return (
+                  <TouchableOpacity
+                    key={tab}
+                    style={[styles.subTab, isActive && styles.subTabActive]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setActiveSubTab(tab);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.subTabLabel, isActive && styles.subTabLabelActive]}>
+                      {tab}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
 
           {loading && !refreshing ? (
             <SkeletonGrid colors={colors} />
@@ -860,7 +889,24 @@ function getStyles(colors: ColorTokens) {
       flex: 1,
       textAlign: 'center',
     },
-    headerSpacer: { width: 32 },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    headerIconBtn: {
+      padding: Spacing.xs,
+      position: 'relative',
+    },
+    filterBadge: {
+      position: 'absolute',
+      top: 4,
+      right: 4,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+    },
 
     // Browse directory
     browseScroll: {
@@ -885,35 +931,33 @@ function getStyles(colors: ColorTokens) {
       fontFamily: 'Inter_600SemiBold',
     },
 
-    // Sort & filter controls
-    controls: {
-      flexDirection: 'row',
-      gap: Spacing.sm,
+    // Sub-category tabs
+    subTabScroll: {
+      flexGrow: 0,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    subTabRow: {
+      gap: Spacing.xl,
+      paddingTop: Spacing.base,
+      paddingBottom: Spacing.md,
+    },
+    subTab: {
       paddingBottom: Spacing.sm,
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
     },
-    controlBtn: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      height: 42,
-      borderRadius: BorderRadius.full,
-      borderWidth: BorderWidth.standard,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
+    subTabActive: {
+      borderBottomColor: colors.textPrimary,
     },
-    controlBtnActive: {
-      backgroundColor: colors.textPrimary,
-      borderColor: colors.textPrimary,
+    subTabLabel: {
+      fontSize: 16,
+      fontFamily: 'Inter_500Medium',
+      color: colors.textSecondary,
     },
-    controlText: {
-      ...Typography.body,
+    subTabLabelActive: {
       color: colors.textPrimary,
       fontFamily: 'Inter_600SemiBold',
-    },
-    controlTextActive: {
-      color: colors.background,
     },
 
     // Results grid
