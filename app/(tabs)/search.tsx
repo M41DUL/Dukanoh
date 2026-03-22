@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+} from 'react-native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,78 +19,190 @@ import { Badge } from '@/components/Badge';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Typography, Spacing, Categories, ColorTokens } from '@/constants/theme';
+import { Divider } from '@/components/Divider';
+import { BottomSheet } from '@/components/BottomSheet';
+import { Button } from '@/components/Button';
+import {
+  Typography,
+  Spacing,
+  Categories,
+  BorderRadius,
+  BorderWidth,
+  ColorTokens,
+} from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 
+// ─── Constants ──────────────────────────────────────────────
+
 const RECENT_KEY = '@dukanoh/recent_searches';
 const MAX_RECENT = 6;
+const HERO_CACHE_KEY = '@dukanoh/search_hero_images';
+const HERO_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+const BROWSE_CATEGORIES = Categories.filter(c => c !== 'All');
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
 const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
+const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'];
 
 type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'most_saved' | 'most_viewed';
-const SORT_OPTIONS: { label: string; value: SortOption }[] = [
-  { label: 'Newest', value: 'newest' },
-  { label: 'Price: Low → High', value: 'price_asc' },
-  { label: 'Price: High → Low', value: 'price_desc' },
-  { label: 'Most saved', value: 'most_saved' },
-  { label: 'Most viewed', value: 'most_viewed' },
-];
+const SORT_LABELS: Record<SortOption, string> = {
+  newest: 'Newest first',
+  price_asc: 'Price: Low to High',
+  price_desc: 'Price: High to Low',
+  most_saved: 'Most saved',
+  most_viewed: 'Most viewed',
+};
 
-interface PriceRange { label: string; min: number; max: number; }
+interface PriceRange { label: string; min: number; max: number }
 const PRICE_RANGES: PriceRange[] = [
   { label: 'Under £25', min: 0, max: 25 },
-  { label: '£25–£75', min: 25, max: 75 },
-  { label: '£75–£150', min: 75, max: 150 },
+  { label: '£25\u2013£75', min: 25, max: 75 },
+  { label: '£75\u2013£150', min: 75, max: 150 },
   { label: '£150+', min: 150, max: Infinity },
 ];
 
-async function fetchTrendingCategories(): Promise<string[]> {
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+// ─── Hero image fetching ────────────────────────────────────
+
+async function fetchHeroImages(): Promise<string[]> {
+  try {
+    const cached = await AsyncStorage.getItem(HERO_CACHE_KEY);
+    if (cached) {
+      const { images, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < HERO_TTL_MS && images.length > 0) return images;
+    }
+  } catch {}
+
   const { data } = await supabase
     .from('listings')
-    .select('category')
+    .select('images')
     .eq('status', 'available')
-    .gte('created_at', since)
-    .limit(200);
+    .order('view_count', { ascending: false })
+    .limit(8);
 
-  if (!data || data.length === 0) return [];
+  const images = (data ?? [])
+    .flatMap(l => l.images ?? [])
+    .filter(Boolean)
+    .slice(0, 6);
 
-  const counts = data.reduce<Record<string, number>>((acc, { category }) => {
-    acc[category] = (acc[category] ?? 0) + 1;
-    return acc;
-  }, {});
+  try {
+    await AsyncStorage.setItem(HERO_CACHE_KEY, JSON.stringify({ images, timestamp: Date.now() }));
+  } catch {}
 
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([cat]) => cat);
+  return images;
 }
 
+// ─── Browse row component ───────────────────────────────────
+
+function BrowseRow({
+  label,
+  onPress,
+  colors,
+}: {
+  label: string;
+  onPress: () => void;
+  colors: ColorTokens;
+}) {
+  return (
+    <TouchableOpacity
+      style={browseRowStyles.row}
+      onPress={onPress}
+      activeOpacity={0.6}
+    >
+      <Text style={[browseRowStyles.label, { color: colors.textPrimary }]}>{label}</Text>
+      <Ionicons name="arrow-forward" size={18} color={colors.textSecondary} />
+    </TouchableOpacity>
+  );
+}
+
+const browseRowStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.md + 2,
+  },
+  label: {
+    ...Typography.body,
+    fontFamily: 'Inter_600SemiBold',
+  },
+});
+
+// ─── Hero banner component ──────────────────────────────────
+
+function HeroBanner({ images, colors }: { images: string[]; colors: ColorTokens }) {
+  if (images.length === 0) return null;
+  // Show up to 3 images in a row
+  const display = images.slice(0, 3);
+  return (
+    <View style={[heroBannerStyles.container, { backgroundColor: colors.surface }]}>
+      {display.map((uri, i) => (
+        <Image
+          key={i}
+          source={{ uri }}
+          style={heroBannerStyles.image}
+          contentFit="cover"
+          transition={300}
+        />
+      ))}
+    </View>
+  );
+}
+
+const heroBannerStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    borderRadius: BorderRadius.medium,
+    overflow: 'hidden',
+    height: 180,
+    marginVertical: Spacing.base,
+  },
+  image: {
+    flex: 1,
+  },
+});
+
+// ─── Main screen ────────────────────────────────────────────
+
 export default function SearchScreen() {
+  // Search state
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [trendingCategories, setTrendingCategories] = useState<string[]>([]);
-  const [activeCategory, setActiveCategory] = useState<string>('All');
-  const [activeSizes, setActiveSizes] = useState<string[]>([]);
-  const [activeOccasions, setActiveOccasions] = useState<string[]>([]);
-  const [activePriceRange, setActivePriceRange] = useState<PriceRange | null>(null);
-  const [sort, setSort] = useState<SortOption>('newest');
+
+  // Browse state
+  const [heroImages, setHeroImages] = useState<string[]>([]);
+
+  // Results state
+  const [resultsMode, setResultsMode] = useState(false);
+  const [resultsTitle, setResultsTitle] = useState('');
+  const [resultsCategory, setResultsCategory] = useState<string | null>(null);
+  const [resultsOccasionPreset, setResultsOccasionPreset] = useState<string | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Filter state
+  const [activeSizes, setActiveSizes] = useState<string[]>([]);
+  const [activeOccasions, setActiveOccasions] = useState<string[]>([]);
+  const [activeConditions, setActiveConditions] = useState<string[]>([]);
+  const [activePriceRange, setActivePriceRange] = useState<PriceRange | null>(null);
+  const [sort, setSort] = useState<SortOption>('newest');
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
+
   const fuseRef = useRef<Fuse<Listing> | null>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
+  // ─── Init ───────────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem(RECENT_KEY).then(val => {
       if (val) setRecentSearches(JSON.parse(val));
     });
-    fetchTrendingCategories().then(setTrendingCategories);
+    fetchHeroImages().then(setHeroImages);
   }, []);
 
+  // ─── Search helpers ─────────────────────────────────────
   const saveSearch = useCallback((term: string) => {
     const trimmed = term.trim();
     if (!trimmed) return;
@@ -97,17 +218,47 @@ export default function SearchScreen() {
     setRecentSearches([]);
   }, []);
 
-  const applySearch = useCallback((term: string) => {
+  // ─── Navigation into results ────────────────────────────
+  const openCategory = useCallback((cat: string) => {
+    setResultsMode(true);
+    setResultsTitle(cat);
+    setResultsCategory(cat);
+    setResultsOccasionPreset(null);
+    setFocused(false);
+  }, []);
+
+  const openOccasion = useCallback((occ: string) => {
+    setResultsMode(true);
+    setResultsTitle(occ);
+    setResultsCategory(null);
+    setResultsOccasionPreset(occ);
+    setActiveOccasions([occ]);
+    setFocused(false);
+  }, []);
+
+  const openSearch = useCallback((term: string) => {
     setQuery(term);
+    setResultsMode(true);
+    setResultsTitle(`\u201C${term}\u201D`);
+    setResultsCategory(null);
+    setResultsOccasionPreset(null);
     setFocused(false);
     saveSearch(term);
   }, [saveSearch]);
 
-  const applyCategory = useCallback((cat: string) => {
-    setActiveCategory(cat);
-    setFocused(false);
+  const exitResults = useCallback(() => {
+    setResultsMode(false);
+    setResultsCategory(null);
+    setResultsOccasionPreset(null);
+    setQuery('');
+    setActiveSizes([]);
+    setActiveOccasions([]);
+    setActiveConditions([]);
+    setActivePriceRange(null);
+    setSort('newest');
   }, []);
 
+  // ─── Filter helpers ─────────────────────────────────────
   const toggleSize = useCallback((size: string) => {
     setActiveSizes(prev =>
       prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]
@@ -120,11 +271,44 @@ export default function SearchScreen() {
     );
   }, []);
 
+  const toggleCondition = useCallback((cond: string) => {
+    setActiveConditions(prev =>
+      prev.includes(cond) ? prev.filter(c => c !== cond) : [...prev, cond]
+    );
+  }, []);
+
+  const clearAllFilters = useCallback(() => {
+    setActiveSizes([]);
+    setActiveOccasions(resultsOccasionPreset ? [resultsOccasionPreset] : []);
+    setActiveConditions([]);
+    setActivePriceRange(null);
+  }, [resultsOccasionPreset]);
+
+  const filterCount =
+    activeSizes.length +
+    // Don't count the preset occasion as a user-applied filter
+    (activeOccasions.length - (resultsOccasionPreset && activeOccasions.includes(resultsOccasionPreset) ? 1 : 0)) +
+    activeConditions.length +
+    (activePriceRange ? 1 : 0);
+  const isSorted = sort !== 'newest';
+
+  const showSortAlert = () => {
+    Alert.alert('Sort by', undefined, [
+      ...Object.entries(SORT_LABELS).map(([value, label]) => ({
+        text: sort === value ? `\u2713  ${label}` : label,
+        onPress: () => setSort(value as SortOption),
+      })),
+      { text: 'Cancel', style: 'cancel' as const },
+    ]);
+  };
+
+  // ─── Fetch results ──────────────────────────────────────
   useEffect(() => {
+    if (!resultsMode) return;
+
     const timer = setTimeout(async () => {
       setLoading(true);
 
-      // Build sort order
       let orderCol = 'created_at';
       let ascending = false;
       if (sort === 'price_asc') { orderCol = 'price'; ascending = true; }
@@ -138,31 +322,35 @@ export default function SearchScreen() {
         .eq('status', 'available')
         .order(orderCol, { ascending });
 
-      // Apply category filter
-      if (activeCategory !== 'All') q = q.eq('category', activeCategory);
+      // Category (from browse tap)
+      if (resultsCategory) q = q.eq('category', resultsCategory);
 
-      // Apply multi-select size filter (OR — match any selected size)
+      // Multi-select size
       if (activeSizes.length === 1) {
         q = q.ilike('size', `%${activeSizes[0]}%`);
-      } else if (activeSizes.length > 1) {
-        // Supabase doesn't support OR on ilike natively, so fetch broader and filter client-side
       }
 
-      // Apply multi-select occasion filter
+      // Multi-select occasion
       if (activeOccasions.length === 1) {
         q = q.eq('occasion', activeOccasions[0]);
       } else if (activeOccasions.length > 1) {
         q = q.in('occasion', activeOccasions);
       }
 
-      // Apply price range
+      // Multi-select condition
+      if (activeConditions.length === 1) {
+        q = q.eq('condition', activeConditions[0]);
+      } else if (activeConditions.length > 1) {
+        q = q.in('condition', activeConditions);
+      }
+
+      // Price range
       if (activePriceRange) {
         q = q.gte('price', activePriceRange.min);
         if (activePriceRange.max !== Infinity) q = q.lte('price', activePriceRange.max);
       }
 
-      // For text search, fetch broader set and apply fuzzy matching client-side
-      // ilike for initial narrowing, fuse.js for re-ranking
+      // Text search
       const trimmedQuery = query.trim();
       if (trimmedQuery) {
         q = q.or(`title.ilike.%${trimmedQuery}%,category.ilike.%${trimmedQuery}%,occasion.ilike.%${trimmedQuery}%`);
@@ -171,7 +359,7 @@ export default function SearchScreen() {
       const { data } = await q;
       let results = (data ?? []) as unknown as Listing[];
 
-      // Client-side multi-size filter when > 1 size selected
+      // Client-side multi-size filter
       if (activeSizes.length > 1) {
         const sizeLower = activeSizes.map(s => s.toLowerCase());
         results = results.filter(l =>
@@ -179,7 +367,7 @@ export default function SearchScreen() {
         );
       }
 
-      // Fuzzy re-rank with fuse.js when there's a text query
+      // Fuzzy re-rank
       if (trimmedQuery && results.length > 0) {
         fuseRef.current = new Fuse(results, {
           keys: [
@@ -190,251 +378,293 @@ export default function SearchScreen() {
           threshold: 0.4,
           includeScore: true,
         });
-        const fuseResults = fuseRef.current.search(trimmedQuery);
-        results = fuseResults.map(r => r.item);
+        results = fuseRef.current.search(trimmedQuery).map(r => r.item);
       }
 
       setListings(results);
       setLoading(false);
-    }, 350);
+    }, 300);
 
     return () => clearTimeout(timer);
-  }, [query, activeCategory, activeSizes, activeOccasions, activePriceRange, sort]);
+  }, [resultsMode, query, resultsCategory, activeSizes, activeOccasions, activeConditions, activePriceRange, sort]);
 
-  const showPanel = focused && !query.trim() &&
-    (recentSearches.length > 0 || trendingCategories.length > 0);
+  // ─── Determine view state ──────────────────────────────
+  const showRecentPanel = focused && !query.trim() && recentSearches.length > 0;
 
-  const activeFilterCount = activeSizes.length + activeOccasions.length + (activePriceRange ? 1 : 0);
-
+  // ─── Render ─────────────────────────────────────────────
   return (
     <ScreenWrapper>
       <View style={styles.searchBarWrapper}>
-        <SearchBar
-          value={query}
-          onChangeText={setQuery}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onSubmit={saveSearch}
-        />
+        {resultsMode ? (
+          <View style={styles.resultsHeader}>
+            <TouchableOpacity onPress={exitResults} hitSlop={8} style={styles.backBtn}>
+              <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.resultsHeaderTitle} numberOfLines={1}>{resultsTitle}</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+        ) : (
+          <SearchBar
+            value={query}
+            onChangeText={(text) => {
+              setQuery(text);
+              if (text.trim()) {
+                setFocused(false);
+              }
+            }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onSubmit={(term) => {
+              if (term.trim()) openSearch(term);
+            }}
+          />
+        )}
       </View>
 
-      {showPanel ? (
+      {/* ── Recent searches panel ────────────────────────── */}
+      {showRecentPanel && (
         <View style={styles.panel}>
-          {recentSearches.length > 0 && (
-            <>
-              <View style={styles.panelHeader}>
-                <Text style={styles.panelLabel}>Recent</Text>
-                <TouchableOpacity onPress={clearSearches} hitSlop={8}>
-                  <Text style={styles.clearAll}>Clear all</Text>
-                </TouchableOpacity>
-              </View>
-              {recentSearches.map(term => (
-                <TouchableOpacity
-                  key={term}
-                  style={styles.recentRow}
-                  onPress={() => applySearch(term)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                  <Text style={styles.recentTerm}>{term}</Text>
-                </TouchableOpacity>
-              ))}
-            </>
-          )}
-
-          {trendingCategories.length > 0 && (
-            <View style={recentSearches.length > 0 ? styles.trendingSection : undefined}>
-              <Text style={styles.panelLabel}>Trending</Text>
-              <View style={styles.trendingChips}>
-                {trendingCategories.map(cat => (
-                  <Badge
-                    key={cat}
-                    label={cat}
-                    active={activeCategory === cat}
-                    onPress={() => applyCategory(cat)}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
+          <View style={styles.panelHeader}>
+            <Text style={styles.sectionHeading}>Recent</Text>
+            <TouchableOpacity onPress={clearSearches} hitSlop={8}>
+              <Text style={styles.clearLink}>Clear all</Text>
+            </TouchableOpacity>
+          </View>
+          {recentSearches.map(term => (
+            <TouchableOpacity
+              key={term}
+              style={styles.recentRow}
+              onPress={() => openSearch(term)}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+              <Text style={styles.recentTerm}>{term}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
-      ) : (
-        <FlatList
-          data={listings}
-          keyExtractor={item => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.grid}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => (
-            <ListingCard
-              listing={item}
-              variant="grid"
-              onPress={() => router.push(`/listing/${item.id}`)}
-            />
-          )}
-          ListHeaderComponent={
-            <View style={styles.filters}>
-              {/* Category */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipRow}
-              >
-                {[...Categories].map(cat => (
-                  <Badge
-                    key={cat}
-                    label={cat}
-                    active={activeCategory === cat}
-                    onPress={() => setActiveCategory(cat)}
-                  />
-                ))}
-              </ScrollView>
-
-              {/* Size (multi-select) */}
-              <Text style={styles.filterLabel}>
-                Size{activeSizes.length > 0 ? ` (${activeSizes.length})` : ''}
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipRow}
-              >
-                {SIZES.map(size => (
-                  <Badge
-                    key={size}
-                    label={size}
-                    active={activeSizes.includes(size)}
-                    onPress={() => toggleSize(size)}
-                  />
-                ))}
-              </ScrollView>
-
-              {/* Occasion (multi-select) */}
-              <Text style={styles.filterLabel}>
-                Occasion{activeOccasions.length > 0 ? ` (${activeOccasions.length})` : ''}
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipRow}
-              >
-                {OCCASIONS.map(occ => (
-                  <Badge
-                    key={occ}
-                    label={occ}
-                    active={activeOccasions.includes(occ)}
-                    onPress={() => toggleOccasion(occ)}
-                  />
-                ))}
-              </ScrollView>
-
-              {/* Price */}
-              <Text style={styles.filterLabel}>Price</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipRow}
-              >
-                {PRICE_RANGES.map(range => (
-                  <Badge
-                    key={range.label}
-                    label={range.label}
-                    active={activePriceRange?.label === range.label}
-                    onPress={() =>
-                      setActivePriceRange(prev =>
-                        prev?.label === range.label ? null : range
-                      )
-                    }
-                  />
-                ))}
-              </ScrollView>
-
-              {/* Sort */}
-              <Text style={styles.filterLabel}>Sort by</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipRow}
-              >
-                {SORT_OPTIONS.map(opt => (
-                  <Badge
-                    key={opt.value}
-                    label={opt.label}
-                    active={sort === opt.value}
-                    onPress={() => setSort(opt.value)}
-                  />
-                ))}
-              </ScrollView>
-
-              {/* Results count + clear filters */}
-              {!loading && (
-                <View style={styles.resultsRow}>
-                  <Text style={styles.resultsCount}>
-                    {listings.length} {listings.length === 1 ? 'result' : 'results'}
-                  </Text>
-                  {activeFilterCount > 0 && (
-                    <TouchableOpacity
-                      onPress={() => {
-                        setActiveSizes([]);
-                        setActiveOccasions([]);
-                        setActivePriceRange(null);
-                      }}
-                      hitSlop={8}
-                    >
-                      <Text style={styles.clearFilters}>Clear filters</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </View>
-          }
-          ListEmptyComponent={
-            loading
-              ? <LoadingSpinner />
-              : <EmptyState
-                  heading="No listings found"
-                  subtext="Try adjusting your filters or search term."
-                />
-          }
-        />
       )}
+
+      {/* ── Browse directory ─────────────────────────────── */}
+      {!resultsMode && !showRecentPanel && (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent}>
+          {/* Shop by category */}
+          <Text style={styles.sectionHeading}>Shop by category</Text>
+          {BROWSE_CATEGORIES.slice(0, 3).map((cat, i) => (
+            <React.Fragment key={cat}>
+              <BrowseRow label={cat} onPress={() => openCategory(cat)} colors={colors} />
+              {i < 2 && <Divider style={styles.rowDivider} />}
+            </React.Fragment>
+          ))}
+
+          {/* Hero banner — top viewed listings */}
+          <HeroBanner images={heroImages.slice(0, 3)} colors={colors} />
+
+          {/* Shop by occasion */}
+          <Text style={styles.sectionHeading}>Shop by occasion</Text>
+          {OCCASIONS.map((occ, i) => (
+            <React.Fragment key={occ}>
+              <BrowseRow label={occ} onPress={() => openOccasion(occ)} colors={colors} />
+              {i < OCCASIONS.length - 1 && <Divider style={styles.rowDivider} />}
+            </React.Fragment>
+          ))}
+
+          {/* Hero banner — second set */}
+          <HeroBanner images={heroImages.slice(3, 6)} colors={colors} />
+
+          {/* Remaining categories */}
+          <Text style={styles.sectionHeading}>More categories</Text>
+          {BROWSE_CATEGORIES.slice(3).map((cat, i) => (
+            <React.Fragment key={cat}>
+              <BrowseRow label={cat} onPress={() => openCategory(cat)} colors={colors} />
+              {i < BROWSE_CATEGORIES.slice(3).length - 1 && <Divider style={styles.rowDivider} />}
+            </React.Fragment>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* ── Results view ─────────────────────────────────── */}
+      {resultsMode && (
+        <>
+          <View style={styles.controls}>
+            <TouchableOpacity
+              style={[styles.controlBtn, isSorted && styles.controlBtnActive]}
+              onPress={showSortAlert}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="swap-vertical-outline"
+                size={15}
+                color={isSorted ? colors.background : colors.textPrimary}
+              />
+              <Text style={[styles.controlText, isSorted && styles.controlTextActive]}>Sort</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.controlBtn, filterCount > 0 && styles.controlBtnActive]}
+              onPress={() => setShowFilterSheet(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="options-outline"
+                size={15}
+                color={filterCount > 0 ? colors.background : colors.textPrimary}
+              />
+              <Text style={[styles.controlText, filterCount > 0 && styles.controlTextActive]}>
+                {filterCount > 0 ? `Filter (${filterCount})` : 'Filter'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={listings}
+            keyExtractor={item => item.id}
+            numColumns={2}
+            columnWrapperStyle={styles.gridRow}
+            contentContainerStyle={styles.gridContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <ListingCard
+                listing={item}
+                variant="grid"
+                onPress={() => router.push(`/listing/${item.id}`)}
+              />
+            )}
+            ListHeaderComponent={
+              !loading ? (
+                <Text style={styles.resultsCount}>
+                  {listings.length} {listings.length === 1 ? 'result' : 'results'}
+                </Text>
+              ) : null
+            }
+            ListEmptyComponent={
+              loading
+                ? <LoadingSpinner />
+                : <EmptyState
+                    heading="No listings found"
+                    subtext="Try adjusting your filters or search term."
+                  />
+            }
+          />
+        </>
+      )}
+
+      {/* ── Filter bottom sheet ──────────────────────────── */}
+      <BottomSheet visible={showFilterSheet} onClose={() => setShowFilterSheet(false)}>
+        <View style={styles.sheetContent}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Filters</Text>
+            {filterCount > 0 && (
+              <TouchableOpacity onPress={clearAllFilters} hitSlop={8}>
+                <Text style={styles.clearLink}>Clear all</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <Text style={styles.sheetSectionLabel}>Size</Text>
+          <View style={styles.sheetChips}>
+            {SIZES.map(size => (
+              <Badge
+                key={size}
+                label={size}
+                active={activeSizes.includes(size)}
+                onPress={() => toggleSize(size)}
+              />
+            ))}
+          </View>
+
+          <Text style={styles.sheetSectionLabel}>Occasion</Text>
+          <View style={styles.sheetChips}>
+            {OCCASIONS.map(occ => (
+              <Badge
+                key={occ}
+                label={occ}
+                active={activeOccasions.includes(occ)}
+                onPress={() => toggleOccasion(occ)}
+              />
+            ))}
+          </View>
+
+          <Text style={styles.sheetSectionLabel}>Condition</Text>
+          <View style={styles.sheetChips}>
+            {CONDITIONS.map(cond => (
+              <Badge
+                key={cond}
+                label={cond}
+                active={activeConditions.includes(cond)}
+                onPress={() => toggleCondition(cond)}
+              />
+            ))}
+          </View>
+
+          <Text style={styles.sheetSectionLabel}>Price</Text>
+          <View style={styles.sheetChips}>
+            {PRICE_RANGES.map(range => (
+              <Badge
+                key={range.label}
+                label={range.label}
+                active={activePriceRange?.label === range.label}
+                onPress={() =>
+                  setActivePriceRange(prev =>
+                    prev?.label === range.label ? null : range
+                  )
+                }
+              />
+            ))}
+          </View>
+
+          <Button
+            label={filterCount > 0 ? `Show results (${filterCount} active)` : 'Show results'}
+            onPress={() => setShowFilterSheet(false)}
+            variant="primary"
+            style={styles.sheetApplyBtn}
+          />
+        </View>
+      </BottomSheet>
     </ScreenWrapper>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────
+
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
+    // Search bar
     searchBarWrapper: {
-      paddingTop: Spacing.base,
-      paddingBottom: Spacing.sm,
-    },
-    filters: { paddingTop: Spacing.sm },
-    chipRow: { gap: Spacing.xs, paddingBottom: Spacing.sm },
-    filterLabel: {
-      ...Typography.label,
-      color: colors.textSecondary,
-      marginBottom: Spacing.xs,
-    },
-    resultsRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
       paddingTop: Spacing.sm,
       paddingBottom: Spacing.xs,
     },
-    resultsCount: {
-      ...Typography.caption,
-      color: colors.textSecondary,
+
+    // Results header (replaces search bar)
+    resultsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: Spacing.xs,
     },
-    clearFilters: {
-      ...Typography.caption,
-      color: colors.primaryText,
-      fontFamily: 'Inter_600SemiBold',
+    backBtn: { padding: Spacing.xs },
+    resultsHeaderTitle: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+      flex: 1,
+      textAlign: 'center',
     },
-    grid: { flexGrow: 1, paddingTop: Spacing.sm, paddingBottom: Spacing['4xl'] },
-    row: { gap: Spacing.sm, marginBottom: Spacing.sm },
+    headerSpacer: { width: 32 },
+
+    // Browse directory
+    browseContent: {
+      paddingBottom: Spacing['3xl'],
+    },
+    sectionHeading: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+      marginTop: Spacing.lg,
+      marginBottom: Spacing.xs,
+    },
+    rowDivider: {
+      marginVertical: 0,
+    },
+
+    // Recent searches panel
     panel: { paddingTop: Spacing.xs },
     panelHeader: {
       flexDirection: 'row',
@@ -442,16 +672,10 @@ function getStyles(colors: ColorTokens) {
       alignItems: 'center',
       marginBottom: Spacing.xs,
     },
-    panelLabel: {
-      ...Typography.label,
-      color: colors.textSecondary,
-      marginBottom: Spacing.xs,
-    },
-    clearAll: {
+    clearLink: {
       ...Typography.caption,
       color: colors.primaryText,
       fontFamily: 'Inter_600SemiBold',
-      marginBottom: Spacing.xs,
     },
     recentRow: {
       flexDirection: 'row',
@@ -463,14 +687,74 @@ function getStyles(colors: ColorTokens) {
       ...Typography.body,
       color: colors.textPrimary,
     },
-    trendingSection: {
-      marginTop: Spacing.base,
+
+    // Sort & filter controls
+    controls: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      paddingBottom: Spacing.sm,
     },
-    trendingChips: {
+    controlBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      height: 42,
+      borderRadius: BorderRadius.full,
+      borderWidth: BorderWidth.standard,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    controlBtnActive: {
+      backgroundColor: colors.textPrimary,
+      borderColor: colors.textPrimary,
+    },
+    controlText: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    controlTextActive: {
+      color: colors.background,
+    },
+
+    // Results grid
+    resultsCount: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      paddingBottom: Spacing.sm,
+    },
+    gridContent: { flexGrow: 1, paddingBottom: Spacing['4xl'] },
+    gridRow: { gap: Spacing.sm, marginBottom: Spacing.sm },
+
+    // Filter sheet
+    sheetContent: {
+      paddingHorizontal: Spacing.xs,
+    },
+    sheetHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: Spacing.base,
+    },
+    sheetTitle: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+    },
+    sheetSectionLabel: {
+      ...Typography.label,
+      color: colors.textSecondary,
+      marginBottom: Spacing.sm,
+    },
+    sheetChips: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: Spacing.xs,
-      marginTop: Spacing.xs,
+      marginBottom: Spacing.base,
+    },
+    sheetApplyBtn: {
+      marginTop: Spacing.sm,
     },
   });
 }
