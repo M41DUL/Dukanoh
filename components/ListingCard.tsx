@@ -36,13 +36,33 @@ export interface Listing {
 interface ListingCardProps {
   listing: Listing;
   variant?: 'grid' | 'featured';
+  highlightTerm?: string;
   onPress?: () => void;
   style?: ViewStyle;
+}
+
+function HighlightedText({ text, term, style: textStyle, boldStyle }: {
+  text: string;
+  term: string;
+  style: any;
+  boldStyle: any;
+}) {
+  if (!term) return <Text style={textStyle} numberOfLines={1}>{text}</Text>;
+  const idx = text.toLowerCase().indexOf(term.toLowerCase());
+  if (idx === -1) return <Text style={textStyle} numberOfLines={1}>{text}</Text>;
+  return (
+    <Text style={textStyle} numberOfLines={1}>
+      {text.slice(0, idx)}
+      <Text style={boldStyle}>{text.slice(idx, idx + term.length)}</Text>
+      {text.slice(idx + term.length)}
+    </Text>
+  );
 }
 
 export function ListingCard({
   listing,
   variant = 'grid',
+  highlightTerm,
   onPress,
   style,
 }: ListingCardProps) {
@@ -97,9 +117,12 @@ export function ListingCard({
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={1}>
-          {listing.title}
-        </Text>
+        <HighlightedText
+          text={listing.title}
+          term={highlightTerm ?? ''}
+          style={styles.title}
+          boldStyle={styles.titleHighlight}
+        />
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}
         <Text style={styles.price}>£{listing.price.toFixed(2)}</Text>
       </View>
@@ -170,6 +193,7 @@ function getStyles(colors: ColorTokens) {
     },
     content: { paddingVertical: Spacing.sm, gap: 3 },
     title: { ...Typography.body, color: colors.textPrimary, fontWeight: '500' },
+    titleHighlight: { fontFamily: 'Inter_700Bold', fontWeight: '700' },
     meta: { ...Typography.caption, color: colors.textSecondary },
     price: {
       fontSize: 15,

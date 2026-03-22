@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   LayoutAnimation,
+  Animated,
   Platform,
   UIManager,
 } from 'react-native';
@@ -62,15 +63,15 @@ const BROWSE_TABS: BrowseTab[] = ['Women', 'Men', 'All'];
 
 const TAB_CONFIG: Record<BrowseTab, { categories: string[]; occasions: string[] }> = {
   Women: {
-    categories: ['Casualwear', 'Shoes'],
+    categories: ['Lehenga', 'Saree', 'Anarkali', 'Kurta', 'Casualwear', 'Shoes'],
     occasions: ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'],
   },
   Men: {
-    categories: ['Achkan', 'Pathani Suit', 'Shoes'],
+    categories: ['Sherwani', 'Kurta', 'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes'],
     occasions: ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'],
   },
   All: {
-    categories: ['Casualwear', 'Achkan', 'Pathani Suit', 'Shoes'],
+    categories: ['Lehenga', 'Saree', 'Sherwani', 'Anarkali', 'Kurta', 'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes'],
     occasions: OCCASIONS,
   },
 };
@@ -171,6 +172,7 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [activeTab, setActiveTab] = useState<BrowseTab>('Women');
+  const tabFade = useRef(new Animated.Value(1)).current;
   const { saveSearch } = useSearchHistory();
   const { user } = useAuth();
 
@@ -212,6 +214,7 @@ export default function SearchScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [fetchError, setFetchError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -414,7 +417,7 @@ export default function SearchScreen() {
       clearTimeout(timer);
       abortController.abort();
     };
-  }, [resultsMode, buildQuery, applyClientFilters]);
+  }, [resultsMode, buildQuery, applyClientFilters, retryKey]);
 
   // ─── Load more (next page) ────────────────────────────────
   const loadMore = useCallback(async () => {
@@ -486,7 +489,14 @@ export default function SearchScreen() {
                 <TouchableOpacity
                   key={tab}
                   style={[styles.tab, activeTab === tab && styles.tabActive]}
-                  onPress={() => setActiveTab(tab)}
+                  onPress={() => {
+                    if (tab === activeTab) return;
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    Animated.timing(tabFade, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
+                      setActiveTab(tab);
+                      Animated.timing(tabFade, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+                    });
+                  }}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
@@ -495,24 +505,31 @@ export default function SearchScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            {TAB_CONFIG[activeTab].categories.map((cat, i) => (
-              <React.Fragment key={cat}>
-                <BrowseRow label={cat} onPress={() => openCategory(cat)} colors={colors} />
-                {i < TAB_CONFIG[activeTab].categories.length - 1 && <Divider style={styles.rowDivider} />}
-              </React.Fragment>
-            ))}
+            <Animated.View style={{ opacity: tabFade }}>
+              {TAB_CONFIG[activeTab].categories.map((cat, i) => (
+                <React.Fragment key={cat}>
+                  <BrowseRow label={cat} onPress={() => openCategory(cat)} colors={colors} />
+                  {i < TAB_CONFIG[activeTab].categories.length - 1 && <Divider style={styles.rowDivider} />}
+                </React.Fragment>
+              ))}
 
-            <HeroBanner
-              source={activeTab === 'Men' ? HERO_BANNER_2 : HERO_BANNER_1}
-              onPress={() => openCategory(activeTab === 'All' ? 'Women' : activeTab)}
-            />
+              <HeroBanner
+                source={activeTab === 'Men' ? HERO_BANNER_2 : HERO_BANNER_1}
+                onPress={() => openCategory(activeTab === 'All' ? 'Women' : activeTab)}
+              />
 
-            {TAB_CONFIG[activeTab].occasions.map((occ, i) => (
-              <React.Fragment key={occ}>
-                <BrowseRow label={occ} onPress={() => openOccasion(occ)} colors={colors} />
-                {i < TAB_CONFIG[activeTab].occasions.length - 1 && <Divider style={styles.rowDivider} />}
-              </React.Fragment>
-            ))}
+              {TAB_CONFIG[activeTab].occasions.map((occ, i) => (
+                <React.Fragment key={occ}>
+                  <BrowseRow label={occ} onPress={() => openOccasion(occ)} colors={colors} />
+                  {i < TAB_CONFIG[activeTab].occasions.length - 1 && <Divider style={styles.rowDivider} />}
+                </React.Fragment>
+              ))}
+
+              <HeroBanner
+                source={activeTab === 'Men' ? HERO_BANNER_1 : HERO_BANNER_2}
+                onPress={() => openOccasion('Wedding')}
+              />
+            </Animated.View>
           </ScrollView>
       )}
 
@@ -563,6 +580,7 @@ export default function SearchScreen() {
               <ListingCard
                 listing={item}
                 variant="grid"
+                highlightTerm={query.trim()}
                 onPress={() => router.push(`/listing/${item.id}`)}
               />
             )}
@@ -580,10 +598,16 @@ export default function SearchScreen() {
                   ? <EmptyState
                       heading="Something went wrong"
                       subtext="Check your connection and try again."
+                      ctaLabel="Retry"
+                      onCta={() => setRetryKey(k => k + 1)}
                     />
                   : <EmptyState
-                      heading="No listings found"
-                      subtext="Try adjusting your filters or search term."
+                      heading="No listings yet"
+                      subtext={resultsCategory
+                        ? `Be the first to list a ${resultsCategory}!`
+                        : 'Try adjusting your filters or search term.'}
+                      ctaLabel={resultsCategory ? 'Start selling' : undefined}
+                      onCta={resultsCategory ? () => router.push('/(tabs)/sell') : undefined}
                     />
             }
             ListFooterComponent={loadingMore ? <LoadingSpinner /> : null}
