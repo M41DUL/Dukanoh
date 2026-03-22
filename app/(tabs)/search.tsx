@@ -28,7 +28,6 @@ import { Button } from '@/components/Button';
 import {
   Typography,
   Spacing,
-  Categories,
   BorderRadius,
   BorderWidth,
   ColorTokens,
@@ -55,11 +54,25 @@ const TRANSITION = LayoutAnimation.create(
 
 const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
 
-// Exclude categories that overlap with occasions to avoid duplicates in browse
-const BROWSE_CATEGORIES = Categories.filter(
-  c => c !== 'All' && c !== 'Partywear' && c !== 'Festive' && c !== 'Formal' && c !== 'Wedding',
-);
-const MORE_CATEGORIES = BROWSE_CATEGORIES.slice(3);
+// ─── Tab system ─────────────────────────────────────────────
+
+type BrowseTab = 'Women' | 'Men' | 'All';
+const BROWSE_TABS: BrowseTab[] = ['Women', 'Men', 'All'];
+
+const TAB_CONFIG: Record<BrowseTab, { categories: string[]; occasions: string[] }> = {
+  Women: {
+    categories: ['Casualwear', 'Shoes'],
+    occasions: ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'],
+  },
+  Men: {
+    categories: ['Achkan', 'Pathani Suit', 'Shoes'],
+    occasions: ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'],
+  },
+  All: {
+    categories: ['Casualwear', 'Achkan', 'Pathani Suit', 'Shoes'],
+    occasions: OCCASIONS,
+  },
+};
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'];
@@ -155,6 +168,7 @@ const heroBannerStyles = StyleSheet.create({
 export default function SearchScreen() {
   // Search state
   const [query, setQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<BrowseTab>('Women');
   const { saveSearch } = useSearchHistory();
 
   // Results state
@@ -443,40 +457,49 @@ export default function SearchScreen() {
         )}
       </View>
 
-      {/* ── Browse directory ─────────────────────────────── */}
+      {/* ── Tab bar + Browse directory ────────────────────── */}
       {!resultsMode && (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-          {/* Shop by category */}
-          <Text style={styles.sectionHeading}>Shop by category</Text>
-          {BROWSE_CATEGORIES.slice(0, 3).map((cat, i) => (
-            <React.Fragment key={cat}>
-              <BrowseRow label={cat} onPress={() => openCategory(cat)} colors={colors} />
-              {i < 2 && <Divider style={styles.rowDivider} />}
-            </React.Fragment>
-          ))}
+        <>
+          <View style={styles.tabBar}>
+            {BROWSE_TABS.map(tab => (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.tab, activeTab === tab && styles.tabActive]}
+                onPress={() => setActiveTab(tab)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-          <HeroBanner source={HERO_BANNER_1} onPress={() => openCategory('Women')} />
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.browseScroll}>
+            <HeroBanner
+              source={activeTab === 'Men' ? HERO_BANNER_2 : HERO_BANNER_1}
+              onPress={() => openCategory(activeTab === 'All' ? 'Women' : activeTab)}
+            />
 
-          {/* Shop by occasion */}
-          <Text style={styles.sectionHeading}>Shop by occasion</Text>
-          {OCCASIONS.map((occ, i) => (
-            <React.Fragment key={occ}>
-              <BrowseRow label={occ} onPress={() => openOccasion(occ)} colors={colors} />
-              {i < OCCASIONS.length - 1 && <Divider style={styles.rowDivider} />}
-            </React.Fragment>
-          ))}
+            {/* Categories for this tab */}
+            <Text style={styles.sectionHeading}>Categories</Text>
+            {TAB_CONFIG[activeTab].categories.map((cat, i) => (
+              <React.Fragment key={cat}>
+                <BrowseRow label={cat} onPress={() => openCategory(cat)} colors={colors} />
+                {i < TAB_CONFIG[activeTab].categories.length - 1 && <Divider style={styles.rowDivider} />}
+              </React.Fragment>
+            ))}
 
-          <HeroBanner source={HERO_BANNER_2} onPress={() => openOccasion('Wedding')} />
-
-          {/* Remaining categories */}
-          <Text style={styles.sectionHeading}>More categories</Text>
-          {MORE_CATEGORIES.map((cat, i) => (
-            <React.Fragment key={cat}>
-              <BrowseRow label={cat} onPress={() => openCategory(cat)} colors={colors} />
-              {i < MORE_CATEGORIES.length - 1 && <Divider style={styles.rowDivider} />}
-            </React.Fragment>
-          ))}
-        </ScrollView>
+            {/* Occasions for this tab */}
+            <Text style={styles.sectionHeading}>Occasions</Text>
+            {TAB_CONFIG[activeTab].occasions.map((occ, i) => (
+              <React.Fragment key={occ}>
+                <BrowseRow label={occ} onPress={() => openOccasion(occ)} colors={colors} />
+                {i < TAB_CONFIG[activeTab].occasions.length - 1 && <Divider style={styles.rowDivider} />}
+              </React.Fragment>
+            ))}
+          </ScrollView>
+        </>
       )}
 
       {/* ── Results view ─────────────────────────────────── */}
@@ -668,6 +691,32 @@ function getStyles(colors: ColorTokens) {
       zIndex: 10,
     },
 
+    // Tab bar
+    tabBar: {
+      flexDirection: 'row',
+      gap: Spacing.lg,
+      paddingTop: Spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    tab: {
+      paddingBottom: Spacing.sm,
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    tabActive: {
+      borderBottomColor: colors.textPrimary,
+    },
+    tabLabel: {
+      fontSize: 16,
+      fontFamily: 'Inter_500Medium',
+      color: colors.textSecondary,
+    },
+    tabLabelActive: {
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
+    },
+
     // Results header (replaces search bar)
     resultsHeader: {
       flexDirection: 'row',
@@ -684,6 +733,9 @@ function getStyles(colors: ColorTokens) {
     headerSpacer: { width: 32 },
 
     // Browse directory
+    browseScroll: {
+      zIndex: 1,
+    },
     browseContent: {
       paddingBottom: Spacing['3xl'],
     },

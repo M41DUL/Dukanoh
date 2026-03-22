@@ -34,12 +34,6 @@ export function SearchHistoryDropdown({
     <View style={styles.container}>
       {showRecent && (
         <>
-          <View style={styles.header}>
-            <Text style={styles.heading}>Recent</Text>
-            <TouchableOpacity onPress={onClearAll} hitSlop={8}>
-              <Text style={styles.clearLink}>Clear all</Text>
-            </TouchableOpacity>
-          </View>
           {recentFiltered.map(term => (
             <Swipeable
               key={term}
@@ -63,12 +57,14 @@ export function SearchHistoryDropdown({
               </TouchableOpacity>
             </Swipeable>
           ))}
+          <TouchableOpacity onPress={onClearAll} hitSlop={8} style={styles.clearBtn}>
+            <Text style={styles.clearLink}>Clear all</Text>
+          </TouchableOpacity>
         </>
       )}
 
       {showPopular && (
         <>
-          <Text style={styles.heading}>Popular searches</Text>
           {POPULAR_SEARCHES.map(term => (
             <TouchableOpacity
               key={term}
@@ -110,15 +106,9 @@ function getStyles(colors: ColorTokens) {
       }),
       zIndex: 20,
     },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
+    clearBtn: {
       alignItems: 'center',
-      marginBottom: Spacing.xs,
-    },
-    heading: {
-      ...Typography.subheading,
-      color: colors.textPrimary,
+      paddingVertical: Spacing.sm,
     },
     clearLink: {
       ...Typography.caption,
@@ -129,10 +119,11 @@ function getStyles(colors: ColorTokens) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.sm,
-      paddingVertical: Spacing.sm,
+      paddingVertical: Spacing.md,
     },
     term: {
-      ...Typography.body,
+      fontSize: 16,
+      fontFamily: 'Inter_500Medium',
       color: colors.textPrimary,
     },
     swipeDelete: {
