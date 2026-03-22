@@ -37,13 +37,17 @@ import { supabase } from '@/lib/supabase';
 
 const RECENT_KEY = '@dukanoh/recent_searches';
 const MAX_RECENT = 6;
-const HERO_CACHE_KEY = '@dukanoh/search_hero_images';
-const HERO_TTL_MS = 60 * 60 * 1000; // 1 hour
+const HERO_BANNER_1 = require('@/assets/images/hero-banner-1.png');
+const HERO_BANNER_2 = require('@/assets/images/hero-banner-2.png');
 
-const BROWSE_CATEGORIES = Categories.filter(c => c !== 'All');
+const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
+
+// Exclude categories that overlap with occasions to avoid duplicates in browse
+const BROWSE_CATEGORIES = Categories.filter(
+  c => c !== 'All' && c !== 'Partywear' && c !== 'Festive' && c !== 'Formal' && c !== 'Wedding',
+);
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
-const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'];
 
 type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'most_saved' | 'most_viewed';
@@ -62,36 +66,6 @@ const PRICE_RANGES: PriceRange[] = [
   { label: '£75\u2013£150', min: 75, max: 150 },
   { label: '£150+', min: 150, max: Infinity },
 ];
-
-// ─── Hero image fetching ────────────────────────────────────
-
-async function fetchHeroImages(): Promise<string[]> {
-  try {
-    const cached = await AsyncStorage.getItem(HERO_CACHE_KEY);
-    if (cached) {
-      const { images, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < HERO_TTL_MS && images.length > 0) return images;
-    }
-  } catch {}
-
-  const { data } = await supabase
-    .from('listings')
-    .select('images')
-    .eq('status', 'available')
-    .order('view_count', { ascending: false })
-    .limit(8);
-
-  const images = (data ?? [])
-    .flatMap(l => l.images ?? [])
-    .filter(Boolean)
-    .slice(0, 6);
-
-  try {
-    await AsyncStorage.setItem(HERO_CACHE_KEY, JSON.stringify({ images, timestamp: Date.now() }));
-  } catch {}
-
-  return images;
-}
 
 // ─── Browse row component ───────────────────────────────────
 
@@ -121,31 +95,25 @@ const browseRowStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.md + 2,
+    paddingVertical: (Spacing.md + 2) * 2,
   },
   label: {
-    ...Typography.body,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+    fontFamily: 'Inter_500Medium',
   },
 });
 
 // ─── Hero banner component ──────────────────────────────────
 
-function HeroBanner({ images, colors }: { images: string[]; colors: ColorTokens }) {
-  if (images.length === 0) return null;
-  // Show up to 3 images in a row
-  const display = images.slice(0, 3);
+function HeroBanner({ source }: { source: number }) {
   return (
-    <View style={[heroBannerStyles.container, { backgroundColor: colors.surface }]}>
-      {display.map((uri, i) => (
-        <Image
-          key={i}
-          source={{ uri }}
-          style={heroBannerStyles.image}
-          contentFit="cover"
-          transition={300}
-        />
-      ))}
+    <View style={heroBannerStyles.container}>
+      <Image
+        source={source}
+        style={heroBannerStyles.image}
+        contentFit="cover"
+        transition={300}
+      />
     </View>
   );
 }
@@ -170,9 +138,6 @@ export default function SearchScreen() {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-
-  // Browse state
-  const [heroImages, setHeroImages] = useState<string[]>([]);
 
   // Results state
   const [resultsMode, setResultsMode] = useState(false);
@@ -199,7 +164,6 @@ export default function SearchScreen() {
     AsyncStorage.getItem(RECENT_KEY).then(val => {
       if (val) setRecentSearches(JSON.parse(val));
     });
-    fetchHeroImages().then(setHeroImages);
   }, []);
 
   // ─── Search helpers ─────────────────────────────────────
@@ -456,8 +420,7 @@ export default function SearchScreen() {
             </React.Fragment>
           ))}
 
-          {/* Hero banner — top viewed listings */}
-          <HeroBanner images={heroImages.slice(0, 3)} colors={colors} />
+          <HeroBanner source={HERO_BANNER_1} />
 
           {/* Shop by occasion */}
           <Text style={styles.sectionHeading}>Shop by occasion</Text>
@@ -468,8 +431,7 @@ export default function SearchScreen() {
             </React.Fragment>
           ))}
 
-          {/* Hero banner — second set */}
-          <HeroBanner images={heroImages.slice(3, 6)} colors={colors} />
+          <HeroBanner source={HERO_BANNER_2} />
 
           {/* Remaining categories */}
           <Text style={styles.sectionHeading}>More categories</Text>
