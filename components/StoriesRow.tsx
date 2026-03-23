@@ -12,12 +12,12 @@ import {
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { Button } from './Button';
+import { GradientCard } from './GradientCard';
 import { StoryListing, AppStory } from '@/hooks/useStories';
 
 const { width, height } = Dimensions.get('window');
@@ -67,31 +67,26 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
   return (
     <>
       {isSingleAppStory ? (
-        <TouchableOpacity
-          onPress={() => openStory(0)}
-          activeOpacity={0.8}
-          style={rowStyles.cardOuter}
-        >
-          <LinearGradient
+        <View style={rowStyles.cardOuter}>
+          <GradientCard
             colors={[colors.secondary, colors.secondaryDim]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={rowStyles.card}
-          >
-            <View style={rowStyles.cardRing}>
-              <View style={rowStyles.cardRingInner}>
-                <View style={rowStyles.cardIcon}>
-                  <Text style={rowStyles.cardIconLetter}>D</Text>
+            title={(stories[0] as AppStory).headline}
+            subtitle={(stories[0] as AppStory).body}
+            titleColor="#0D0D0D"
+            subtitleColor="rgba(0,0,0,0.55)"
+            onPress={() => openStory(0)}
+            left={
+              <View style={rowStyles.cardRing}>
+                <View style={rowStyles.cardRingInner}>
+                  <View style={rowStyles.cardIcon}>
+                    <Text style={rowStyles.cardIconLetter}>D</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-            <View style={rowStyles.cardBody}>
-              <Text style={rowStyles.cardTitle}>{(stories[0] as AppStory).headline}</Text>
-              <Text style={rowStyles.cardSub} numberOfLines={1}>{(stories[0] as AppStory).body}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="rgba(0,0,0,0.35)" />
-          </LinearGradient>
-        </TouchableOpacity>
+            }
+            right={<Ionicons name="chevron-forward" size={18} color="rgba(0,0,0,0.35)" />}
+          />
+        </View>
       ) : (
         <FlatList
           horizontal
@@ -351,13 +346,6 @@ function getRowStyles(colors: ColorTokens) {
       marginTop: Spacing.sm,
       marginBottom: Spacing.base,
     },
-    card: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderRadius: BorderRadius.full,
-      padding: Spacing.base,
-      gap: Spacing.sm,
-    },
     cardRing: {
       width: 46,
       height: 46,
@@ -382,19 +370,6 @@ function getRowStyles(colors: ColorTokens) {
       ...Typography.subheading,
       color: '#0D0D0D',
       fontFamily: 'Inter_700Bold',
-    },
-    cardBody: {
-      flex: 1,
-      gap: 2,
-    },
-    cardTitle: {
-      ...Typography.body,
-      color: '#0D0D0D',
-      fontFamily: 'Inter_600SemiBold',
-    },
-    cardSub: {
-      ...Typography.caption,
-      color: 'rgba(0,0,0,0.55)',
     },
   });
 }

@@ -12,7 +12,6 @@ import {
   NativeScrollEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -21,6 +20,7 @@ import { StoriesRow } from '@/components/StoriesRow';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { SectionHeader } from '@/components/SectionHeader';
 import { HorizontalListings } from '@/components/HorizontalListings';
+import { GradientCard } from '@/components/GradientCard';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -263,25 +263,23 @@ function NudgeCarousel({ slides }: { slides: NudgeSlide[] }) {
       >
         {slides.map((slide) => (
           <View key={slide.key} style={styles.slide}>
-            <TouchableOpacity onPress={slide.onPress} activeOpacity={0.8}>
-              <LinearGradient
-                colors={[colors.primaryLight ?? colors.surface, colors.surface]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.card}
-              >
+            <GradientCard
+              colors={[colors.primaryLight ?? colors.surface, colors.surface]}
+              title={slide.title}
+              subtitle={slide.subtitle}
+              onPress={slide.onPress}
+              style={{ borderRadius: BorderRadius.full }}
+              left={
                 <View style={styles.iconCircle}>
                   <Ionicons name={slide.icon} size={22} color={colors.primary} />
                 </View>
-                <View style={styles.body}>
-                  <Text style={styles.title}>{slide.title}</Text>
-                  <Text style={styles.sub}>{slide.subtitle}</Text>
-                </View>
+              }
+              right={
                 <TouchableOpacity onPress={slide.onDismiss} hitSlop={10} style={styles.close}>
                   <Ionicons name="close" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
-              </LinearGradient>
-            </TouchableOpacity>
+              }
+            />
           </View>
         ))}
       </ScrollView>
@@ -308,13 +306,6 @@ function getNudgeStyles(colors: ColorTokens) {
       width: Dimensions.get('window').width - Spacing.base * 2,
       paddingHorizontal: 2,
     },
-    card: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderRadius: BorderRadius.full,
-      padding: Spacing.base,
-      gap: Spacing.sm,
-    },
     iconCircle: {
       width: 44,
       height: 44,
@@ -322,20 +313,6 @@ function getNudgeStyles(colors: ColorTokens) {
       backgroundColor: colors.background,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    body: {
-      flex: 1,
-      gap: 2,
-    },
-    title: {
-      ...Typography.body,
-      color: colors.textPrimary,
-      fontFamily: 'Inter_600SemiBold',
-    },
-    sub: {
-      ...Typography.caption,
-      color: colors.textPrimary,
-      opacity: 0.65,
     },
     close: {
       padding: Spacing.xs,
