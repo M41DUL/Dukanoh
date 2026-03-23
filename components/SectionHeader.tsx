@@ -15,7 +15,7 @@ export function SectionHeader({ title, onSeeAll }: SectionHeaderProps) {
       <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
       {onSeeAll && (
         <TouchableOpacity onPress={onSeeAll} hitSlop={8}>
-          <Text style={[styles.seeAll, { color: colors.primaryText }]}>See all</Text>
+          <Text style={[styles.viewAll, { color: colors.textSecondary }]}>View all</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -27,16 +27,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   title: {
     ...Typography.subheading,
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    fontWeight: '700',
+    fontSize: 18,
+    fontFamily: 'Inter_500Medium',
+    fontWeight: '500',
   },
-  seeAll: {
-    ...Typography.body,
-    fontFamily: 'Inter_600SemiBold',
+  viewAll: {
+    fontSize: 16,
+    fontFamily: 'Inter_500Medium',
+    fontWeight: '500',
   },
 });

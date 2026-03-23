@@ -20,7 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Fuse from 'fuse.js';
 import * as Haptics from 'expo-haptics';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
-import { SearchBar } from '@/components/SearchBar';
+import { SearchBar, SearchBarHandle } from '@/components/SearchBar';
 import { useSearchHistory } from '@/hooks/useSearchHistory';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -234,7 +234,8 @@ const skeletonStyles = StyleSheet.create({
 // ─── Main screen ────────────────────────────────────────────
 
 export default function SearchScreen() {
-  const { q: incomingQuery } = useLocalSearchParams<{ q?: string }>();
+  const { q: incomingQuery, focus: incomingFocus } = useLocalSearchParams<{ q?: string; focus?: string }>();
+  const searchBarRef = useRef<SearchBarHandle>(null);
 
   // Search state
   const [query, setQuery] = useState('');
@@ -333,10 +334,17 @@ export default function SearchScreen() {
   useEffect(() => {
     if (incomingQuery?.trim()) {
       openSearch(incomingQuery.trim());
-      // Clear the param so it doesn't re-trigger
       router.setParams({ q: '' });
     }
   }, [incomingQuery, openSearch]);
+
+  // Handle incoming focus request from home tab
+  useEffect(() => {
+    if (incomingFocus === '1') {
+      setTimeout(() => searchBarRef.current?.focus(), 100);
+      router.setParams({ focus: '' });
+    }
+  }, [incomingFocus]);
 
   const exitResults = useCallback(() => {
     LayoutAnimation.configureNext(TRANSITION);
@@ -608,6 +616,7 @@ export default function SearchScreen() {
           </View>
         ) : (
           <SearchBar
+            ref={searchBarRef}
             value={query}
             onChangeText={setQuery}
             showHistory

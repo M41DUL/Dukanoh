@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useImperativeHandle, forwardRef } from 'react';
 import {
   View,
   Text,
@@ -40,7 +40,11 @@ interface SearchBarProps {
   style?: ViewStyle;
 }
 
-export function SearchBar({
+export interface SearchBarHandle {
+  focus: () => void;
+}
+
+export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(function SearchBar({
   value,
   onChangeText,
   placeholder,
@@ -51,7 +55,7 @@ export function SearchBar({
   onFocusChange,
   showHistory = false,
   style,
-}: SearchBarProps) {
+}, ref) {
   const [focused, setFocused] = useState(false);
   const [showContent, setShowContent] = useState(false);
   const [animPlaceholder, setAnimPlaceholder] = useState(PLACEHOLDER_PREFIX);
@@ -117,6 +121,13 @@ export function SearchBar({
     onFocus?.();
     onFocusChange?.(true);
   }, [focusAnim, onFocus, onFocusChange]);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current?.focus();
+      enterFocus();
+    },
+  }), [enterFocus]);
 
   const exitFocus = useCallback(() => {
     setFocused(false);
@@ -218,7 +229,7 @@ export function SearchBar({
       )}
     </View>
   );
-}
+});
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({

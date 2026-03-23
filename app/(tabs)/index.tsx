@@ -7,6 +7,9 @@ import {
   StyleSheet,
   Animated,
   RefreshControl,
+  Dimensions,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
@@ -16,9 +19,11 @@ import { EmptyState } from '@/components/EmptyState';
 import { StoriesRow } from '@/components/StoriesRow';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { SectionHeader } from '@/components/SectionHeader';
-import { SearchBar } from '@/components/SearchBar';
+import { HorizontalListings } from '@/components/HorizontalListings';
+import { DukanohLogo } from '@/components/DukanohLogo';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTheme } from '@/context/ThemeContext';
 import { useStories, getAppStory } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
@@ -26,6 +31,7 @@ import { supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const nudgeKey = (userId: string) => `@dukanoh/profile_nudge_dismissed/${userId}`;
+const sellNudgeKey = (userId: string) => `@dukanoh/sell_nudge_dismissed/${userId}`;
 const FEED_CACHE_KEY = (userId: string) => `@dukanoh/feed_cache/${userId}`;
 
 const TRENDING_CACHE_KEY = '@dukanoh/trending_categories';
@@ -220,117 +226,144 @@ function ListingsGrid({ items }: { items: Listing[] }) {
   );
 }
 
-function ReEngageCard() {
-  const colors = useThemeColors();
-  const styles = useMemo(() => getReEngageStyles(colors), [colors]);
-  return (
-    <View style={styles.card}>
-      <Ionicons name="shirt-outline" size={32} color={colors.textSecondary} />
-      <Text style={styles.title}>Your wardrobe could earn money</Text>
-      <Text style={styles.sub}>
-        Turn items you no longer wear into cash — it only takes a few minutes.
-      </Text>
-      <TouchableOpacity
-        style={styles.btn}
-        onPress={() => router.push('/(tabs)/sell')}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.btnText}>Start selling</Text>
-      </TouchableOpacity>
-    </View>
-  );
+interface NudgeSlide {
+  key: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  title: string;
+  subtitle: string;
+  cta: string;
+  onPress: () => void;
+  onDismiss: () => void;
 }
 
-function getReEngageStyles(colors: ColorTokens) {
-  return StyleSheet.create({
-    card: {
-      alignItems: 'center',
-      gap: Spacing.sm,
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.medium,
-      padding: Spacing.xl,
-      marginTop: Spacing.md,
-    },
-    title: {
-      ...Typography.body,
-      color: colors.textPrimary,
-      fontFamily: 'Inter_700Bold',
-      textAlign: 'center',
-    },
-    sub: {
-      ...Typography.caption,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      lineHeight: 18,
-    },
-    btn: {
-      marginTop: Spacing.xs,
-      paddingHorizontal: Spacing.xl,
-      paddingVertical: Spacing.sm,
-      borderRadius: BorderRadius.full,
-      backgroundColor: colors.primary,
-    },
-    btnText: {
-      ...Typography.body,
-      color: '#FFFFFF',
-      fontFamily: 'Inter_600SemiBold',
-    },
-  });
-}
-
-function ProfileNudgeCard({ onDismiss }: { onDismiss: () => void }) {
+function NudgeCarousel({ slides }: { slides: NudgeSlide[] }) {
   const colors = useThemeColors();
   const styles = useMemo(() => getNudgeStyles(colors), [colors]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x;
+    const width = e.nativeEvent.layoutMeasurement.width;
+    const idx = Math.round(x / width);
+    setActiveIndex(idx);
+  }, []);
+
+  if (slides.length === 0) return null;
+
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => router.push('/(tabs)/profile')}
-      activeOpacity={0.8}
-    >
-      <View style={styles.avatar}>
-        <Ionicons name="person-outline" size={22} color={colors.textSecondary} />
-      </View>
-      <View style={styles.body}>
-        <Text style={styles.title}>Complete your profile</Text>
-        <Text style={styles.sub}>Add a photo and bio to stand out to buyers</Text>
-      </View>
-      <TouchableOpacity onPress={onDismiss} hitSlop={10} style={styles.close}>
-        <Ionicons name="close" size={18} color={colors.textSecondary} />
-      </TouchableOpacity>
-    </TouchableOpacity>
+    <View style={styles.wrapper}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        {slides.map((slide) => (
+          <View key={slide.key} style={styles.slide}>
+            <View style={styles.card}>
+              <TouchableOpacity onPress={slide.onDismiss} hitSlop={10} style={styles.close}>
+                <Ionicons name="close" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <View style={styles.iconCircle}>
+                <Ionicons name={slide.icon} size={24} color={colors.primary} />
+              </View>
+              <Text style={styles.title}>{slide.title}</Text>
+              <Text style={styles.sub}>{slide.subtitle}</Text>
+              <TouchableOpacity style={styles.cta} onPress={slide.onPress} activeOpacity={0.8}>
+                <Text style={styles.ctaText}>{slide.cta}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+      {slides.length > 1 && (
+        <View style={styles.dots}>
+          {slides.map((s, i) => (
+            <View
+              key={s.key}
+              style={[styles.dot, i === activeIndex && styles.dotActive]}
+            />
+          ))}
+        </View>
+      )}
+    </View>
   );
 }
 
 function getNudgeStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    card: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.medium,
-      padding: Spacing.base,
+    wrapper: {
       marginBottom: Spacing.xl,
     },
-    avatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: colors.border,
+    slide: {
+      width: Dimensions.get('window').width - Spacing.base * 2,
+      paddingHorizontal: 2,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.medium,
+      padding: Spacing.lg,
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    close: {
+      position: 'absolute',
+      top: Spacing.sm,
+      right: Spacing.sm,
+      padding: Spacing.xs,
+      zIndex: 1,
+    },
+    iconCircle: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.background,
       alignItems: 'center',
       justifyContent: 'center',
+      marginBottom: Spacing.xs,
     },
-    body: { flex: 1, gap: 2 },
     title: {
       ...Typography.body,
       color: colors.textPrimary,
       fontFamily: 'Inter_600SemiBold',
+      textAlign: 'center',
     },
     sub: {
       ...Typography.caption,
       color: colors.textSecondary,
+      textAlign: 'center',
     },
-    close: { padding: Spacing.xs },
+    cta: {
+      backgroundColor: colors.primary,
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.lg,
+      paddingVertical: Spacing.sm,
+      marginTop: Spacing.xs,
+    },
+    ctaText: {
+      ...Typography.body,
+      color: '#FFFFFF',
+      fontFamily: 'Inter_600SemiBold',
+    },
+    dots: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      marginTop: Spacing.sm,
+    },
+    dot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: colors.border,
+    },
+    dotActive: {
+      backgroundColor: colors.primary,
+      width: 18,
+    },
   });
 }
 
@@ -470,16 +503,22 @@ const feedStaticStyles = StyleSheet.create({
   emptyCell: { flex: 1 },
 });
 
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good Morning';
+  if (h < 17) return 'Good Afternoon';
+  return 'Good Evening';
+}
+
 export default function HomeScreen() {
   const { stories, loading: storiesLoading, markViewed } = useStories();
   const allStories = [getAppStory(), ...stories];
   const { user } = useAuth();
   const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
   const colors = useThemeColors();
+  const { isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const [query, setQuery] = useState('');
-  const [searchFocused, setSearchFocused] = useState(false);
   const [suggested, setSuggested] = useState<Listing[]>([]);
   const [newArrivals, setNewArrivals] = useState<Listing[]>([]);
   const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
@@ -488,14 +527,20 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [profileComplete, setProfileComplete] = useState(true);
+  const [displayName, setDisplayName] = useState('');
   const [nudgeDismissed, setNudgeDismissed] = useState(true);
+  const [sellNudgeDismissed, setSellNudgeDismissed] = useState(true);
   const [hasListings, setHasListings] = useState(true);
   const hasMounted = useRef(false);
 
   useEffect(() => {
     if (!user) return;
-    AsyncStorage.getItem(nudgeKey(user.id)).then(val => {
-      setNudgeDismissed(val === 'true');
+    Promise.all([
+      AsyncStorage.getItem(nudgeKey(user.id)),
+      AsyncStorage.getItem(sellNudgeKey(user.id)),
+    ]).then(([profileVal, sellVal]) => {
+      setNudgeDismissed(profileVal === 'true');
+      setSellNudgeDismissed(sellVal === 'true');
     });
   }, [user]);
 
@@ -503,7 +548,13 @@ export default function HomeScreen() {
     if (!user) return;
     await AsyncStorage.setItem(nudgeKey(user.id), 'true');
     setNudgeDismissed(true);
-  }, []);
+  }, [user]);
+
+  const dismissSellNudge = useCallback(async () => {
+    if (!user) return;
+    await AsyncStorage.setItem(sellNudgeKey(user.id), 'true');
+    setSellNudgeDismissed(true);
+  }, [user]);
 
   const applyFeedData = useCallback((data: Omit<FeedCache, 'timestamp'>) => {
     setSuggested(data.suggested);
@@ -521,7 +572,7 @@ export default function HomeScreen() {
     const [profile, viewedCats, savedCats] = await Promise.all([
       supabase
         .from('users')
-        .select('preferred_categories, avatar_url, bio')
+        .select('preferred_categories, avatar_url, bio, full_name')
         .eq('id', user.id)
         .maybeSingle()
         .then(r => r.data),
@@ -533,6 +584,8 @@ export default function HomeScreen() {
     // Merge all category signals — onboarding picks first, then viewed, then saved
     const allCats = [...new Set([...onboardingCats, ...viewedCats, ...savedCats])];
     const isComplete = !!(profile?.avatar_url && profile?.bio);
+    const firstName = profile?.full_name?.split(' ')[0] ?? '';
+    setDisplayName(firstName);
 
     const [suggestedItems, newArrivalItems, trendingCats, listingCountResult, savedPrices] = await Promise.all([
       allCats.length > 0 ? fetchSection(user.id, allCats) : Promise.resolve([]),
@@ -627,25 +680,52 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [loadData, reloadRecent]);
 
+  const nudgeSlides = useMemo(() => {
+    const slides: NudgeSlide[] = [];
+    if (!profileComplete && !nudgeDismissed) {
+      slides.push({
+        key: 'profile',
+        icon: 'person-outline',
+        title: 'Complete your profile',
+        subtitle: 'Add a photo and bio to stand out',
+        cta: 'Update profile',
+        onPress: () => router.push('/(tabs)/profile'),
+        onDismiss: dismissNudge,
+      });
+    }
+    if (!hasListings && !sellNudgeDismissed) {
+      slides.push({
+        key: 'sell',
+        icon: 'camera-outline',
+        title: 'Start selling',
+        subtitle: 'List your first item in minutes',
+        cta: 'List an item',
+        onPress: () => router.push('/(tabs)/sell'),
+        onDismiss: dismissSellNudge,
+      });
+    }
+    return slides;
+  }, [profileComplete, nudgeDismissed, hasListings, sellNudgeDismissed, dismissNudge, dismissSellNudge]);
+
   return (
     <ScreenWrapper>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <SearchBar
-            value={query}
-            onChangeText={setQuery}
-            showHistory
-            onFocusChange={setSearchFocused}
-            onSubmit={(q) => {
-              if (q.trim()) {
-                router.push({ pathname: '/(tabs)/search', params: { q: q.trim() } });
-              }
-            }}
-          />
+          <DukanohLogo width={80} height={14} color={isDark ? colors.secondary : colors.textPrimary} />
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: '/(tabs)/search', params: { focus: '1' } })}
+            hitSlop={8}
+            style={styles.iconBtn}
+          >
+            <Ionicons name="search-outline" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
         </View>
 
-        {searchFocused ? null : loading ? (
+        {loading ? (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.feedContent}>
+            <Text style={styles.greeting}>
+              {getGreeting()}{displayName ? `, ${displayName}` : ''}
+            </Text>
             <SkeletonSection />
             <SkeletonSection />
           </ScrollView>
@@ -661,15 +741,13 @@ export default function HomeScreen() {
             }
             contentContainerStyle={styles.feedContent}
           >
+            <Text style={styles.greeting}>
+              {getGreeting()}{displayName ? `, ${displayName}` : ''}
+            </Text>
+
             {!storiesLoading && (
               <StoriesRow stories={allStories} onView={markViewed} />
             )}
-
-            {!profileComplete && !nudgeDismissed && (
-              <ProfileNudgeCard onDismiss={dismissNudge} />
-            )}
-
-            <PriceDropsRow drops={priceDrops} colors={colors} />
 
             {suggested.length > 0 && (
               <View style={feedStaticStyles.section}>
@@ -685,11 +763,17 @@ export default function HomeScreen() {
                     })
                   }
                 />
-                <ListingsGrid items={suggested} />
+                <HorizontalListings items={suggested} />
               </View>
             )}
 
+            {nudgeSlides.length > 0 && (
+              <NudgeCarousel slides={nudgeSlides} />
+            )}
+
             <TrendingStrip categories={trending} colors={colors} />
+
+            <PriceDropsRow drops={priceDrops} colors={colors} />
 
             {newArrivals.length > 0 ? (
               <View style={feedStaticStyles.section}>
@@ -714,8 +798,6 @@ export default function HomeScreen() {
               />
             ) : null}
 
-            {!hasListings && <ReEngageCard />}
-
             {recentItems.length > 0 && (
               <View style={feedStaticStyles.section}>
                 <SectionHeader title="Recently viewed" />
@@ -733,9 +815,21 @@ function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     container: { flex: 1 },
     topBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
       paddingTop: Spacing.sm,
       paddingBottom: Spacing.xs,
-      zIndex: 10,
+    },
+    iconBtn: {
+      padding: Spacing.xs,
+    },
+    greeting: {
+      fontSize: 22,
+      fontFamily: 'Inter_500Medium',
+      color: colors.textPrimary,
+      paddingTop: Spacing.md,
+      paddingBottom: Spacing.lg,
     },
     feedContent: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
   });
