@@ -12,6 +12,7 @@ import {
   NativeScrollEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -262,17 +263,24 @@ function NudgeCarousel({ slides }: { slides: NudgeSlide[] }) {
       >
         {slides.map((slide) => (
           <View key={slide.key} style={styles.slide}>
-            <TouchableOpacity style={styles.card} onPress={slide.onPress} activeOpacity={0.8}>
-              <View style={styles.iconCircle}>
-                <Ionicons name={slide.icon} size={22} color={colors.primary} />
-              </View>
-              <View style={styles.body}>
-                <Text style={styles.title}>{slide.title}</Text>
-                <Text style={styles.sub}>{slide.subtitle}</Text>
-              </View>
-              <TouchableOpacity onPress={slide.onDismiss} hitSlop={10} style={styles.close}>
-                <Ionicons name="close" size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
+            <TouchableOpacity onPress={slide.onPress} activeOpacity={0.8}>
+              <LinearGradient
+                colors={[colors.primaryLight ?? colors.surface, colors.surface]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.card}
+              >
+                <View style={styles.iconCircle}>
+                  <Ionicons name={slide.icon} size={22} color={colors.primary} />
+                </View>
+                <View style={styles.body}>
+                  <Text style={styles.title}>{slide.title}</Text>
+                  <Text style={styles.sub}>{slide.subtitle}</Text>
+                </View>
+                <TouchableOpacity onPress={slide.onDismiss} hitSlop={10} style={styles.close}>
+                  <Ionicons name="close" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         ))}
@@ -303,8 +311,7 @@ function getNudgeStyles(colors: ColorTokens) {
     card: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.medium,
+      borderRadius: BorderRadius.full,
       padding: Spacing.base,
       gap: Spacing.sm,
     },
@@ -327,7 +334,8 @@ function getNudgeStyles(colors: ColorTokens) {
     },
     sub: {
       ...Typography.caption,
-      color: colors.textSecondary,
+      color: colors.textPrimary,
+      opacity: 0.65,
     },
     close: {
       padding: Spacing.xs,

@@ -73,7 +73,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
           style={rowStyles.cardOuter}
         >
           <LinearGradient
-            colors={[colors.primary, colors.primaryDim ?? colors.primary]}
+            colors={[colors.secondary, colors.secondaryDim]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={rowStyles.card}
@@ -89,7 +89,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
               <Text style={rowStyles.cardTitle}>{(stories[0] as AppStory).headline}</Text>
               <Text style={rowStyles.cardSub} numberOfLines={1}>{(stories[0] as AppStory).body}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+            <Ionicons name="chevron-forward" size={18} color="rgba(0,0,0,0.35)" />
           </LinearGradient>
         </TouchableOpacity>
       ) : (
@@ -363,24 +363,24 @@ function getRowStyles(colors: ColorTokens) {
       height: 46,
       borderRadius: 23,
       padding: 2.5,
-      backgroundColor: 'rgba(255,255,255,0.35)',
+      backgroundColor: 'rgba(0,0,0,0.15)',
     },
     cardRingInner: {
       flex: 1,
       borderRadius: 20,
       overflow: 'hidden',
       borderWidth: 2,
-      borderColor: colors.primary,
+      borderColor: colors.secondary,
     },
     cardIcon: {
       flex: 1,
-      backgroundColor: 'rgba(255,255,255,0.15)',
+      backgroundColor: 'rgba(0,0,0,0.08)',
       alignItems: 'center',
       justifyContent: 'center',
     },
     cardIconLetter: {
       ...Typography.subheading,
-      color: '#FFFFFF',
+      color: '#0D0D0D',
       fontFamily: 'Inter_700Bold',
     },
     cardBody: {
@@ -389,12 +389,12 @@ function getRowStyles(colors: ColorTokens) {
     },
     cardTitle: {
       ...Typography.body,
-      color: '#FFFFFF',
+      color: '#0D0D0D',
       fontFamily: 'Inter_600SemiBold',
     },
     cardSub: {
       ...Typography.caption,
-      color: 'rgba(255,255,255,0.7)',
+      color: 'rgba(0,0,0,0.55)',
     },
   });
 }
