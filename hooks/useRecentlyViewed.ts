@@ -3,21 +3,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
 
-const KEY = '@dukanoh/recently_viewed';
+const KEY = (userId: string) => `@dukanoh/recently_viewed/${userId}`;
 const MAX = 8;
 
-export async function recordView(id: string) {
-  const raw = await AsyncStorage.getItem(KEY);
+export async function recordView(id: string, userId: string) {
+  const raw = await AsyncStorage.getItem(KEY(userId));
   const ids: string[] = raw ? JSON.parse(raw) : [];
   const updated = [id, ...ids.filter(i => i !== id)].slice(0, MAX);
-  await AsyncStorage.setItem(KEY, JSON.stringify(updated));
+  await AsyncStorage.setItem(KEY(userId), JSON.stringify(updated));
 }
 
 export function useRecentlyViewed(currentUserId?: string) {
   const [items, setItems] = useState<Listing[]>([]);
 
   const load = useCallback(async () => {
-    const raw = await AsyncStorage.getItem(KEY);
+    if (!currentUserId) { setItems([]); return; }
+    const raw = await AsyncStorage.getItem(KEY(currentUserId));
     const ids: string[] = raw ? JSON.parse(raw) : [];
     if (ids.length === 0) { setItems([]); return; }
 

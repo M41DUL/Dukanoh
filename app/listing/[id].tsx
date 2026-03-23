@@ -149,7 +149,7 @@ export default function ListingDetailScreen() {
               setOfferCount(count);
             });
           if (data.status !== 'draft') {
-            recordView(id);
+            if (user) recordView(id, user.id);
             supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
               setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
             });

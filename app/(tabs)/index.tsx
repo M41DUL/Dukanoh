@@ -37,7 +37,7 @@ const FEED_CACHE_KEY = (userId: string) => `@dukanoh/feed_cache/${userId}`;
 
 const TRENDING_CACHE_KEY = '@dukanoh/trending_categories';
 const TRENDING_TTL_MS = 30 * 60 * 1000; // 30 minutes
-const RECENTLY_VIEWED_KEY = '@dukanoh/recently_viewed';
+const RECENTLY_VIEWED_KEY = (userId: string) => `@dukanoh/recently_viewed/${userId}`;
 
 interface FeedCache {
   suggested: Listing[];
@@ -50,9 +50,9 @@ interface FeedCache {
   timestamp: number;
 }
 
-async function getViewedCategories(): Promise<string[]> {
+async function getViewedCategories(userId: string): Promise<string[]> {
   try {
-    const raw = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY);
+    const raw = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY(userId));
     if (!raw) return [];
     const ids: string[] = JSON.parse(raw);
     if (ids.length === 0) return [];
@@ -545,7 +545,7 @@ export default function HomeScreen() {
         .eq('id', user.id)
         .maybeSingle()
         .then(r => r.data),
-      getViewedCategories(),
+      getViewedCategories(user.id),
       getSavedCategories(user.id),
     ]);
 
