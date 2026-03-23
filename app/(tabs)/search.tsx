@@ -26,6 +26,8 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Divider } from '@/components/Divider';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
+import { Radio } from '@/components/Radio';
+import { Checkbox } from '@/components/Checkbox';
 import {
   Typography,
   Spacing,
@@ -739,88 +741,44 @@ export default function SearchScreen() {
         <ScrollView showsVerticalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterScrollContent}>
           <Text style={styles.filterSectionLabel}>Sort by</Text>
           {(Object.entries(SORT_LABELS) as [SortOption, string][]).map(([value, label]) => (
-            <TouchableOpacity
-              key={value}
-              style={styles.sortRow}
-              onPress={() => selectSort(value)}
-              activeOpacity={0.6}
-            >
-              <Text style={[styles.sortLabel, sort === value && styles.sortLabelActive]}>
-                {label}
-              </Text>
-              {sort === value && (
-                <Ionicons name="checkmark" size={20} color={colors.primary} />
-              )}
-            </TouchableOpacity>
+            <Radio key={value} label={label} selected={sort === value} onPress={() => selectSort(value)} />
           ))}
 
           <Divider style={styles.filterDivider} />
 
           <Text style={styles.filterSectionLabel}>Size</Text>
-          {SIZES.map(size => {
-            const active = activeSizes.includes(size);
-            return (
-              <TouchableOpacity key={size} style={styles.checkRow} onPress={() => toggleSize(size)} activeOpacity={0.6}>
-                <Text style={[styles.checkLabel, active && styles.checkLabelActive]}>{size}</Text>
-                <View style={[styles.checkbox, active && { borderColor: colors.primary, backgroundColor: colors.primary }]}>
-                  {active && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          {SIZES.map(size => (
+            <Checkbox key={size} label={size} checked={activeSizes.includes(size)} onPress={() => toggleSize(size)} />
+          ))}
 
           <Divider style={styles.filterDivider} />
 
           <Text style={styles.filterSectionLabel}>Occasion</Text>
-          {OCCASIONS.map(occ => {
-            const active = activeOccasions.includes(occ);
-            return (
-              <TouchableOpacity key={occ} style={styles.checkRow} onPress={() => toggleOccasion(occ)} activeOpacity={0.6}>
-                <Text style={[styles.checkLabel, active && styles.checkLabelActive]}>{occ}</Text>
-                <View style={[styles.checkbox, active && { borderColor: colors.primary, backgroundColor: colors.primary }]}>
-                  {active && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          {OCCASIONS.map(occ => (
+            <Checkbox key={occ} label={occ} checked={activeOccasions.includes(occ)} onPress={() => toggleOccasion(occ)} />
+          ))}
 
           <Divider style={styles.filterDivider} />
 
           <Text style={styles.filterSectionLabel}>Condition</Text>
-          {CONDITIONS.map(cond => {
-            const active = activeConditions.includes(cond);
-            return (
-              <TouchableOpacity key={cond} style={styles.checkRow} onPress={() => toggleCondition(cond)} activeOpacity={0.6}>
-                <Text style={[styles.checkLabel, active && styles.checkLabelActive]}>{cond}</Text>
-                <View style={[styles.checkbox, active && { borderColor: colors.primary, backgroundColor: colors.primary }]}>
-                  {active && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          {CONDITIONS.map(cond => (
+            <Checkbox key={cond} label={cond} checked={activeConditions.includes(cond)} onPress={() => toggleCondition(cond)} />
+          ))}
 
           <Divider style={styles.filterDivider} />
 
           <Text style={styles.filterSectionLabel}>Price</Text>
-          {PRICE_RANGES.map(range => {
-            const active = activePriceRange?.label === range.label;
-            return (
-              <TouchableOpacity
-                key={range.label}
-                style={styles.checkRow}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setActivePriceRange(prev => prev?.label === range.label ? null : range);
-                }}
-                activeOpacity={0.6}
-              >
-                <Text style={[styles.checkLabel, active && styles.checkLabelActive]}>{range.label}</Text>
-                <View style={[styles.checkbox, active && { borderColor: colors.primary, backgroundColor: colors.primary }]}>
-                  {active && <Ionicons name="checkmark" size={14} color="#fff" />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+          {PRICE_RANGES.map(range => (
+            <Checkbox
+              key={range.label}
+              label={range.label}
+              checked={activePriceRange?.label === range.label}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setActivePriceRange(prev => prev?.label === range.label ? null : range);
+              }}
+            />
+          ))}
         </ScrollView>
 
         <View style={[styles.filterFooter, { borderTopColor: colors.border }]}>
@@ -1003,45 +961,8 @@ function getStyles(colors: ColorTokens) {
       marginBottom: Spacing.md,
       marginTop: Spacing.sm,
     },
-    checkRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: Spacing.md,
-    },
-    checkLabel: {
-      ...Typography.body,
-      color: colors.textPrimary,
-    },
-    checkLabelActive: {
-      fontFamily: 'Inter_600SemiBold',
-      color: colors.primary,
-    },
-    checkbox: {
-      width: 22,
-      height: 22,
-      borderRadius: BorderRadius.full,
-      borderWidth: 2,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     filterDivider: {
       marginVertical: Spacing.lg,
-    },
-    sortRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: Spacing.md,
-    },
-    sortLabel: {
-      ...Typography.body,
-      color: colors.textPrimary,
-    },
-    sortLabelActive: {
-      fontFamily: 'Inter_600SemiBold',
-      color: colors.primary,
     },
     filterFooter: {
       flexDirection: 'row',
