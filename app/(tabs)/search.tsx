@@ -8,6 +8,8 @@ import {
   StyleSheet,
   LayoutAnimation,
   Animated,
+  Dimensions,
+  PanResponder,
   RefreshControl,
   Platform,
   UIManager,
@@ -340,6 +342,29 @@ export default function SearchScreen() {
     setHasMore(true);
   }, []);
 
+  // Swipe-from-left-edge to go back to browse
+  const EDGE_WIDTH = 30;
+  const SWIPE_THRESHOLD = 80;
+  const exitResultsRef = useRef(exitResults);
+  exitResultsRef.current = exitResults;
+  const resultsModeRef = useRef(resultsMode);
+  resultsModeRef.current = resultsMode;
+
+  const swipeBack = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (evt, gesture) => {
+        if (!resultsModeRef.current) return false;
+        return evt.nativeEvent.pageX < EDGE_WIDTH && gesture.dx > 10 && Math.abs(gesture.dy) < 20;
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dx > SWIPE_THRESHOLD) {
+          exitResultsRef.current();
+        }
+      },
+    })
+  ).current;
+
   // ─── Filter helpers ─────────────────────────────────────
   const toggleSize = useCallback((size: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -558,6 +583,7 @@ export default function SearchScreen() {
   // ─── Render ─────────────────────────────────────────────
   return (
     <ScreenWrapper>
+      <View {...swipeBack.panHandlers} style={{ flex: 1 }}>
       <View style={styles.searchBarWrapper}>
         {resultsMode ? (
           <View style={styles.resultsHeader}>
@@ -696,12 +722,6 @@ export default function SearchScreen() {
                   onPress={() => router.push(`/listing/${item.id}`)}
                 />
               )}
-              ListHeaderComponent={
-                <Text style={styles.resultsCount}>
-                  {listings.length} {listings.length === 1 ? 'result' : 'results'}
-                  {resultsTitle ? ` for ${resultsTitle}` : ''}
-                </Text>
-              }
               ListEmptyComponent={
                 fetchError
                   ? <EmptyState
@@ -794,12 +814,11 @@ export default function SearchScreen() {
             label="Apply"
             variant="primary"
             onPress={() => setShowFilterSheet(false)}
-            backgroundColor={colors.textPrimary}
-            textColor={colors.background}
             style={styles.filterBtn}
           />
         </View>
       </BottomSheet>
+      </View>
     </ScreenWrapper>
   );
 }
@@ -922,11 +941,6 @@ function getStyles(colors: ColorTokens) {
     },
 
     // Results grid
-    resultsCount: {
-      ...Typography.caption,
-      color: colors.textSecondary,
-      paddingBottom: Spacing.sm,
-    },
     gridContent: { flexGrow: 1, paddingBottom: Spacing['4xl'] },
     gridRow: { gap: Spacing.sm, marginBottom: Spacing.sm },
 
@@ -938,7 +952,7 @@ function getStyles(colors: ColorTokens) {
       paddingBottom: Spacing.base,
     },
     filterTitle: {
-      ...Typography.heading,
+      ...Typography.subheading,
       color: colors.textPrimary,
     },
     filterCloseBtn: {
@@ -956,9 +970,10 @@ function getStyles(colors: ColorTokens) {
       paddingBottom: Spacing['3xl'],
     },
     filterSectionLabel: {
-      ...Typography.subheading,
-      color: colors.textPrimary,
-      marginBottom: Spacing.md,
+      ...Typography.label,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      marginBottom: Spacing.sm,
       marginTop: Spacing.sm,
     },
     filterDivider: {
@@ -967,7 +982,7 @@ function getStyles(colors: ColorTokens) {
     filterFooter: {
       flexDirection: 'row',
       gap: Spacing.sm,
-      paddingVertical: Spacing.base,
+      paddingTop: Spacing.base,
       borderTopWidth: StyleSheet.hairlineWidth,
     },
     filterBtn: {

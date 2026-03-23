@@ -42,11 +42,12 @@ function getStyles(colors: ColorTokens) {
       marginRight: Spacing.md,
     },
     boxActive: {
-      borderColor: colors.textPrimary,
-      backgroundColor: colors.textPrimary,
+      borderColor: colors.primary,
+      backgroundColor: colors.primary,
     },
     label: {
-      ...Typography.body,
+      fontSize: 16,
+      fontFamily: 'Inter_400Regular',
       color: colors.textPrimary,
     },
     labelActive: {

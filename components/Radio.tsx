@@ -41,16 +41,17 @@ function getStyles(colors: ColorTokens) {
       marginRight: Spacing.md,
     },
     outerActive: {
-      borderColor: colors.textPrimary,
+      borderColor: colors.primary,
     },
     inner: {
       width: 12,
       height: 12,
       borderRadius: 6,
-      backgroundColor: colors.textPrimary,
+      backgroundColor: colors.primary,
     },
     label: {
-      ...Typography.body,
+      fontSize: 16,
+      fontFamily: 'Inter_400Regular',
       color: colors.textPrimary,
     },
     labelActive: {

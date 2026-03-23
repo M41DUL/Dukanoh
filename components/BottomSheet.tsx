@@ -143,9 +143,7 @@ export function BottomSheet({ visible, onClose, children, fullScreen = false, ba
             },
           ]}
         >
-          {!fullScreen && (
-            <View style={[styles.handle, { backgroundColor: handleColor ?? colors.border }]} />
-          )}
+          <View style={[styles.handle, { backgroundColor: handleColor ?? colors.border }]} />
           {children}
         </Animated.View>
       </Animated.View>
