@@ -15,7 +15,7 @@ import {
   UIManager,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Fuse from 'fuse.js';
 import * as Haptics from 'expo-haptics';
@@ -234,6 +234,8 @@ const skeletonStyles = StyleSheet.create({
 // ─── Main screen ────────────────────────────────────────────
 
 export default function SearchScreen() {
+  const { q: incomingQuery } = useLocalSearchParams<{ q?: string }>();
+
   // Search state
   const [query, setQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -327,12 +329,20 @@ export default function SearchScreen() {
     saveSearch(term);
   }, [saveSearch]);
 
+  // Handle incoming search from home tab
+  useEffect(() => {
+    if (incomingQuery?.trim()) {
+      openSearch(incomingQuery.trim());
+      // Clear the param so it doesn't re-trigger
+      router.setParams({ q: '' });
+    }
+  }, [incomingQuery, openSearch]);
+
   const exitResults = useCallback(() => {
     LayoutAnimation.configureNext(TRANSITION);
     setResultsMode(false);
     setResultsCategory(null);
     setResultsOccasionPreset(null);
-    setQuery('');
     setActiveSizes([]);
     setActiveOccasions([]);
     setActiveConditions([]);
@@ -813,7 +823,10 @@ export default function SearchScreen() {
           <Button
             label="Apply"
             variant="primary"
-            onPress={() => setShowFilterSheet(false)}
+            onPress={() => {
+              setActiveSubTab('All');
+              setShowFilterSheet(false);
+            }}
             style={styles.filterBtn}
           />
         </View>

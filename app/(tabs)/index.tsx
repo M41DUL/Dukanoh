@@ -638,7 +638,7 @@ export default function HomeScreen() {
             onFocusChange={setSearchFocused}
             onSubmit={(q) => {
               if (q.trim()) {
-                router.push({ pathname: '/listings', params: { title: `"${q}"`, query: q } });
+                router.push({ pathname: '/(tabs)/search', params: { q: q.trim() } });
               }
             }}
           />
