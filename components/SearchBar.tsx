@@ -119,17 +119,17 @@ export function SearchBar({
   }, [focusAnim, onFocus, onFocusChange]);
 
   const exitFocus = useCallback(() => {
+    setFocused(false);
+    Keyboard.dismiss();
+    onBlur?.();
     Animated.timing(focusAnim, {
       toValue: 0,
       duration: 120,
       useNativeDriver: true,
     }).start(() => {
       setShowContent(false);
+      onFocusChange?.(false);
     });
-    setFocused(false);
-    Keyboard.dismiss();
-    onBlur?.();
-    onFocusChange?.(false);
   }, [focusAnim, onBlur, onFocusChange]);
 
   const handleCancel = useCallback(() => {
