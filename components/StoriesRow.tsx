@@ -12,6 +12,7 @@ import {
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Avatar } from './Avatar';
@@ -36,6 +37,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
   if (stories.length === 0) return null;
 
   const activeStory = activeIndex !== null ? stories[activeIndex] : null;
+  const isSingleAppStory = stories.length === 1 && stories[0].type === 'app';
 
   const openStory = (index: number) => {
     setActiveIndex(index);
@@ -64,46 +66,74 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
 
   return (
     <>
-      <FlatList
-        horizontal
-        data={stories}
-        keyExtractor={item => item.id}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={rowStyles.row}
-        renderItem={({ item, index }) => {
-          const isApp = item.type === 'app';
-          const listing = isApp ? null : (item as StoryListing);
-          return (
-            <TouchableOpacity
-              style={rowStyles.bubble}
-              onPress={() => openStory(index)}
-              activeOpacity={0.9}
-            >
-              <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing!.viewed && rowStyles.ringViewed]}>
-                <View style={rowStyles.ringInner}>
-                  {isApp ? (
-                    <View style={[viewerStyles.bubbleImage, rowStyles.appBubble]}>
-                      <Text style={rowStyles.appBubbleLetter}>D</Text>
-                    </View>
-                  ) : listing!.images?.[0] ? (
-                    <Image
-                      source={{ uri: listing!.images[0] }}
-                      style={viewerStyles.bubbleImage}
-                      contentFit="cover"
-                      transition={200}
-                    />
-                  ) : (
-                    <View style={[viewerStyles.bubbleImage, rowStyles.bubblePlaceholder]} />
-                  )}
+      {isSingleAppStory ? (
+        <TouchableOpacity
+          onPress={() => openStory(0)}
+          activeOpacity={0.8}
+          style={rowStyles.cardOuter}
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.primaryDim ?? colors.primary]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={rowStyles.card}
+          >
+            <View style={rowStyles.cardRing}>
+              <View style={rowStyles.cardRingInner}>
+                <View style={rowStyles.cardIcon}>
+                  <Text style={rowStyles.cardIconLetter}>D</Text>
                 </View>
               </View>
-              <Text style={rowStyles.bubbleLabel} numberOfLines={1}>
-                {isApp ? 'Dukanoh' : `@${listing!.seller.username}`}
-              </Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
+            </View>
+            <View style={rowStyles.cardBody}>
+              <Text style={rowStyles.cardTitle}>{(stories[0] as AppStory).headline}</Text>
+              <Text style={rowStyles.cardSub} numberOfLines={1}>{(stories[0] as AppStory).body}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.6)" />
+          </LinearGradient>
+        </TouchableOpacity>
+      ) : (
+        <FlatList
+          horizontal
+          data={stories}
+          keyExtractor={item => item.id}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={rowStyles.row}
+          renderItem={({ item, index }) => {
+            const isApp = item.type === 'app';
+            const listing = isApp ? null : (item as StoryListing);
+            return (
+              <TouchableOpacity
+                style={rowStyles.bubble}
+                onPress={() => openStory(index)}
+                activeOpacity={0.9}
+              >
+                <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing!.viewed && rowStyles.ringViewed]}>
+                  <View style={rowStyles.ringInner}>
+                    {isApp ? (
+                      <View style={[viewerStyles.bubbleImage, rowStyles.appBubble]}>
+                        <Text style={rowStyles.appBubbleLetter}>D</Text>
+                      </View>
+                    ) : listing!.images?.[0] ? (
+                      <Image
+                        source={{ uri: listing!.images[0] }}
+                        style={viewerStyles.bubbleImage}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    ) : (
+                      <View style={[viewerStyles.bubbleImage, rowStyles.bubblePlaceholder]} />
+                    )}
+                  </View>
+                </View>
+                <Text style={rowStyles.bubbleLabel} numberOfLines={1}>
+                  {isApp ? 'Dukanoh' : `@${listing!.seller.username}`}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      )}
 
       <Modal
         visible={activeIndex !== null}
@@ -315,6 +345,56 @@ function getRowStyles(colors: ColorTokens) {
       color: colors.textPrimary,
       textAlign: 'center',
       width: 64,
+    },
+    // Single story card layout
+    cardOuter: {
+      marginTop: Spacing.sm,
+      marginBottom: Spacing.base,
+    },
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: BorderRadius.full,
+      padding: Spacing.base,
+      gap: Spacing.sm,
+    },
+    cardRing: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      padding: 2.5,
+      backgroundColor: 'rgba(255,255,255,0.35)',
+    },
+    cardRingInner: {
+      flex: 1,
+      borderRadius: 20,
+      overflow: 'hidden',
+      borderWidth: 2,
+      borderColor: colors.primary,
+    },
+    cardIcon: {
+      flex: 1,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cardIconLetter: {
+      ...Typography.subheading,
+      color: '#FFFFFF',
+      fontFamily: 'Inter_700Bold',
+    },
+    cardBody: {
+      flex: 1,
+      gap: 2,
+    },
+    cardTitle: {
+      ...Typography.body,
+      color: '#FFFFFF',
+      fontFamily: 'Inter_600SemiBold',
+    },
+    cardSub: {
+      ...Typography.caption,
+      color: 'rgba(255,255,255,0.7)',
     },
   });
 }

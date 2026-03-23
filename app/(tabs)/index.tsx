@@ -231,7 +231,6 @@ interface NudgeSlide {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   title: string;
   subtitle: string;
-  cta: string;
   onPress: () => void;
   onDismiss: () => void;
 }
@@ -263,19 +262,18 @@ function NudgeCarousel({ slides }: { slides: NudgeSlide[] }) {
       >
         {slides.map((slide) => (
           <View key={slide.key} style={styles.slide}>
-            <View style={styles.card}>
-              <TouchableOpacity onPress={slide.onDismiss} hitSlop={10} style={styles.close}>
-                <Ionicons name="close" size={16} color={colors.textSecondary} />
-              </TouchableOpacity>
+            <TouchableOpacity style={styles.card} onPress={slide.onPress} activeOpacity={0.8}>
               <View style={styles.iconCircle}>
-                <Ionicons name={slide.icon} size={24} color={colors.primary} />
+                <Ionicons name={slide.icon} size={22} color={colors.primary} />
               </View>
-              <Text style={styles.title}>{slide.title}</Text>
-              <Text style={styles.sub}>{slide.subtitle}</Text>
-              <TouchableOpacity style={styles.cta} onPress={slide.onPress} activeOpacity={0.8}>
-                <Text style={styles.ctaText}>{slide.cta}</Text>
+              <View style={styles.body}>
+                <Text style={styles.title}>{slide.title}</Text>
+                <Text style={styles.sub}>{slide.subtitle}</Text>
+              </View>
+              <TouchableOpacity onPress={slide.onDismiss} hitSlop={10} style={styles.close}>
+                <Ionicons name="close" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           </View>
         ))}
       </ScrollView>
@@ -303,50 +301,36 @@ function getNudgeStyles(colors: ColorTokens) {
       paddingHorizontal: 2,
     },
     card: {
+      flexDirection: 'row',
+      alignItems: 'center',
       backgroundColor: colors.surface,
       borderRadius: BorderRadius.medium,
-      padding: Spacing.lg,
-      alignItems: 'center',
+      padding: Spacing.base,
       gap: Spacing.sm,
     },
-    close: {
-      position: 'absolute',
-      top: Spacing.sm,
-      right: Spacing.sm,
-      padding: Spacing.xs,
-      zIndex: 1,
-    },
     iconCircle: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       backgroundColor: colors.background,
       alignItems: 'center',
       justifyContent: 'center',
-      marginBottom: Spacing.xs,
+    },
+    body: {
+      flex: 1,
+      gap: 2,
     },
     title: {
       ...Typography.body,
       color: colors.textPrimary,
       fontFamily: 'Inter_600SemiBold',
-      textAlign: 'center',
     },
     sub: {
       ...Typography.caption,
       color: colors.textSecondary,
-      textAlign: 'center',
     },
-    cta: {
-      backgroundColor: colors.primary,
-      borderRadius: BorderRadius.full,
-      paddingHorizontal: Spacing.lg,
-      paddingVertical: Spacing.sm,
-      marginTop: Spacing.xs,
-    },
-    ctaText: {
-      ...Typography.body,
-      color: '#FFFFFF',
-      fontFamily: 'Inter_600SemiBold',
+    close: {
+      padding: Spacing.xs,
     },
     dots: {
       flexDirection: 'row',
@@ -688,7 +672,6 @@ export default function HomeScreen() {
         icon: 'person-outline',
         title: 'Complete your profile',
         subtitle: 'Add a photo and bio to stand out',
-        cta: 'Update profile',
         onPress: () => router.push('/(tabs)/profile'),
         onDismiss: dismissNudge,
       });
@@ -699,7 +682,6 @@ export default function HomeScreen() {
         icon: 'camera-outline',
         title: 'Start selling',
         subtitle: 'List your first item in minutes',
-        cta: 'List an item',
         onPress: () => router.push('/(tabs)/sell'),
         onDismiss: dismissSellNudge,
       });
@@ -753,6 +735,7 @@ export default function HomeScreen() {
               <View style={feedStaticStyles.section}>
                 <SectionHeader
                   title="Suggested for you"
+                  subtitle="Based on your preferences"
                   onSeeAll={() =>
                     router.push({
                       pathname: '/listings',
@@ -771,14 +754,13 @@ export default function HomeScreen() {
               <NudgeCarousel slides={nudgeSlides} />
             )}
 
-            <TrendingStrip categories={trending} colors={colors} />
-
             <PriceDropsRow drops={priceDrops} colors={colors} />
 
             {newArrivals.length > 0 ? (
               <View style={feedStaticStyles.section}>
                 <SectionHeader
                   title="New arrivals"
+                  subtitle="Just listed"
                   onSeeAll={() =>
                     router.push({
                       pathname: '/listings',
@@ -798,9 +780,11 @@ export default function HomeScreen() {
               />
             ) : null}
 
+            <TrendingStrip categories={trending} colors={colors} />
+
             {recentItems.length > 0 && (
               <View style={feedStaticStyles.section}>
-                <SectionHeader title="Recently viewed" />
+                <SectionHeader title="Recently viewed" subtitle="Pick up where you left off" />
                 <ListingsGrid items={recentItems} />
               </View>
             )}

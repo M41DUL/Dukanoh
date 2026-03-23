@@ -14,27 +14,26 @@ export interface AppStory {
 
 const APP_MESSAGES: Array<Omit<AppStory, 'type' | 'id'>> = [
   {
-    // imageUrl: 'https://YOUR_SUPABASE_URL/storage/v1/object/public/app-stories/welcome.jpg',
-    headline: 'Welcome to Dukanoh',
-    body: 'South Asian fashion, resold with love. Tap any listing to discover something new.',
-    ctaLabel: 'Browse listings',
+    headline: "What's new this week",
+    body: 'Fresh listings drop daily. Tap to see what just landed.',
+    ctaLabel: 'See new arrivals',
     ctaRoute: '/listings',
   },
   {
-    headline: 'List in minutes',
-    body: 'Got something you no longer wear? Snap a photo and reach buyers instantly.',
+    headline: 'Sell in minutes',
+    body: 'Snap a photo, set a price, done. Your wardrobe could earn you money.',
     ctaLabel: 'Start selling',
     ctaRoute: '/(tabs)/sell',
   },
   {
-    headline: 'Save what you love',
-    body: 'Tap the heart on any listing to save it and track price drops.',
-    ctaLabel: 'Explore new arrivals',
+    headline: 'Save & track prices',
+    body: "Heart what you love — we'll notify you when the price drops.",
+    ctaLabel: 'Browse listings',
     ctaRoute: '/listings',
   },
   {
-    headline: 'Festive season incoming',
-    body: 'Find the perfect outfit for Eid, Diwali, or your next wedding — all pre-loved.',
+    headline: 'Festive fits, pre-loved',
+    body: 'Eid, Diwali, weddings — find the perfect outfit for less.',
     ctaLabel: 'Shop festive',
     ctaRoute: '/listings',
   },
