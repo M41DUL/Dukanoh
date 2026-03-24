@@ -225,7 +225,8 @@ export function useFeed({ userId, reloadRecent }: UseFeedOptions) {
       const onboardingCats: string[] = profile?.preferred_categories ?? [];
       const allCats = [...new Set([...onboardingCats, ...viewedCats, ...savedCats])];
       const isComplete = !!(profile?.avatar_url && profile?.bio);
-      const firstName = profile?.full_name?.split(' ')[0] ?? '';
+      const rawName = profile?.full_name ?? '';
+      const firstName = rawName === 'New User' ? '' : rawName.split(' ')[0];
       setDisplayName(firstName);
 
       const [suggestedItems, newArrivalItems, listingCountResult, savedPrices] = await Promise.all([

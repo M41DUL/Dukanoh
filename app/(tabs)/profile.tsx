@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { View, Text, TextInput, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +33,12 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
+  const [profileName, setProfileName] = useState('');
+  const [profileBio, setProfileBio] = useState('');
+  const [profileAvatar, setProfileAvatar] = useState<string | undefined>();
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const nameInputRef = useRef<TextInput>(null);
   const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -47,14 +53,18 @@ export default function ProfileScreen() {
     setListings((data ?? []) as unknown as Listing[]);
   }, [user]);
 
-  const fetchRating = useCallback(async () => {
+  const fetchProfile = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase
       .from('users')
-      .select('rating_avg, rating_count')
+      .select('full_name, bio, avatar_url, rating_avg, rating_count')
       .eq('id', user.id)
       .maybeSingle();
     if (data) {
+      const name = data.full_name === 'New User' ? '' : (data.full_name ?? '');
+      setProfileName(name);
+      setProfileBio(data.bio ?? '');
+      setProfileAvatar(data.avatar_url ?? undefined);
       setRatingAvg(data.rating_avg ?? 0);
       setRatingCount(data.rating_count ?? 0);
     }
@@ -62,16 +72,16 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     fetchListings();
-    fetchRating();
-  }, [fetchListings, fetchRating]);
+    fetchProfile();
+  }, [fetchListings, fetchProfile]);
 
   useFocusEffect(useCallback(() => { reloadRecent(); }, [reloadRecent]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchListings(), fetchRating(), reloadRecent()]);
+    await Promise.all([fetchListings(), fetchProfile(), reloadRecent()]);
     setRefreshing(false);
-  }, [fetchListings, fetchRating, reloadRecent]);
+  }, [fetchListings, fetchProfile, reloadRecent]);
 
   const handleResetPreferences = () => {
     Alert.alert(
@@ -97,9 +107,23 @@ export default function ProfileScreen() {
   };
 
   const username = user?.user_metadata?.username ?? 'username';
-  const fullName = user?.user_metadata?.full_name ?? 'Your Name';
-  const bio = user?.user_metadata?.bio ?? '';
-  const avatarUrl = user?.user_metadata?.avatar_url;
+
+  const saveName = useCallback(async () => {
+    const trimmed = nameDraft.trim();
+    if (!user || !trimmed || trimmed === profileName) {
+      setEditingName(false);
+      return;
+    }
+    await supabase.from('users').update({ full_name: trimmed }).eq('id', user.id);
+    setProfileName(trimmed);
+    setEditingName(false);
+  }, [user, nameDraft, profileName]);
+
+  const startEditingName = useCallback(() => {
+    setNameDraft(profileName);
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 100);
+  }, [profileName]);
 
   const publishedListings = listings.filter(l => l.status !== 'draft');
   const draftListings = listings.filter(l => l.status === 'draft');
@@ -114,7 +138,7 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryText} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
         renderItem={({ item }) => (
           <ListingCard
@@ -126,9 +150,31 @@ export default function ProfileScreen() {
         ListHeaderComponent={
           <View>
             <View style={styles.profileHeader}>
-              <Avatar uri={avatarUrl} initials={fullName[0]?.toUpperCase()} size="large" />
+              <Avatar uri={profileAvatar} initials={(profileName || username)[0]?.toUpperCase()} size="large" />
               <View style={styles.info}>
-                <Text style={styles.name}>{fullName}</Text>
+                {editingName ? (
+                  <TextInput
+                    ref={nameInputRef}
+                    style={styles.nameInput}
+                    value={nameDraft}
+                    onChangeText={setNameDraft}
+                    onBlur={saveName}
+                    onSubmitEditing={saveName}
+                    returnKeyType="done"
+                    placeholder="Your name"
+                    placeholderTextColor={colors.textSecondary}
+                    maxLength={50}
+                  />
+                ) : (
+                  <TouchableOpacity onPress={startEditingName} activeOpacity={0.7}>
+                    <Text style={styles.name}>
+                      {profileName || 'Add your name'}
+                    </Text>
+                    {!profileName && (
+                      <Text style={styles.nameHint}>Tap to add</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
                 <Text style={styles.username}>@{username}</Text>
                 {ratingCount > 0 && (
                   <View style={styles.ratingRow}>
@@ -138,7 +184,7 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
                 )}
-                {bio ? <Text style={styles.bio}>{bio}</Text> : null}
+                {profileBio ? <Text style={styles.bio}>{profileBio}</Text> : null}
               </View>
             </View>
             <Divider />
@@ -293,6 +339,15 @@ function getStyles(colors: ColorTokens) {
     },
     info: { flex: 1, gap: Spacing.xs },
     name: { ...Typography.subheading, color: colors.textPrimary },
+    nameInput: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.primary,
+      paddingVertical: 2,
+      margin: 0,
+    },
+    nameHint: { ...Typography.caption, color: colors.textSecondary },
     username: { ...Typography.body, color: colors.textSecondary },
     bio: { ...Typography.body, color: colors.textSecondary, marginTop: Spacing.xs },
     ratingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
@@ -320,7 +375,7 @@ function getStyles(colors: ColorTokens) {
     },
     recentPrice: {
       ...Typography.caption,
-      color: colors.primaryText,
+      color: colors.primary,
       fontFamily: 'Inter_600SemiBold',
     },
     draftsSection: { marginBottom: Spacing.xs },

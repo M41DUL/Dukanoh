@@ -17,7 +17,6 @@ import {
 } from '@/components/feed';
 import { Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useTheme } from '@/context/ThemeContext';
 import { useStories, getAppStory } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
@@ -26,7 +25,6 @@ import { useFeed } from '@/hooks/useFeed';
 export default function HomeScreen() {
   const { user } = useAuth();
   const colors = useThemeColors();
-  const { isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const { stories, loading: storiesLoading, markViewed } = useStories();
@@ -64,7 +62,7 @@ export default function HomeScreen() {
     <ScreenWrapper>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <DukanohLogo width={80} height={14} color={isDark ? colors.secondary : colors.textPrimary} />
+          <DukanohLogo width={80} height={14} color={colors.primary} />
           <TouchableOpacity
             onPress={() => router.push({ pathname: '/(tabs)/search', params: { focus: '1' } })}
             hitSlop={8}
@@ -103,7 +101,7 @@ export default function HomeScreen() {
             )}
 
             {suggested.length > 0 && (
-              <View style={styles.section}>
+              <View style={[styles.section, { marginTop: Spacing.md }]}>
                 <SectionHeader
                   title="Suggested for you"
                   subtitle="Based on your preferences"

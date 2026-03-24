@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Dimensions,
   StyleSheet,
   StatusBar,
+  Animated,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -18,6 +19,7 @@ import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { Button } from './Button';
 import { GradientCard } from './GradientCard';
+import { DukanohLogo } from './DukanohLogo';
 import { StoryListing, AppStory } from '@/hooks/useStories';
 
 const { width, height } = Dimensions.get('window');
@@ -29,15 +31,49 @@ interface StoriesRowProps {
   onView: (listingId: string) => void;
 }
 
+const STORY_DURATION = 5000; // 5 seconds per story
+
 export function StoriesRow({ stories, onView }: StoriesRowProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const colors = useThemeColors();
   const rowStyles = useMemo(() => getRowStyles(colors), [colors]);
+  const progress = useRef(new Animated.Value(0)).current;
+  const timerAnim = useRef<Animated.CompositeAnimation | null>(null);
 
   if (stories.length === 0) return null;
 
   const activeStory = activeIndex !== null ? stories[activeIndex] : null;
   const isSingleAppStory = stories.length === 1 && stories[0].type === 'app';
+
+  const stopTimer = () => {
+    if (timerAnim.current) {
+      timerAnim.current.stop();
+      timerAnim.current = null;
+    }
+  };
+
+  const startTimer = () => {
+    progress.setValue(0);
+    timerAnim.current = Animated.timing(progress, {
+      toValue: 1,
+      duration: STORY_DURATION,
+      useNativeDriver: false,
+    });
+    timerAnim.current.start(({ finished }) => {
+      if (finished) goNext();
+    });
+  };
+
+  // biome-ignore lint: activeIndex drives the timer
+  useEffect(() => {
+    if (activeIndex !== null) {
+      startTimer();
+    } else {
+      stopTimer();
+      progress.setValue(0);
+    }
+    return () => stopTimer();
+  }, [activeIndex]);
 
   const openStory = (index: number) => {
     setActiveIndex(index);
@@ -64,12 +100,17 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
 
   const close = () => setActiveIndex(null);
 
+  const progressWidth = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
     <>
       {isSingleAppStory ? (
         <View style={rowStyles.cardOuter}>
           <GradientCard
-            colors={[colors.secondary, colors.secondaryDim]}
+            colors={[colors.secondary, colors.surface]}
             title={(stories[0] as AppStory).headline}
             subtitle={(stories[0] as AppStory).body}
             titleColor="#0D0D0D"
@@ -146,11 +187,11 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 <View style={viewerStyles.progressBar}>
                   {stories.map((_, i) => (
                     <View key={i} style={viewerStyles.progressSegmentContainer}>
-                      <View
+                      <Animated.View
                         style={[
                           viewerStyles.progressSegment,
                           i < (activeIndex ?? 0) && viewerStyles.progressDone,
-                          i === activeIndex && viewerStyles.progressActive,
+                          i === activeIndex && { width: progressWidth },
                         ]}
                       />
                     </View>
@@ -167,38 +208,29 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 </View>
 
                 {activeStory.imageUrl ? (
-                  // Image-based app story
-                  <>
-                    <Image
-                      source={{ uri: activeStory.imageUrl }}
-                      style={viewerStyles.fullImage}
-                      contentFit="cover"
-                      transition={200}
-                    />
-                    <View style={viewerStyles.scrimBottom} />
-                    <View style={viewerStyles.overlay}>
-                      {activeStory.headline ? (
-                        <Text style={viewerStyles.storyTitle}>{activeStory.headline}</Text>
-                      ) : null}
-                      <View style={viewerStyles.ctaRow}>
-                        <Button
-                          label={activeStory.ctaLabel}
-                          size="md"
-                          onPress={() => {
-                            close();
-                            router.push(activeStory.ctaRoute as any);
-                          }}
-                          style={viewerStyles.viewBtn}
-                        />
-                      </View>
-                    </View>
-                  </>
+                  <Image
+                    source={{ uri: activeStory.imageUrl }}
+                    style={viewerStyles.fullImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
                 ) : (
-                  // Text-only app story
-                  <View style={viewerStyles.appCardCenter}>
-                    <Text style={viewerStyles.appWordmark}>Dukanoh</Text>
-                    <Text style={viewerStyles.appHeadline}>{activeStory.headline}</Text>
+                  <Image
+                    source={require('@/assets/images/hero-banner-1.png')}
+                    style={viewerStyles.fullImage}
+                    contentFit="cover"
+                  />
+                )}
+                <View style={viewerStyles.scrimBottom} />
+                <View style={viewerStyles.appCardCenter}>
+                  <DukanohLogo width={140} height={24} color="#C7F75E" />
+                </View>
+                <View style={viewerStyles.overlay}>
+                  <Text style={viewerStyles.storyTitle}>{activeStory.headline}</Text>
+                  {activeStory.body ? (
                     <Text style={viewerStyles.appBody}>{activeStory.body}</Text>
+                  ) : null}
+                  <View style={viewerStyles.ctaRow}>
                     <Button
                       label={activeStory.ctaLabel}
                       size="md"
@@ -206,10 +238,10 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                         close();
                         router.push(activeStory.ctaRoute as any);
                       }}
-                      style={viewerStyles.appCta}
+                      style={viewerStyles.viewBtn}
                     />
                   </View>
-                )}
+                </View>
               </>
             ) : (
               // Regular listing story viewer
@@ -231,11 +263,11 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 <View style={viewerStyles.progressBar}>
                   {stories.map((_, i) => (
                     <View key={i} style={viewerStyles.progressSegmentContainer}>
-                      <View
+                      <Animated.View
                         style={[
                           viewerStyles.progressSegment,
                           i < (activeIndex ?? 0) && viewerStyles.progressDone,
-                          i === activeIndex && viewerStyles.progressActive,
+                          i === activeIndex && { width: progressWidth },
                         ]}
                       />
                     </View>
@@ -418,6 +450,7 @@ const viewerStyles = StyleSheet.create({
     right: Spacing.base,
     flexDirection: 'row',
     gap: 4,
+    zIndex: 20,
   },
   progressSegmentContainer: {
     flex: 1,
@@ -433,12 +466,11 @@ const viewerStyles = StyleSheet.create({
     borderRadius: 2,
   },
   progressDone: { width: '100%' },
-  progressActive: { width: '60%' },
   closeButton: {
     position: 'absolute',
     top: 52,
     right: Spacing.base,
-    zIndex: 10,
+    zIndex: 20,
     padding: Spacing.xs,
   },
   tapZones: {
@@ -490,32 +522,19 @@ const viewerStyles = StyleSheet.create({
   viewBtn: { flex: 1 },
   // App story card styles
   appCardCenter: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing['2xl'],
-    gap: Spacing.base,
-    paddingTop: 80,
-    paddingBottom: Spacing['3xl'],
-  },
-  appWordmark: {
-    ...Typography.display,
-    color: '#C7F75E',
-    marginBottom: Spacing.xs,
-  },
-  appHeadline: {
-    ...Typography.heading,
-    color: '#fff',
-    textAlign: 'center',
+    paddingBottom: 200,
   },
   appBody: {
     ...Typography.body,
     color: 'rgba(255,255,255,0.75)',
     textAlign: 'center',
     lineHeight: 22,
-  },
-  appCta: {
-    marginTop: Spacing.md,
-    alignSelf: 'stretch',
   },
 });

@@ -14,27 +14,27 @@ export interface AppStory {
 
 const APP_MESSAGES: Array<Omit<AppStory, 'type' | 'id'>> = [
   {
-    headline: "What's new this week",
-    body: 'Fresh listings drop daily. Tap to see what just landed.',
-    ctaLabel: 'See new arrivals',
+    headline: 'Welcome to Dukanoh',
+    body: 'The South Asian fashion marketplace. Buy and sell pre-loved clothing from your community.',
+    ctaLabel: 'Start browsing',
     ctaRoute: '/listings',
   },
   {
-    headline: 'Sell in minutes',
-    body: 'Snap a photo, set a price, done. Your wardrobe could earn you money.',
-    ctaLabel: 'Start selling',
-    ctaRoute: '/(tabs)/sell',
+    headline: 'How it works',
+    body: 'Browse listings, message sellers directly, and arrange collection or delivery between you.',
+    ctaLabel: 'Explore now',
+    ctaRoute: '/listings',
   },
   {
-    headline: 'Save & track prices',
-    body: "Heart what you love — we'll notify you when the price drops.",
+    headline: 'Discover your style',
+    body: 'Lehengas, sherwanis, sarees and more — all pre-loved, all at a fraction of the price.',
     ctaLabel: 'Browse listings',
     ctaRoute: '/listings',
   },
   {
-    headline: 'Festive fits, pre-loved',
-    body: 'Eid, Diwali, weddings — find the perfect outfit for less.',
-    ctaLabel: 'Shop festive',
+    headline: 'Join the community',
+    body: 'Save your favourites, follow price drops, and find outfits for every occasion.',
+    ctaLabel: 'Get started',
     ctaRoute: '/listings',
   },
 ];
