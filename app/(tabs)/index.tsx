@@ -40,8 +40,6 @@ export default function HomeScreen() {
     preferredCategories,
     loading,
     refreshing,
-    displayName,
-    greeting,
     nudgeSlides,
     onRefresh,
     loadDataIfStale,
@@ -75,9 +73,6 @@ export default function HomeScreen() {
 
         {loading ? (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.feedContent}>
-            <Text style={styles.greeting}>
-              {greeting}{displayName ? `, ${displayName}` : ''}
-            </Text>
             <View style={styles.padded}>
               <SkeletonSection />
               <SkeletonSection />
@@ -95,14 +90,8 @@ export default function HomeScreen() {
             }
             contentContainerStyle={styles.feedContent}
           >
-            <Text style={styles.greeting}>
-              {greeting}{displayName ? `, ${displayName}` : ''}
-            </Text>
-
             {!storiesLoading && (
-              <View style={styles.padded}>
-                <StoriesRow stories={allStories} onView={markViewed} />
-              </View>
+              <StoriesRow stories={allStories} onView={markViewed} />
             )}
 
             {suggested.length > 0 && (
@@ -194,14 +183,6 @@ function getStyles(colors: ColorTokens) {
     },
     iconBtn: {
       padding: Spacing.xs,
-    },
-    greeting: {
-      fontSize: 22,
-      fontFamily: 'Inter_500Medium',
-      color: colors.textPrimary,
-      paddingTop: Spacing.md,
-      paddingBottom: Spacing.lg,
-      paddingHorizontal: Spacing.base,
     },
     feedContent: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
     section: { marginBottom: Spacing.xl, paddingHorizontal: Spacing.base },

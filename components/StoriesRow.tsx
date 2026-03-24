@@ -324,8 +324,9 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
 function getRowStyles(colors: ColorTokens) {
   return StyleSheet.create({
     row: {
+      paddingLeft: Spacing.base,
       paddingRight: Spacing.base,
-      paddingTop: Spacing.sm,
+      paddingTop: Spacing.lg,
       paddingBottom: Spacing.base,
       gap: Spacing.md,
     },
@@ -339,13 +340,13 @@ function getRowStyles(colors: ColorTokens) {
       height: 64,
       borderRadius: 32,
       padding: 2.5,
-      backgroundColor: colors.primary,
+      backgroundColor: colors.secondary,
     },
     ringViewed: {
       backgroundColor: colors.border,
     },
     ringApp: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.secondary,
     },
     ringInner: {
       flex: 1,
@@ -358,13 +359,13 @@ function getRowStyles(colors: ColorTokens) {
       backgroundColor: colors.surface,
     },
     appBubble: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.secondary,
       alignItems: 'center',
       justifyContent: 'center',
     },
     appBubbleLetter: {
       ...Typography.subheading,
-      color: '#FFFFFF',
+      color: '#0D0D0D',
       fontFamily: 'Inter_700Bold',
     },
     bubbleLabel: {
@@ -377,6 +378,7 @@ function getRowStyles(colors: ColorTokens) {
     cardOuter: {
       marginTop: Spacing.sm,
       marginBottom: Spacing.base,
+      paddingHorizontal: Spacing.base,
     },
     cardRing: {
       width: 46,
