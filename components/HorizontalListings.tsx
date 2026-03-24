@@ -18,8 +18,6 @@ export function HorizontalListings({ items }: HorizontalListingsProps) {
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.content}
-      style={styles.list}
-      removeClippedSubviews={false}
       renderItem={({ item }) => (
         <ListingCard
           listing={item}
@@ -33,10 +31,6 @@ export function HorizontalListings({ items }: HorizontalListingsProps) {
 }
 
 const styles = StyleSheet.create({
-  list: {
-    overflow: 'visible',
-    marginHorizontal: -Spacing.base,
-  },
   content: {
     paddingHorizontal: Spacing.base,
     gap: Spacing.sm,

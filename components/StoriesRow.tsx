@@ -110,7 +110,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
       {isSingleAppStory ? (
         <View style={rowStyles.cardOuter}>
           <GradientCard
-            colors={[colors.secondary, colors.surface]}
+            colors={['#E8FBC5', colors.surface]}
             title={(stories[0] as AppStory).headline}
             subtitle={(stories[0] as AppStory).body}
             titleColor="#0D0D0D"

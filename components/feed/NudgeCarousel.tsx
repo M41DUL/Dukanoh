@@ -80,8 +80,8 @@ function getStyles(colors: ColorTokens) {
       marginBottom: Spacing.xl,
     },
     slide: {
-      width: Dimensions.get('window').width - Spacing.base * 2,
-      paddingHorizontal: 2,
+      width: Dimensions.get('window').width,
+      paddingHorizontal: Spacing.base,
     },
     iconCircle: {
       width: 44,

@@ -59,7 +59,7 @@ export default function HomeScreen() {
   );
 
   return (
-    <ScreenWrapper>
+    <ScreenWrapper contentStyle={{ paddingHorizontal: 0 }}>
       <View style={styles.container}>
         <View style={styles.topBar}>
           <DukanohLogo width={80} height={14} color={colors.primary} />
@@ -77,8 +77,10 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>
               {greeting}{displayName ? `, ${displayName}` : ''}
             </Text>
-            <SkeletonSection />
-            <SkeletonSection />
+            <View style={styles.padded}>
+              <SkeletonSection />
+              <SkeletonSection />
+            </View>
           </ScrollView>
         ) : (
           <ScrollView
@@ -97,24 +99,28 @@ export default function HomeScreen() {
             </Text>
 
             {!storiesLoading && (
-              <StoriesRow stories={allStories} onView={markViewed} />
+              <View style={styles.padded}>
+                <StoriesRow stories={allStories} onView={markViewed} />
+              </View>
             )}
 
             {suggested.length > 0 && (
-              <View style={[styles.section, { marginTop: Spacing.md }]}>
-                <SectionHeader
-                  title="Suggested for you"
-                  subtitle="Based on your preferences"
-                  onSeeAll={() =>
-                    router.push({
-                      pathname: '/listings',
-                      params: {
-                        title: 'Suggested for you',
-                        categories: preferredCategories.join(','),
-                      },
-                    })
-                  }
-                />
+              <View style={[styles.section, { marginTop: Spacing.md, paddingHorizontal: 0 }]}>
+                <View style={styles.padded}>
+                  <SectionHeader
+                    title="Suggested for you"
+                    subtitle="Based on your preferences"
+                    onSeeAll={() =>
+                      router.push({
+                        pathname: '/listings',
+                        params: {
+                          title: 'Suggested for you',
+                          categories: preferredCategories.join(','),
+                        },
+                      })
+                    }
+                  />
+                </View>
                 <HorizontalListings items={suggested} />
               </View>
             )}
@@ -123,7 +129,9 @@ export default function HomeScreen() {
               <NudgeCarousel slides={nudgeSlides} />
             )}
 
-            <PriceDropsRow drops={priceDrops} colors={colors} />
+            <View style={styles.padded}>
+              <PriceDropsRow drops={priceDrops} colors={colors} />
+            </View>
 
             {newArrivals.length > 0 ? (
               <View style={styles.section}>
@@ -140,16 +148,20 @@ export default function HomeScreen() {
                 <ListingsGrid items={newArrivals} />
               </View>
             ) : suggested.length === 0 ? (
-              <EmptyState
-                icon={<Ionicons name="shirt-outline" size={48} color={colors.textSecondary} />}
-                heading="Nothing to browse yet"
-                subtext="Be the first to list something and get the community started."
-                ctaLabel="Start selling"
-                onCta={() => router.push('/(tabs)/sell')}
-              />
+              <View style={styles.padded}>
+                <EmptyState
+                  icon={<Ionicons name="shirt-outline" size={48} color={colors.textSecondary} />}
+                  heading="Nothing to browse yet"
+                  subtext="Be the first to list something and get the community started."
+                  ctaLabel="Start selling"
+                  onCta={() => router.push('/(tabs)/sell')}
+                />
+              </View>
             ) : null}
 
-            <TrendingStrip categories={trending} colors={colors} />
+            <View style={styles.padded}>
+              <TrendingStrip categories={trending} colors={colors} />
+            </View>
 
             {recentItems.length > 0 && (
               <View style={styles.section}>
@@ -167,12 +179,16 @@ export default function HomeScreen() {
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     container: { flex: 1 },
+    padded: {
+      paddingHorizontal: Spacing.base,
+    },
     topBar: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingTop: Spacing.sm,
       paddingBottom: Spacing.xs,
+      paddingHorizontal: Spacing.base,
     },
     iconBtn: {
       padding: Spacing.xs,
@@ -183,8 +199,9 @@ function getStyles(colors: ColorTokens) {
       color: colors.textPrimary,
       paddingTop: Spacing.md,
       paddingBottom: Spacing.lg,
+      paddingHorizontal: Spacing.base,
     },
     feedContent: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
-    section: { marginBottom: Spacing.xl },
+    section: { marginBottom: Spacing.xl, paddingHorizontal: Spacing.base },
   });
 }
