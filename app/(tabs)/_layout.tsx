@@ -1,9 +1,21 @@
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
+/** If root stack screens are open above the tabs, dismiss them before switching tabs. */
+function dismissStackOnTabPress(e: { target?: string; preventDefault: () => void }) {
+  if (router.canDismiss()) {
+    e.preventDefault();
+    router.dismissAll();
+  }
+}
+
 export default function TabLayout() {
   const colors = useThemeColors();
+
+  const tabListeners = {
+    tabPress: dismissStackOnTabPress,
+  };
 
   return (
     <Tabs
@@ -32,6 +44,7 @@ export default function TabLayout() {
             <Ionicons name="home-outline" size={size} color={color} />
           ),
         }}
+        listeners={tabListeners}
       />
       <Tabs.Screen
         name="search"
@@ -41,6 +54,7 @@ export default function TabLayout() {
             <Ionicons name="search-outline" size={size} color={color} />
           ),
         }}
+        listeners={tabListeners}
       />
       <Tabs.Screen
         name="sell"
@@ -50,6 +64,7 @@ export default function TabLayout() {
             <Ionicons name="add-circle-outline" size={size} color={color} />
           ),
         }}
+        listeners={tabListeners}
       />
       <Tabs.Screen
         name="inbox"
@@ -59,6 +74,7 @@ export default function TabLayout() {
             <Ionicons name="chatbubble-outline" size={size} color={color} />
           ),
         }}
+        listeners={tabListeners}
       />
       <Tabs.Screen
         name="profile"
@@ -68,6 +84,7 @@ export default function TabLayout() {
             <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
+        listeners={tabListeners}
       />
     </Tabs>
   );

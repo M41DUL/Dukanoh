@@ -12,6 +12,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Fuse from 'fuse.js';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -29,6 +30,7 @@ import { supabase } from '@/lib/supabase';
 // ─── Constants ──────────────────────────────────────────────
 
 const PAGE_SIZE = 20;
+const TEXT_SEARCH_LIMIT = 100;
 
 type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'most_saved' | 'most_viewed';
 const SORT_LABELS: Record<SortOption, string> = {
@@ -42,6 +44,7 @@ const SORT_LABELS: Record<SortOption, string> = {
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'];
 const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
+const ALL_CATEGORIES = ['Lehenga', 'Saree', 'Sherwani', 'Anarkali', 'Kurta', 'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes'];
 
 interface PriceRange { label: string; min: number; max: number }
 const PRICE_RANGES: PriceRange[] = [
@@ -105,9 +108,15 @@ const skeletonStyles = StyleSheet.create({
 // ─── Main screen ────────────────────────────────────────────
 
 export default function ListingsScreen() {
-  const { title = 'Listings', categories: categoriesParam, query: queryParam } = useLocalSearchParams<{
+  const {
+    title = 'Listings',
+    categories: categoriesParam,
+    occasion: occasionParam,
+    query: queryParam,
+  } = useLocalSearchParams<{
     title: string;
     categories?: string;
+    occasion?: string;
     query?: string;
   }>();
   const { user } = useAuth();
@@ -117,6 +126,16 @@ export default function ListingsScreen() {
   const categoriesStr = Array.isArray(categoriesParam) ? categoriesParam[0] : (categoriesParam ?? '');
   const categories = categoriesStr ? categoriesStr.split(',').filter(Boolean) : [];
   const searchQuery = Array.isArray(queryParam) ? queryParam[0] : (queryParam ?? '');
+  const occasionPreset = Array.isArray(occasionParam) ? occasionParam[0] : (occasionParam ?? '');
+
+  // Sub-tabs: occasions when browsing a single category, categories when browsing an occasion
+  const subTabs = useMemo(() => {
+    if (categories.length === 1 && !occasionPreset && !searchQuery) return ['All', ...OCCASIONS];
+    if (occasionPreset && categories.length === 0) return ['All', ...ALL_CATEGORIES];
+    return [];
+  }, [categories.length, occasionPreset, searchQuery]);
+
+  const [activeSubTab, setActiveSubTab] = useState('All');
 
   // Listings state
   const [listings, setListings] = useState<Listing[]>([]);
@@ -124,12 +143,15 @@ export default function ListingsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const pageRef = useRef(0);
 
   // Filter state
   const [sort, setSort] = useState<SortOption>('newest');
   const [activeSizes, setActiveSizes] = useState<string[]>([]);
-  const [activeOccasions, setActiveOccasions] = useState<string[]>([]);
+  const [activeOccasions, setActiveOccasions] = useState<string[]>(
+    occasionPreset ? [occasionPreset] : []
+  );
   const [activeConditions, setActiveConditions] = useState<string[]>([]);
   const [activePriceRange, setActivePriceRange] = useState<PriceRange | null>(null);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
@@ -152,14 +174,17 @@ export default function ListingsScreen() {
 
   const clearAllFilters = useCallback(() => {
     setActiveSizes([]);
-    setActiveOccasions([]);
+    setActiveOccasions(occasionPreset ? [occasionPreset] : []);
     setActiveConditions([]);
     setActivePriceRange(null);
     setSort('newest');
-  }, []);
+  }, [occasionPreset]);
 
   const filterCount =
-    activeSizes.length + activeOccasions.length + activeConditions.length + (activePriceRange ? 1 : 0);
+    activeSizes.length +
+    (activeOccasions.length - (occasionPreset && activeOccasions.includes(occasionPreset) ? 1 : 0)) +
+    activeConditions.length +
+    (activePriceRange ? 1 : 0);
   const isSorted = sort !== 'newest';
   const totalFilterCount = filterCount + (isSorted ? 1 : 0);
 
@@ -186,6 +211,15 @@ export default function ListingsScreen() {
     if (user) q = q.neq('seller_id', user.id);
     if (categories.length > 0) q = q.in('category', categories);
 
+    // Sub-tab filter
+    if (activeSubTab !== 'All') {
+      if (categories.length === 1) {
+        q = q.eq('occasion', activeSubTab);
+      } else if (occasionPreset) {
+        q = q.eq('category', activeSubTab);
+      }
+    }
+
     if (activeSizes.length === 1) q = q.ilike('size', `%${activeSizes[0]}%`);
     if (activeOccasions.length === 1) q = q.eq('occasion', activeOccasions[0]);
     else if (activeOccasions.length > 1) q = q.in('occasion', activeOccasions);
@@ -197,29 +231,62 @@ export default function ListingsScreen() {
       if (activePriceRange.max !== Infinity) q = q.lte('price', activePriceRange.max);
     }
 
-    if (searchQuery.trim()) {
-      const cleaned = searchQuery.trim().replace(/[,.()"'\\]/g, '');
-      q = q.or(`title.ilike.%${cleaned}%,category.ilike.%${cleaned}%,occasion.ilike.%${cleaned}%`);
+    const trimmedQuery = searchQuery.trim().replace(/[,.()"'\\]/g, '');
+    if (trimmedQuery) {
+      q = q.or(`title.ilike.%${trimmedQuery}%,category.ilike.%${trimmedQuery}%,occasion.ilike.%${trimmedQuery}%`);
     }
 
-    return q;
-  }, [user, categoriesStr, searchQuery, sort, activeSizes, activeOccasions, activeConditions, activePriceRange]);
+    return { q, trimmedQuery };
+  }, [user, categoriesStr, occasionPreset, searchQuery, activeSubTab, sort, activeSizes, activeOccasions, activeConditions, activePriceRange]);
 
-  // ─── Fetch ────────────────────────────────────────────────
-  const load = useCallback(async (reset: boolean) => {
-    const pageNum = reset ? 0 : pageRef.current;
-    const q = buildQuery();
-
-    const { data, error } = await q.range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
-    if (error) return;
-
-    let items = (data ?? []) as unknown as Listing[];
+  const applyClientFilters = useCallback((data: Listing[], trimmedQuery: string) => {
+    let results = data;
 
     // Client-side multi-size filter
     if (activeSizes.length > 1) {
       const sizeLower = activeSizes.map(s => s.toLowerCase());
-      items = items.filter(l => l.size && sizeLower.some(s => l.size!.toLowerCase().includes(s)));
+      results = results.filter(l =>
+        l.size && sizeLower.some(s => l.size!.toLowerCase().includes(s))
+      );
     }
+
+    // Fuzzy re-rank for text searches
+    if (trimmedQuery && results.length > 0) {
+      const fuse = new Fuse(results, {
+        keys: [
+          { name: 'title', weight: 0.6 },
+          { name: 'category', weight: 0.2 },
+          { name: 'occasion', weight: 0.2 },
+        ],
+        threshold: 0.4,
+        includeScore: true,
+      });
+      results = fuse.search(trimmedQuery).map(r => r.item);
+    }
+
+    return results;
+  }, [activeSizes]);
+
+  // ─── Fetch ────────────────────────────────────────────────
+  const load = useCallback(async (reset: boolean) => {
+    const pageNum = reset ? 0 : pageRef.current;
+    const { q, trimmedQuery } = buildQuery();
+
+    const isTextSearch = !!trimmedQuery;
+    const limit = isTextSearch ? TEXT_SEARCH_LIMIT : PAGE_SIZE;
+
+    const { data, error } = await q.range(
+      pageNum * limit,
+      (pageNum + 1) * limit - 1,
+    );
+
+    if (error) {
+      setFetchError(true);
+      return;
+    }
+
+    setFetchError(false);
+    const items = applyClientFilters((data ?? []) as unknown as Listing[], trimmedQuery);
 
     if (reset) {
       setListings(items);
@@ -228,8 +295,8 @@ export default function ListingsScreen() {
       setListings(prev => [...prev, ...items]);
       pageRef.current = pageNum + 1;
     }
-    setHasMore((data ?? []).length === PAGE_SIZE);
-  }, [buildQuery, activeSizes]);
+    setHasMore(!isTextSearch && (data ?? []).length === PAGE_SIZE);
+  }, [buildQuery, applyClientFilters]);
 
   useEffect(() => {
     setLoading(true);
@@ -237,11 +304,11 @@ export default function ListingsScreen() {
   }, [load]);
 
   const onEndReached = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMore || !hasMore || searchQuery.trim()) return;
     setLoadingMore(true);
     await load(false);
     setLoadingMore(false);
-  }, [loadingMore, hasMore, load]);
+  }, [loadingMore, hasMore, load, searchQuery]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -262,6 +329,35 @@ export default function ListingsScreen() {
           {totalFilterCount > 0 && <View style={styles.filterBadge} />}
         </TouchableOpacity>
       </View>
+
+      {/* Sub-tabs */}
+      {subTabs.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.subTabRow}
+          style={styles.subTabScroll}
+        >
+          {subTabs.map(tab => {
+            const isActive = activeSubTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.subTab, isActive && styles.subTabActive]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setActiveSubTab(tab);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.subTabLabel, isActive && styles.subTabLabelActive]}>
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {loading && !refreshing ? (
         <SkeletonGrid colors={colors} />
@@ -287,10 +383,21 @@ export default function ListingsScreen() {
             />
           )}
           ListEmptyComponent={
-            <EmptyState
-              heading="No listings yet"
-              subtext="Try adjusting your filters or check back later."
-            />
+            fetchError
+              ? <EmptyState
+                  heading="Something went wrong"
+                  subtext="Check your connection and try again."
+                  ctaLabel="Retry"
+                  onCta={() => { setLoading(true); load(true).finally(() => setLoading(false)); }}
+                />
+              : <EmptyState
+                  heading="No listings yet"
+                  subtext={categories.length === 1
+                    ? `Be the first to list a ${categories[0]}!`
+                    : 'Try adjusting your filters or check back later.'}
+                  ctaLabel={categories.length === 1 ? 'Start selling' : undefined}
+                  onCta={categories.length === 1 ? () => router.push('/(tabs)/sell') : undefined}
+                />
           }
           ListFooterComponent={loadingMore ? <LoadingSpinner /> : null}
         />
@@ -364,7 +471,10 @@ export default function ListingsScreen() {
           <Button
             label="Apply"
             variant="primary"
-            onPress={() => setShowFilterSheet(false)}
+            onPress={() => {
+              setActiveSubTab('All');
+              setShowFilterSheet(false);
+            }}
             style={styles.filterBtn}
           />
         </View>
@@ -385,7 +495,10 @@ function getStyles(colors: ColorTokens) {
     },
     backBtn: { padding: Spacing.xs },
     headerTitle: {
-      ...Typography.subheading,
+      ...Typography.body,
+      fontSize: 16,
+      fontWeight: '600',
+      fontFamily: 'Inter_600SemiBold',
       color: colors.textPrimary,
       flex: 1,
       textAlign: 'center',
@@ -402,6 +515,35 @@ function getStyles(colors: ColorTokens) {
       height: 8,
       borderRadius: 4,
       backgroundColor: colors.primary,
+    },
+
+    // Sub-tabs
+    subTabScroll: {
+      flexGrow: 0,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    subTabRow: {
+      gap: Spacing.xl,
+      paddingTop: Spacing.base,
+      paddingBottom: Spacing.md,
+    },
+    subTab: {
+      paddingBottom: Spacing.sm,
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    subTabActive: {
+      borderBottomColor: colors.textPrimary,
+    },
+    subTabLabel: {
+      fontSize: 16,
+      fontFamily: 'Inter_500Medium',
+      color: colors.textSecondary,
+    },
+    subTabLabelActive: {
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
     },
 
     // Grid

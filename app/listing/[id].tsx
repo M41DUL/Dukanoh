@@ -844,7 +844,6 @@ function getStyles(colors: ColorTokens) {
       zIndex: 10,
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: Spacing.sm,
       paddingBottom: Spacing.sm,
     },
     headerBg: {
@@ -877,8 +876,7 @@ function getStyles(colors: ColorTokens) {
     },
     headerTitle: {
       ...Typography.body,
-      fontSize: 16,
-      fontFamily: FontFamily.semibold,
+      fontWeight: '500',
       color: colors.textPrimary,
       textAlign: 'center',
     },
