@@ -148,11 +148,11 @@ function getStyles(colors: ColorTokens) {
     },
     imageContainerGrid: {
       aspectRatio: 4 / 5,
-      borderRadius: BorderRadius.medium,
+      borderRadius: 6,
     },
     imageContainerFeatured: {
       height: 280,
-      borderRadius: BorderRadius.large,
+      borderRadius: 6,
     },
     image: { width: '100%', height: '100%' },
     imagePlaceholder: { flex: 1, backgroundColor: colors.surface },
