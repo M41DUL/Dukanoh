@@ -21,6 +21,7 @@ import { useStories, getAppStory } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useFeed } from '@/hooks/useFeed';
+import { JustSoldToast } from '@/components/JustSoldToast';
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -171,6 +172,7 @@ export default function HomeScreen() {
             )}
           </ScrollView>
         )}
+        <JustSoldToast />
       </View>
     </ScreenWrapper>
   );

@@ -211,7 +211,7 @@ export default function ListingDetailScreen() {
           text: 'Mark as sold',
           style: 'destructive',
           onPress: async () => {
-            await supabase.from('listings').update({ status: 'sold' }).eq('id', id!);
+            await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id!);
             setListing(prev => prev ? { ...prev, status: 'sold' } : prev);
           },
         },

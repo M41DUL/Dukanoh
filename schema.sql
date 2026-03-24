@@ -50,6 +50,7 @@ CREATE TABLE public.listings (
   images       TEXT[] DEFAULT '{}',
   status      TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold', 'draft')),
   view_count  INT DEFAULT 0,
+  sold_at     TIMESTAMPTZ,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -303,6 +304,9 @@ ALTER TABLE public.listings ADD CONSTRAINT listings_status_check
 DROP POLICY IF EXISTS "Listings are publicly viewable" ON public.listings;
 CREATE POLICY "Listings are publicly viewable"
   ON public.listings FOR SELECT USING (status != 'draft' OR auth.uid() = seller_id);
+
+-- sold_at timestamp for social proof
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS sold_at TIMESTAMPTZ;
 
 -- Reports
 CREATE TABLE public.reports (
