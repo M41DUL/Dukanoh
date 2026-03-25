@@ -55,6 +55,7 @@ export interface StoryListing {
   images: string[];
   status: 'available' | 'sold';
   viewed: boolean;
+  created_at?: string;
   seller: {
     username: string;
     avatar_url?: string;

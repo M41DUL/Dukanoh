@@ -15,8 +15,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useSaved } from '@/context/SavedContext';
 import { Avatar } from './Avatar';
-import { Badge } from './Badge';
 import { Button } from './Button';
 import { GradientCard } from './GradientCard';
 import { DukanohLogo } from './DukanohLogo';
@@ -32,6 +32,120 @@ interface StoriesRowProps {
 }
 
 const STORY_DURATION = 5000; // 5 seconds per story
+const APP_STORY_ICON = require('@/assets/images/dukanoh-story-icon.png');
+
+function timeAgo(dateStr?: string): string {
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+function ListingStoryViewer({
+  story,
+  stories,
+  activeIndex,
+  progressWidth,
+  onPrev,
+  onNext,
+  onClose,
+}: {
+  story: StoryListing;
+  stories: AnyStory[];
+  activeIndex: number;
+  progressWidth: Animated.AnimatedInterpolation<string>;
+  onPrev: () => void;
+  onNext: () => void;
+  onClose: () => void;
+}) {
+  const { isSaved, toggleSave } = useSaved();
+  const saved = isSaved(story.id);
+
+  return (
+    <>
+      {story.images?.[0] ? (
+        <Image
+          source={{ uri: story.images[0] }}
+          style={viewerStyles.fullImage}
+          contentFit="cover"
+          transition={200}
+        />
+      ) : (
+        <View style={[viewerStyles.fullImage, viewerStyles.fullImagePlaceholder]} />
+      )}
+
+      {/* Progress bar */}
+      <View style={viewerStyles.progressBar}>
+        {stories.map((_, i) => (
+          <View key={i} style={viewerStyles.progressSegmentContainer}>
+            <Animated.View
+              style={[
+                viewerStyles.progressSegment,
+                i < activeIndex && viewerStyles.progressDone,
+                i === activeIndex && { width: progressWidth },
+              ]}
+            />
+          </View>
+        ))}
+      </View>
+
+      {/* Top bar: avatar + username + time + close */}
+      <View style={viewerStyles.topBar}>
+        <Avatar
+          uri={story.seller.avatar_url}
+          initials={story.seller.username[0]?.toUpperCase()}
+          size="small"
+        />
+        <Text style={viewerStyles.topUsername}>{story.seller.username}</Text>
+        <Text style={viewerStyles.topTime}>{timeAgo(story.created_at)}</Text>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={onClose} hitSlop={16} style={viewerStyles.topCloseBtn}>
+          <Ionicons name="close" size={26} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Tap zones */}
+      <View style={viewerStyles.tapZones} pointerEvents="box-none">
+        <TouchableOpacity style={viewerStyles.tapLeft} onPress={onPrev} activeOpacity={1} />
+        <TouchableOpacity style={viewerStyles.tapRight} onPress={onNext} activeOpacity={1} />
+      </View>
+
+      {/* Bottom: info card + CTA + heart */}
+      <View style={viewerStyles.bottomBar}>
+        <View style={viewerStyles.infoCard}>
+          <Text style={viewerStyles.listingTitle} numberOfLines={2}>{story.title}</Text>
+          <Text style={viewerStyles.listingPrice}>£{story.price?.toFixed(2)}</Text>
+        </View>
+        <View style={viewerStyles.ctaRow}>
+          <Button
+            label="View Listing"
+            size="md"
+            onPress={() => {
+              onClose();
+              router.push(`/listing/${story.id}`);
+            }}
+            style={viewerStyles.viewBtn}
+          />
+          <TouchableOpacity
+            onPress={() => toggleSave(story.id, story.price)}
+            hitSlop={8}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={saved ? 'heart' : 'heart-outline'}
+              size={28}
+              color={saved ? '#FF4444' : '#fff'}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </>
+  );
+}
 
 export function StoriesRow({ stories, onView }: StoriesRowProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -119,9 +233,11 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
             left={
               <View style={rowStyles.cardRing}>
                 <View style={rowStyles.cardRingInner}>
-                  <View style={rowStyles.cardIcon}>
-                    <Text style={rowStyles.cardIconLetter}>D</Text>
-                  </View>
+                  <Image
+                    source={APP_STORY_ICON}
+                    style={rowStyles.cardIconImage}
+                    contentFit="cover"
+                  />
                 </View>
               </View>
             }
@@ -147,9 +263,11 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing!.viewed && rowStyles.ringViewed]}>
                   <View style={rowStyles.ringInner}>
                     {isApp ? (
-                      <View style={[viewerStyles.bubbleImage, rowStyles.appBubble]}>
-                        <Text style={rowStyles.appBubbleLetter}>D</Text>
-                      </View>
+                      <Image
+                        source={APP_STORY_ICON}
+                        style={viewerStyles.bubbleImage}
+                        contentFit="cover"
+                      />
                     ) : listing!.images?.[0] ? (
                       <Image
                         source={{ uri: listing!.images[0] }}
@@ -163,7 +281,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                   </View>
                 </View>
                 <Text style={rowStyles.bubbleLabel} numberOfLines={1}>
-                  {isApp ? 'Dukanoh' : `@${listing!.seller.username}`}
+                  {isApp ? 'Dukanoh' : listing!.category}
                 </Text>
               </TouchableOpacity>
             );
@@ -244,74 +362,16 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 </View>
               </>
             ) : (
-              // Regular listing story viewer
-              <>
-                {(activeStory as StoryListing).images?.[0] ? (
-                  <Image
-                    source={{ uri: (activeStory as StoryListing).images[0] }}
-                    style={viewerStyles.fullImage}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                ) : (
-                  <View style={[viewerStyles.fullImage, viewerStyles.fullImagePlaceholder]} />
-                )}
-
-                <View style={viewerStyles.scrimTop} />
-                <View style={viewerStyles.scrimBottom} />
-
-                <View style={viewerStyles.progressBar}>
-                  {stories.map((_, i) => (
-                    <View key={i} style={viewerStyles.progressSegmentContainer}>
-                      <Animated.View
-                        style={[
-                          viewerStyles.progressSegment,
-                          i < (activeIndex ?? 0) && viewerStyles.progressDone,
-                          i === activeIndex && { width: progressWidth },
-                        ]}
-                      />
-                    </View>
-                  ))}
-                </View>
-
-                <TouchableOpacity style={viewerStyles.closeButton} onPress={close} hitSlop={16}>
-                  <Ionicons name="close" size={26} color="#fff" />
-                </TouchableOpacity>
-
-                <View style={viewerStyles.tapZones} pointerEvents="box-none">
-                  <TouchableOpacity style={viewerStyles.tapLeft} onPress={goPrev} activeOpacity={1} />
-                  <TouchableOpacity style={viewerStyles.tapRight} onPress={goNext} activeOpacity={1} />
-                </View>
-
-                <View style={viewerStyles.overlay}>
-                  <View style={viewerStyles.sellerRow}>
-                    <Avatar
-                      uri={(activeStory as StoryListing).seller.avatar_url}
-                      initials={(activeStory as StoryListing).seller.username[0]?.toUpperCase()}
-                      size="small"
-                    />
-                    <Text style={viewerStyles.sellerName}>@{(activeStory as StoryListing).seller.username}</Text>
-                    <Badge label={(activeStory as StoryListing).category} active style={viewerStyles.categoryBadge} />
-                  </View>
-
-                  <Text style={viewerStyles.storyTitle} numberOfLines={2}>
-                    {(activeStory as StoryListing).title}
-                  </Text>
-                  <Text style={viewerStyles.storyPrice}>£{(activeStory as StoryListing).price?.toFixed(2)}</Text>
-
-                  <View style={viewerStyles.ctaRow}>
-                    <Button
-                      label="View Listing"
-                      size="md"
-                      onPress={() => {
-                        close();
-                        router.push(`/listing/${activeStory.id}`);
-                      }}
-                      style={viewerStyles.viewBtn}
-                    />
-                  </View>
-                </View>
-              </>
+              // Regular listing story viewer — Instagram style
+              <ListingStoryViewer
+                story={activeStory as StoryListing}
+                stories={stories}
+                activeIndex={activeIndex!}
+                progressWidth={progressWidth}
+                onPrev={goPrev}
+                onNext={goNext}
+                onClose={close}
+              />
             )}
           </View>
         )}
@@ -358,16 +418,6 @@ function getRowStyles(colors: ColorTokens) {
     bubblePlaceholder: {
       backgroundColor: colors.surface,
     },
-    appBubble: {
-      backgroundColor: colors.secondary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    appBubbleLetter: {
-      ...Typography.subheading,
-      color: '#0D0D0D',
-      fontFamily: 'Inter_700Bold',
-    },
     bubbleLabel: {
       ...Typography.caption,
       color: colors.textPrimary,
@@ -394,16 +444,9 @@ function getRowStyles(colors: ColorTokens) {
       borderWidth: 2,
       borderColor: colors.secondary,
     },
-    cardIcon: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.08)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    cardIconLetter: {
-      ...Typography.subheading,
-      color: '#0D0D0D',
-      fontFamily: 'Inter_700Bold',
+    cardIconImage: {
+      width: '100%',
+      height: '100%',
     },
   });
 }
@@ -427,14 +470,6 @@ const viewerStyles = StyleSheet.create({
   fullImagePlaceholder: {
     backgroundColor: '#1C1C1C',
   },
-  scrimTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 120,
-    opacity: 0,
-  },
   scrimBottom: {
     position: 'absolute',
     bottom: 0,
@@ -444,6 +479,57 @@ const viewerStyles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     borderTopLeftRadius: BorderRadius.large,
     borderTopRightRadius: BorderRadius.large,
+  },
+  // Top bar (Instagram-style: avatar + username + time + close)
+  topBar: {
+    position: 'absolute',
+    top: 62,
+    left: Spacing.base,
+    right: Spacing.base,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    zIndex: 20,
+  },
+  topUsername: {
+    ...Typography.label,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  topTime: {
+    ...Typography.caption,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  topCloseBtn: {
+    padding: Spacing.xs,
+  },
+  // Bottom bar (info card + CTA + heart)
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing['3xl'],
+    paddingTop: Spacing.lg,
+    gap: Spacing.md,
+  },
+  infoCard: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: BorderRadius.medium,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    gap: Spacing.xs,
+  },
+  listingTitle: {
+    ...Typography.body,
+    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
+    color: '#0D0D0D',
+  },
+  listingPrice: {
+    ...Typography.body,
+    color: '#0D0D0D',
   },
   progressBar: {
     position: 'absolute',
@@ -477,10 +563,10 @@ const viewerStyles = StyleSheet.create({
   },
   tapZones: {
     position: 'absolute',
-    top: 80,
+    top: 100,
     left: 0,
     right: 0,
-    bottom: 260,
+    bottom: 80,
     flexDirection: 'row',
   },
   tapLeft: { flex: 1 },
@@ -494,26 +580,9 @@ const viewerStyles = StyleSheet.create({
     paddingBottom: Spacing['3xl'],
     gap: Spacing.sm,
   },
-  sellerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
-  sellerName: {
-    ...Typography.label,
-    color: '#fff',
-  },
-  categoryBadge: {
-    borderColor: 'transparent',
-  },
   storyTitle: {
     ...Typography.subheading,
     color: '#fff',
-  },
-  storyPrice: {
-    ...Typography.heading,
-    color: '#C7F75E',
   },
   ctaRow: {
     flexDirection: 'row',
