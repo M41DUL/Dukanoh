@@ -1,38 +1,38 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  Animated,
-  StyleSheet,
-  Dimensions,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  Share,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { useLocalSearchParams, router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
-import { supabase } from '@/lib/supabase';
+import { BottomSheet } from '@/components/BottomSheet';
+import { Button } from '@/components/Button';
+import { HowItWorks } from '@/components/HowItWorks';
+import { ImageViewerModal } from '@/components/ImageViewerModal';
 import { Listing } from '@/components/ListingCard';
+import { ListingGrid } from '@/components/ListingGrid';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { SectionHeader } from '@/components/SectionHeader';
+import { StarRating } from '@/components/StarRating';
+import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
-import { StarRating } from '@/components/StarRating';
-import { HowItWorks } from '@/components/HowItWorks';
-import { BottomSheet } from '@/components/BottomSheet';
-import { ImageViewerModal } from '@/components/ImageViewerModal';
-import { SectionHeader } from '@/components/SectionHeader';
-import { ListingGrid } from '@/components/ListingGrid';
 import { recordView } from '@/hooks/useRecentlyViewed';
-import { StatusBar } from 'expo-status-bar';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { supabase } from '@/lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 const IMAGE_HEIGHT = Math.round(width * 1.5);

@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
-import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
-import { Typography, BorderRadius, Spacing, ColorTokens, FontFamily } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
+import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 import { useSaved } from '@/context/SavedContext';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import React, { useMemo } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 
 export interface Listing {
   id: string;

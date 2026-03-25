@@ -1,31 +1,30 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  Platform,
-  UIManager,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { Divider } from '@/components/Divider';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { SearchBar, SearchBarHandle } from '@/components/SearchBar';
-import { useSearchHistory } from '@/hooks/useSearchHistory';
-import { Divider } from '@/components/Divider';
 import {
-  Typography,
-  Spacing,
   BorderRadius,
   ColorTokens,
+  Spacing
 } from '@/constants/theme';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { useSearchHistory } from '@/hooks/useSearchHistory';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  UIManager,
+  View,
+} from 'react-native';
 
 // ─── Constants ──────────────────────────────────────────────
 
