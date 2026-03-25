@@ -118,7 +118,7 @@ async function fetchTrendingCategories(): Promise<string[]> {
 async function fetchSection(userId: string, categories: string[]): Promise<Listing[]> {
   let query = supabase
     .from('listings')
-    .select('*, seller:users(username, avatar_url)')
+    .select('id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users(username, avatar_url)')
     .eq('status', 'available')
     .neq('seller_id', userId)
     .order('created_at', { ascending: false })

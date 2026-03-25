@@ -20,6 +20,7 @@ import { Badge } from '@/components/Badge';
 import { Typography, Spacing, BorderRadius, BorderWidth, Categories, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import { compressImage } from '@/lib/imageUtils';
 import { useAuth } from '@/hooks/useAuth';
 
 const SELL_CATEGORIES = Categories.filter(c => c !== 'All');
@@ -134,15 +135,18 @@ export default function SellScreen() {
 
     const urls: string[] = [];
     for (const uri of images) {
-      const ext = uri.split('.').pop() ?? 'jpg';
-      const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const compressed = await compressImage(uri);
+      const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
-      const response = await fetch(uri);
+      const response = await fetch(compressed);
       const arrayBuffer = await response.arrayBuffer();
 
       const { error } = await supabase.storage
         .from('listings')
-        .upload(fileName, arrayBuffer, { contentType: `image/${ext}` });
+        .upload(fileName, arrayBuffer, {
+          contentType: 'image/jpeg',
+          cacheControl: '31536000',
+        });
 
       if (error) throw new Error(`Failed to upload photo: ${error.message}`);
 

@@ -47,7 +47,7 @@ export default function ProfileScreen() {
     if (!user) return;
     const { data } = await supabase
       .from('listings')
-      .select('*, seller:users(username, avatar_url)')
+      .select('id, title, price, images, category, condition, size, status, created_at, seller_id, seller:users(username, avatar_url)')
       .eq('seller_id', user.id)
       .order('created_at', { ascending: false });
     setListings((data ?? []) as unknown as Listing[]);
