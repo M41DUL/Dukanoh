@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,9 +21,10 @@ interface SelectProps {
   options: readonly string[];
   onSelect: (value: string) => void;
   error?: string;
+  emptyMessage?: string;
 }
 
-export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ label, placeholder = 'Select…', value, options, onSelect, error }, ref) {
+export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ label, placeholder = 'Select…', value, options, onSelect, error, emptyMessage }, ref) {
   const [open, setOpen] = useState(false);
 
   useImperativeHandle(ref, () => ({
@@ -55,23 +55,27 @@ export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ la
 
       <BottomSheet visible={open} onClose={() => setOpen(false)} useModal>
         {label ? <Text style={styles.sheetTitle}>{label}</Text> : null}
-        <ScrollView bounces={false} style={options.length > 6 ? { maxHeight: 320 } : undefined}>
-          {options.map(item => (
-            <TouchableOpacity
-              key={item}
-              style={styles.option}
-              onPress={() => handleSelect(item)}
-              activeOpacity={0.6}
-            >
-              <Text style={[styles.optionText, item === value && styles.optionSelected]}>
-                {item}
-              </Text>
-              {item === value && (
-                <Ionicons name="checkmark" size={20} color={colors.primary} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {options.length === 0 && emptyMessage ? (
+          <Text style={styles.emptyMessage}>{emptyMessage}</Text>
+        ) : (
+          <View>
+            {options.map(item => (
+              <TouchableOpacity
+                key={item}
+                style={styles.option}
+                onPress={() => handleSelect(item)}
+                activeOpacity={0.6}
+              >
+                <Text style={[styles.optionText, item === value && styles.optionSelected]}>
+                  {item}
+                </Text>
+                {item === value && (
+                  <Ionicons name="checkmark" size={20} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </BottomSheet>
     </View>
   );
@@ -79,7 +83,7 @@ export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ la
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    container: { gap: Spacing.xs },
+    container: { gap: Spacing.sm },
     label: { ...Typography.label, color: colors.textPrimary },
     field: {
       flexDirection: 'row',
@@ -109,7 +113,7 @@ function getStyles(colors: ColorTokens) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: Spacing.base,
+      paddingVertical: Spacing.lg,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
@@ -120,6 +124,12 @@ function getStyles(colors: ColorTokens) {
     optionSelected: {
       color: colors.primary,
       fontWeight: '600',
+    },
+    emptyMessage: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingVertical: Spacing.xl,
     },
   });
 }

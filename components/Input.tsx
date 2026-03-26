@@ -79,7 +79,7 @@ export const Input = forwardRef<TextInput, InputProps>(
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    container: { gap: Spacing.xs },
+    container: { gap: Spacing.sm },
     label: { ...Typography.label, color: colors.textPrimary },
     inputContainer: {
       flexDirection: 'row',

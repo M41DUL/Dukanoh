@@ -27,7 +27,6 @@ import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SellerOnboarding } from '@/components/SellerOnboarding';
 import { Select, SelectHandle } from '@/components/Select';
-import { Divider } from '@/components/Divider';
 import { Typography, Spacing, BorderRadius, BorderWidth, Genders, CategoriesByGender, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
@@ -408,8 +407,10 @@ export default function SellScreen() {
   }
 
   return (
-    <ScreenWrapper>
-      <Header title="New Listing" titleStyle={{ fontSize: 14, fontWeight: '500' }} />
+    <ScreenWrapper contentStyle={{ paddingHorizontal: 0 }}>
+      <View style={styles.padded}>
+        <Header title="New Listing" titleStyle={{ fontSize: 16, fontWeight: '600', fontFamily: 'Inter_600SemiBold' }} />
+      </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Progress bar */}
       <View style={styles.progressBar}>
@@ -425,8 +426,8 @@ export default function SellScreen() {
         scrollEventThrottle={16}
       >
         {/* ── Photos ───────────────────────────────── */}
-        <View onLayout={e => { fieldPositions.current.images = e.nativeEvent.layout.y; }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRowOuter} contentContainerStyle={styles.imageRowInner}>
+        <View style={styles.imageRowOuter} onLayout={e => { fieldPositions.current.images = e.nativeEvent.layout.y; }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageRowInner}>
             {images.map((uri, i) => (
               <View key={uri} style={[styles.imageThumb, reorderIndex === i && styles.imageThumbActive]}>
                 <TouchableOpacity
@@ -471,13 +472,8 @@ export default function SellScreen() {
               </TouchableOpacity>
             )}
           </ScrollView>
-          {images.length === 0 && !errors.images && (
-            <Text style={styles.photoHint}>Front, back, label, and any flaws</Text>
-          )}
-          {errors.images ? <Text style={styles.errorText}>{errors.images}</Text> : null}
+{errors.images ? <Text style={styles.errorText}>{errors.images}</Text> : null}
         </View>
-
-        <Divider />
 
         <View onLayout={e => { fieldPositions.current.title = e.nativeEvent.layout.y; }}>
           <Input
@@ -520,6 +516,7 @@ export default function SellScreen() {
             placeholder={form.gender ? 'Select a category' : 'Select gender first'}
             value={form.category}
             options={form.gender ? CategoriesByGender[form.gender as keyof typeof CategoriesByGender] : []}
+            emptyMessage="Please select a gender first"
             onSelect={val => {
               setForm(f => ({ ...f, category: val }));
               setErrors(e => ({ ...e, category: undefined }));
@@ -719,7 +716,6 @@ function getStyles(colors: ColorTokens) {
     progressBar: {
       height: 2,
       backgroundColor: colors.border,
-      marginHorizontal: -Spacing.base,
     },
     progressFill: {
       height: 2,
@@ -727,19 +723,18 @@ function getStyles(colors: ColorTokens) {
     },
     content: {
       paddingTop: Spacing.base,
-      paddingBottom: Spacing['4xl'],
-      gap: Spacing.base,
+      paddingBottom: Spacing.base,
+      paddingHorizontal: Spacing.base,
+      gap: Spacing.xl,
+    },
+    padded: {
+      paddingHorizontal: Spacing.base,
     },
     sectionHeader: {
       ...Typography.subheading,
       color: colors.textPrimary,
       fontSize: 15,
       marginBottom: -Spacing.xs,
-    },
-    photoHint: {
-      ...Typography.caption,
-      color: colors.textSecondary,
-      marginTop: Spacing.xs,
     },
     imageRowOuter: { marginHorizontal: -Spacing.base },
     imageRowInner: { paddingHorizontal: Spacing.base, gap: Spacing.sm },
@@ -813,7 +808,7 @@ function getStyles(colors: ColorTokens) {
     addMeasurementsLink: { ...Typography.caption, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
     progressText: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' as const },
-    submitBtn: { marginTop: Spacing.md },
+    submitBtn: { marginTop: Spacing.sm },
     successContainer: {
       flex: 1,
       alignItems: 'center',

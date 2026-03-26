@@ -89,10 +89,10 @@ export const Typography = {
     fontFamily: 'Inter_400Regular',
   },
   label: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    letterSpacing: 0.5,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    fontWeight: '500' as const,
+    letterSpacing: 0,
+    fontFamily: 'Inter_500Medium',
   },
 };
 
