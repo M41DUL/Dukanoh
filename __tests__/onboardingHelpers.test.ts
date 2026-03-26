@@ -20,14 +20,14 @@ describe('ONBOARDING_CATEGORIES', () => {
     expect(ONBOARDING_CATEGORIES).not.toContain('All');
   });
 
-  test('has exactly 10 categories', () => {
-    expect(ONBOARDING_CATEGORIES).toHaveLength(10);
+  test('has exactly 9 categories', () => {
+    expect(ONBOARDING_CATEGORIES).toHaveLength(9);
   });
 
   test('includes expected categories', () => {
     const expected = [
-      'Men', 'Women', 'Casualwear', 'Partywear', 'Festive',
-      'Formal', 'Achkan', 'Wedding', 'Pathani Suit', 'Shoes',
+      'Lehenga', 'Saree', 'Anarkali', 'Sherwani', 'Kurta',
+      'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes',
     ];
     expected.forEach((cat) => {
       expect(ONBOARDING_CATEGORIES).toContain(cat);
