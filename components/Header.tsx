@@ -7,12 +7,13 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface HeaderProps {
   title?: string;
+  subtitle?: string;
   showBack?: boolean;
   rightAction?: React.ReactNode;
   titleStyle?: TextStyle;
 }
 
-export function Header({ title, showBack = false, rightAction, titleStyle }: HeaderProps) {
+export function Header({ title, subtitle, showBack = false, rightAction, titleStyle }: HeaderProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -26,7 +27,12 @@ export function Header({ title, showBack = false, rightAction, titleStyle }: Hea
         ) : null}
       </View>
 
-      {title ? <Text style={[styles.title, titleStyle]}>{title}</Text> : <View />}
+      {title ? (
+        <View style={styles.titleWrap}>
+          <Text style={[styles.title, titleStyle]} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        </View>
+      ) : <View />}
 
       <View style={[styles.side, styles.sideRight]}>
         {rightAction ?? null}
@@ -51,6 +57,8 @@ function getStyles(colors: ColorTokens) {
     side: { width: 40 },
     sideRight: { alignItems: 'flex-end' },
     backButton: { padding: Spacing.xs },
+    titleWrap: { flex: 1, alignItems: 'center' },
     title: { ...Typography.subheading, color: colors.textPrimary },
+    subtitle: { ...Typography.caption, color: colors.textSecondary, marginTop: 2 },
   });
 }

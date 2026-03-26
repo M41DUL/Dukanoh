@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
+  Alert,
   FlatList,
   Text,
   StyleSheet,
@@ -12,6 +13,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
@@ -25,10 +27,20 @@ interface Message {
   created_at: string;
 }
 
+interface ConversationMeta {
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  other_username: string;
+  listing_title: string;
+}
+
 export default function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [meta, setMeta] = useState<ConversationMeta | null>(null);
+  const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
@@ -36,16 +48,42 @@ export default function ConversationScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !user) return;
 
-    supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', id)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (data) setMessages(data as Message[]);
-      });
+    // Fetch conversation metadata + messages in parallel
+    Promise.all([
+      supabase
+        .from('conversations')
+        .select(`
+          listing_id, buyer_id, seller_id,
+          buyer:users!conversations_buyer_id_fkey ( username ),
+          seller:users!conversations_seller_id_fkey ( username ),
+          listing:listings!conversations_listing_id_fkey ( title )
+        `)
+        .eq('id', id)
+        .single(),
+      supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', id)
+        .order('created_at', { ascending: false }),
+    ]).then(([{ data: conv, error: convErr }, { data: msgs }]) => {
+      if (convErr || !conv) {
+        Alert.alert('Error', 'Could not load this conversation.');
+      } else {
+        const c = conv as any;
+        const isBuyer = c.buyer_id === user.id;
+        setMeta({
+          listing_id: c.listing_id,
+          buyer_id: c.buyer_id,
+          seller_id: c.seller_id,
+          other_username: isBuyer ? c.seller?.username : c.buyer?.username,
+          listing_title: c.listing?.title ?? '',
+        });
+      }
+      if (msgs) setMessages(msgs as Message[]);
+      setLoading(false);
+    });
 
     const channel = supabase
       .channel(`conversation:${id}`)
@@ -61,21 +99,29 @@ export default function ConversationScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id]);
+  }, [id, user]);
 
   const handleSend = async () => {
-    if (!text.trim() || !user || !id) return;
+    if (!text.trim() || !user || !id || !meta) return;
 
     setSending(true);
     const content = text.trim();
     setText('');
 
-    await supabase.from('messages').insert({
+    const receiverId = user.id === meta.buyer_id ? meta.seller_id : meta.buyer_id;
+
+    const { error } = await supabase.from('messages').insert({
       conversation_id: id,
+      listing_id: meta.listing_id,
       sender_id: user.id,
+      receiver_id: receiverId,
       content,
-      created_at: new Date().toISOString(),
     });
+
+    if (error) {
+      setText(content); // Restore text so user can retry
+      Alert.alert('Error', 'Failed to send message. Please try again.');
+    }
 
     setSending(false);
   };
@@ -105,9 +151,22 @@ export default function ConversationScreen() {
     );
   };
 
+  if (loading) {
+    return (
+      <ScreenWrapper>
+        <Header showBack title="Message" />
+        <LoadingSpinner />
+      </ScreenWrapper>
+    );
+  }
+
   return (
     <ScreenWrapper>
-      <Header showBack title="Message" />
+      <Header
+        showBack
+        title={meta?.other_username ? `@${meta.other_username}` : 'Message'}
+        subtitle={meta?.listing_title}
+      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -119,8 +178,14 @@ export default function ConversationScreen() {
           keyExtractor={item => item.id}
           renderItem={renderMessage}
           inverted
-          contentContainerStyle={styles.messageList}
+          contentContainerStyle={[styles.messageList, messages.length === 0 && styles.emptyList]}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Ionicons name="chatbubble-outline" size={40} color={colors.textSecondary} />
+              <Text style={styles.emptyText}>Send a message to start the conversation</Text>
+            </View>
+          }
         />
 
         <View style={styles.inputRow}>
@@ -152,6 +217,20 @@ function getStyles(colors: ColorTokens) {
     messageList: {
       paddingVertical: Spacing.base,
       gap: Spacing.sm,
+    },
+    emptyList: {
+      flex: 1,
+      justifyContent: 'center',
+    },
+    emptyWrap: {
+      alignItems: 'center',
+      gap: Spacing.sm,
+      transform: [{ scaleY: -1 }],
+    },
+    emptyText: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      textAlign: 'center',
     },
     bubble: {
       maxWidth: '78%',
