@@ -56,6 +56,7 @@ export default function SellerProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [canReview, setCanReview] = useState(false);
   const [firstConversationListingId, setFirstConversationListingId] = useState<string | null>(null);
+  const [firstConversationId, setFirstConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -118,6 +119,7 @@ export default function SellerProfileScreen() {
       setCanReview(hasConversation && !hasReviewed);
       if (hasConversation && convs && convs[0]) {
         setFirstConversationListingId(convs[0].listing_id as string);
+        setFirstConversationId(convs[0].id as string);
       }
     });
   }, [id, user]);
@@ -248,6 +250,18 @@ export default function SellerProfileScreen() {
                 </View>
               )}
             </View>
+          )}
+
+          {/* Message button — only if not own profile and conversation exists */}
+          {user?.id !== id && firstConversationId && (
+            <TouchableOpacity
+              style={styles.messageBtn}
+              activeOpacity={0.8}
+              onPress={() => router.push(`/conversation/${firstConversationId}`)}
+            >
+              <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
+              <Text style={[styles.messageBtnText, { color: colors.primary }]}>Message</Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -420,6 +434,22 @@ function getStyles(colors: ColorTokens) {
     statLabel: {
       ...Typography.caption,
       color: colors.textSecondary,
+    },
+
+    // Message button
+    messageBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.large,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    messageBtnText: {
+      ...Typography.body,
+      fontFamily: FontFamily.semibold,
     },
 
     // Divider

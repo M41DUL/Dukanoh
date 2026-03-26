@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Alert, View, FlatList, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Alert, View, FlatList, Text, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -26,6 +26,7 @@ export default function InboxScreen() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -66,6 +67,12 @@ export default function InboxScreen() {
 
     setLoading(false);
   }, [user]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchConversations();
+    setRefreshing(false);
+  }, [fetchConversations]);
 
   useFocusEffect(useCallback(() => {
     fetchConversations();
@@ -111,9 +118,9 @@ export default function InboxScreen() {
   };
 
   const formatLastMessage = (msg: string) => {
-    if (msg.startsWith('__OFFER__:')) {
-      return `Offer: £${msg.slice('__OFFER__:'.length)}`;
-    }
+    if (msg.startsWith('__OFFER_ACCEPTED__:')) return `Offer of £${msg.slice('__OFFER_ACCEPTED__:'.length)} accepted`;
+    if (msg.startsWith('__OFFER_DECLINED__:')) return `Offer of £${msg.slice('__OFFER_DECLINED__:'.length)} declined`;
+    if (msg.startsWith('__OFFER__:')) return `Offer: £${msg.slice('__OFFER__:'.length)}`;
     return msg;
   };
 
@@ -157,6 +164,7 @@ export default function InboxScreen() {
         ItemSeparatorComponent={() => <Divider style={styles.separator} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textSecondary} />}
         ListEmptyComponent={
           <EmptyState
             icon={<Ionicons name="chatbubbles-outline" size={48} color={colors.textSecondary} />}

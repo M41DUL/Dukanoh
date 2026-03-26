@@ -1,6 +1,7 @@
 import { Tabs, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useUnreadCount } from '@/hooks/useUnreadCount';
 
 /** If root stack screens are open above the tabs, dismiss them before switching tabs. */
 function dismissStackOnTabPress(e: { target?: string; preventDefault: () => void }) {
@@ -12,6 +13,7 @@ function dismissStackOnTabPress(e: { target?: string; preventDefault: () => void
 
 export default function TabLayout() {
   const colors = useThemeColors();
+  const unreadCount = useUnreadCount();
 
   const tabListeners = {
     tabPress: dismissStackOnTabPress,
@@ -73,6 +75,8 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubble-outline" size={size} color={color} />
           ),
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.error, fontSize: 10, fontFamily: 'Inter_600SemiBold' },
         }}
         listeners={tabListeners}
       />

@@ -9,7 +9,7 @@ import {
   Platform,
   TouchableOpacity,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
@@ -101,6 +101,21 @@ export default function ConversationScreen() {
     };
   }, [id, user]);
 
+  const respondToOffer = async (amount: string, accepted: boolean) => {
+    if (!user || !id || !meta) return;
+
+    const receiverId = user.id === meta.buyer_id ? meta.seller_id : meta.buyer_id;
+    const content = accepted ? `__OFFER_ACCEPTED__:${amount}` : `__OFFER_DECLINED__:${amount}`;
+
+    await supabase.from('messages').insert({
+      conversation_id: id,
+      listing_id: meta.listing_id,
+      sender_id: user.id,
+      receiver_id: receiverId,
+      content,
+    });
+  };
+
   const handleSend = async () => {
     if (!text.trim() || !user || !id || !meta) return;
 
@@ -126,28 +141,94 @@ export default function ConversationScreen() {
     setSending(false);
   };
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const formatDateLabel = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'long' });
+    return date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const getDateKey = (dateStr: string) => new Date(dateStr).toDateString();
+
+  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isOwn = item.sender_id === user?.id;
 
-    if (item.content.startsWith('__OFFER__:')) {
+    // In an inverted list, the next item is older. Show a date label
+    // when this message is the first of its day (i.e. the next item is a different day or doesn't exist).
+    const nextItem = messages[index + 1];
+    const showDate = !nextItem || getDateKey(item.created_at) !== getDateKey(nextItem.created_at);
+
+    let bubble;
+    if (item.content.startsWith('__OFFER_ACCEPTED__:')) {
+      const amount = item.content.slice('__OFFER_ACCEPTED__:'.length);
+      bubble = (
+        <View style={[styles.offerResponseBubble, { alignSelf: isOwn ? 'flex-end' : 'flex-start' }]}>
+          <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+          <Text style={styles.offerResponseText}>Offer of £{amount} accepted</Text>
+        </View>
+      );
+    } else if (item.content.startsWith('__OFFER_DECLINED__:')) {
+      const amount = item.content.slice('__OFFER_DECLINED__:'.length);
+      bubble = (
+        <View style={[styles.offerResponseBubble, { alignSelf: isOwn ? 'flex-end' : 'flex-start' }]}>
+          <Ionicons name="close-circle" size={16} color={colors.error} />
+          <Text style={styles.offerResponseText}>Offer of £{amount} declined</Text>
+        </View>
+      );
+    } else if (item.content.startsWith('__OFFER__:')) {
       const amount = item.content.slice('__OFFER__:'.length);
-      return (
-        <View style={[styles.offerBubble, isOwn ? styles.offerOwn : styles.offerOther]}>
-          <Ionicons name="pricetag-outline" size={14} color={isOwn ? '#FFFFFF' : colors.amber} />
-          <View>
-            <Text style={[styles.offerLabel, isOwn ? styles.textOnPrimary : styles.textMuted]}>Offer</Text>
-            <Text style={[styles.offerAmount, isOwn ? styles.textOnPrimary : styles.textAmber]}>£{amount}</Text>
+
+      // Show accept/decline only for the receiver of the offer, and only if no response exists yet
+      const hasResponse = messages.some(m =>
+        m.content === `__OFFER_ACCEPTED__:${amount}` || m.content === `__OFFER_DECLINED__:${amount}`
+      );
+      const canRespond = !isOwn && !hasResponse;
+
+      bubble = (
+        <View style={{ alignSelf: isOwn ? 'flex-end' : 'flex-start' }}>
+          <View style={[styles.offerBubble, isOwn ? styles.offerOwn : styles.offerOther]}>
+            <Ionicons name="pricetag-outline" size={14} color={isOwn ? '#FFFFFF' : colors.amber} />
+            <View>
+              <Text style={[styles.offerLabel, isOwn ? styles.textOnPrimary : styles.textMuted]}>Offer</Text>
+              <Text style={[styles.offerAmount, isOwn ? styles.textOnPrimary : styles.textAmber]}>£{amount}</Text>
+            </View>
           </View>
+          {canRespond && (
+            <View style={styles.offerActions}>
+              <TouchableOpacity style={styles.declineBtn} onPress={() => respondToOffer(amount, false)}>
+                <Text style={styles.declineBtnText}>Decline</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.acceptBtn} onPress={() => respondToOffer(amount, true)}>
+                <Text style={styles.acceptBtnText}>Accept</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      );
+    } else {
+      bubble = (
+        <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}>
+          <Text style={[styles.bubbleText, isOwn && styles.bubbleTextOwn]}>
+            {item.content}
+          </Text>
         </View>
       );
     }
 
     return (
-      <View style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}>
-        <Text style={[styles.bubbleText, isOwn && styles.bubbleTextOwn]}>
-          {item.content}
-        </Text>
-      </View>
+      <>
+        {bubble}
+        {showDate && (
+          <View style={styles.dateLabel}>
+            <Text style={styles.dateLabelText}>{formatDateLabel(item.created_at)}</Text>
+          </View>
+        )}
+      </>
     );
   };
 
@@ -166,6 +247,7 @@ export default function ConversationScreen() {
         showBack
         title={meta?.other_username ? `@${meta.other_username}` : 'Message'}
         subtitle={meta?.listing_title}
+        onSubtitlePress={meta ? () => router.push(`/listing/${meta.listing_id}`) : undefined}
       />
       <KeyboardAvoidingView
         style={styles.flex}
@@ -231,6 +313,55 @@ function getStyles(colors: ColorTokens) {
       ...Typography.caption,
       color: colors.textSecondary,
       textAlign: 'center',
+    },
+    offerResponseBubble: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+    },
+    offerResponseText: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      fontFamily: 'Inter_500Medium',
+    },
+    offerActions: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      marginTop: Spacing.xs,
+    },
+    declineBtn: {
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.full,
+      borderWidth: BorderWidth.standard,
+      borderColor: colors.border,
+    },
+    declineBtnText: {
+      ...Typography.caption,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    acceptBtn: {
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.full,
+      backgroundColor: colors.primary,
+    },
+    acceptBtnText: {
+      ...Typography.caption,
+      color: '#FFFFFF',
+      fontFamily: 'Inter_600SemiBold',
+    },
+    dateLabel: {
+      alignItems: 'center',
+      paddingVertical: Spacing.sm,
+    },
+    dateLabelText: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      fontSize: 11,
     },
     bubble: {
       maxWidth: '78%',

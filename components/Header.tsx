@@ -8,12 +8,13 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 interface HeaderProps {
   title?: string;
   subtitle?: string;
+  onSubtitlePress?: () => void;
   showBack?: boolean;
   rightAction?: React.ReactNode;
   titleStyle?: TextStyle;
 }
 
-export function Header({ title, subtitle, showBack = false, rightAction, titleStyle }: HeaderProps) {
+export function Header({ title, subtitle, onSubtitlePress, showBack = false, rightAction, titleStyle }: HeaderProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -30,7 +31,15 @@ export function Header({ title, subtitle, showBack = false, rightAction, titleSt
       {title ? (
         <View style={styles.titleWrap}>
           <Text style={[styles.title, titleStyle]} numberOfLines={1}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+          {subtitle ? (
+            onSubtitlePress ? (
+              <TouchableOpacity onPress={onSubtitlePress} activeOpacity={0.6}>
+                <Text style={[styles.subtitle, styles.subtitleLink]} numberOfLines={1}>{subtitle}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>
+            )
+          ) : null}
         </View>
       ) : <View />}
 
@@ -60,5 +69,6 @@ function getStyles(colors: ColorTokens) {
     titleWrap: { flex: 1, alignItems: 'center' },
     title: { ...Typography.subheading, color: colors.textPrimary },
     subtitle: { ...Typography.caption, color: colors.textSecondary, marginTop: 2 },
+    subtitleLink: { color: colors.primary },
   });
 }
