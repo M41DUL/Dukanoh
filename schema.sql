@@ -40,11 +40,14 @@ CREATE TABLE public.listings (
   seller_id   UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
   title       TEXT NOT NULL,
   description TEXT,
-  price       NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
+  price       NUMERIC(10, 2) NOT NULL CHECK (price >= 0 AND price <= 2000),
+  gender       TEXT NOT NULL CHECK (gender IN ('Men', 'Women')),
   category    TEXT NOT NULL,
   condition   TEXT NOT NULL,
   size         TEXT,
   occasion     TEXT,
+  colour       TEXT,
+  fabric       TEXT,
   measurements JSONB,
   worn_at      TEXT,
   images       TEXT[] DEFAULT '{}',
@@ -53,6 +56,13 @@ CREATE TABLE public.listings (
   sold_at     TIMESTAMPTZ,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration for existing databases:
+-- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT 'Women' NOT NULL CHECK (gender IN ('Men', 'Women'));
+-- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS colour TEXT;
+-- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS fabric TEXT;
+-- ALTER TABLE public.listings DROP CONSTRAINT IF EXISTS listings_price_check;
+-- ALTER TABLE public.listings ADD CONSTRAINT listings_price_check CHECK (price >= 0 AND price <= 2000);
 
 -- Conversations (one per listing + buyer pair)
 CREATE TABLE public.conversations (
@@ -384,5 +394,31 @@ BEGIN
 
   GET DIAGNOSTICS v_updated = ROW_COUNT;
   RETURN v_updated > 0;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Atomically consume an invite code and activate the user as a seller.
+-- Returns TRUE if both steps succeeded; rolls back entirely on failure.
+CREATE OR REPLACE FUNCTION public.activate_seller(p_code TEXT, p_user_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_updated INT;
+BEGIN
+  -- Consume the invite
+  UPDATE public.invites
+  SET is_used = TRUE, used_at = NOW()
+  WHERE code = p_code AND is_used = FALSE;
+
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  IF v_updated = 0 THEN
+    RETURN FALSE;
+  END IF;
+
+  -- Activate seller
+  UPDATE public.users
+  SET is_seller = TRUE
+  WHERE id = p_user_id;
+
+  RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextStyle, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Typography, Spacing, ColorTokens } from '@/constants/theme';
@@ -9,9 +9,10 @@ interface HeaderProps {
   title?: string;
   showBack?: boolean;
   rightAction?: React.ReactNode;
+  titleStyle?: TextStyle;
 }
 
-export function Header({ title, showBack = false, rightAction }: HeaderProps) {
+export function Header({ title, showBack = false, rightAction, titleStyle }: HeaderProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -25,7 +26,7 @@ export function Header({ title, showBack = false, rightAction }: HeaderProps) {
         ) : null}
       </View>
 
-      {title ? <Text style={styles.title}>{title}</Text> : <View />}
+      {title ? <Text style={[styles.title, titleStyle]}>{title}</Text> : <View />}
 
       <View style={[styles.side, styles.sideRight]}>
         {rightAction ?? null}
@@ -42,6 +43,7 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'space-between',
       paddingHorizontal: Spacing.base,
       paddingVertical: Spacing.md,
+      marginHorizontal: -Spacing.base,
       backgroundColor: colors.background,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,

@@ -1,68 +1,114 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
-import { Badge } from '@/components/Badge';
-import { Typography, Spacing, BorderRadius, BorderWidth, Categories, ColorTokens } from '@/constants/theme';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { SellerOnboarding } from '@/components/SellerOnboarding';
+import { Select } from '@/components/Select';
+import { Typography, Spacing, BorderRadius, BorderWidth, Genders, CategoriesByGender, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
 import { useAuth } from '@/hooks/useAuth';
 
-const SELL_CATEGORIES = Categories.filter(c => c !== 'All');
-const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'] as const;
-const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'] as const;
-
 interface ListingForm {
   title: string;
   description: string;
   price: string;
-  size: string;
+  gender: string;
   category: string;
   condition: string;
   occasion: string;
+  size: string;
+  colour: string;
+  fabric: string;
   worn_at: string;
 }
 
 export default function SellScreen() {
   const { user } = useAuth();
+  const isFocused = useIsFocused();
+  const [sellerStatus, setSellerStatus] = useState<'loading' | 'not_seller' | 'seller'>('loading');
 
   useFocusEffect(useCallback(() => {
-    if (!user) return;
+    if (!user || sellerStatus === 'seller') return;
+    setSellerStatus('loading');
     supabase.from('users').select('is_seller').eq('id', user.id).single().then(({ data }) => {
-      if (!data?.is_seller) router.replace('/become-seller');
+      setSellerStatus(data?.is_seller ? 'seller' : 'not_seller');
     });
-  }, [user]));
-  const [form, setForm] = useState<ListingForm>({
-    title: '',
-    description: '',
-    price: '',
-    size: '',
-    category: '',
-    condition: '',
-    occasion: '',
-    worn_at: '',
-  });
+  }, [user, sellerStatus]));
+  const emptyForm: ListingForm = {
+    title: '', description: '', price: '', gender: '', category: '',
+    condition: '', occasion: '', size: '', colour: '', fabric: '', worn_at: '',
+  };
+  const [form, setForm] = useState<ListingForm>(emptyForm);
   const [measurements, setMeasurements] = useState({ chest: '', waist: '', length: '' });
+  const [showMeasurements, setShowMeasurements] = useState(false);
   const [images, setImages] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState<'available' | 'draft' | null>(null);
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [errors, setErrors] = useState<Partial<ListingForm & { images: string }>>({});
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
+  const scrollRef = useRef<any>(null);
+  const fieldPositions = useRef<Record<string, number>>({});
+  const descRef = useRef<TextInput>(null);
+  const storyRef = useRef<TextInput>(null);
+  const priceRef = useRef<TextInput>(null);
+  const chestRef = useRef<TextInput>(null);
+  const waistRef = useRef<TextInput>(null);
+  const lengthRef = useRef<TextInput>(null);
+
+  const isFormDirty = !!(form.title || form.description || form.price || form.gender ||
+    form.category || form.condition || form.occasion || form.size || form.colour ||
+    form.fabric || form.worn_at ||
+    measurements.chest || measurements.waist || measurements.length || images.length > 0);
+
+  const formDirtyRef = useRef(isFormDirty);
+  const submittingRef = useRef(submitting);
+  const resetFormRef = useRef(resetForm);
+  const submitListingRef = useRef(submitListing);
+  useEffect(() => {
+    formDirtyRef.current = isFormDirty;
+    submittingRef.current = submitting;
+    resetFormRef.current = resetForm;
+    submitListingRef.current = submitListing;
+  });
+
+  useFocusEffect(useCallback(() => {
+    return () => {
+      // Runs when tab loses focus — checked via ref to avoid stale closure
+      if (formDirtyRef.current && !submittingRef.current) {
+        Alert.alert(
+          'Save draft?',
+          'You have unsaved changes.',
+          [
+            { text: 'Discard', style: 'destructive', onPress: () => resetFormRef.current() },
+            { text: 'Save draft', onPress: () => submitListingRef.current('draft') },
+          ]
+        );
+      }
+    };
+  }, []));
 
   const update = (key: keyof ListingForm) => (value: string) => {
     setForm(f => ({ ...f, [key]: value }));
@@ -77,7 +123,7 @@ export default function SellScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 0.8,
       selectionLimit: 8 - images.length,
@@ -96,14 +142,24 @@ export default function SellScreen() {
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
+    let currentCount = images.length;
 
-    if (!result.canceled) {
+    while (currentCount < 8) {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+      });
+
+      if (result.canceled) break;
+
       setImages(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 8));
       setErrors(e => ({ ...e, images: undefined }));
+      currentCount += result.assets.length;
+
+      // Let camera UI fully dismiss before reopening
+      if (currentCount < 8) {
+        await new Promise(r => setTimeout(r, 500));
+      }
     }
   };
 
@@ -115,26 +171,68 @@ export default function SellScreen() {
     ]);
   };
 
+  const [reorderIndex, setReorderIndex] = useState<number | null>(null);
+
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
+    setReorderIndex(null);
   };
 
-  const validate = (): boolean => {
+  const moveImage = (from: number, to: number) => {
+    setImages(prev => {
+      const next = [...prev];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
+    setReorderIndex(to);
+  };
+
+  const validate = (isDraft: boolean): boolean => {
     const newErrors: typeof errors = {};
+    if (images.length === 0 && !isDraft) newErrors.images = 'Add at least one photo';
     if (!form.title.trim()) newErrors.title = 'Title is required';
-    if (!form.price.trim() || isNaN(Number(form.price))) newErrors.price = 'Enter a valid price';
-    if (!form.category) newErrors.category = 'Select a category';
-    if (!form.condition) newErrors.condition = 'Select a condition';
-    if (images.length === 0) newErrors.images = 'Add at least one photo';
+    else if (form.title.trim().length < 3) newErrors.title = 'Title must be at least 3 characters';
+    if (!isDraft) {
+      if (!form.description.trim()) newErrors.description = 'Description is required';
+      else if (form.description.trim().length < 10) newErrors.description = 'Description must be at least 10 characters';
+      const price = parseFloat(form.price);
+      if (!form.price.trim() || isNaN(price) || price < 1) newErrors.price = 'Enter a price of at least £1';
+      else if (price > 2000) newErrors.price = 'Maximum price is £2,000';
+      if (!form.gender) newErrors.gender = 'Select a gender';
+      if (!form.category) newErrors.category = 'Select a category';
+      if (!form.condition) newErrors.condition = 'Select a condition';
+      if (!form.size) newErrors.size = 'Select a size';
+    }
+    // Validate measurements if entered
+    ['chest', 'waist', 'length'].forEach(key => {
+      const val = measurements[key as keyof typeof measurements];
+      if (val) {
+        const num = parseFloat(val);
+        if (isNaN(num) || num < 1 || num > 99) {
+          (newErrors as any)[key] = 'Must be 1–99';
+        }
+      }
+    });
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+
+    const errorKeys = Object.keys(newErrors);
+    if (errorKeys.length > 0) {
+      const firstErrorY = fieldPositions.current[errorKeys[0]];
+      if (firstErrorY !== undefined) {
+        scrollRef.current?.scrollTo({ y: firstErrorY, animated: true });
+      }
+    }
+
+    return errorKeys.length === 0;
   };
 
   const uploadImages = async (): Promise<string[]> => {
     if (!user) return [];
 
-    const urls: string[] = [];
-    for (const uri of images) {
+    setUploadProgress({ done: 0, total: images.length });
+
+    const uploads = images.map(async (uri) => {
       const compressed = await compressImage(uri);
       const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
 
@@ -150,15 +248,19 @@ export default function SellScreen() {
 
       if (error) throw new Error(`Failed to upload photo: ${error.message}`);
 
+      setUploadProgress(prev => ({ ...prev, done: prev.done + 1 }));
+
       const { data } = supabase.storage.from('listings').getPublicUrl(fileName);
-      urls.push(data.publicUrl);
-    }
-    return urls;
+      return data.publicUrl;
+    });
+
+    return Promise.all(uploads);
   };
 
   const resetForm = () => {
-    setForm({ title: '', description: '', price: '', size: '', category: '', condition: '', occasion: '', worn_at: '' });
+    setForm(emptyForm);
     setMeasurements({ chest: '', waist: '', length: '' });
+    setShowMeasurements(false);
     setImages([]);
   };
 
@@ -173,10 +275,11 @@ export default function SellScreen() {
     return Object.keys(obj).length > 0 ? obj : null;
   };
 
-  const handleSubmit = async () => {
-    if (!validate() || !user) return;
+  const submitListing = async (status: 'available' | 'draft') => {
+    if (!validate(status === 'draft') || !user) return;
+    Keyboard.dismiss();
 
-    setLoading(true);
+    setSubmitting(status);
     try {
       const imageUrls = await uploadImages();
 
@@ -185,84 +288,105 @@ export default function SellScreen() {
         title: form.title.trim(),
         description: form.description.trim() || null,
         price: parseFloat(form.price),
+        gender: form.gender,
         category: form.category,
         condition: form.condition,
-        size: form.size.trim() || null,
+        size: form.size || null,
         occasion: form.occasion || null,
+        colour: form.colour || null,
+        fabric: form.fabric || null,
         measurements: buildMeasurements(),
         worn_at: form.worn_at.trim() || null,
         images: imageUrls,
-        status: 'available',
+        status,
       });
 
       if (error) throw error;
 
-      Alert.alert('Listed!', 'Your item is now live.', [
-        { text: 'View profile', onPress: () => { resetForm(); router.push('/(tabs)/profile'); } },
-        { text: 'List another', onPress: resetForm },
-      ]);
+      if (status === 'available') {
+        Alert.alert('Listed!', 'Your item is now live.', [
+          { text: 'View profile', onPress: () => { resetForm(); router.push('/(tabs)/profile'); } },
+          { text: 'List another', onPress: resetForm },
+        ]);
+      } else {
+        Alert.alert('Draft saved', 'Find it in your profile to publish when ready.', [
+          { text: 'OK', onPress: resetForm },
+        ]);
+      }
     } catch (err: unknown) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to create listing.');
+      const action = status === 'draft' ? 'save draft' : 'create listing';
+      Alert.alert('Error', err instanceof Error ? err.message : `Failed to ${action}.`);
     } finally {
-      setLoading(false);
+      setSubmitting(null);
     }
   };
 
-  const handleSaveDraft = async () => {
-    if (!validate() || !user) return;
+  const handleSubmit = () => submitListing('available');
 
-    setLoading(true);
-    try {
-      const imageUrls = await uploadImages();
+  if (sellerStatus === 'loading') {
+    return (
+      <ScreenWrapper>
+        <LoadingSpinner />
+      </ScreenWrapper>
+    );
+  }
 
-      const { error } = await supabase.from('listings').insert({
-        seller_id: user.id,
-        title: form.title.trim(),
-        description: form.description.trim() || null,
-        price: parseFloat(form.price),
-        category: form.category,
-        condition: form.condition,
-        size: form.size.trim() || null,
-        occasion: form.occasion || null,
-        measurements: buildMeasurements(),
-        worn_at: form.worn_at.trim() || null,
-        images: imageUrls,
-        status: 'draft',
-      });
-
-      if (error) throw error;
-
-      Alert.alert('Draft saved', 'Find it in your profile to publish when ready.', [
-        { text: 'OK', onPress: resetForm },
-      ]);
-    } catch (err: unknown) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save draft.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (sellerStatus === 'not_seller') {
+    return (
+      <>
+        {isFocused && <StatusBar style="light" />}
+        <SellerOnboarding
+          userId={user!.id}
+          onActivated={() => setSellerStatus('seller')}
+        />
+      </>
+    );
+  }
 
   return (
     <ScreenWrapper>
-      <Header title="New Listing" />
+      <Header title="New Listing" titleStyle={{ fontSize: 14, fontWeight: '500' }} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
         {/* Image picker */}
-        <View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRow}>
+        <View onLayout={e => { fieldPositions.current.images = e.nativeEvent.layout.y; }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRowOuter} contentContainerStyle={styles.imageRowInner}>
             {images.map((uri, i) => (
-              <View key={i} style={styles.imageThumb}>
-                <Image source={{ uri }} style={styles.thumbImage} contentFit="cover" transition={200} />
+              <View key={uri} style={[styles.imageThumb, reorderIndex === i && styles.imageThumbActive]}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onLongPress={() => setReorderIndex(reorderIndex === i ? null : i)}
+                  delayLongPress={200}
+                  style={StyleSheet.absoluteFill}
+                >
+                  <Image source={{ uri }} style={styles.thumbImage} contentFit="cover" transition={200} />
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.removeImage}
                   onPress={() => removeImage(i)}
-                  hitSlop={4}
+                  hitSlop={8}
                 >
-                  <Ionicons name="close-circle" size={20} color="#fff" />
+                  <Ionicons name="close-circle" size={22} color="#fff" />
                 </TouchableOpacity>
+                {reorderIndex === i && (
+                  <View style={styles.reorderControls}>
+                    {i > 0 && (
+                      <TouchableOpacity style={styles.reorderBtn} onPress={() => moveImage(i, i - 1)}>
+                        <Ionicons name="chevron-back" size={18} color="#fff" />
+                      </TouchableOpacity>
+                    )}
+                    {i < images.length - 1 && (
+                      <TouchableOpacity style={styles.reorderBtn} onPress={() => moveImage(i, i + 1)}>
+                        <Ionicons name="chevron-forward" size={18} color="#fff" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
                 {i === 0 && <View style={styles.coverBadge}><Text style={styles.coverText}>Cover</Text></View>}
               </View>
             ))}
@@ -279,140 +403,215 @@ export default function SellScreen() {
           {errors.images ? <Text style={styles.errorText}>{errors.images}</Text> : null}
         </View>
 
+        {/* Title */}
+        <View onLayout={e => { fieldPositions.current.title = e.nativeEvent.layout.y; }}>
+          <Input
+            label="Title"
+            placeholder="e.g. Embroidered silk kurta set"
+            value={form.title}
+            onChangeText={update('title')}
+            error={errors.title}
+            maxLength={80}
+            hint={`${form.title.length}/80`}
+            returnKeyType="next"
+            onSubmitEditing={() => descRef.current?.focus()}
+          />
+        </View>
+
+        {/* Description */}
+        <View onLayout={e => { fieldPositions.current.description = e.nativeEvent.layout.y; }}>
+          <Input
+            ref={descRef}
+            label="Description"
+            placeholder="Describe your item — fit, flaws, styling tips…"
+            value={form.description}
+            onChangeText={update('description')}
+            error={errors.description}
+            multiline
+            numberOfLines={4}
+            style={styles.multiline}
+            maxLength={500}
+            hint={`${form.description.length}/500`}
+            blurOnSubmit
+            returnKeyType="next"
+            onSubmitEditing={() => storyRef.current?.focus()}
+          />
+        </View>
+
+        {/* My Story */}
         <Input
-          label="Title"
-          placeholder="e.g. Embroidered silk kurta set"
-          value={form.title}
-          onChangeText={update('title')}
-          error={errors.title}
-        />
-        <Input
-          label="Description"
-          placeholder="Describe your item — size, fabric, fit, any flaws…"
-          value={form.description}
-          onChangeText={update('description')}
-          multiline
-          numberOfLines={4}
-          style={styles.multiline}
-        />
-        <Input
+          ref={storyRef}
           label="My story (optional)"
           placeholder="e.g. Worn once at Eid 2023 in Birmingham"
           value={form.worn_at}
           onChangeText={update('worn_at')}
           maxLength={100}
-        />
-        <Input
-          label="Price (£)"
-          placeholder="0.00"
-          value={form.price}
-          onChangeText={update('price')}
-          keyboardType="decimal-pad"
-          error={errors.price}
-        />
-        <Input
-          label="Size"
-          placeholder="e.g. S, M, L, XL, 32, 34…"
-          value={form.size}
-          onChangeText={update('size')}
+          hint={`${form.worn_at.length}/100`}
+          returnKeyType="next"
+          onSubmitEditing={() => priceRef.current?.focus()}
         />
 
-        <View>
-          <Text style={styles.sectionLabel}>Measurements <Text style={styles.optionalLabel}>(optional, in inches)</Text></Text>
-          <View style={styles.measureRow}>
-            <Input
-              label="Chest"
-              placeholder="38"
-              value={measurements.chest}
-              onChangeText={v => setMeasurements(m => ({ ...m, chest: v }))}
-              keyboardType="decimal-pad"
-              style={styles.measureInput}
-            />
-            <Input
-              label="Waist"
-              placeholder="32"
-              value={measurements.waist}
-              onChangeText={v => setMeasurements(m => ({ ...m, waist: v }))}
-              keyboardType="decimal-pad"
-              style={styles.measureInput}
-            />
-            <Input
-              label="Length"
-              placeholder="44"
-              value={measurements.length}
-              onChangeText={v => setMeasurements(m => ({ ...m, length: v }))}
-              keyboardType="decimal-pad"
-              style={styles.measureInput}
-            />
-          </View>
-        </View>
-
-        <View>
-          <Text style={styles.sectionLabel}>Category</Text>
-          <View style={styles.chipGrid}>
-            {SELL_CATEGORIES.map(cat => (
-              <Badge
-                key={cat}
-                label={cat}
-                active={form.category === cat}
-                onPress={() => {
-                  setForm(f => ({ ...f, category: cat }));
-                  setErrors(e => ({ ...e, category: undefined }));
-                }}
-              />
-            ))}
-          </View>
-          {errors.category ? <Text style={styles.errorText}>{errors.category}</Text> : null}
-        </View>
-
-        <View>
-          <Text style={styles.sectionLabel}>Condition</Text>
-          <View style={styles.chipGrid}>
-            {CONDITIONS.map(cond => (
-              <Badge
-                key={cond}
-                label={cond}
-                active={form.condition === cond}
-                onPress={() => {
-                  setForm(f => ({ ...f, condition: cond }));
-                  setErrors(e => ({ ...e, condition: undefined }));
-                }}
-              />
-            ))}
-          </View>
-          {errors.condition ? <Text style={styles.errorText}>{errors.condition}</Text> : null}
-        </View>
-
-        <View>
-          <Text style={styles.sectionLabel}>Occasion <Text style={styles.optionalLabel}>(optional)</Text></Text>
-          <View style={styles.chipGrid}>
-            {OCCASIONS.map(occ => (
-              <Badge
-                key={occ}
-                label={occ}
-                active={form.occasion === occ}
-                onPress={() => setForm(f => ({ ...f, occasion: f.occasion === occ ? '' : occ }))}
-              />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.submitRow}>
-          <Button
-            label="Save draft"
-            variant="outline"
-            onPress={handleSaveDraft}
-            loading={loading}
-            style={styles.draftBtn}
-          />
-          <Button
-            label="List Item"
-            onPress={handleSubmit}
-            loading={loading}
-            style={styles.listBtn}
+        {/* Price */}
+        <View onLayout={e => { fieldPositions.current.price = e.nativeEvent.layout.y; }}>
+          <Input
+            ref={priceRef}
+            label="Price (£)"
+            placeholder="1.00 – 2,000.00"
+            value={form.price}
+            onChangeText={update('price')}
+            keyboardType="decimal-pad"
+            error={errors.price}
+            returnKeyType="done"
+            onSubmitEditing={() => Keyboard.dismiss()}
           />
         </View>
+
+        {/* Gender */}
+        <View onLayout={e => { fieldPositions.current.gender = e.nativeEvent.layout.y; }}>
+          <Select
+            label="Gender"
+            placeholder="Select gender"
+            value={form.gender}
+            options={Genders}
+            onSelect={val => {
+              setForm(f => {
+                const categoryValid = CategoriesByGender[val as keyof typeof CategoriesByGender]?.includes(f.category);
+                return { ...f, gender: val, category: categoryValid ? f.category : '' };
+              });
+              setErrors(e => ({ ...e, gender: undefined }));
+            }}
+            error={errors.gender}
+          />
+        </View>
+
+        {/* Category (dynamic based on gender) */}
+        <View onLayout={e => { fieldPositions.current.category = e.nativeEvent.layout.y; }}>
+          <Select
+            label="Category"
+            placeholder={form.gender ? 'Select a category' : 'Select gender first'}
+            value={form.category}
+            options={form.gender ? CategoriesByGender[form.gender as keyof typeof CategoriesByGender] : []}
+            onSelect={val => {
+              setForm(f => ({ ...f, category: val }));
+              setErrors(e => ({ ...e, category: undefined }));
+            }}
+            error={errors.category}
+          />
+        </View>
+
+        {/* Condition */}
+        <View onLayout={e => { fieldPositions.current.condition = e.nativeEvent.layout.y; }}>
+          <Select
+            label="Condition"
+            placeholder="Select condition"
+            value={form.condition}
+            options={Conditions}
+            onSelect={val => {
+              setForm(f => ({ ...f, condition: val }));
+              setErrors(e => ({ ...e, condition: undefined }));
+            }}
+            error={errors.condition}
+          />
+        </View>
+
+        {/* Occasion */}
+        <Select
+          label="Occasion (optional)"
+          placeholder="Select an occasion"
+          value={form.occasion}
+          options={Occasions}
+          onSelect={val => setForm(f => ({ ...f, occasion: f.occasion === val ? '' : val }))}
+        />
+
+        {/* Sizing section */}
+        <View style={styles.measureSection} onLayout={e => { fieldPositions.current.size = e.nativeEvent.layout.y; }}>
+          <Text style={styles.sectionLabel}>Sizing</Text>
+          <Select
+            label="Size"
+            placeholder="Select a size"
+            value={form.size}
+            options={Sizes}
+            onSelect={val => {
+              setForm(f => ({ ...f, size: val }));
+              setErrors(e => ({ ...e, size: undefined }));
+              if (val === 'Custom') setShowMeasurements(true);
+            }}
+            error={errors.size}
+          />
+          {!showMeasurements && (
+            <TouchableOpacity onPress={() => setShowMeasurements(true)}>
+              <Text style={styles.addMeasurementsLink}>+ Add measurements (optional)</Text>
+            </TouchableOpacity>
+          )}
+          {showMeasurements && (
+            <>
+              <Text style={styles.optionalLabel}>Measurements (in inches)</Text>
+              <Input
+                ref={chestRef}
+                label="Chest"
+                placeholder="e.g. 38"
+                value={measurements.chest}
+                onChangeText={v => setMeasurements(m => ({ ...m, chest: v }))}
+                keyboardType="decimal-pad"
+                returnKeyType="next"
+                onSubmitEditing={() => waistRef.current?.focus()}
+              />
+              <Input
+                ref={waistRef}
+                label="Waist"
+                placeholder="e.g. 32"
+                value={measurements.waist}
+                onChangeText={v => setMeasurements(m => ({ ...m, waist: v }))}
+                keyboardType="decimal-pad"
+                returnKeyType="next"
+                onSubmitEditing={() => lengthRef.current?.focus()}
+              />
+              <Input
+                ref={lengthRef}
+                label="Length"
+                placeholder="e.g. 44"
+                value={measurements.length}
+                onChangeText={v => setMeasurements(m => ({ ...m, length: v }))}
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                onSubmitEditing={() => Keyboard.dismiss()}
+              />
+            </>
+          )}
+        </View>
+
+        {/* Colour */}
+        <Select
+          label="Colour (optional)"
+          placeholder="Select a colour"
+          value={form.colour}
+          options={Colours}
+          onSelect={val => setForm(f => ({ ...f, colour: f.colour === val ? '' : val }))}
+        />
+
+        {/* Fabric */}
+        <Select
+          label="Fabric (optional)"
+          placeholder="Select a fabric"
+          value={form.fabric}
+          options={Fabrics}
+          onSelect={val => setForm(f => ({ ...f, fabric: f.fabric === val ? '' : val }))}
+        />
+
+        {submitting && uploadProgress.total > 0 && (
+          <Text style={styles.progressText}>
+            Uploading photos… {uploadProgress.done}/{uploadProgress.total}
+          </Text>
+        )}
+        <Button
+          label="List Item"
+          onPress={handleSubmit}
+          loading={submitting === 'available'}
+          disabled={!!submitting}
+          style={styles.submitBtn}
+        />
       </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenWrapper>
   );
 }
@@ -424,14 +623,37 @@ function getStyles(colors: ColorTokens) {
       paddingBottom: Spacing['4xl'],
       gap: Spacing.base,
     },
-    imageRow: { flexDirection: 'row' },
+    imageRowOuter: { marginHorizontal: -Spacing.base },
+    imageRowInner: { paddingHorizontal: Spacing.base, gap: Spacing.sm },
     imageThumb: {
       width: 120,
       height: 120,
       borderRadius: BorderRadius.medium,
-      marginRight: Spacing.sm,
       overflow: 'hidden',
       position: 'relative',
+    },
+    imageThumbActive: {
+      borderWidth: 2,
+      borderColor: colors.primary,
+    },
+    reorderControls: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: Spacing.sm,
+      paddingVertical: 6,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    reorderBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     thumbImage: { width: '100%', height: '100%' },
     removeImage: {
@@ -473,13 +695,11 @@ function getStyles(colors: ColorTokens) {
       color: colors.textPrimary,
       marginBottom: Spacing.sm,
     },
-    chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
     optionalLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_400Regular' },
-    measureRow: { flexDirection: 'row', gap: Spacing.sm },
-    measureInput: { flex: 1 },
+    measureSection: { gap: Spacing.base },
+    addMeasurementsLink: { ...Typography.caption, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
-    submitRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
-    draftBtn: { flex: 1 },
-    listBtn: { flex: 2 },
+    progressText: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' as const },
+    submitBtn: { marginTop: Spacing.md },
   });
 }

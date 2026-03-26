@@ -119,18 +119,35 @@ export const BorderWidth = {
   standard: 1.5,
 };
 
+export const Genders = ['Men', 'Women'] as const;
+export type Gender = (typeof Genders)[number];
+
 export const Categories = [
   'All',
-  'Men',
-  'Women',
-  'Casualwear',
-  'Partywear',
-  'Festive',
-  'Formal',
+  'Lehenga',
+  'Saree',
+  'Anarkali',
+  'Sherwani',
+  'Kurta',
   'Achkan',
-  'Wedding',
   'Pathani Suit',
+  'Casualwear',
   'Shoes',
 ] as const;
 
 export type Category = (typeof Categories)[number];
+
+export const CategoriesByGender: Record<Gender, string[]> = {
+  Women: ['Lehenga', 'Saree', 'Anarkali', 'Kurta', 'Casualwear', 'Shoes'],
+  Men: ['Sherwani', 'Kurta', 'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes'],
+};
+
+export const Conditions = ['New', 'Excellent', 'Good', 'Fair'] as const;
+
+export const Occasions = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'] as const;
+
+export const Sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Custom'] as const;
+
+export const Colours = ['Black', 'White', 'Red', 'Blue', 'Green', 'Gold', 'Pink', 'Maroon', 'Beige', 'Multi', 'Other'] as const;
+
+export const Fabrics = ['Silk', 'Chiffon', 'Georgette', 'Cotton', 'Velvet', 'Net', 'Brocade', 'Linen', 'Other'] as const;

@@ -41,10 +41,12 @@ const SORT_LABELS: Record<SortOption, string> = {
   most_viewed: 'Most viewed',
 };
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'];
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Custom'];
 const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'];
 const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
 const ALL_CATEGORIES = ['Lehenga', 'Saree', 'Sherwani', 'Anarkali', 'Kurta', 'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes'];
+const COLOURS = ['Black', 'White', 'Red', 'Blue', 'Green', 'Gold', 'Pink', 'Maroon', 'Beige', 'Multi', 'Other'];
+const FABRICS = ['Silk', 'Chiffon', 'Georgette', 'Cotton', 'Velvet', 'Net', 'Brocade', 'Linen', 'Other'];
 
 interface PriceRange { label: string; min: number; max: number }
 const PRICE_RANGES: PriceRange[] = [
@@ -153,6 +155,8 @@ export default function ListingsScreen() {
     occasionPreset ? [occasionPreset] : []
   );
   const [activeConditions, setActiveConditions] = useState<string[]>([]);
+  const [activeColours, setActiveColours] = useState<string[]>([]);
+  const [activeFabrics, setActiveFabrics] = useState<string[]>([]);
   const [activePriceRange, setActivePriceRange] = useState<PriceRange | null>(null);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
 
@@ -172,10 +176,22 @@ export default function ListingsScreen() {
     setActiveConditions(prev => prev.includes(cond) ? prev.filter(c => c !== cond) : [...prev, cond]);
   }, []);
 
+  const toggleColour = useCallback((col: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveColours(prev => prev.includes(col) ? prev.filter(c => c !== col) : [...prev, col]);
+  }, []);
+
+  const toggleFabric = useCallback((fab: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveFabrics(prev => prev.includes(fab) ? prev.filter(f => f !== fab) : [...prev, fab]);
+  }, []);
+
   const clearAllFilters = useCallback(() => {
     setActiveSizes([]);
     setActiveOccasions(occasionPreset ? [occasionPreset] : []);
     setActiveConditions([]);
+    setActiveColours([]);
+    setActiveFabrics([]);
     setActivePriceRange(null);
     setSort('newest');
   }, [occasionPreset]);
@@ -184,6 +200,8 @@ export default function ListingsScreen() {
     activeSizes.length +
     (activeOccasions.length - (occasionPreset && activeOccasions.includes(occasionPreset) ? 1 : 0)) +
     activeConditions.length +
+    activeColours.length +
+    activeFabrics.length +
     (activePriceRange ? 1 : 0);
   const isSorted = sort !== 'newest';
   const totalFilterCount = filterCount + (isSorted ? 1 : 0);
@@ -225,6 +243,10 @@ export default function ListingsScreen() {
     else if (activeOccasions.length > 1) q = q.in('occasion', activeOccasions);
     if (activeConditions.length === 1) q = q.eq('condition', activeConditions[0]);
     else if (activeConditions.length > 1) q = q.in('condition', activeConditions);
+    if (activeColours.length === 1) q = q.eq('colour', activeColours[0]);
+    else if (activeColours.length > 1) q = q.in('colour', activeColours);
+    if (activeFabrics.length === 1) q = q.eq('fabric', activeFabrics[0]);
+    else if (activeFabrics.length > 1) q = q.in('fabric', activeFabrics);
 
     if (activePriceRange) {
       q = q.gte('price', activePriceRange.min);
@@ -233,11 +255,11 @@ export default function ListingsScreen() {
 
     const trimmedQuery = searchQuery.trim().replace(/[,.()"'\\]/g, '');
     if (trimmedQuery) {
-      q = q.or(`title.ilike.%${trimmedQuery}%,category.ilike.%${trimmedQuery}%,occasion.ilike.%${trimmedQuery}%`);
+      q = q.or(`title.ilike.%${trimmedQuery}%,category.ilike.%${trimmedQuery}%,occasion.ilike.%${trimmedQuery}%,colour.ilike.%${trimmedQuery}%,fabric.ilike.%${trimmedQuery}%`);
     }
 
     return { q, trimmedQuery };
-  }, [user, categoriesStr, occasionPreset, searchQuery, activeSubTab, sort, activeSizes, activeOccasions, activeConditions, activePriceRange]);
+  }, [user, categoriesStr, occasionPreset, searchQuery, activeSubTab, sort, activeSizes, activeOccasions, activeConditions, activeColours, activeFabrics, activePriceRange]);
 
   const applyClientFilters = useCallback((data: Listing[], trimmedQuery: string) => {
     let results = data;
@@ -441,6 +463,20 @@ export default function ListingsScreen() {
           <Text style={styles.filterSectionLabel}>Condition</Text>
           {CONDITIONS.map(cond => (
             <Checkbox key={cond} label={cond} checked={activeConditions.includes(cond)} onPress={() => toggleCondition(cond)} />
+          ))}
+
+          <Divider style={styles.filterDivider} />
+
+          <Text style={styles.filterSectionLabel}>Colour</Text>
+          {COLOURS.map(col => (
+            <Checkbox key={col} label={col} checked={activeColours.includes(col)} onPress={() => toggleColour(col)} />
+          ))}
+
+          <Divider style={styles.filterDivider} />
+
+          <Text style={styles.filterSectionLabel}>Fabric</Text>
+          {FABRICS.map(fab => (
+            <Checkbox key={fab} label={fab} checked={activeFabrics.includes(fab)} onPress={() => toggleFabric(fab)} />
           ))}
 
           <Divider style={styles.filterDivider} />

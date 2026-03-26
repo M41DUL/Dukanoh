@@ -15,26 +15,25 @@ import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
-import { Badge } from '@/components/Badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Typography, Spacing, BorderRadius, BorderWidth, Categories, ColorTokens } from '@/constants/theme';
+import { Select } from '@/components/Select';
+import { Typography, Spacing, BorderRadius, BorderWidth, Genders, CategoriesByGender, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
 import { useAuth } from '@/hooks/useAuth';
 
-const SELL_CATEGORIES = Categories.filter(c => c !== 'All');
-const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'] as const;
-const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'] as const;
-
 interface ListingForm {
   title: string;
   description: string;
   price: string;
-  size: string;
+  gender: string;
   category: string;
   condition: string;
   occasion: string;
+  size: string;
+  colour: string;
+  fabric: string;
   worn_at: string;
 }
 
@@ -48,16 +47,11 @@ export default function EditListingScreen() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<'draft' | 'available' | 'sold'>('draft');
   const [form, setForm] = useState<ListingForm>({
-    title: '',
-    description: '',
-    price: '',
-    size: '',
-    category: '',
-    condition: '',
-    occasion: '',
-    worn_at: '',
+    title: '', description: '', price: '', gender: '', category: '',
+    condition: '', occasion: '', size: '', colour: '', fabric: '', worn_at: '',
   });
   const [measurements, setMeasurements] = useState({ chest: '', waist: '', length: '' });
+  const [showMeasurements, setShowMeasurements] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [errors, setErrors] = useState<Partial<ListingForm & { images: string }>>({});
 
@@ -70,17 +64,22 @@ export default function EditListingScreen() {
         title: data.title ?? '',
         description: data.description ?? '',
         price: data.price?.toString() ?? '',
-        size: data.size ?? '',
+        gender: data.gender ?? '',
         category: data.category ?? '',
         condition: data.condition ?? '',
         occasion: data.occasion ?? '',
+        size: data.size ?? '',
+        colour: data.colour ?? '',
+        fabric: data.fabric ?? '',
         worn_at: data.worn_at ?? '',
       });
+      const m = data.measurements;
       setMeasurements({
-        chest: data.measurements?.chest?.toString() ?? '',
-        waist: data.measurements?.waist?.toString() ?? '',
-        length: data.measurements?.length?.toString() ?? '',
+        chest: m?.chest?.toString() ?? '',
+        waist: m?.waist?.toString() ?? '',
+        length: m?.length?.toString() ?? '',
       });
+      if (m?.chest || m?.waist || m?.length) setShowMeasurements(true);
       setImages(data.images ?? []);
       setLoading(false);
     });
@@ -140,9 +139,16 @@ export default function EditListingScreen() {
   const validate = (): boolean => {
     const newErrors: typeof errors = {};
     if (!form.title.trim()) newErrors.title = 'Title is required';
-    if (!form.price.trim() || isNaN(Number(form.price))) newErrors.price = 'Enter a valid price';
+    else if (form.title.trim().length < 3) newErrors.title = 'Title must be at least 3 characters';
+    if (!form.description.trim()) newErrors.description = 'Description is required';
+    else if (form.description.trim().length < 10) newErrors.description = 'Description must be at least 10 characters';
+    const price = parseFloat(form.price);
+    if (!form.price.trim() || isNaN(price) || price < 1) newErrors.price = 'Enter a price of at least £1';
+    else if (price > 2000) newErrors.price = 'Maximum price is £2,000';
+    if (!form.gender) newErrors.gender = 'Select a gender';
     if (!form.category) newErrors.category = 'Select a category';
     if (!form.condition) newErrors.condition = 'Select a condition';
+    if (!form.size) newErrors.size = 'Select a size';
     if (images.length === 0) newErrors.images = 'Add at least one photo';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -193,10 +199,13 @@ export default function EditListingScreen() {
         title: form.title.trim(),
         description: form.description.trim() || null,
         price: parseFloat(form.price),
+        gender: form.gender,
         category: form.category,
         condition: form.condition,
-        size: form.size.trim() || null,
+        size: form.size || null,
         occasion: form.occasion || null,
+        colour: form.colour || null,
+        fabric: form.fabric || null,
         measurements: buildMeasurements(),
         worn_at: form.worn_at.trim() || null,
         images: imageUrls,
@@ -256,15 +265,18 @@ export default function EditListingScreen() {
           value={form.title}
           onChangeText={update('title')}
           error={errors.title}
+          maxLength={80}
         />
         <Input
           label="Description"
-          placeholder="Describe your item — size, fabric, fit, any flaws…"
+          placeholder="Describe your item — fit, flaws, styling tips…"
           value={form.description}
           onChangeText={update('description')}
+          error={errors.description}
           multiline
           numberOfLines={4}
           style={styles.multiline}
+          maxLength={500}
         />
         <Input
           label="My story (optional)"
@@ -275,98 +287,105 @@ export default function EditListingScreen() {
         />
         <Input
           label="Price (£)"
-          placeholder="0.00"
+          placeholder="1.00 – 2,000.00"
           value={form.price}
           onChangeText={update('price')}
           keyboardType="decimal-pad"
           error={errors.price}
         />
-        <Input
-          label="Size"
-          placeholder="e.g. S, M, L, XL, 32, 34…"
-          value={form.size}
-          onChangeText={update('size')}
+
+        <Select
+          label="Gender"
+          placeholder="Select gender"
+          value={form.gender}
+          options={Genders}
+          onSelect={val => {
+            setForm(f => {
+              const categoryValid = CategoriesByGender[val as keyof typeof CategoriesByGender]?.includes(f.category);
+              return { ...f, gender: val, category: categoryValid ? f.category : '' };
+            });
+            setErrors(e => ({ ...e, gender: undefined }));
+          }}
+          error={errors.gender}
         />
 
-        <View>
-          <Text style={styles.sectionLabel}>Measurements <Text style={styles.optionalLabel}>(optional, in inches)</Text></Text>
-          <View style={styles.measureRow}>
-            <Input
-              label="Chest"
-              placeholder="38"
-              value={measurements.chest}
-              onChangeText={v => setMeasurements(m => ({ ...m, chest: v }))}
-              keyboardType="decimal-pad"
-              style={styles.measureInput}
-            />
-            <Input
-              label="Waist"
-              placeholder="32"
-              value={measurements.waist}
-              onChangeText={v => setMeasurements(m => ({ ...m, waist: v }))}
-              keyboardType="decimal-pad"
-              style={styles.measureInput}
-            />
-            <Input
-              label="Length"
-              placeholder="44"
-              value={measurements.length}
-              onChangeText={v => setMeasurements(m => ({ ...m, length: v }))}
-              keyboardType="decimal-pad"
-              style={styles.measureInput}
-            />
-          </View>
+        <Select
+          label="Category"
+          placeholder={form.gender ? 'Select a category' : 'Select gender first'}
+          value={form.category}
+          options={form.gender ? CategoriesByGender[form.gender as keyof typeof CategoriesByGender] : []}
+          onSelect={val => {
+            setForm(f => ({ ...f, category: val }));
+            setErrors(e => ({ ...e, category: undefined }));
+          }}
+          error={errors.category}
+        />
+
+        <Select
+          label="Condition"
+          placeholder="Select condition"
+          value={form.condition}
+          options={Conditions}
+          onSelect={val => {
+            setForm(f => ({ ...f, condition: val }));
+            setErrors(e => ({ ...e, condition: undefined }));
+          }}
+          error={errors.condition}
+        />
+
+        <Select
+          label="Occasion (optional)"
+          placeholder="Select an occasion"
+          value={form.occasion}
+          options={Occasions}
+          onSelect={val => setForm(f => ({ ...f, occasion: f.occasion === val ? '' : val }))}
+        />
+
+        {/* Sizing section */}
+        <View style={styles.sizingSection}>
+          <Text style={styles.sectionLabel}>Sizing</Text>
+          <Select
+            label="Size"
+            placeholder="Select a size"
+            value={form.size}
+            options={Sizes}
+            onSelect={val => {
+              setForm(f => ({ ...f, size: val }));
+              setErrors(e => ({ ...e, size: undefined }));
+              if (val === 'Custom') setShowMeasurements(true);
+            }}
+            error={errors.size}
+          />
+          {!showMeasurements && (
+            <TouchableOpacity onPress={() => setShowMeasurements(true)}>
+              <Text style={styles.addMeasurementsLink}>+ Add measurements (optional)</Text>
+            </TouchableOpacity>
+          )}
+          {showMeasurements && (
+            <>
+              <Text style={styles.optionalLabel}>Measurements (in inches)</Text>
+              <Input label="Chest" placeholder="e.g. 38" value={measurements.chest} onChangeText={v => setMeasurements(m => ({ ...m, chest: v }))} keyboardType="decimal-pad" />
+              <Input label="Waist" placeholder="e.g. 32" value={measurements.waist} onChangeText={v => setMeasurements(m => ({ ...m, waist: v }))} keyboardType="decimal-pad" />
+              <Input label="Length" placeholder="e.g. 44" value={measurements.length} onChangeText={v => setMeasurements(m => ({ ...m, length: v }))} keyboardType="decimal-pad" />
+            </>
+          )}
         </View>
 
-        <View>
-          <Text style={styles.sectionLabel}>Category</Text>
-          <View style={styles.chipGrid}>
-            {SELL_CATEGORIES.map(cat => (
-              <Badge
-                key={cat}
-                label={cat}
-                active={form.category === cat}
-                onPress={() => {
-                  setForm(f => ({ ...f, category: cat }));
-                  setErrors(e => ({ ...e, category: undefined }));
-                }}
-              />
-            ))}
-          </View>
-          {errors.category ? <Text style={styles.errorText}>{errors.category}</Text> : null}
-        </View>
+        <Select
+          label="Colour (optional)"
+          placeholder="Select a colour"
+          value={form.colour}
+          options={Colours}
+          onSelect={val => setForm(f => ({ ...f, colour: f.colour === val ? '' : val }))}
+        />
 
-        <View>
-          <Text style={styles.sectionLabel}>Condition</Text>
-          <View style={styles.chipGrid}>
-            {CONDITIONS.map(cond => (
-              <Badge
-                key={cond}
-                label={cond}
-                active={form.condition === cond}
-                onPress={() => {
-                  setForm(f => ({ ...f, condition: cond }));
-                  setErrors(e => ({ ...e, condition: undefined }));
-                }}
-              />
-            ))}
-          </View>
-          {errors.condition ? <Text style={styles.errorText}>{errors.condition}</Text> : null}
-        </View>
-
-        <View>
-          <Text style={styles.sectionLabel}>Occasion <Text style={styles.optionalLabel}>(optional)</Text></Text>
-          <View style={styles.chipGrid}>
-            {OCCASIONS.map(occ => (
-              <Badge
-                key={occ}
-                label={occ}
-                active={form.occasion === occ}
-                onPress={() => setForm(f => ({ ...f, occasion: f.occasion === occ ? '' : occ }))}
-              />
-            ))}
-          </View>
-        </View>
+        <Select
+          label="Fabric (optional)"
+          placeholder="Select a fabric"
+          value={form.fabric}
+          options={Fabrics}
+          onSelect={val => setForm(f => ({ ...f, fabric: f.fabric === val ? '' : val }))}
+        />
 
         <View style={styles.submitRow}>
           {status === 'draft' ? (
@@ -455,10 +474,9 @@ function getStyles(colors: ColorTokens) {
       color: colors.textPrimary,
       marginBottom: Spacing.sm,
     },
-    chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+    sizingSection: { gap: Spacing.base },
+    addMeasurementsLink: { ...Typography.caption, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
     optionalLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_400Regular' },
-    measureRow: { flexDirection: 'row', gap: Spacing.sm },
-    measureInput: { flex: 1 },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
     submitRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
     draftBtn: { flex: 1 },

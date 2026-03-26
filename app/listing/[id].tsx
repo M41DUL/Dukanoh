@@ -557,6 +557,8 @@ export default function ListingDetailScreen() {
                   listing.size,
                   listing.category,
                   listing.occasion,
+                  listing.colour,
+                  listing.fabric,
                   (listing.view_count ?? 0) > 0 ? `${listing.view_count} views` : null,
                   listing.created_at ? timeAgo(listing.created_at) : null,
                 ].filter(Boolean).join(' · ')}

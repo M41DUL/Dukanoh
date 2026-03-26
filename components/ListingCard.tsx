@@ -11,11 +11,14 @@ export interface Listing {
   seller_id: string;
   title: string;
   price: number;
+  gender: string;
   category: string;
   images: string[];
   condition: string;
   size?: string;
   occasion?: string;
+  colour?: string;
+  fabric?: string;
   measurements?: { chest?: number; waist?: number; length?: number };
   description?: string;
   worn_at?: string;

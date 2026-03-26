@@ -9,19 +9,17 @@ export const ONBOARDING_CATEGORIES = Categories.filter((c) => c !== 'All');
 
 export const CATEGORY_LAYOUT: BubbleLayout[] = [
   // Row 1
-  { left: 0.02, top: 0.00, size: 78 },   // Men
-  { left: 0.30, top: 0.02, size: 96 },   // Women
-  { left: 0.62, top: 0.00, size: 110 },  // Casualwear
+  { left: 0.02, top: 0.00, size: 96 },   // Lehenga
+  { left: 0.32, top: 0.02, size: 110 },  // Saree
+  { left: 0.66, top: 0.00, size: 86 },   // Anarkali
   // Row 2
-  { left: 0.05, top: 0.24, size: 104 },  // Partywear
-  { left: 0.42, top: 0.22, size: 82 },   // Festive
-  { left: 0.70, top: 0.24, size: 74 },   // Formal
+  { left: 0.04, top: 0.24, size: 104 },  // Sherwani
+  { left: 0.40, top: 0.22, size: 90 },   // Kurta
+  { left: 0.68, top: 0.24, size: 80 },   // Achkan
   // Row 3
-  { left: 0.02, top: 0.48, size: 86 },   // Achkan
-  { left: 0.34, top: 0.46, size: 98 },   // Wedding
-  // Row 4
-  { left: 0.06, top: 0.72, size: 114 },  // Pathani Suit
-  { left: 0.48, top: 0.74, size: 76 },   // Shoes
+  { left: 0.02, top: 0.48, size: 114 },  // Pathani Suit
+  { left: 0.38, top: 0.46, size: 88 },   // Casualwear
+  { left: 0.66, top: 0.48, size: 82 },   // Shoes
 ];
 
 // ─── Centre-out distances for stagger ────────────────────────

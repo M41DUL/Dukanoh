@@ -23,11 +23,12 @@ interface BottomSheetProps {
   onClose: () => void;
   children: React.ReactNode;
   fullScreen?: boolean;
+  useModal?: boolean;
   backgroundColor?: string;
   handleColor?: string;
 }
 
-export function BottomSheet({ visible, onClose, children, fullScreen = false, backgroundColor, handleColor }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, children, fullScreen = false, useModal = false, backgroundColor, handleColor }: BottomSheetProps) {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -150,7 +151,7 @@ export function BottomSheet({ visible, onClose, children, fullScreen = false, ba
     </>
   );
 
-  if (fullScreen) {
+  if (fullScreen || useModal) {
     return (
       <Modal visible={mounted} transparent statusBarTranslucent animationType="none">
         {content}
