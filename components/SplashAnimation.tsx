@@ -14,23 +14,23 @@ interface SplashAnimationProps {
 }
 
 export function SplashAnimation({ onAnimationDone, fadeOut, onFadeOutDone }: SplashAnimationProps) {
-  const logoScale = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(0.01)).current;
   const containerOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Scale up from 0
-    Animated.timing(logoScale, {
+    // Scale up
+    Animated.spring(logoScale, {
       toValue: LOGO_SMALL_SCALE,
-      duration: 600,
-      easing: Easing.out(Easing.ease),
+      speed: 8,
+      bounciness: 6,
       useNativeDriver: true,
     }).start(() => {
       // Hold briefly
       setTimeout(() => {
-        // Scale back down to 0
+        // Scale back down
         Animated.timing(logoScale, {
-          toValue: 0,
-          duration: 400,
+          toValue: 0.01,
+          duration: 350,
           easing: Easing.in(Easing.ease),
           useNativeDriver: true,
         }).start(() => onAnimationDone());
