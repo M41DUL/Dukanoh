@@ -7,8 +7,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Animated,
   Keyboard,
   KeyboardAvoidingView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -23,7 +26,8 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SellerOnboarding } from '@/components/SellerOnboarding';
-import { Select } from '@/components/Select';
+import { Select, SelectHandle } from '@/components/Select';
+import { Divider } from '@/components/Divider';
 import { Typography, Spacing, BorderRadius, BorderWidth, Genders, CategoriesByGender, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
@@ -67,6 +71,8 @@ export default function SellScreen() {
   const [submitting, setSubmitting] = useState<'available' | 'draft' | null>(null);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [errors, setErrors] = useState<Partial<ListingForm & { images: string }>>({});
+  const [showSuccess, setShowSuccess] = useState(false);
+  const successAnim = useRef(new Animated.Value(0)).current;;
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const scrollRef = useRef<any>(null);
@@ -74,9 +80,25 @@ export default function SellScreen() {
   const descRef = useRef<TextInput>(null);
   const storyRef = useRef<TextInput>(null);
   const priceRef = useRef<TextInput>(null);
+  const genderRef = useRef<SelectHandle>(null);
+  const categoryRef = useRef<SelectHandle>(null);
+  const conditionRef = useRef<SelectHandle>(null);
+  const sizeRef = useRef<SelectHandle>(null);
+  const colourRef = useRef<SelectHandle>(null);
+  const fabricRef = useRef<SelectHandle>(null);
+  const occasionRef = useRef<SelectHandle>(null);
   const chestRef = useRef<TextInput>(null);
   const waistRef = useRef<TextInput>(null);
   const lengthRef = useRef<TextInput>(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const maxScroll = contentSize.height - layoutMeasurement.height;
+    if (maxScroll > 0) {
+      setScrollProgress(Math.min(contentOffset.y / maxScroll, 1));
+    }
+  }, []);
 
   const isFormDirty = !!(form.title || form.description || form.price || form.gender ||
     form.category || form.condition || form.occasion || form.size || form.colour ||
@@ -113,6 +135,13 @@ export default function SellScreen() {
   const update = (key: keyof ListingForm) => (value: string) => {
     setForm(f => ({ ...f, [key]: value }));
     setErrors(e => ({ ...e, [key]: undefined }));
+  };
+
+  const scrollToField = (field: string) => {
+    const y = fieldPositions.current[field];
+    if (y !== undefined) {
+      scrollRef.current?.scrollTo({ y, animated: true });
+    }
   };
 
   const pickFromLibrary = async () => {
@@ -304,10 +333,9 @@ export default function SellScreen() {
       if (error) throw error;
 
       if (status === 'available') {
-        Alert.alert('Listed!', 'Your item is now live.', [
-          { text: 'View profile', onPress: () => { resetForm(); router.push('/(tabs)/profile'); } },
-          { text: 'List another', onPress: resetForm },
-        ]);
+        setShowSuccess(true);
+        successAnim.setValue(0);
+        Animated.spring(successAnim, { toValue: 1, speed: 8, bounciness: 10, useNativeDriver: true }).start();
       } else {
         Alert.alert('Draft saved', 'Find it in your profile to publish when ready.', [
           { text: 'OK', onPress: resetForm },
@@ -343,17 +371,60 @@ export default function SellScreen() {
     );
   }
 
+  if (showSuccess) {
+    return (
+      <ScreenWrapper>
+        <View style={styles.successContainer}>
+          <Animated.View style={[styles.successCircle, {
+            transform: [{ scale: successAnim }],
+            opacity: successAnim,
+          }]}>
+            <Ionicons name="checkmark" size={48} color="#fff" />
+          </Animated.View>
+          <Animated.Text style={[styles.successTitle, { opacity: successAnim }]}>
+            You're live!
+          </Animated.Text>
+          <Animated.Text style={[styles.successSubtitle, { opacity: successAnim }]}>
+            Your item is now listed and visible to buyers.
+          </Animated.Text>
+          <View style={styles.successActions}>
+            <Button
+              label="View profile"
+              variant="outline"
+              onPress={() => { setShowSuccess(false); resetForm(); router.push('/(tabs)/profile'); }}
+              style={styles.successBtn}
+              borderColor={colors.border}
+              textColor={colors.textPrimary}
+            />
+            <Button
+              label="List another"
+              onPress={() => { setShowSuccess(false); resetForm(); }}
+              style={styles.successBtn}
+            />
+          </View>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
   return (
     <ScreenWrapper>
       <Header title="New Listing" titleStyle={{ fontSize: 14, fontWeight: '500' }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Progress bar */}
+      <View style={styles.progressBar}>
+        <View style={[styles.progressFill, { width: `${scrollProgress * 100}%` }]} />
+      </View>
+
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
-        {/* Image picker */}
+        {/* ── Photos ───────────────────────────────── */}
         <View onLayout={e => { fieldPositions.current.images = e.nativeEvent.layout.y; }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRowOuter} contentContainerStyle={styles.imageRowInner}>
             {images.map((uri, i) => (
@@ -400,10 +471,14 @@ export default function SellScreen() {
               </TouchableOpacity>
             )}
           </ScrollView>
+          {images.length === 0 && !errors.images && (
+            <Text style={styles.photoHint}>Front, back, label, and any flaws</Text>
+          )}
           {errors.images ? <Text style={styles.errorText}>{errors.images}</Text> : null}
         </View>
 
-        {/* Title */}
+        <Divider />
+
         <View onLayout={e => { fieldPositions.current.title = e.nativeEvent.layout.y; }}>
           <Input
             label="Title"
@@ -414,11 +489,47 @@ export default function SellScreen() {
             maxLength={80}
             hint={`${form.title.length}/80`}
             returnKeyType="next"
-            onSubmitEditing={() => descRef.current?.focus()}
+            onSubmitEditing={() => { Keyboard.dismiss(); scrollToField('gender'); setTimeout(() => genderRef.current?.open(), 100); }}
           />
         </View>
 
-        {/* Description */}
+        <View onLayout={e => { fieldPositions.current.gender = e.nativeEvent.layout.y; }}>
+          <Select
+            ref={genderRef}
+            label="Gender"
+            placeholder="Select gender"
+            value={form.gender}
+            options={Genders}
+            onSelect={val => {
+              setForm(f => {
+                const categoryValid = CategoriesByGender[val as keyof typeof CategoriesByGender]?.includes(f.category);
+                return { ...f, gender: val, category: categoryValid ? f.category : '' };
+              });
+              setErrors(e => ({ ...e, gender: undefined }));
+              scrollToField('category');
+              setTimeout(() => categoryRef.current?.open(), 300);
+            }}
+            error={errors.gender}
+          />
+        </View>
+
+        <View onLayout={e => { fieldPositions.current.category = e.nativeEvent.layout.y; }}>
+          <Select
+            ref={categoryRef}
+            label="Category"
+            placeholder={form.gender ? 'Select a category' : 'Select gender first'}
+            value={form.category}
+            options={form.gender ? CategoriesByGender[form.gender as keyof typeof CategoriesByGender] : []}
+            onSelect={val => {
+              setForm(f => ({ ...f, category: val }));
+              setErrors(e => ({ ...e, category: undefined }));
+              scrollToField('description');
+              setTimeout(() => descRef.current?.focus(), 300);
+            }}
+            error={errors.category}
+          />
+        </View>
+
         <View onLayout={e => { fieldPositions.current.description = e.nativeEvent.layout.y; }}>
           <Input
             ref={descRef}
@@ -434,74 +545,13 @@ export default function SellScreen() {
             hint={`${form.description.length}/500`}
             blurOnSubmit
             returnKeyType="next"
-            onSubmitEditing={() => storyRef.current?.focus()}
+            onSubmitEditing={() => { Keyboard.dismiss(); scrollToField('condition'); setTimeout(() => conditionRef.current?.open(), 100); }}
           />
         </View>
 
-        {/* My Story */}
-        <Input
-          ref={storyRef}
-          label="My story (optional)"
-          placeholder="e.g. Worn once at Eid 2023 in Birmingham"
-          value={form.worn_at}
-          onChangeText={update('worn_at')}
-          maxLength={100}
-          hint={`${form.worn_at.length}/100`}
-          returnKeyType="next"
-          onSubmitEditing={() => priceRef.current?.focus()}
-        />
-
-        {/* Price */}
-        <View onLayout={e => { fieldPositions.current.price = e.nativeEvent.layout.y; }}>
-          <Input
-            ref={priceRef}
-            label="Price (£)"
-            placeholder="1.00 – 2,000.00"
-            value={form.price}
-            onChangeText={update('price')}
-            keyboardType="decimal-pad"
-            error={errors.price}
-            returnKeyType="done"
-            onSubmitEditing={() => Keyboard.dismiss()}
-          />
-        </View>
-
-        {/* Gender */}
-        <View onLayout={e => { fieldPositions.current.gender = e.nativeEvent.layout.y; }}>
-          <Select
-            label="Gender"
-            placeholder="Select gender"
-            value={form.gender}
-            options={Genders}
-            onSelect={val => {
-              setForm(f => {
-                const categoryValid = CategoriesByGender[val as keyof typeof CategoriesByGender]?.includes(f.category);
-                return { ...f, gender: val, category: categoryValid ? f.category : '' };
-              });
-              setErrors(e => ({ ...e, gender: undefined }));
-            }}
-            error={errors.gender}
-          />
-        </View>
-
-        {/* Category (dynamic based on gender) */}
-        <View onLayout={e => { fieldPositions.current.category = e.nativeEvent.layout.y; }}>
-          <Select
-            label="Category"
-            placeholder={form.gender ? 'Select a category' : 'Select gender first'}
-            value={form.category}
-            options={form.gender ? CategoriesByGender[form.gender as keyof typeof CategoriesByGender] : []}
-            onSelect={val => {
-              setForm(f => ({ ...f, category: val }));
-              setErrors(e => ({ ...e, category: undefined }));
-            }}
-            error={errors.category}
-          />
-        </View>
-
-        {/* Condition */}
         <View onLayout={e => { fieldPositions.current.condition = e.nativeEvent.layout.y; }}>
           <Select
+            ref={conditionRef}
             label="Condition"
             placeholder="Select condition"
             value={form.condition}
@@ -509,24 +559,16 @@ export default function SellScreen() {
             onSelect={val => {
               setForm(f => ({ ...f, condition: val }));
               setErrors(e => ({ ...e, condition: undefined }));
+              scrollToField('size');
+              setTimeout(() => sizeRef.current?.open(), 300);
             }}
             error={errors.condition}
           />
         </View>
 
-        {/* Occasion */}
-        <Select
-          label="Occasion (optional)"
-          placeholder="Select an occasion"
-          value={form.occasion}
-          options={Occasions}
-          onSelect={val => setForm(f => ({ ...f, occasion: f.occasion === val ? '' : val }))}
-        />
-
-        {/* Sizing section */}
         <View style={styles.measureSection} onLayout={e => { fieldPositions.current.size = e.nativeEvent.layout.y; }}>
-          <Text style={styles.sectionLabel}>Sizing</Text>
           <Select
+            ref={sizeRef}
             label="Size"
             placeholder="Select a size"
             value={form.size}
@@ -535,6 +577,7 @@ export default function SellScreen() {
               setForm(f => ({ ...f, size: val }));
               setErrors(e => ({ ...e, size: undefined }));
               if (val === 'Custom') setShowMeasurements(true);
+              else { scrollToField('colour'); setTimeout(() => colourRef.current?.open(), 300); }
             }}
             error={errors.size}
           />
@@ -574,29 +617,84 @@ export default function SellScreen() {
                 onChangeText={v => setMeasurements(m => ({ ...m, length: v }))}
                 keyboardType="decimal-pad"
                 returnKeyType="done"
-                onSubmitEditing={() => Keyboard.dismiss()}
+                onSubmitEditing={() => { Keyboard.dismiss(); scrollToField('colour'); setTimeout(() => colourRef.current?.open(), 100); }}
               />
             </>
           )}
         </View>
 
-        {/* Colour */}
-        <Select
-          label="Colour (optional)"
-          placeholder="Select a colour"
-          value={form.colour}
-          options={Colours}
-          onSelect={val => setForm(f => ({ ...f, colour: f.colour === val ? '' : val }))}
-        />
+        <View onLayout={e => { fieldPositions.current.colour = e.nativeEvent.layout.y; }}>
+          <Select
+            ref={colourRef}
+            label="Colour (optional)"
+            placeholder="Select a colour"
+            value={form.colour}
+            options={Colours}
+            onSelect={val => {
+              setForm(f => ({ ...f, colour: f.colour === val ? '' : val }));
+              scrollToField('fabric');
+              setTimeout(() => fabricRef.current?.open(), 300);
+            }}
+          />
+        </View>
 
-        {/* Fabric */}
-        <Select
-          label="Fabric (optional)"
-          placeholder="Select a fabric"
-          value={form.fabric}
-          options={Fabrics}
-          onSelect={val => setForm(f => ({ ...f, fabric: f.fabric === val ? '' : val }))}
+        <View onLayout={e => { fieldPositions.current.fabric = e.nativeEvent.layout.y; }}>
+          <Select
+            ref={fabricRef}
+            label="Fabric (optional)"
+            placeholder="Select a fabric"
+            value={form.fabric}
+            options={Fabrics}
+            onSelect={val => {
+              setForm(f => ({ ...f, fabric: f.fabric === val ? '' : val }));
+              scrollToField('occasion');
+              setTimeout(() => occasionRef.current?.open(), 300);
+            }}
+          />
+        </View>
+
+        <View onLayout={e => { fieldPositions.current.occasion = e.nativeEvent.layout.y; }}>
+          <Select
+            ref={occasionRef}
+            label="Occasion (optional)"
+            placeholder="Select an occasion"
+            value={form.occasion}
+            options={Occasions}
+            onSelect={val => {
+              setForm(f => ({ ...f, occasion: f.occasion === val ? '' : val }));
+              scrollToField('price');
+              setTimeout(() => priceRef.current?.focus(), 300);
+            }}
+          />
+        </View>
+
+        <View onLayout={e => { fieldPositions.current.price = e.nativeEvent.layout.y; }}>
+          <Input
+            ref={priceRef}
+            label="Price (£)"
+            placeholder="1.00 – 2,000.00"
+            value={form.price}
+            onChangeText={update('price')}
+            keyboardType="decimal-pad"
+            error={errors.price}
+            returnKeyType="next"
+            onSubmitEditing={() => { Keyboard.dismiss(); scrollToField('worn_at'); setTimeout(() => storyRef.current?.focus(), 100); }}
+          />
+        </View>
+
+        <View onLayout={e => { fieldPositions.current.worn_at = e.nativeEvent.layout.y; }}>
+        <Input
+          ref={storyRef}
+          label="My story (optional)"
+          placeholder="e.g. Worn once at Eid 2023 in Birmingham"
+          value={form.worn_at}
+          onChangeText={update('worn_at')}
+          maxLength={100}
+          hint={`${form.worn_at.length}/100`}
+          returnKeyType="done"
+          onSubmitEditing={() => Keyboard.dismiss()}
         />
+        </View>
 
         {submitting && uploadProgress.total > 0 && (
           <Text style={styles.progressText}>
@@ -618,10 +716,30 @@ export default function SellScreen() {
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
+    progressBar: {
+      height: 2,
+      backgroundColor: colors.border,
+      marginHorizontal: -Spacing.base,
+    },
+    progressFill: {
+      height: 2,
+      backgroundColor: colors.primary,
+    },
     content: {
       paddingTop: Spacing.base,
       paddingBottom: Spacing['4xl'],
       gap: Spacing.base,
+    },
+    sectionHeader: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+      fontSize: 15,
+      marginBottom: -Spacing.xs,
+    },
+    photoHint: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      marginTop: Spacing.xs,
     },
     imageRowOuter: { marginHorizontal: -Spacing.base },
     imageRowInner: { paddingHorizontal: Spacing.base, gap: Spacing.sm },
@@ -690,16 +808,43 @@ function getStyles(colors: ColorTokens) {
     addPhotoLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
     addPhotoSub: { ...Typography.caption, color: colors.textSecondary },
     multiline: { height: 100, textAlignVertical: 'top' },
-    sectionLabel: {
-      ...Typography.label,
-      color: colors.textPrimary,
-      marginBottom: Spacing.sm,
-    },
     optionalLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_400Regular' },
     measureSection: { gap: Spacing.base },
     addMeasurementsLink: { ...Typography.caption, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
     progressText: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' as const },
     submitBtn: { marginTop: Spacing.md },
+    successContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: Spacing.xl,
+    },
+    successCircle: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: Spacing.xl,
+    },
+    successTitle: {
+      ...Typography.heading,
+      color: colors.textPrimary,
+      marginBottom: Spacing.sm,
+    },
+    successSubtitle: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center' as const,
+      marginBottom: Spacing['2xl'],
+    },
+    successActions: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      width: '100%',
+    },
+    successBtn: { flex: 1 },
   });
 }

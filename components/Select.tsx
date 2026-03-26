@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,10 @@ import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/c
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { BottomSheet } from '@/components/BottomSheet';
 
+export interface SelectHandle {
+  open: () => void;
+}
+
 interface SelectProps {
   label?: string;
   placeholder?: string;
@@ -20,8 +24,12 @@ interface SelectProps {
   error?: string;
 }
 
-export function Select({ label, placeholder = 'Select…', value, options, onSelect, error }: SelectProps) {
+export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ label, placeholder = 'Select…', value, options, onSelect, error }, ref) {
   const [open, setOpen] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    open: () => setOpen(true),
+  }));
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -67,7 +75,7 @@ export function Select({ label, placeholder = 'Select…', value, options, onSel
       </BottomSheet>
     </View>
   );
-}
+});
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
