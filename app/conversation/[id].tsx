@@ -33,6 +33,7 @@ interface ConversationMeta {
   seller_id: string;
   other_username: string;
   listing_title: string;
+  listing_status: string;
 }
 
 export default function ConversationScreen() {
@@ -41,6 +42,7 @@ export default function ConversationScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [meta, setMeta] = useState<ConversationMeta | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
@@ -58,7 +60,7 @@ export default function ConversationScreen() {
           listing_id, buyer_id, seller_id,
           buyer:users!conversations_buyer_id_fkey ( username ),
           seller:users!conversations_seller_id_fkey ( username ),
-          listing:listings!conversations_listing_id_fkey ( title )
+          listing:listings!conversations_listing_id_fkey ( title, status )
         `)
         .eq('id', id)
         .single(),
@@ -69,7 +71,9 @@ export default function ConversationScreen() {
         .order('created_at', { ascending: false }),
     ]).then(([{ data: conv, error: convErr }, { data: msgs }]) => {
       if (convErr || !conv) {
-        Alert.alert('Error', 'Could not load this conversation.');
+        setLoadError(true);
+        setLoading(false);
+        return;
       } else {
         const c = conv as any;
         const isBuyer = c.buyer_id === user.id;
@@ -79,6 +83,7 @@ export default function ConversationScreen() {
           seller_id: c.seller_id,
           other_username: isBuyer ? c.seller?.username : c.buyer?.username,
           listing_title: c.listing?.title ?? '',
+          listing_status: c.listing?.status ?? 'available',
         });
       }
       if (msgs) setMessages(msgs as Message[]);
@@ -107,13 +112,16 @@ export default function ConversationScreen() {
     const receiverId = user.id === meta.buyer_id ? meta.seller_id : meta.buyer_id;
     const content = accepted ? `__OFFER_ACCEPTED__:${amount}` : `__OFFER_DECLINED__:${amount}`;
 
-    await supabase.from('messages').insert({
+    const { error } = await supabase.from('messages').insert({
       conversation_id: id,
       listing_id: meta.listing_id,
       sender_id: user.id,
       receiver_id: receiverId,
       content,
     });
+    if (error) {
+      Alert.alert('Error', 'Failed to respond to offer. Please try again.');
+    }
   };
 
   const handleSend = async () => {
@@ -241,6 +249,20 @@ export default function ConversationScreen() {
     );
   }
 
+  if (loadError) {
+    return (
+      <ScreenWrapper>
+        <Header showBack title="Message" />
+        <View style={styles.emptyList}>
+          <View style={styles.emptyWrap}>
+            <Ionicons name="alert-circle-outline" size={40} color={colors.textSecondary} />
+            <Text style={styles.emptyText}>Could not load this conversation</Text>
+          </View>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
   return (
     <ScreenWrapper>
       <Header
@@ -254,6 +276,12 @@ export default function ConversationScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}
       >
+        {meta?.listing_status === 'sold' && (
+          <View style={styles.soldBanner}>
+            <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
+            <Text style={styles.soldBannerText}>This item has been sold</Text>
+          </View>
+        )}
         <FlatList
           ref={listRef}
           data={messages}
@@ -278,6 +306,7 @@ export default function ConversationScreen() {
             containerStyle={styles.inputContainer}
             returnKeyType="send"
             onSubmitEditing={handleSend}
+            maxLength={1000}
           />
           <TouchableOpacity
             style={[styles.sendButton, (!text.trim() || sending) && styles.sendDisabled]}
@@ -296,6 +325,18 @@ export default function ConversationScreen() {
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     flex: { flex: 1 },
+    soldBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      paddingVertical: Spacing.sm,
+      backgroundColor: colors.surface,
+    },
+    soldBannerText: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+    },
     messageList: {
       paddingVertical: Spacing.base,
       gap: Spacing.sm,

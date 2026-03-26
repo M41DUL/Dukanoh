@@ -197,7 +197,11 @@ export default function ListingDetailScreen() {
 
   const handleMessage = async () => {
     const convId = await findOrCreateConversation();
-    if (convId) router.push(`/conversation/${convId}`);
+    if (convId) {
+      router.push(`/conversation/${convId}`);
+    } else {
+      Alert.alert('Unable to message', 'This conversation could not be created. The listing may no longer be available.');
+    }
   };
 
 
@@ -351,30 +355,36 @@ export default function ListingDetailScreen() {
   const handleOffer = async () => {
     const amount = parseFloat(offerAmount.replace(/[^0-9.]/g, ''));
     if (!amount || amount <= 0) { setOfferError('Please enter a valid amount.'); return; }
+    if (amount > 99999) { setOfferError('Offer amount is too high.'); return; }
     if (amount >= listing.price) { setOfferError(`Offer must be less than £${listing.price.toFixed(2)}.`); return; }
     if (!user) return;
     setOfferError('');
     setOfferSending(true);
     const convId = await findOrCreateConversation();
-    if (convId) {
-      await supabase.from('messages').insert({
-        conversation_id: convId,
-        listing_id: id!,
-        sender_id: user.id,
-        receiver_id: listing.seller_id,
-        content: `__OFFER__:${amount.toFixed(2)}`,
-        created_at: new Date().toISOString(),
-      });
+    if (!convId) {
+      setOfferError('Could not send offer. The listing may no longer be available.');
+      setOfferSending(false);
+      return;
     }
+    const { error } = await supabase.from('messages').insert({
+      conversation_id: convId,
+      listing_id: id!,
+      sender_id: user.id,
+      receiver_id: listing.seller_id,
+      content: `__OFFER__:${amount.toFixed(2)}`,
+      created_at: new Date().toISOString(),
+    });
     setOfferSending(false);
+    if (error) {
+      setOfferError('Failed to send offer. Please try again.');
+      return;
+    }
     setOfferVisible(false);
     setOfferAmount('');
-    if (convId) {
-      Alert.alert('Offer sent!', `Your offer of £${amount.toFixed(2)} has been sent to the seller.`, [
-        { text: 'View conversation', onPress: () => router.push(`/conversation/${convId}`) },
-        { text: 'Stay here', style: 'cancel' },
-      ]);
-    }
+    Alert.alert('Offer sent!', `Your offer of £${amount.toFixed(2)} has been sent to the seller.`, [
+      { text: 'View conversation', onPress: () => router.push(`/conversation/${convId}`) },
+      { text: 'Stay here', style: 'cancel' },
+    ]);
   };
 
   return (
