@@ -31,21 +31,8 @@ import { Typography, Spacing, BorderRadius, BorderWidth, Genders, CategoriesByGe
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
+import { validateListing, buildMeasurements as buildMeasurementsHelper, isFormDirty as checkFormDirty, ListingForm, Measurements } from '@/lib/sellHelpers';
 import { useAuth } from '@/hooks/useAuth';
-
-interface ListingForm {
-  title: string;
-  description: string;
-  price: string;
-  gender: string;
-  category: string;
-  condition: string;
-  occasion: string;
-  size: string;
-  colour: string;
-  fabric: string;
-  worn_at: string;
-}
 
 export default function SellScreen() {
   const { user } = useAuth();
@@ -99,10 +86,7 @@ export default function SellScreen() {
     }
   }, []);
 
-  const isFormDirty = !!(form.title || form.description || form.price || form.gender ||
-    form.category || form.condition || form.occasion || form.size || form.colour ||
-    form.fabric || form.worn_at ||
-    measurements.chest || measurements.waist || measurements.length || images.length > 0);
+  const isFormDirty = checkFormDirty(form, measurements, images.length);
 
   const formDirtyRef = useRef(isFormDirty);
   const submittingRef = useRef(submitting);
@@ -217,31 +201,7 @@ export default function SellScreen() {
   };
 
   const validate = (isDraft: boolean): boolean => {
-    const newErrors: typeof errors = {};
-    if (images.length === 0 && !isDraft) newErrors.images = 'Add at least one photo';
-    if (!form.title.trim()) newErrors.title = 'Title is required';
-    else if (form.title.trim().length < 3) newErrors.title = 'Title must be at least 3 characters';
-    if (!isDraft) {
-      if (!form.description.trim()) newErrors.description = 'Description is required';
-      else if (form.description.trim().length < 10) newErrors.description = 'Description must be at least 10 characters';
-      const price = parseFloat(form.price);
-      if (!form.price.trim() || isNaN(price) || price < 1) newErrors.price = 'Enter a price of at least £1';
-      else if (price > 2000) newErrors.price = 'Maximum price is £2,000';
-      if (!form.gender) newErrors.gender = 'Select a gender';
-      if (!form.category) newErrors.category = 'Select a category';
-      if (!form.condition) newErrors.condition = 'Select a condition';
-      if (!form.size) newErrors.size = 'Select a size';
-    }
-    // Validate measurements if entered
-    ['chest', 'waist', 'length'].forEach(key => {
-      const val = measurements[key as keyof typeof measurements];
-      if (val) {
-        const num = parseFloat(val);
-        if (isNaN(num) || num < 1 || num > 99) {
-          (newErrors as any)[key] = 'Must be 1–99';
-        }
-      }
-    });
+    const newErrors = validateListing(form, measurements, images.length, isDraft);
     setErrors(newErrors);
 
     const errorKeys = Object.keys(newErrors);
@@ -292,16 +252,7 @@ export default function SellScreen() {
     setImages([]);
   };
 
-  const buildMeasurements = () => {
-    const chest = parseFloat(measurements.chest);
-    const waist = parseFloat(measurements.waist);
-    const length = parseFloat(measurements.length);
-    const obj: Record<string, number> = {};
-    if (!isNaN(chest) && chest > 0) obj.chest = chest;
-    if (!isNaN(waist) && waist > 0) obj.waist = waist;
-    if (!isNaN(length) && length > 0) obj.length = length;
-    return Object.keys(obj).length > 0 ? obj : null;
-  };
+  const buildMeasurements = () => buildMeasurementsHelper(measurements);
 
   const submitListing = async (status: 'available' | 'draft') => {
     if (!validate(status === 'draft') || !user) return;
