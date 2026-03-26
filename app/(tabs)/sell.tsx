@@ -85,8 +85,8 @@ export default function SellScreen() {
 
   const formDirtyRef = useRef(isFormDirty);
   const submittingRef = useRef(submitting);
-  const resetFormRef = useRef(resetForm);
-  const submitListingRef = useRef(submitListing);
+  const resetFormRef = useRef<(() => void) | null>(null);
+  const submitListingRef = useRef<((status: 'available' | 'draft') => void) | null>(null);
   useEffect(() => {
     formDirtyRef.current = isFormDirty;
     submittingRef.current = submitting;
@@ -102,8 +102,8 @@ export default function SellScreen() {
           'Save draft?',
           'You have unsaved changes.',
           [
-            { text: 'Discard', style: 'destructive', onPress: () => resetFormRef.current() },
-            { text: 'Save draft', onPress: () => submitListingRef.current('draft') },
+            { text: 'Discard', style: 'destructive', onPress: () => resetFormRef.current?.() },
+            { text: 'Save draft', onPress: () => submitListingRef.current?.('draft') },
           ]
         );
       }
