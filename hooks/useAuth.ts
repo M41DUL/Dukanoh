@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import * as Notifications from 'expo-notifications';
 import { supabase } from '@/lib/supabase';
 
 export function useAuth() {
@@ -51,6 +50,7 @@ export function useAuth() {
     // Remove push token for this device before signing out
     if (user) {
       try {
+        const Notifications = await import('expo-notifications');
         const { data: tokenData } = await Notifications.getExpoPushTokenAsync();
         if (tokenData) {
           await supabase

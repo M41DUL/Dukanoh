@@ -135,7 +135,7 @@ function getStyles(colors: ColorTokens) {
       letterSpacing: 0.2,
     },
     primaryText: { color: '#FFFFFF' },
-    secondaryText: { color: colors.textPrimary },
+    secondaryText: { color: '#0D0D0D' },
     outlineText: { color: colors.primaryText },
     ghostText: { color: colors.primaryText },
   });

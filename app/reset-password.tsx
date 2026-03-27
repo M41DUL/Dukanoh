@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Keyboard, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { lightColors, Typography, Spacing } from '@/constants/theme';
 import { AUTH_INPUT_STYLE, getAuthError, withTimeout } from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
@@ -11,10 +12,21 @@ import { supabase } from '@/lib/supabase';
 const PASSWORD_MIN = 6;
 
 export default function ResetPasswordScreen() {
+  const { token_hash, type } = useLocalSearchParams<{ token_hash?: string; type?: string }>();
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(!!token_hash);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+
+  // Exchange the token from the email link for a session
+  useEffect(() => {
+    if (!token_hash || type !== 'recovery') return;
+    supabase.auth.verifyOtp({ token_hash, type: 'recovery' }).then(({ error: otpError }) => {
+      if (otpError) setError('This reset link has expired. Please request a new one.');
+      setVerifying(false);
+    });
+  }, [token_hash, type]);
 
   const handleReset = async () => {
     if (loading) return;
@@ -40,6 +52,14 @@ export default function ResetPasswordScreen() {
       setLoading(false);
     }
   };
+
+  if (verifying) {
+    return (
+      <AuthLayout>
+        <LoadingSpinner />
+      </AuthLayout>
+    );
+  }
 
   if (done) {
     return (

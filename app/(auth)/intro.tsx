@@ -4,13 +4,13 @@ import {
   Easing,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { lightColors, Spacing, BorderRadius, FontFamily } from '@/constants/theme';
+import { Button } from '@/components/Button';
 import {
   LOGO_FINAL_W,
   LOGO_FINAL_H,
@@ -216,12 +216,18 @@ export default function IntroScreen() {
 
         {/* CTAs */}
         <Animated.View style={[styles.ctaSection, { opacity: ctaOpacity, transform: [{ translateY: ctaY }] }]}>
-          <TouchableOpacity style={styles.joinBtn} onPress={() => setSheetMode('join')} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Join today">
-            <Text style={styles.joinBtnText}>Join today</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.signInBtn} onPress={() => setSheetMode('login')} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Already have an account">
-            <Text style={styles.signInBtnText}>Already have an account</Text>
-          </TouchableOpacity>
+          <Button
+            label="Join today"
+            variant="secondary"
+            onPress={() => setSheetMode('join')}
+          />
+          <Button
+            label="Already have an account"
+            variant="outline"
+            onPress={() => setSheetMode('login')}
+            borderColor="rgba(255,255,255,0.5)"
+            textColor="#FFFFFF"
+          />
         </Animated.View>
       </View>
 
@@ -307,33 +313,5 @@ const styles = StyleSheet.create({
   ctaSection: {
     gap: Spacing.sm,
     paddingBottom: LOGO_FINAL_H - 60 + Spacing.xl,
-  },
-  joinBtn: {
-    height: 52,
-    borderRadius: BorderRadius.full,
-    backgroundColor: lightColors.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  joinBtnText: {
-    fontSize: 16,
-    fontFamily: FontFamily.semibold,
-    color: '#0D0D0D',
-    letterSpacing: 0.2,
-  },
-  signInBtn: {
-    height: 52,
-    borderRadius: BorderRadius.full,
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  signInBtnText: {
-    fontSize: 16,
-    fontFamily: FontFamily.semibold,
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
   },
 });
