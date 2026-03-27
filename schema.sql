@@ -436,6 +436,36 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- =============================================================
+-- PUSH NOTIFICATION TOKENS
+-- =============================================================
+CREATE TABLE public.push_tokens (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id    UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  token      TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (user_id, token)
+);
+
+ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own tokens"
+  ON public.push_tokens FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own tokens"
+  ON public.push_tokens FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own tokens"
+  ON public.push_tokens FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own tokens"
+  ON public.push_tokens FOR DELETE USING (auth.uid() = user_id);
+
+CREATE INDEX idx_push_tokens_user ON public.push_tokens (user_id);
+
+-- NOTE: A Database Webhook must be configured in Supabase Dashboard:
+-- Table: public.messages, Event: INSERT
+-- URL: <project-ref>.supabase.co/functions/v1/push-notification
+-- Header: Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
+
+-- =============================================================
 -- REALTIME
 -- Enable realtime for messaging tables
 -- =============================================================

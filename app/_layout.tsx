@@ -16,6 +16,7 @@ import {
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { SavedProvider } from '@/context/SavedContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
@@ -36,6 +37,7 @@ function RootNavigator() {
   });
 
   const { session, loading, onboardingCompleted } = useAuth();
+  usePushNotifications();
   const router = useRouter();
   const segments = useSegments();
   const { isDark } = useTheme();
