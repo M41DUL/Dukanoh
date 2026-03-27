@@ -20,6 +20,7 @@ interface Conversation {
   other_user: { username: string; avatar_url?: string };
   last_message: string;
   updated_at: string;
+  unread: boolean;
 }
 
 export default function InboxScreen() {
@@ -41,6 +42,7 @@ export default function InboxScreen() {
         buyer_id,
         seller_id,
         last_message,
+        last_message_sender_id,
         updated_at,
         buyer:users!conversations_buyer_id_fkey ( username, avatar_url ),
         seller:users!conversations_seller_id_fkey ( username, avatar_url )
@@ -60,6 +62,7 @@ export default function InboxScreen() {
           other_user: { username: other?.username ?? 'Unknown', avatar_url: other?.avatar_url },
           last_message: c.last_message ?? '',
           updated_at: c.updated_at,
+          unread: !!c.last_message_sender_id && c.last_message_sender_id !== user.id,
         };
       });
       setConversations(mapped);
@@ -152,10 +155,11 @@ export default function InboxScreen() {
             />
             <View style={styles.rowContent}>
               <View style={styles.rowHeader}>
-                <Text style={styles.username} numberOfLines={1}>@{item.other_user.username}</Text>
-                <Text style={styles.time}>{formatTime(item.updated_at)}</Text>
+                <Text style={[styles.username, item.unread && styles.usernameUnread]} numberOfLines={1}>@{item.other_user.username}</Text>
+                {item.unread && <View style={styles.unreadDot} />}
+                <Text style={[styles.time, item.unread && styles.timeUnread]}>{formatTime(item.updated_at)}</Text>
               </View>
-              <Text style={styles.lastMessage} numberOfLines={1}>
+              <Text style={[styles.lastMessage, item.unread && styles.lastMessageUnread]} numberOfLines={1}>
                 {formatLastMessage(item.last_message)}
               </Text>
             </View>
@@ -198,12 +202,26 @@ function getStyles(colors: ColorTokens) {
       fontWeight: '600',
       flex: 1,
     },
+    usernameUnread: {
+      fontWeight: '700',
+    },
+    unreadDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+      marginLeft: Spacing.xs,
+    },
     time: {
       ...Typography.caption,
       color: colors.textSecondary,
       marginLeft: Spacing.sm,
     },
+    timeUnread: {
+      color: colors.primary,
+    },
     lastMessage: { ...Typography.caption, color: colors.textSecondary, marginTop: 2 },
+    lastMessageUnread: { color: colors.textPrimary, fontWeight: '600' },
     separator: { marginVertical: 0 },
   });
 }

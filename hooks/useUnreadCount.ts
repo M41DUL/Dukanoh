@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 /**
  * Returns the number of conversations where the most recent message
  * was NOT sent by the current user (i.e. they have an unread reply).
- * Subscribes to realtime updates on the messages table.
+ * Subscribes to realtime updates on the conversations table.
  */
 export function useUnreadCount() {
   const { user } = useAuth();
@@ -15,40 +15,24 @@ export function useUnreadCount() {
     if (!user) return;
 
     const fetchCount = async () => {
-      // Get all conversations the user is part of
-      const { data: convs } = await supabase
+      const { count: unread } = await supabase
         .from('conversations')
-        .select('id, buyer_id, seller_id')
-        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`);
+        .select('id', { count: 'exact', head: true })
+        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        .not('last_message_sender_id', 'is', null)
+        .neq('last_message_sender_id', user.id);
 
-      if (!convs || convs.length === 0) { setCount(0); return; }
-
-      // For each conversation, get the most recent message
-      const checks = convs.map(async (conv) => {
-        const { data: latest } = await supabase
-          .from('messages')
-          .select('sender_id')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        // Unread if the last message was sent by the other person
-        return latest && latest.sender_id !== user.id;
-      });
-
-      const results = await Promise.all(checks);
-      setCount(results.filter(Boolean).length);
+      setCount(unread ?? 0);
     };
 
     fetchCount();
 
-    // Re-check when any message is inserted
+    // Re-check when conversations are updated (trigger fires on new message)
     const channel = supabase
       .channel('unread-count')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
+        { event: 'UPDATE', schema: 'public', table: 'conversations' },
         () => fetchCount()
       )
       .subscribe();

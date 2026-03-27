@@ -71,6 +71,7 @@ CREATE TABLE public.conversations (
   buyer_id      UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
   seller_id     UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
   last_message  TEXT,
+  last_message_sender_id UUID REFERENCES public.users (id) ON DELETE SET NULL,
   updated_at    TIMESTAMPTZ DEFAULT NOW(),
   created_at    TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (listing_id, buyer_id)
@@ -113,7 +114,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_message()
 RETURNS TRIGGER AS $$
 BEGIN
   UPDATE public.conversations
-  SET last_message = NEW.content, updated_at = NOW()
+  SET last_message = NEW.content, last_message_sender_id = NEW.sender_id, updated_at = NOW()
   WHERE id = NEW.conversation_id;
   RETURN NEW;
 END;
