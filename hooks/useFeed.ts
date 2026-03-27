@@ -115,7 +115,7 @@ async function fetchTrendingCategories(): Promise<string[]> {
   return categories;
 }
 
-async function fetchSection(userId: string, categories: string[]): Promise<Listing[]> {
+async function fetchSection(userId: string, categories: string[], blockedIds: string[] = []): Promise<Listing[]> {
   let query = supabase
     .from('listings')
     .select('id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users(username, avatar_url)')
@@ -124,6 +124,7 @@ async function fetchSection(userId: string, categories: string[]): Promise<Listi
     .order('created_at', { ascending: false })
     .limit(6);
 
+  if (blockedIds.length > 0) query = query.not('seller_id', 'in', `(${blockedIds.join(',')})`);
   if (categories.length > 0) query = query.in('category', categories);
 
   const { data } = await query;
@@ -153,10 +154,11 @@ function getGreeting(): string {
 // ── Hook ────────────────────────────────────────────────────────────
 interface UseFeedOptions {
   userId?: string;
+  blockedIds?: string[];
   reloadRecent: () => void;
 }
 
-export function useFeed({ userId, reloadRecent }: UseFeedOptions) {
+export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOptions) {
   const [suggested, setSuggested] = useState<Listing[]>([]);
   const [newArrivals, setNewArrivals] = useState<Listing[]>([]);
   const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
@@ -230,8 +232,8 @@ export function useFeed({ userId, reloadRecent }: UseFeedOptions) {
       setDisplayName(firstName);
 
       const [suggestedItems, newArrivalItems, listingCountResult, savedPrices] = await Promise.all([
-        allCats.length > 0 ? fetchSection(userId, allCats) : Promise.resolve([]),
-        fetchSection(userId, []),
+        allCats.length > 0 ? fetchSection(userId, allCats, blockedIds) : Promise.resolve([]),
+        fetchSection(userId, [], blockedIds),
         supabase
           .from('listings')
           .select('id', { count: 'exact', head: true })

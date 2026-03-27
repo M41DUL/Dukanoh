@@ -9,6 +9,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SectionHeader } from '@/components/SectionHeader';
 import { StarRating } from '@/components/StarRating';
 import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
+import { useBlocked } from '@/context/BlockedContext';
 import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { recordView } from '@/hooks/useRecentlyViewed';
@@ -54,6 +55,7 @@ function timeAgo(dateStr: string): string {
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { blockedIds, blockUser } = useBlocked();
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
@@ -129,18 +131,21 @@ export default function ListingDetailScreen() {
             .then(({ data: others }) => {
               if (others) setSellerListings(others as unknown as Listing[]);
             });
-          supabase
-            .from('listings')
-            .select('*, seller:users(username, avatar_url)')
-            .eq('category', data.category)
-            .eq('status', 'available')
-            .neq('id', id)
-            .neq('seller_id', data.seller_id)
-            .order('created_at', { ascending: false })
-            .limit(4)
-            .then(({ data: similar }) => {
+          (() => {
+            let simQ = supabase
+              .from('listings')
+              .select('*, seller:users(username, avatar_url)')
+              .eq('category', data.category)
+              .eq('status', 'available')
+              .neq('id', id)
+              .neq('seller_id', data.seller_id)
+              .order('created_at', { ascending: false })
+              .limit(4);
+            if (blockedIds.length > 0) simQ = simQ.not('seller_id', 'in', `(${blockedIds.join(',')})`);
+            simQ.then(({ data: similar }) => {
               if (similar) setSimilarListings(similar as unknown as Listing[]);
             });
+          })();
           supabase
             .from('messages')
             .select('content')
@@ -308,10 +313,7 @@ export default function ListingDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             if (!user) return;
-            await supabase.from('blocked_users').insert({
-              blocker_id: user.id,
-              blocked_id: listing.seller_id,
-            });
+            await blockUser(listing.seller_id);
             router.back();
           },
         },

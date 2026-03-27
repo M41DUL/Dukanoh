@@ -12,6 +12,7 @@ import { Typography, Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useBlocked } from '@/context/BlockedContext';
 import { Ionicons } from '@expo/vector-icons';
 
 interface Conversation {
@@ -25,6 +26,7 @@ interface Conversation {
 
 export default function InboxScreen() {
   const { user } = useAuth();
+  const { blockedIds } = useBlocked();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,18 +55,23 @@ export default function InboxScreen() {
     if (error) {
       Alert.alert('Error', 'Could not load conversations.');
     } else if (data) {
-      const mapped: Conversation[] = data.map((c: any) => {
-        const isBuyer = c.buyer_id === user.id;
-        const other = isBuyer ? c.seller : c.buyer;
-        return {
-          id: c.id,
-          listing_id: c.listing_id,
-          other_user: { username: other?.username ?? 'Unknown', avatar_url: other?.avatar_url },
-          last_message: c.last_message ?? '',
-          updated_at: c.updated_at,
-          unread: !!c.last_message_sender_id && c.last_message_sender_id !== user.id,
-        };
-      });
+      const mapped: Conversation[] = data
+        .filter((c: any) => {
+          const otherId = c.buyer_id === user.id ? c.seller_id : c.buyer_id;
+          return !blockedIds.includes(otherId);
+        })
+        .map((c: any) => {
+          const isBuyer = c.buyer_id === user.id;
+          const other = isBuyer ? c.seller : c.buyer;
+          return {
+            id: c.id,
+            listing_id: c.listing_id,
+            other_user: { username: other?.username ?? 'Unknown', avatar_url: other?.avatar_url },
+            last_message: c.last_message ?? '',
+            updated_at: c.updated_at,
+            unread: !!c.last_message_sender_id && c.last_message_sender_id !== user.id,
+          };
+        });
       setConversations(mapped);
     }
 

@@ -13,10 +13,12 @@ import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/c
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context/ThemeContext';
+import { useBlocked } from '@/context/BlockedContext';
 import { supabase } from '@/lib/supabase';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useSaved } from '@/context/SavedContext';
 import { StarRating } from '@/components/StarRating';
+import { BottomSheet } from '@/components/BottomSheet';
 import type { ThemePreference } from '@/context/ThemeContext';
 
 const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
@@ -29,6 +31,7 @@ export default function ProfileScreen() {
   const { user, signOut, refreshProfile } = useAuth();
   const { preference, setPreference } = useTheme();
   const { savedIds } = useSaved();
+  const { blockedIds, unblockUser } = useBlocked();
   const [listings, setListings] = useState<Listing[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
@@ -40,6 +43,9 @@ export default function ProfileScreen() {
   const [nameDraft, setNameDraft] = useState('');
   const nameInputRef = useRef<TextInput>(null);
   const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
+  const [blockedSheetVisible, setBlockedSheetVisible] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<{ id: string; username: string; avatar_url?: string }[]>([]);
+  const [blockedLoading, setBlockedLoading] = useState(false);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -125,6 +131,31 @@ export default function ProfileScreen() {
     setTimeout(() => nameInputRef.current?.focus(), 100);
   }, [profileName]);
 
+  const openBlockedSheet = useCallback(async () => {
+    setBlockedSheetVisible(true);
+    if (blockedIds.length === 0) { setBlockedUsers([]); return; }
+    setBlockedLoading(true);
+    const { data } = await supabase
+      .from('users')
+      .select('id, username, avatar_url')
+      .in('id', blockedIds);
+    setBlockedUsers((data ?? []) as { id: string; username: string; avatar_url?: string }[]);
+    setBlockedLoading(false);
+  }, [blockedIds]);
+
+  const handleUnblock = useCallback(async (userId: string, username: string) => {
+    Alert.alert('Unblock user', `Unblock @${username}? Their listings will appear again.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Unblock',
+        onPress: async () => {
+          await unblockUser(userId);
+          setBlockedUsers(prev => prev.filter(u => u.id !== userId));
+        },
+      },
+    ]);
+  }, [unblockUser]);
+
   const publishedListings = listings.filter(l => l.status !== 'draft');
   const draftListings = listings.filter(l => l.status === 'draft');
 
@@ -198,6 +229,21 @@ export default function ProfileScreen() {
               {savedIds.size > 0 && (
                 <View style={styles.savedBadge}>
                   <Text style={styles.savedBadgeText}>{savedIds.size}</Text>
+                </View>
+              )}
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} style={styles.savedChevron} />
+            </TouchableOpacity>
+            <Divider />
+            <TouchableOpacity
+              style={styles.savedRow}
+              onPress={openBlockedSheet}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="ban-outline" size={20} color={colors.textPrimary} />
+              <Text style={styles.savedRowLabel}>Blocked users</Text>
+              {blockedIds.length > 0 && (
+                <View style={[styles.savedBadge, { backgroundColor: colors.error }]}>
+                  <Text style={styles.savedBadgeText}>{blockedIds.length}</Text>
                 </View>
               )}
               <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} style={styles.savedChevron} />
@@ -321,6 +367,40 @@ export default function ProfileScreen() {
           </View>
         }
       />
+      <BottomSheet
+        visible={blockedSheetVisible}
+        onClose={() => setBlockedSheetVisible(false)}
+      >
+        <Text style={styles.blockedTitle}>Blocked users</Text>
+        {blockedLoading ? (
+          <View style={styles.blockedEmpty}>
+            <Text style={styles.blockedEmptyText}>Loading...</Text>
+          </View>
+        ) : blockedUsers.length === 0 ? (
+          <View style={styles.blockedEmpty}>
+            <Text style={styles.blockedEmptyText}>No blocked users</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={blockedUsers}
+            keyExtractor={item => item.id}
+            scrollEnabled={false}
+            renderItem={({ item }) => (
+              <View style={styles.blockedRow}>
+                <Avatar uri={item.avatar_url} initials={item.username[0]?.toUpperCase()} size="small" />
+                <Text style={styles.blockedUsername} numberOfLines={1}>@{item.username}</Text>
+                <TouchableOpacity
+                  style={styles.unblockBtn}
+                  onPress={() => handleUnblock(item.id, item.username)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.unblockBtnText}>Unblock</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+        )}
+      </BottomSheet>
     </ScreenWrapper>
   );
 }
@@ -456,6 +536,42 @@ function getStyles(colors: ColorTokens) {
     },
     themeBtnTextActive: {
       color: '#FFFFFF',
+    },
+    // Blocked users sheet
+    blockedTitle: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+      marginBottom: Spacing.base,
+    },
+    blockedEmpty: {
+      paddingVertical: Spacing.xl,
+      alignItems: 'center',
+    },
+    blockedEmptyText: {
+      ...Typography.body,
+      color: colors.textSecondary,
+    },
+    blockedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      paddingVertical: Spacing.sm,
+    },
+    blockedUsername: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    unblockBtn: {
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.full,
+      borderWidth: BorderWidth.standard,
+      borderColor: colors.border,
+    },
+    unblockBtnText: {
+      ...Typography.label,
+      color: colors.textPrimary,
     },
   });
 }

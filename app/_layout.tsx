@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { SavedProvider } from '@/context/SavedContext';
+import { BlockedProvider } from '@/context/BlockedContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
 
 SplashScreen.preventAutoHideAsync();
@@ -136,7 +137,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <SavedProvider>
-          <RootNavigator />
+          <BlockedProvider>
+            <RootNavigator />
+          </BlockedProvider>
         </SavedProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

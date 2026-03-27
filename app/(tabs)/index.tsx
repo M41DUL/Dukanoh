@@ -21,10 +21,12 @@ import { useStories, getAppStory } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useFeed } from '@/hooks/useFeed';
+import { useBlocked } from '@/context/BlockedContext';
 import { JustSoldToast } from '@/components/JustSoldToast';
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { blockedIds } = useBlocked();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -44,7 +46,7 @@ export default function HomeScreen() {
     onRefresh,
     loadDataIfStale,
     hasMounted,
-  } = useFeed({ userId: user?.id, reloadRecent });
+  } = useFeed({ userId: user?.id, blockedIds, reloadRecent });
 
   useFocusEffect(
     useCallback(() => {

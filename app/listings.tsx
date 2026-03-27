@@ -25,6 +25,7 @@ import { Checkbox } from '@/components/Checkbox';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { useBlocked } from '@/context/BlockedContext';
 import { supabase } from '@/lib/supabase';
 
 // ─── Constants ──────────────────────────────────────────────
@@ -122,6 +123,7 @@ export default function ListingsScreen() {
     query?: string;
   }>();
   const { user } = useAuth();
+  const { blockedIds } = useBlocked();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -227,6 +229,7 @@ export default function ListingsScreen() {
       .order(orderCol, { ascending });
 
     if (user) q = q.neq('seller_id', user.id);
+    if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
     if (categories.length > 0) q = q.in('category', categories);
 
     // Sub-tab filter
@@ -259,7 +262,7 @@ export default function ListingsScreen() {
     }
 
     return { q, trimmedQuery };
-  }, [user, categoriesStr, occasionPreset, searchQuery, activeSubTab, sort, activeSizes, activeOccasions, activeConditions, activeColours, activeFabrics, activePriceRange]);
+  }, [user, blockedIds, categoriesStr, occasionPreset, searchQuery, activeSubTab, sort, activeSizes, activeOccasions, activeConditions, activeColours, activeFabrics, activePriceRange]);
 
   const applyClientFilters = useCallback((data: Listing[], trimmedQuery: string) => {
     let results = data;

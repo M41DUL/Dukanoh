@@ -21,6 +21,7 @@ import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/co
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useBlocked } from '@/context/BlockedContext';
 
 interface Seller {
   id: string;
@@ -44,6 +45,7 @@ interface Review {
 export default function SellerProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { isBlocked, blockUser } = useBlocked();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -57,6 +59,13 @@ export default function SellerProfileScreen() {
   const [canReview, setCanReview] = useState(false);
   const [firstConversationListingId, setFirstConversationListingId] = useState<string | null>(null);
   const [firstConversationId, setFirstConversationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (id && isBlocked(id)) {
+      router.back();
+      return;
+    }
+  }, [id, isBlocked]);
 
   useEffect(() => {
     if (!id) return;
@@ -143,8 +152,8 @@ export default function SellerProfileScreen() {
         text: 'Block',
         style: 'destructive',
         onPress: async () => {
-          if (!user) return;
-          await supabase.from('blocked_users').insert({ blocker_id: user.id, blocked_id: id });
+          if (!user || !id) return;
+          await blockUser(id);
           router.back();
         },
       },

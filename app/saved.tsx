@@ -14,12 +14,14 @@ import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { Typography, Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useBlocked } from '@/context/BlockedContext';
 import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
 export default function SavedScreen() {
   const { user } = useAuth();
+  const { blockedIds } = useBlocked();
   const { savedIds, toggleSave } = useSaved();
   const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,12 @@ export default function SavedScreen() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     if (data) {
-      setItems(data.map(d => d.listing as unknown as Listing).filter(Boolean));
+      setItems(
+        data
+          .map(d => d.listing as unknown as Listing)
+          .filter(Boolean)
+          .filter(item => !blockedIds.includes(item.seller_id))
+      );
     }
     setLoading(false);
   }, [user]);
