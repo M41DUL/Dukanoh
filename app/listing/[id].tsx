@@ -16,6 +16,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import * as Crypto from 'expo-crypto';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -187,11 +188,21 @@ export default function ListingDetailScreen() {
       .eq('buyer_id', user.id)
       .maybeSingle();
     if (existing) return existing.id as string;
-    const { data: created } = await supabase
+    const { data: created, error } = await supabase
       .from('conversations')
       .insert({ listing_id: id, buyer_id: user.id, seller_id: listing.seller_id })
       .select('id')
       .single();
+    if (error?.code === '23505') {
+      // Unique constraint hit (race condition) — row was just created, fetch it
+      const { data: retry } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('listing_id', id)
+        .eq('buyer_id', user.id)
+        .single();
+      return (retry?.id as string) ?? null;
+    }
     return (created?.id as string) ?? null;
   };
 
@@ -367,12 +378,12 @@ export default function ListingDetailScreen() {
       return;
     }
     const { error } = await supabase.from('messages').insert({
+      id: Crypto.randomUUID(),
       conversation_id: convId,
       listing_id: id!,
       sender_id: user.id,
       receiver_id: listing.seller_id,
       content: `__OFFER__:${amount.toFixed(2)}`,
-      created_at: new Date().toISOString(),
     });
     setOfferSending(false);
     if (error) {

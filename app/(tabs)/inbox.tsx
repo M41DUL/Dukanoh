@@ -82,27 +82,56 @@ export default function InboxScreen() {
   }, [fetchConversations]));
 
   // Realtime: listen for conversation updates (new messages update last_message + updated_at)
+  const handleRealtimeChange = useCallback((payload: any) => {
+    if (!user) return;
+    const { eventType, new: row } = payload;
+
+    if (eventType === 'UPDATE' && row) {
+      setConversations(prev => {
+        const idx = prev.findIndex(c => c.id === row.id);
+        if (idx === -1) {
+          // Conversation not in list yet — full fetch needed
+          fetchConversations();
+          return prev;
+        }
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          last_message: row.last_message ?? '',
+          updated_at: row.updated_at,
+          unread: !!row.last_message_sender_id && row.last_message_sender_id !== user.id,
+        };
+        // Re-sort by updated_at descending
+        updated.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        return updated;
+      });
+    } else {
+      // INSERT or DELETE — fetch all to get joined user data
+      fetchConversations();
+    }
+  }, [user, fetchConversations]);
+
   useFocusEffect(useCallback(() => {
     if (!user) return;
 
     const channel = supabase
-      .channel('inbox')
+      .channel(`inbox:${user.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations', filter: `buyer_id=eq.${user.id}` },
-        () => fetchConversations()
+        handleRealtimeChange
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations', filter: `seller_id=eq.${user.id}` },
-        () => fetchConversations()
+        handleRealtimeChange
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchConversations]));
+  }, [user, handleRealtimeChange]));
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -121,8 +150,14 @@ export default function InboxScreen() {
   };
 
   const formatLastMessage = (msg: string) => {
-    if (msg.startsWith('__OFFER_ACCEPTED__:')) return `Offer of £${msg.slice('__OFFER_ACCEPTED__:'.length)} accepted`;
-    if (msg.startsWith('__OFFER_DECLINED__:')) return `Offer of £${msg.slice('__OFFER_DECLINED__:'.length)} declined`;
+    if (msg.startsWith('__OFFER_ACCEPTED__:') || msg.startsWith('__OFFER_DECLINED__:')) {
+      const isAccepted = msg.startsWith('__OFFER_ACCEPTED__:');
+      const payload = msg.slice(isAccepted ? '__OFFER_ACCEPTED__:'.length : '__OFFER_DECLINED__:'.length);
+      const parts = payload.split(':');
+      // New format: "offerId:amount", Legacy: "amount"
+      const amount = parts.length >= 2 ? parts.slice(1).join(':') : parts[0];
+      return `Offer of £${amount} ${isAccepted ? 'accepted' : 'declined'}`;
+    }
     if (msg.startsWith('__OFFER__:')) return `Offer: £${msg.slice('__OFFER__:'.length)}`;
     return msg;
   };

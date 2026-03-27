@@ -19,6 +19,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto';
 
 interface Message {
   id: string;
@@ -45,9 +46,13 @@ export default function ConversationScreen() {
   const [loadError, setLoadError] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const listRef = useRef<FlatList>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
+
+  const PAGE_SIZE = 40;
 
   useEffect(() => {
     if (!id || !user) return;
@@ -57,7 +62,7 @@ export default function ConversationScreen() {
       supabase
         .from('conversations')
         .select(`
-          listing_id, buyer_id, seller_id,
+          listing_id, buyer_id, seller_id, last_message_sender_id,
           buyer:users!conversations_buyer_id_fkey ( username ),
           seller:users!conversations_seller_id_fkey ( username ),
           listing:listings!conversations_listing_id_fkey ( title, status )
@@ -68,7 +73,8 @@ export default function ConversationScreen() {
         .from('messages')
         .select('*')
         .eq('conversation_id', id)
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .range(0, PAGE_SIZE - 1),
     ]).then(([{ data: conv, error: convErr }, { data: msgs }]) => {
       if (convErr || !conv) {
         setLoadError(true);
@@ -85,8 +91,19 @@ export default function ConversationScreen() {
           listing_title: c.listing?.title ?? '',
           listing_status: c.listing?.status ?? 'available',
         });
+        // Mark as read if the last message was from the other person
+        if (c.last_message_sender_id && c.last_message_sender_id !== user.id) {
+          supabase
+            .from('conversations')
+            .update({ last_message_sender_id: null })
+            .eq('id', id)
+            .then(() => {});
+        }
       }
-      if (msgs) setMessages(msgs as Message[]);
+      if (msgs) {
+        setMessages(msgs as Message[]);
+        setHasMore(msgs.length === PAGE_SIZE);
+      }
       setLoading(false);
     });
 
@@ -97,6 +114,15 @@ export default function ConversationScreen() {
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
         payload => {
           setMessages(prev => [payload.new as Message, ...prev]);
+          // Mark as read immediately since the user is viewing the conversation
+          const msg = payload.new as Message;
+          if (msg.sender_id !== user.id) {
+            supabase
+              .from('conversations')
+              .update({ last_message_sender_id: null })
+              .eq('id', id)
+              .then(() => {});
+          }
         }
       )
       .subscribe();
@@ -106,26 +132,27 @@ export default function ConversationScreen() {
     };
   }, [id, user]);
 
-  const respondToOffer = async (amount: string, accepted: boolean) => {
+  const respondToOffer = async (offerId: string, amount: string, accepted: boolean) => {
     if (!user || !id || !meta) return;
 
     const receiverId = user.id === meta.buyer_id ? meta.seller_id : meta.buyer_id;
-    const content = accepted ? `__OFFER_ACCEPTED__:${amount}` : `__OFFER_DECLINED__:${amount}`;
+    const content = accepted ? `__OFFER_ACCEPTED__:${offerId}:${amount}` : `__OFFER_DECLINED__:${offerId}:${amount}`;
 
     const { error } = await supabase.from('messages').insert({
+      id: Crypto.randomUUID(),
       conversation_id: id,
       listing_id: meta.listing_id,
       sender_id: user.id,
       receiver_id: receiverId,
       content,
     });
-    if (error) {
+    if (error && error.code !== '23505') {
       Alert.alert('Error', 'Failed to respond to offer. Please try again.');
     }
   };
 
   const handleSend = async () => {
-    if (!text.trim() || !user || !id || !meta) return;
+    if (!text.trim() || sending || !user || !id || !meta) return;
 
     setSending(true);
     const content = text.trim();
@@ -134,6 +161,7 @@ export default function ConversationScreen() {
     const receiverId = user.id === meta.buyer_id ? meta.seller_id : meta.buyer_id;
 
     const { error } = await supabase.from('messages').insert({
+      id: Crypto.randomUUID(),
       conversation_id: id,
       listing_id: meta.listing_id,
       sender_id: user.id,
@@ -141,12 +169,28 @@ export default function ConversationScreen() {
       content,
     });
 
-    if (error) {
+    if (error && error.code !== '23505') {
       setText(content); // Restore text so user can retry
       Alert.alert('Error', 'Failed to send message. Please try again.');
     }
 
     setSending(false);
+  };
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore || !id || messages.length === 0) return;
+    setLoadingMore(true);
+    const { data: older } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', id)
+      .order('created_at', { ascending: false })
+      .range(messages.length, messages.length + PAGE_SIZE - 1);
+    if (older) {
+      setMessages(prev => [...prev, ...(older as Message[])]);
+      setHasMore(older.length === PAGE_SIZE);
+    }
+    setLoadingMore(false);
   };
 
   const formatDateLabel = (dateStr: string) => {
@@ -171,9 +215,18 @@ export default function ConversationScreen() {
     const nextItem = messages[index + 1];
     const showDate = !nextItem || getDateKey(item.created_at) !== getDateKey(nextItem.created_at);
 
+    // Parse offer response content — supports both new format (with offerId) and legacy (amount only)
+    const parseOfferResponse = (content: string, prefix: string) => {
+      const payload = content.slice(prefix.length);
+      const parts = payload.split(':');
+      // New format: "offerId:amount", Legacy format: "amount"
+      if (parts.length >= 2) return { offerId: parts[0], amount: parts.slice(1).join(':') };
+      return { offerId: null, amount: parts[0] };
+    };
+
     let bubble;
     if (item.content.startsWith('__OFFER_ACCEPTED__:')) {
-      const amount = item.content.slice('__OFFER_ACCEPTED__:'.length);
+      const { amount } = parseOfferResponse(item.content, '__OFFER_ACCEPTED__:');
       bubble = (
         <View style={[styles.offerResponseBubble, { alignSelf: isOwn ? 'flex-end' : 'flex-start' }]}>
           <Ionicons name="checkmark-circle" size={16} color={colors.success} />
@@ -181,7 +234,7 @@ export default function ConversationScreen() {
         </View>
       );
     } else if (item.content.startsWith('__OFFER_DECLINED__:')) {
-      const amount = item.content.slice('__OFFER_DECLINED__:'.length);
+      const { amount } = parseOfferResponse(item.content, '__OFFER_DECLINED__:');
       bubble = (
         <View style={[styles.offerResponseBubble, { alignSelf: isOwn ? 'flex-end' : 'flex-start' }]}>
           <Ionicons name="close-circle" size={16} color={colors.error} />
@@ -191,10 +244,16 @@ export default function ConversationScreen() {
     } else if (item.content.startsWith('__OFFER__:')) {
       const amount = item.content.slice('__OFFER__:'.length);
 
-      // Show accept/decline only for the receiver of the offer, and only if no response exists yet
-      const hasResponse = messages.some(m =>
-        m.content === `__OFFER_ACCEPTED__:${amount}` || m.content === `__OFFER_DECLINED__:${amount}`
-      );
+      // Check if this specific offer has a response (by offer ID or legacy amount match)
+      const hasResponse = messages.some(m => {
+        if (m.content.startsWith('__OFFER_ACCEPTED__:') || m.content.startsWith('__OFFER_DECLINED__:')) {
+          const prefix = m.content.startsWith('__OFFER_ACCEPTED__:') ? '__OFFER_ACCEPTED__:' : '__OFFER_DECLINED__:';
+          const { offerId } = parseOfferResponse(m.content, prefix);
+          // New format: match by offer ID. Legacy: fall back to amount match.
+          return offerId ? offerId === item.id : m.content.endsWith(`:${amount}`) || m.content.endsWith(amount);
+        }
+        return false;
+      });
       const canRespond = !isOwn && !hasResponse;
 
       bubble = (
@@ -208,10 +267,10 @@ export default function ConversationScreen() {
           </View>
           {canRespond && (
             <View style={styles.offerActions}>
-              <TouchableOpacity style={styles.declineBtn} onPress={() => respondToOffer(amount, false)}>
+              <TouchableOpacity style={styles.declineBtn} onPress={() => respondToOffer(item.id, amount, false)}>
                 <Text style={styles.declineBtnText}>Decline</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.acceptBtn} onPress={() => respondToOffer(amount, true)}>
+              <TouchableOpacity style={styles.acceptBtn} onPress={() => respondToOffer(item.id, amount, true)}>
                 <Text style={styles.acceptBtnText}>Accept</Text>
               </TouchableOpacity>
             </View>
@@ -268,20 +327,27 @@ export default function ConversationScreen() {
       <Header
         showBack
         title={meta?.other_username ? `@${meta.other_username}` : 'Message'}
-        subtitle={meta?.listing_title}
-        onSubtitlePress={meta ? () => router.push(`/listing/${meta.listing_id}`) : undefined}
       />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}
       >
-        {meta?.listing_status === 'sold' && (
-          <View style={styles.soldBanner}>
-            <Ionicons name="information-circle-outline" size={16} color={colors.textSecondary} />
-            <Text style={styles.soldBannerText}>This item has been sold</Text>
-          </View>
-        )}
+        {meta?.listing_title ? (
+          <TouchableOpacity
+            style={styles.listingCard}
+            onPress={meta ? () => router.push(`/listing/${meta.listing_id}`) : undefined}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.listingCardTitle} numberOfLines={1}>{meta.listing_title}</Text>
+            {meta.listing_status === 'sold' && (
+              <View style={styles.soldTag}>
+                <Text style={styles.soldTagText}>Sold</Text>
+              </View>
+            )}
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        ) : null}
         <FlatList
           ref={listRef}
           data={messages}
@@ -290,6 +356,9 @@ export default function ConversationScreen() {
           inverted
           contentContainerStyle={[styles.messageList, messages.length === 0 && styles.emptyList]}
           showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={loadingMore ? <LoadingSpinner /> : null}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Ionicons name="chatbubble-outline" size={40} color={colors.textSecondary} />
@@ -298,25 +367,32 @@ export default function ConversationScreen() {
           }
         />
 
-        <View style={styles.inputRow}>
-          <Input
-            placeholder="Message…"
-            value={text}
-            onChangeText={setText}
-            containerStyle={styles.inputContainer}
-            returnKeyType="send"
-            onSubmitEditing={handleSend}
-            maxLength={1000}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, (!text.trim() || sending) && styles.sendDisabled]}
-            onPress={handleSend}
-            disabled={!text.trim() || sending}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-up" size={20} color={colors.background} />
-          </TouchableOpacity>
-        </View>
+        {meta?.listing_status === 'sold' ? (
+          <View style={styles.soldInputRow}>
+            <Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} />
+            <Text style={styles.soldInputText}>This listing has been sold</Text>
+          </View>
+        ) : (
+          <View style={styles.inputRow}>
+            <Input
+              placeholder="Message…"
+              value={text}
+              onChangeText={setText}
+              containerStyle={styles.inputContainer}
+              returnKeyType="send"
+              onSubmitEditing={handleSend}
+              maxLength={1000}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, (!text.trim() || sending) && styles.sendDisabled]}
+              onPress={handleSend}
+              disabled={!text.trim() || sending}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-up" size={20} color={colors.background} />
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </ScreenWrapper>
   );
@@ -325,17 +401,34 @@ export default function ConversationScreen() {
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     flex: { flex: 1 },
-    soldBanner: {
+    listingCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
+      gap: Spacing.sm,
       paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
+      marginTop: Spacing.sm,
+      marginBottom: Spacing.sm,
       backgroundColor: colors.surface,
+      borderRadius: BorderRadius.medium,
     },
-    soldBannerText: {
+    listingCardTitle: {
       ...Typography.caption,
-      color: colors.textSecondary,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_600SemiBold',
+      flex: 1,
+    },
+    soldTag: {
+      backgroundColor: colors.error,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderRadius: BorderRadius.small,
+    },
+    soldTagText: {
+      ...Typography.caption,
+      fontSize: 10,
+      color: '#FFFFFF',
+      fontFamily: 'Inter_600SemiBold',
     },
     messageList: {
       paddingVertical: Spacing.base,
@@ -452,7 +545,8 @@ function getStyles(colors: ColorTokens) {
     inputRow: {
       flexDirection: 'row',
       alignItems: 'flex-end',
-      paddingVertical: Spacing.base,
+      paddingTop: Spacing.base,
+      paddingBottom: Spacing['2xl'],
       gap: Spacing.sm,
       borderTopWidth: 1,
       borderTopColor: colors.border,
@@ -468,5 +562,20 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'center',
     },
     sendDisabled: { opacity: 0.4 },
+    soldInputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      paddingTop: Spacing.base,
+      paddingBottom: Spacing['2xl'],
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    soldInputText: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+    },
   });
 }

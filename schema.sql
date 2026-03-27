@@ -204,7 +204,18 @@ CREATE POLICY "Participants can view messages"
   USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
 
 CREATE POLICY "Users can send messages"
-  ON public.messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
+  ON public.messages FOR INSERT WITH CHECK (
+    auth.uid() = sender_id
+    AND EXISTS (
+      SELECT 1 FROM public.conversations c
+      WHERE c.id = conversation_id
+        AND c.listing_id = listing_id
+        AND (
+          (c.buyer_id = auth.uid() AND c.seller_id = receiver_id)
+          OR (c.seller_id = auth.uid() AND c.buyer_id = receiver_id)
+        )
+    )
+  );
 
 -- Reviews
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS rating_avg NUMERIC(3,2) DEFAULT 0;

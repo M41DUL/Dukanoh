@@ -29,7 +29,7 @@ export function useUnreadCount() {
 
     // Re-check when conversations are updated (trigger fires on new message)
     const channel = supabase
-      .channel('unread-count')
+      .channel(`unread-count:${user.id}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'conversations' },

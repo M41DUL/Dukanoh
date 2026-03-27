@@ -360,7 +360,7 @@ export default function SellScreen() {
   return (
     <ScreenWrapper contentStyle={{ paddingHorizontal: 0 }}>
       <View style={styles.padded}>
-        <Header title="New Listing" titleStyle={{ fontSize: 16, fontWeight: '600', fontFamily: 'Inter_600SemiBold' }} />
+        <Header title="New Listing" />
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {/* Progress bar */}

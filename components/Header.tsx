@@ -67,7 +67,7 @@ function getStyles(colors: ColorTokens) {
     sideRight: { alignItems: 'flex-end' },
     backButton: { padding: Spacing.xs },
     titleWrap: { flex: 1, alignItems: 'center' },
-    title: { ...Typography.subheading, color: colors.textPrimary },
+    title: { fontSize: 16, fontWeight: '600', fontFamily: 'Inter_600SemiBold', color: colors.textPrimary },
     subtitle: { ...Typography.caption, color: colors.textSecondary, marginTop: 2 },
     subtitleLink: { color: colors.primary },
   });
