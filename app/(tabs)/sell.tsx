@@ -40,12 +40,11 @@ export default function SellScreen() {
   const [sellerStatus, setSellerStatus] = useState<'loading' | 'not_seller' | 'seller'>('loading');
 
   useFocusEffect(useCallback(() => {
-    if (!user || sellerStatus === 'seller') return;
-    setSellerStatus('loading');
+    if (!user) return;
     supabase.from('users').select('is_seller').eq('id', user.id).single().then(({ data }) => {
       setSellerStatus(data?.is_seller ? 'seller' : 'not_seller');
     });
-  }, [user, sellerStatus]));
+  }, [user]));
   const emptyForm: ListingForm = {
     title: '', description: '', price: '', gender: '', category: '',
     condition: '', occasion: '', size: '', colour: '', fabric: '', worn_at: '',
