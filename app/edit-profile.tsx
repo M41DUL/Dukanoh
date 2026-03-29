@@ -7,6 +7,7 @@ import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
+import { LocationPicker } from '@/components/LocationPicker';
 import { Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,6 +24,7 @@ export default function EditProfileScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [locationPickerVisible, setLocationPickerVisible] = useState(false);
 
   React.useEffect(() => {
     if (!user) return;
@@ -179,13 +181,20 @@ export default function EditProfileScreen() {
           style={styles.bioInput}
         />
 
-        <Input
-          label="Location"
-          value={location}
-          onChangeText={setLocation}
-          placeholder="e.g. London, UK"
-          maxLength={50}
-        />
+        <View>
+          <Input
+            label="Location"
+            value={location}
+            placeholder="Select your location"
+            editable={false}
+            rightIcon={<Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />}
+          />
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setLocationPickerVisible(true)}
+            activeOpacity={0.7}
+          />
+        </View>
 
         <Button
           label={saving ? 'Saving...' : 'Save'}
@@ -196,6 +205,12 @@ export default function EditProfileScreen() {
         />
       </ScrollView>
       </KeyboardAvoidingView>
+
+      <LocationPicker
+        visible={locationPickerVisible}
+        onClose={() => setLocationPickerVisible(false)}
+        onSelect={(loc) => setLocation(loc)}
+      />
     </ScreenWrapper>
   );
 }
