@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Fuse from 'fuse.js';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { Header } from '@/components/Header';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -344,16 +345,16 @@ export default function ListingsScreen() {
   // ─── Render ───────────────────────────────────────────────
   return (
     <ScreenWrapper>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
-        <TouchableOpacity onPress={() => setShowFilterSheet(true)} hitSlop={8} style={styles.headerIconBtn}>
-          <Ionicons name="options-outline" size={22} color={totalFilterCount > 0 ? colors.primary : colors.textPrimary} />
-          {totalFilterCount > 0 && <View style={styles.filterBadge} />}
-        </TouchableOpacity>
-      </View>
+      <Header
+        title={title}
+        showBack
+        rightAction={
+          <TouchableOpacity onPress={() => setShowFilterSheet(true)} hitSlop={8} style={styles.headerIconBtn}>
+            <Ionicons name="options-outline" size={22} color={totalFilterCount > 0 ? colors.primary : colors.textPrimary} />
+            {totalFilterCount > 0 && <View style={styles.filterBadge} />}
+          </TouchableOpacity>
+        }
+      />
 
       {/* Sub-tabs */}
       {subTabs.length > 0 && (
@@ -526,22 +527,6 @@ export default function ListingsScreen() {
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingTop: Spacing.sm,
-      paddingBottom: Spacing.xs,
-    },
-    backBtn: { padding: Spacing.xs },
-    headerTitle: {
-      ...Typography.body,
-      fontSize: 16,
-      fontWeight: '600',
-      fontFamily: 'Inter_600SemiBold',
-      color: colors.textPrimary,
-      flex: 1,
-      textAlign: 'center',
-    },
     headerIconBtn: {
       padding: Spacing.xs,
       position: 'relative',

@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
@@ -67,13 +68,7 @@ export default function ReviewScreen() {
 
   return (
     <ScreenWrapper>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Rate seller</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <Header title="Rate seller" showBack />
 
       <View style={styles.body}>
         <Text style={styles.sellerLabel}>@{sellerName}</Text>
@@ -123,19 +118,6 @@ export default function ReviewScreen() {
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: Spacing.sm,
-    },
-    backBtn: { padding: Spacing.xs },
-    headerTitle: {
-      ...Typography.subheading,
-      color: colors.textPrimary,
-      flex: 1,
-      textAlign: 'center',
-    },
-    headerSpacer: { width: 32 },
     body: {
       flex: 1,
       paddingTop: Spacing.xl,

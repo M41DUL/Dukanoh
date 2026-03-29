@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Share, Alert } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { Header } from '@/components/Header';
 import { Avatar } from '@/components/Avatar';
 import { Divider } from '@/components/Divider';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -87,13 +88,7 @@ export default function InviteFriendsScreen() {
 
   return (
     <ScreenWrapper>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Invite Friends</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <Header title="Invite Friends" showBack />
 
       {loading ? (
         <LoadingSpinner />
@@ -172,20 +167,6 @@ export default function InviteFriendsScreen() {
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingTop: Spacing.sm,
-      paddingBottom: Spacing.xs,
-    },
-    backBtn: { padding: Spacing.xs, width: 40 },
-    headerTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      fontFamily: 'Inter_600SemiBold',
-      color: colors.textPrimary,
-    },
     content: {
       paddingTop: Spacing.xl,
       paddingBottom: Spacing['3xl'],

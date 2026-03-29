@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
-  Text,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { Header } from '@/components/Header';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
-import { Typography, Spacing, ColorTokens } from '@/constants/theme';
+import { Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useBlocked } from '@/context/BlockedContext';
 import { useSaved } from '@/context/SavedContext';
@@ -56,13 +55,7 @@ export default function SavedScreen() {
 
   return (
     <ScreenWrapper>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Saved</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <Header title="Saved" showBack />
 
       {loading ? (
         <ActivityIndicator size="large" color={colors.primaryText} style={styles.loader} />
@@ -96,19 +89,6 @@ export default function SavedScreen() {
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: Spacing.sm,
-    },
-    backBtn: { padding: Spacing.xs },
-    headerTitle: {
-      ...Typography.subheading,
-      color: colors.textPrimary,
-      flex: 1,
-      textAlign: 'center',
-    },
-    headerSpacer: { width: 32 },
     loader: { flex: 1 },
     content: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
     row: { gap: Spacing.sm, marginBottom: Spacing.sm },

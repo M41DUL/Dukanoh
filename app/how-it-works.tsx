@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -60,13 +60,7 @@ export default function HowItWorksScreen() {
 
   return (
     <ScreenWrapper>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>How Dukanoh Works</Text>
-        <View style={styles.backBtn} />
-      </View>
+      <Header title="How Dukanoh Works" showBack />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -113,20 +107,6 @@ export default function HowItWorksScreen() {
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingTop: Spacing.sm,
-      paddingBottom: Spacing.xs,
-    },
-    backBtn: { padding: Spacing.xs, width: 40 },
-    headerTitle: {
-      fontSize: 16,
-      fontWeight: '600',
-      fontFamily: 'Inter_600SemiBold',
-      color: colors.textPrimary,
-    },
     content: {
       paddingTop: Spacing['2xl'],
       paddingBottom: Spacing['3xl'],
