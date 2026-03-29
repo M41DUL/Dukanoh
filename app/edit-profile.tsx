@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, KeyboardAvoidingView, ScrollView, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, KeyboardAvoidingView, ScrollView, TouchableOpacity, StyleSheet, Alert, Platform, ActionSheetIOS } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -42,26 +42,20 @@ export default function EditProfileScreen() {
       });
   }, [user]);
 
-  const pickImage = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-    if (result.canceled || !result.assets[0] || !user) return;
+  const uploadAvatar = useCallback(async (uri: string) => {
+    if (!user) return;
+    const path = `${user.id}.jpg`;
 
-    const uri = result.assets[0].uri;
-    const ext = uri.split('.').pop() || 'jpg';
-    const path = `${user.id}/avatar.${ext}`;
-
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    const arrayBuffer = await new Response(blob).arrayBuffer();
+    const formData = new FormData();
+    formData.append('file', {
+      uri,
+      name: path,
+      type: 'image/jpeg',
+    } as any);
 
     const { error } = await supabase.storage
       .from('avatars')
-      .upload(path, arrayBuffer, { contentType: `image/${ext}`, upsert: true });
+      .upload(path, formData, { contentType: 'multipart/form-data', upsert: true });
 
     if (error) {
       Alert.alert('Upload failed', error.message);
@@ -73,6 +67,52 @@ export default function EditProfileScreen() {
     await supabase.from('users').update({ avatar_url: newUrl }).eq('id', user.id);
     setAvatarUrl(newUrl);
   }, [user]);
+
+  const pickFromLibrary = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]) {
+      await uploadAvatar(result.assets[0].uri);
+    }
+  }, [uploadAvatar]);
+
+  const takePhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Camera access is required to take a photo.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]) {
+      await uploadAvatar(result.assets[0].uri);
+    }
+  }, [uploadAvatar]);
+
+  const handleChangePhoto = useCallback(() => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Cancel', 'Take Photo', 'Choose from Library'], cancelButtonIndex: 0 },
+        (index) => {
+          if (index === 1) takePhoto();
+          if (index === 2) pickFromLibrary();
+        },
+      );
+    } else {
+      Alert.alert('Change Photo', undefined, [
+        { text: 'Take Photo', onPress: takePhoto },
+        { text: 'Choose from Library', onPress: pickFromLibrary },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
+  }, [takePhoto, pickFromLibrary]);
 
   const handleSave = useCallback(async () => {
     if (!user) return;
@@ -116,7 +156,7 @@ export default function EditProfileScreen() {
         style={styles.flex}
       >
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity style={styles.avatarSection} onPress={pickImage} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.avatarSection} onPress={handleChangePhoto} activeOpacity={0.7}>
           <Avatar uri={avatarUrl} initials={name[0]?.toUpperCase()} size="xlarge" />
           <Text style={styles.changePhoto}>Change photo</Text>
         </TouchableOpacity>
