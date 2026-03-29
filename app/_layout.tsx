@@ -119,6 +119,26 @@ function RootNavigator() {
           name="reset-password"
           options={{ animation: 'fade' }}
         />
+        <Stack.Screen
+          name="edit-profile"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="orders"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="invite-friends"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="how-it-works"
+          options={{ animation: 'slide_from_right' }}
+        />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {splashVisible && (

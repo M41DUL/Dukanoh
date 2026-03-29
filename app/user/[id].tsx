@@ -74,7 +74,7 @@ export default function SellerProfileScreen() {
       supabase.from('users').select('*').eq('id', id).single(),
       supabase
         .from('listings')
-        .select('*, seller:users(username, avatar_url)')
+        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
         .eq('seller_id', id)
         .eq('status', 'available')
         .order('created_at', { ascending: false })

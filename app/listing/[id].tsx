@@ -104,7 +104,7 @@ export default function ListingDetailScreen() {
 
     supabase
       .from('listings')
-      .select('*, seller:users(username, avatar_url, rating_avg, rating_count, created_at)')
+      .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at)')
       .eq('id', id)
       .single()
       .then(({ data }) => {
@@ -122,7 +122,7 @@ export default function ListingDetailScreen() {
             .then(({ count }) => setSoldCount(count ?? 0));
           supabase
             .from('listings')
-            .select('*, seller:users(username, avatar_url)')
+            .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
             .eq('seller_id', data.seller_id)
             .eq('status', 'available')
             .neq('id', id)
@@ -134,7 +134,7 @@ export default function ListingDetailScreen() {
           (() => {
             let simQ = supabase
               .from('listings')
-              .select('*, seller:users(username, avatar_url)')
+              .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
               .eq('category', data.category)
               .eq('status', 'available')
               .neq('id', id)

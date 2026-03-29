@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
-type AvatarSize = 'small' | 'medium' | 'large';
+type AvatarSize = 'small' | 'medium' | 'large' | 'xlarge';
 
 interface AvatarProps {
   uri?: string;
@@ -11,8 +11,8 @@ interface AvatarProps {
   size?: AvatarSize;
 }
 
-const sizeMap: Record<AvatarSize, number> = { small: 28, medium: 40, large: 64 };
-const fontSizeMap: Record<AvatarSize, number> = { small: 10, medium: 14, large: 22 };
+const sizeMap: Record<AvatarSize, number> = { small: 28, medium: 40, large: 64, xlarge: 96 };
+const fontSizeMap: Record<AvatarSize, number> = { small: 10, medium: 14, large: 22, xlarge: 32 };
 
 export function Avatar({ uri, initials = '?', size = 'medium' }: AvatarProps) {
   const colors = useThemeColors();

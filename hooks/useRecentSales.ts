@@ -23,7 +23,7 @@ export function useRecentSales() {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from('listings')
-        .select('id, title, images, sold_at, seller:users(username)')
+        .select('id, title, images, sold_at, seller:users!listings_seller_id_fkey(username)')
         .eq('status', 'sold')
         .not('sold_at', 'is', null)
         .gte('sold_at', since)

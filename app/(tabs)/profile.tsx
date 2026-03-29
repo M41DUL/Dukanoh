@@ -1,445 +1,316 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TextInput, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, RefreshControl } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
-import { Button } from '@/components/Button';
-import { ListingCard, Listing } from '@/components/ListingCard';
-import { EmptyState } from '@/components/EmptyState';
 import { Divider } from '@/components/Divider';
+import { StarRating } from '@/components/StarRating';
 import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
-import { useTheme } from '@/context/ThemeContext';
-import { useBlocked } from '@/context/BlockedContext';
-import { supabase } from '@/lib/supabase';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
-import { useSaved } from '@/context/SavedContext';
-import { StarRating } from '@/components/StarRating';
-import { BottomSheet } from '@/components/BottomSheet';
-import type { ThemePreference } from '@/context/ThemeContext';
+import { supabase } from '@/lib/supabase';
+import type { ComponentProps } from 'react';
 
-const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
-  { label: 'System', value: 'system' },
-  { label: 'Light', value: 'light' },
-  { label: 'Dark', value: 'dark' },
-];
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+
+interface QuickAction {
+  icon: IoniconsName;
+  label: string;
+  onPress: () => void;
+}
+
+interface SectionRow {
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}
 
 export default function ProfileScreen() {
-  const { user, signOut, refreshProfile } = useAuth();
-  const { preference, setPreference } = useTheme();
-  const { savedIds } = useSaved();
-  const { blockedIds, unblockUser } = useBlocked();
-  const [listings, setListings] = useState<Listing[]>([]);
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
   const [profileName, setProfileName] = useState('');
-  const [profileBio, setProfileBio] = useState('');
   const [profileAvatar, setProfileAvatar] = useState<string | undefined>();
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState('');
-  const nameInputRef = useRef<TextInput>(null);
   const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
-  const [blockedSheetVisible, setBlockedSheetVisible] = useState(false);
-  const [blockedUsers, setBlockedUsers] = useState<{ id: string; username: string; avatar_url?: string }[]>([]);
-  const [blockedLoading, setBlockedLoading] = useState(false);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const fetchListings = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('listings')
-      .select('id, title, price, images, category, condition, size, status, created_at, seller_id, seller:users(username, avatar_url)')
-      .eq('seller_id', user.id)
-      .order('created_at', { ascending: false });
-    setListings((data ?? []) as unknown as Listing[]);
-  }, [user]);
+  const username = user?.user_metadata?.username ?? 'username';
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
     const { data } = await supabase
       .from('users')
-      .select('full_name, bio, avatar_url, rating_avg, rating_count')
+      .select('full_name, avatar_url, rating_avg, rating_count')
       .eq('id', user.id)
       .maybeSingle();
     if (data) {
       const name = data.full_name === 'New User' ? '' : (data.full_name ?? '');
       setProfileName(name);
-      setProfileBio(data.bio ?? '');
       setProfileAvatar(data.avatar_url ?? undefined);
       setRatingAvg(data.rating_avg ?? 0);
       setRatingCount(data.rating_count ?? 0);
     }
   }, [user]);
 
-  useEffect(() => {
-    fetchListings();
+  useFocusEffect(useCallback(() => {
     fetchProfile();
-  }, [fetchListings, fetchProfile]);
-
-  useFocusEffect(useCallback(() => { reloadRecent(); }, [reloadRecent]));
+    reloadRecent();
+  }, [fetchProfile, reloadRecent]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchListings(), fetchProfile(), reloadRecent()]);
+    await Promise.all([fetchProfile(), reloadRecent()]);
     setRefreshing(false);
-  }, [fetchListings, fetchProfile, reloadRecent]);
+  }, [fetchProfile, reloadRecent]);
 
-  const handleResetPreferences = () => {
-    Alert.alert(
-      'Reset preferences',
-      'This will take you back through the discovery flow.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            if (!user) return;
-            await supabase
-              .from('users')
-              .update({ preferred_categories: [], onboarding_completed: false })
-              .eq('id', user.id);
-            await refreshProfile();
-            router.replace('/onboarding?reset=true');
-          },
-        },
-      ]
-    );
-  };
+  const quickActions: QuickAction[] = [
+    { icon: 'bag-outline', label: 'My Orders', onPress: () => router.push('/orders') },
+    { icon: 'gift-outline', label: 'Invite', onPress: () => router.push('/invite-friends') },
+    { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
+    { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
+  ];
 
-  const username = user?.user_metadata?.username ?? 'username';
-
-  const saveName = useCallback(async () => {
-    const trimmed = nameDraft.trim();
-    if (!user || !trimmed || trimmed === profileName) {
-      setEditingName(false);
-      return;
-    }
-    await supabase.from('users').update({ full_name: trimmed }).eq('id', user.id);
-    setProfileName(trimmed);
-    setEditingName(false);
-  }, [user, nameDraft, profileName]);
-
-  const startEditingName = useCallback(() => {
-    setNameDraft(profileName);
-    setEditingName(true);
-    setTimeout(() => nameInputRef.current?.focus(), 100);
-  }, [profileName]);
-
-  const openBlockedSheet = useCallback(async () => {
-    setBlockedSheetVisible(true);
-    if (blockedIds.length === 0) { setBlockedUsers([]); return; }
-    setBlockedLoading(true);
-    const { data } = await supabase
-      .from('users')
-      .select('id, username, avatar_url')
-      .in('id', blockedIds);
-    setBlockedUsers((data ?? []) as { id: string; username: string; avatar_url?: string }[]);
-    setBlockedLoading(false);
-  }, [blockedIds]);
-
-  const handleUnblock = useCallback(async (userId: string, username: string) => {
-    Alert.alert('Unblock user', `Unblock @${username}? Their listings will appear again.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Unblock',
-        onPress: async () => {
-          await unblockUser(userId);
-          setBlockedUsers(prev => prev.filter(u => u.id !== userId));
-        },
-      },
-    ]);
-  }, [unblockUser]);
-
-  const publishedListings = listings.filter(l => l.status !== 'draft');
-  const draftListings = listings.filter(l => l.status === 'draft');
+  const sectionRows: SectionRow[] = [
+    {
+      title: 'How Dukanoh Works',
+      subtitle: 'Learn the basics',
+      onPress: () => router.push('/how-it-works'),
+    },
+    {
+      title: 'Help & Feedback',
+      subtitle: 'Get support',
+      onPress: () => {},
+    },
+    {
+      title: 'About Dukanoh',
+      subtitle: 'v1.0.0',
+      onPress: () => {},
+    },
+  ];
 
   return (
-    <ScreenWrapper>
-      <FlatList
-        data={publishedListings}
-        keyExtractor={item => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={styles.content}
+    <ScreenWrapper contentStyle={{ paddingHorizontal: 0 }}>
+      <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
-        renderItem={({ item }) => (
-          <ListingCard
-            listing={item}
-            variant="grid"
-            onPress={() => router.push(`/listing/${item.id}`)}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* ── Centered profile header ── */}
+        <View style={styles.profileHeader}>
+          <Avatar
+            uri={profileAvatar}
+            initials={(profileName || username)[0]?.toUpperCase()}
+            size="xlarge"
           />
-        )}
-        ListHeaderComponent={
-          <View>
-            <View style={styles.profileHeader}>
-              <Avatar uri={profileAvatar} initials={(profileName || username)[0]?.toUpperCase()} size="large" />
-              <View style={styles.info}>
-                {editingName ? (
-                  <TextInput
-                    ref={nameInputRef}
-                    style={styles.nameInput}
-                    value={nameDraft}
-                    onChangeText={setNameDraft}
-                    onBlur={saveName}
-                    onSubmitEditing={saveName}
-                    returnKeyType="done"
-                    placeholder="Your name"
-                    placeholderTextColor={colors.textSecondary}
-                    maxLength={50}
-                  />
-                ) : (
-                  <TouchableOpacity onPress={startEditingName} activeOpacity={0.7}>
-                    <Text style={styles.name}>
-                      {profileName || 'Add your name'}
-                    </Text>
-                    {!profileName && (
-                      <Text style={styles.nameHint}>Tap to add</Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-                <Text style={styles.username}>@{username}</Text>
-                {ratingCount > 0 && (
-                  <View style={styles.ratingRow}>
-                    <StarRating rating={ratingAvg} size={13} />
-                    <Text style={styles.ratingText}>
-                      {ratingAvg.toFixed(1)} ({ratingCount})
-                    </Text>
-                  </View>
-                )}
-                {profileBio ? <Text style={styles.bio}>{profileBio}</Text> : null}
-              </View>
+          {profileName ? (
+            <Text style={styles.name}>{profileName}</Text>
+          ) : null}
+          <Text style={styles.username}>@{username}</Text>
+          {ratingCount > 0 && (
+            <View style={styles.ratingRow}>
+              <StarRating rating={ratingAvg} size={14} />
+              <Text style={styles.ratingText}>
+                {ratingAvg.toFixed(1)} ({ratingCount})
+              </Text>
             </View>
-            <Divider />
+          )}
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={() => router.push('/edit-profile')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.editBtnText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Quick action icons ── */}
+        <View style={styles.quickActions}>
+          {quickActions.map(action => (
             <TouchableOpacity
-              style={styles.savedRow}
-              onPress={() => router.push('/saved')}
-              activeOpacity={0.8}
+              key={action.label}
+              style={styles.quickAction}
+              onPress={action.onPress}
+              activeOpacity={0.7}
             >
-              <Ionicons name="heart-outline" size={20} color={colors.textPrimary} />
-              <Text style={styles.savedRowLabel}>Saved items</Text>
-              {savedIds.size > 0 && (
-                <View style={styles.savedBadge}>
-                  <Text style={styles.savedBadgeText}>{savedIds.size}</Text>
-                </View>
-              )}
-              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} style={styles.savedChevron} />
+              <View style={styles.quickActionIcon}>
+                <Ionicons name={action.icon} size={24} color={colors.textPrimary} />
+              </View>
+              <Text style={styles.quickActionLabel}>{action.label}</Text>
             </TouchableOpacity>
-            <Divider />
-            <TouchableOpacity
-              style={styles.savedRow}
-              onPress={openBlockedSheet}
-              activeOpacity={0.8}
+          ))}
+        </View>
+
+        {/* ── Recently viewed ── */}
+        {recentItems.length > 0 && (
+          <View style={styles.recentSection}>
+            <View style={styles.padded}>
+              <Text style={styles.sectionTitle}>Recently Viewed</Text>
+              <Text style={styles.sectionSubtitle}>Pick up where you left off</Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.recentScroll}
             >
-              <Ionicons name="ban-outline" size={20} color={colors.textPrimary} />
-              <Text style={styles.savedRowLabel}>Blocked users</Text>
-              {blockedIds.length > 0 && (
-                <View style={[styles.savedBadge, { backgroundColor: colors.error }]}>
-                  <Text style={styles.savedBadgeText}>{blockedIds.length}</Text>
-                </View>
-              )}
-              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} style={styles.savedChevron} />
-            </TouchableOpacity>
-            <Divider />
-            {recentItems.length > 0 && (
-              <View style={styles.recentSection}>
-                <Text style={styles.sectionLabel}>Recently viewed</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.recentScroll}
-                  contentContainerStyle={styles.recentContent}
-                >
-                  {recentItems.map(item => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={styles.recentCard}
-                      onPress={() => router.push(`/listing/${item.id}`)}
-                      activeOpacity={0.8}
-                    >
-                      <Image
-                        source={{ uri: item.images?.[0] }}
-                        style={styles.recentImage}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                      <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
-                      <Text style={styles.recentPrice}>£{item.price?.toFixed(2)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <Divider />
-              </View>
-            )}
-            {draftListings.length > 0 && (
-              <View style={styles.draftsSection}>
-                <Text style={styles.sectionLabel}>Drafts ({draftListings.length})</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.draftsScroll}
-                  contentContainerStyle={styles.draftsContent}
-                >
-                  {draftListings.map(item => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={styles.draftCard}
-                      onPress={() => router.push(`/listing/${item.id}`)}
-                      activeOpacity={0.8}
-                    >
-                      {item.images?.[0] ? (
-                        <Image
-                          source={{ uri: item.images[0] }}
-                          style={styles.draftImage}
-                          contentFit="cover"
-                          transition={200}
-                        />
-                      ) : (
-                        <View style={styles.draftImagePlaceholder}>
-                          <Ionicons name="image-outline" size={22} color={colors.textSecondary} />
-                        </View>
-                      )}
-                      <Text style={styles.draftTitle} numberOfLines={1}>{item.title}</Text>
-                      <Text style={styles.draftPrice}>
-                        {item.price > 0 ? `£${item.price.toFixed(2)}` : 'No price set'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <Divider />
-              </View>
-            )}
-            <Text style={styles.sectionLabel}>Listings</Text>
-          </View>
-        }
-        ListEmptyComponent={
-          <EmptyState
-            heading="No listings yet"
-            subtext="List your first item to start selling."
-            ctaLabel="Start selling"
-            onCta={() => router.push('/(tabs)/sell')}
-          />
-        }
-        ListFooterComponent={
-          <View style={styles.footer}>
-            {/* Theme picker */}
-            <View style={styles.themeRow}>
-              {THEME_OPTIONS.map(opt => (
+              {recentItems.map(item => (
                 <TouchableOpacity
-                  key={opt.value}
-                  style={[
-                    styles.themeBtn,
-                    preference === opt.value && styles.themeBtnActive,
-                  ]}
-                  onPress={() => setPreference(opt.value)}
+                  key={item.id}
+                  style={styles.recentCard}
+                  onPress={() => router.push(`/listing/${item.id}`)}
                   activeOpacity={0.8}
                 >
-                  <Text
-                    style={[
-                      styles.themeBtnText,
-                      preference === opt.value && styles.themeBtnTextActive,
-                    ]}
-                  >
-                    {opt.label}
+                  <Image
+                    source={{ uri: item.images?.[0] }}
+                    style={styles.recentImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                  <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.recentPrice}>
+                    {'\u00A3'}{item.price?.toFixed(2)}
                   </Text>
                 </TouchableOpacity>
               ))}
+            </ScrollView>
+            <View style={styles.padded}>
+              <Divider />
             </View>
-            <Button
-              label="Reset feed preferences"
-              variant="ghost"
-              onPress={handleResetPreferences}
-            />
-            <Button
-              label="Sign out"
-              variant="outline"
-              onPress={signOut}
-              style={styles.signOut}
-            />
           </View>
-        }
-      />
-      <BottomSheet
-        visible={blockedSheetVisible}
-        onClose={() => setBlockedSheetVisible(false)}
-      >
-        <Text style={styles.blockedTitle}>Blocked users</Text>
-        {blockedLoading ? (
-          <View style={styles.blockedEmpty}>
-            <Text style={styles.blockedEmptyText}>Loading...</Text>
-          </View>
-        ) : blockedUsers.length === 0 ? (
-          <View style={styles.blockedEmpty}>
-            <Text style={styles.blockedEmptyText}>No blocked users</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={blockedUsers}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-            renderItem={({ item }) => (
-              <View style={styles.blockedRow}>
-                <Avatar uri={item.avatar_url} initials={item.username[0]?.toUpperCase()} size="small" />
-                <Text style={styles.blockedUsername} numberOfLines={1}>@{item.username}</Text>
-                <TouchableOpacity
-                  style={styles.unblockBtn}
-                  onPress={() => handleUnblock(item.id, item.username)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.unblockBtnText}>Unblock</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          />
         )}
-      </BottomSheet>
+
+        {/* ── Section rows ── */}
+        <View style={styles.padded}>
+          {sectionRows.map((row, index) => (
+            <View key={row.title}>
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={row.onPress}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuRowText}>
+                  <Text style={styles.menuRowTitle}>{row.title}</Text>
+                  <Text style={styles.menuRowSubtitle}>{row.subtitle}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              {index < sectionRows.length - 1 && <Divider />}
+            </View>
+          ))}
+        </View>
+
+      </ScrollView>
     </ScreenWrapper>
   );
 }
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    content: {
+    scrollContent: {
       flexGrow: 1,
       paddingBottom: Spacing['3xl'],
     },
-    profileHeader: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: Spacing.base,
-      paddingVertical: Spacing.xl,
+    padded: {
+      paddingHorizontal: Spacing.base,
     },
-    info: { flex: 1, gap: Spacing.xs },
-    name: { ...Typography.subheading, color: colors.textPrimary },
-    nameInput: {
+
+    // Profile header
+    profileHeader: {
+      alignItems: 'center',
+      paddingTop: Spacing['2xl'],
+      paddingBottom: Spacing.xl,
+      gap: Spacing.xs,
+    },
+    name: {
       ...Typography.subheading,
       color: colors.textPrimary,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.primary,
-      paddingVertical: 2,
-      margin: 0,
+      marginTop: Spacing.lg,
     },
-    nameHint: { ...Typography.caption, color: colors.textSecondary },
-    username: { ...Typography.body, color: colors.textSecondary },
-    bio: { ...Typography.body, color: colors.textSecondary, marginTop: Spacing.xs },
-    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-    ratingText: { ...Typography.caption, color: colors.textSecondary },
-    sectionLabel: {
+    username: {
+      ...Typography.body,
+      color: colors.textSecondary,
+    },
+    ratingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      marginTop: Spacing.xs,
+    },
+    ratingText: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+    },
+    editBtn: {
+      marginTop: Spacing.md,
+      paddingHorizontal: Spacing.xl,
+      paddingVertical: Spacing.sm,
+      borderRadius: BorderRadius.full,
+      borderWidth: BorderWidth.standard,
+      borderColor: colors.border,
+    },
+    editBtnText: {
       ...Typography.label,
       color: colors.textPrimary,
-      marginBottom: Spacing.md,
+      fontFamily: 'Inter_600SemiBold',
     },
-    recentSection: { marginBottom: Spacing.xs },
-    recentScroll: { marginHorizontal: -Spacing.base },
-    recentContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.base },
+
+    // Quick actions
+    quickActions: {
+      flexDirection: 'row',
+      justifyContent: 'space-evenly',
+      paddingTop: Spacing.lg,
+      paddingBottom: Spacing['2xl'],
+      paddingHorizontal: Spacing.base,
+    },
+    quickAction: {
+      alignItems: 'center',
+      gap: Spacing.xs,
+      flex: 1,
+    },
+    quickActionIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      borderWidth: BorderWidth.standard,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    quickActionLabel: {
+      ...Typography.caption,
+      color: colors.textPrimary,
+      fontFamily: 'Inter_500Medium',
+    },
+
+    // Recently viewed
+    sectionTitle: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+      fontSize: 18,
+      fontFamily: 'Inter_500Medium',
+      fontWeight: '500',
+    },
+    sectionSubtitle: {
+      fontSize: 16,
+      fontFamily: 'Inter_400Regular',
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    recentSection: {
+      paddingTop: Spacing.lg,
+    },
+    recentScroll: {
+      paddingHorizontal: Spacing.base,
+      gap: Spacing.sm,
+      paddingTop: Spacing.md,
+      paddingBottom: Spacing.lg,
+    },
     recentCard: { width: 120 },
     recentImage: {
       width: 120,
@@ -458,120 +329,30 @@ function getStyles(colors: ColorTokens) {
       color: colors.primary,
       fontFamily: 'Inter_600SemiBold',
     },
-    draftsSection: { marginBottom: Spacing.xs },
-    draftsScroll: { marginHorizontal: -Spacing.base },
-    draftsContent: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.base },
-    draftCard: { width: 120 },
-    draftImage: {
-      width: 120,
-      height: 150,
-      borderRadius: BorderRadius.medium,
-      backgroundColor: colors.surface,
-      marginBottom: Spacing.xs,
-    },
-    draftImagePlaceholder: {
-      width: 120,
-      height: 150,
-      borderRadius: BorderRadius.medium,
-      backgroundColor: colors.surface,
-      marginBottom: Spacing.xs,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: BorderWidth.standard,
-      borderColor: colors.border,
-      borderStyle: 'dashed',
-    },
-    draftTitle: { ...Typography.caption, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
-    draftPrice: { ...Typography.caption, color: colors.textSecondary },
-    row: { gap: Spacing.sm, marginBottom: Spacing.sm },
-    savedRow: {
+
+    // Section rows
+    menuRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: Spacing.sm,
-      paddingVertical: Spacing.md,
+      paddingVertical: Spacing.lg,
     },
-    savedRowLabel: {
-      ...Typography.body,
-      color: colors.textPrimary,
+    menuRowText: {
       flex: 1,
+      gap: 2,
     },
-    savedBadge: {
-      backgroundColor: colors.primary,
-      borderRadius: BorderRadius.full,
-      minWidth: 20,
-      height: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 6,
-    },
-    savedBadgeText: {
-      ...Typography.caption,
-      color: '#FFFFFF',
-      fontFamily: 'Inter_700Bold',
-      fontSize: 11,
-    },
-    savedChevron: { marginLeft: Spacing.xs },
-    footer: { gap: Spacing.sm, marginTop: Spacing.xl },
-    signOut: {},
-    // Theme picker
-    themeRow: {
-      flexDirection: 'row',
-      borderRadius: BorderRadius.full,
-      borderWidth: BorderWidth.standard,
-      borderColor: colors.border,
-      overflow: 'hidden',
-    },
-    themeBtn: {
-      flex: 1,
-      paddingVertical: Spacing.sm,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    themeBtnActive: {
-      backgroundColor: colors.primary,
-    },
-    themeBtnText: {
-      ...Typography.label,
-      color: colors.textSecondary,
-    },
-    themeBtnTextActive: {
-      color: '#FFFFFF',
-    },
-    // Blocked users sheet
-    blockedTitle: {
+    menuRowTitle: {
       ...Typography.subheading,
       color: colors.textPrimary,
-      marginBottom: Spacing.base,
+      fontSize: 18,
+      fontFamily: 'Inter_500Medium',
+      fontWeight: '500',
     },
-    blockedEmpty: {
-      paddingVertical: Spacing.xl,
-      alignItems: 'center',
-    },
-    blockedEmptyText: {
-      ...Typography.body,
+    menuRowSubtitle: {
+      fontSize: 16,
+      fontFamily: 'Inter_400Regular',
       color: colors.textSecondary,
+      marginTop: 2,
     },
-    blockedRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      paddingVertical: Spacing.sm,
-    },
-    blockedUsername: {
-      ...Typography.body,
-      color: colors.textPrimary,
-      flex: 1,
-    },
-    unblockBtn: {
-      paddingHorizontal: Spacing.base,
-      paddingVertical: Spacing.xs,
-      borderRadius: BorderRadius.full,
-      borderWidth: BorderWidth.standard,
-      borderColor: colors.border,
-    },
-    unblockBtnText: {
-      ...Typography.label,
-      color: colors.textPrimary,
-    },
+
   });
 }

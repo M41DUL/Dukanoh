@@ -33,7 +33,7 @@ export default function SavedScreen() {
     setLoading(true);
     const { data } = await supabase
       .from('saved_items')
-      .select('listing_id, listing:listings(*, seller:users(username, avatar_url))')
+      .select('listing_id, listing:listings(*, seller:users!listings_seller_id_fkey(username, avatar_url))')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
     if (data) {

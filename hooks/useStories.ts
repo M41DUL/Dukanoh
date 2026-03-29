@@ -83,7 +83,7 @@ export function useStories() {
       // 24h available listings (exclude own)
       supabase
         .from('listings')
-        .select('id, title, price, images, category, condition, status, created_at, seller:users(username, avatar_url)')
+        .select('id, title, price, images, category, condition, status, created_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
         .eq('status', 'available')
         .neq('seller_id', user.id)
         .gte('created_at', since)

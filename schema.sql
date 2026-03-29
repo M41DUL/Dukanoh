@@ -20,6 +20,8 @@ CREATE TABLE public.users (
   preferred_categories  TEXT[] DEFAULT '{}',
   onboarding_completed  BOOLEAN DEFAULT FALSE,
   is_seller             BOOLEAN DEFAULT FALSE,
+  location              TEXT,
+  seller_invite_code    TEXT UNIQUE,
   created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -51,6 +53,7 @@ CREATE TABLE public.listings (
   measurements JSONB,
   worn_at      TEXT,
   images       TEXT[] DEFAULT '{}',
+  buyer_id    UUID REFERENCES public.users (id) ON DELETE SET NULL,
   status      TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold', 'draft')),
   view_count  INT DEFAULT 0,
   sold_at     TIMESTAMPTZ,
@@ -62,6 +65,11 @@ CREATE TABLE public.listings (
 -- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS colour TEXT;
 -- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS fabric TEXT;
 -- ALTER TABLE public.listings DROP CONSTRAINT IF EXISTS listings_price_check;
+-- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS buyer_id UUID REFERENCES public.users(id) ON DELETE SET NULL;
+-- CREATE INDEX IF NOT EXISTS idx_listings_buyer_id ON public.listings (buyer_id);
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS location TEXT;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS seller_invite_code TEXT UNIQUE;
+-- UPDATE public.users SET seller_invite_code = upper(substring(md5(random()::text), 1, 8)) WHERE seller_invite_code IS NULL;
 -- ALTER TABLE public.listings ADD CONSTRAINT listings_price_check CHECK (price >= 0 AND price <= 2000);
 
 -- Conversations (one per listing + buyer pair)

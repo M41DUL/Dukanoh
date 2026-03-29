@@ -118,7 +118,7 @@ async function fetchTrendingCategories(): Promise<string[]> {
 async function fetchSection(userId: string, categories: string[], blockedIds: string[] = []): Promise<Listing[]> {
   let query = supabase
     .from('listings')
-    .select('id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users(username, avatar_url)')
+    .select('id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users!listings_seller_id_fkey(username, avatar_url)')
     .eq('status', 'available')
     .neq('seller_id', userId)
     .order('created_at', { ascending: false })
@@ -127,7 +127,7 @@ async function fetchSection(userId: string, categories: string[], blockedIds: st
   if (blockedIds.length > 0) query = query.not('seller_id', 'in', `(${blockedIds.join(',')})`);
   if (categories.length > 0) query = query.in('category', categories);
 
-  const { data } = await query;
+  const { data, error } = await query;
   const listings = (data ?? []) as unknown as Listing[];
   if (listings.length === 0) return listings;
 
@@ -282,8 +282,9 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
           JSON.stringify({ ...feedData, timestamp: Date.now() }),
         );
       } catch {}
-    } catch {
+    } catch (err) {
       // Prevent infinite skeleton — fall back to empty state
+      console.error('[useFeed] loadData error:', err);
       setLoading(false);
     }
   }, [userId, applyFeedData]);

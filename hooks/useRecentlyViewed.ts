@@ -24,7 +24,7 @@ export function useRecentlyViewed(currentUserId?: string) {
 
     const { data } = await supabase
       .from('listings')
-      .select('*, seller:users(username, avatar_url)')
+      .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
       .in('id', ids)
       .eq('status', 'available');
 
