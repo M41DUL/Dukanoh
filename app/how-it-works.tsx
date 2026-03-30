@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Divider } from '@/components/Divider';
+import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import type { ComponentProps } from 'react';
@@ -15,6 +16,11 @@ interface Step {
   icon: IoniconsName;
   title: string;
   description: string;
+}
+
+interface Tip {
+  icon: IoniconsName;
+  text: string;
 }
 
 const STEPS: Step[] = [
@@ -31,7 +37,7 @@ const STEPS: Step[] = [
   {
     icon: 'cash-outline',
     title: 'Agree & Pay',
-    description: 'Arrange payment directly with the seller — no middleman.',
+    description: 'Arrange payment directly with the seller — no middleman fees.',
   },
   {
     icon: 'star-outline',
@@ -40,23 +46,52 @@ const STEPS: Step[] = [
   },
 ];
 
+const BUYER_TIPS: Tip[] = [
+  {
+    icon: 'shield-checkmark-outline',
+    text: 'Use PayPal Goods & Services for buyer protection on posted items.',
+  },
+  {
+    icon: 'eye-outline',
+    text: 'Always check photos and ask questions before committing to a purchase.',
+  },
+  {
+    icon: 'location-outline',
+    text: 'For local pickups, meet in a public place and inspect the item in person.',
+  },
+  {
+    icon: 'star-half-outline',
+    text: 'Check the seller\'s reviews and rating before buying.',
+  },
+  {
+    icon: 'alert-circle-outline',
+    text: 'If something doesn\'t feel right, report the seller and move on.',
+  },
+];
+
+const SELLER_TIPS: Tip[] = [
+  {
+    icon: 'camera-outline',
+    text: 'Use clear, well-lit photos from multiple angles to attract buyers.',
+  },
+  {
+    icon: 'pricetag-outline',
+    text: 'Price fairly — check similar listings to stay competitive.',
+  },
+  {
+    icon: 'chatbubbles-outline',
+    text: 'Respond to messages quickly. A high response rate builds trust.',
+  },
+  {
+    icon: 'cube-outline',
+    text: 'Describe condition honestly — include any flaws or signs of wear.',
+  },
+];
+
 export default function HowItWorksScreen() {
-  const { user } = useAuth();
+  const { user, isSeller } = useAuth();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
-
-  // Check if user is a seller (we'll read from user metadata or fetch)
-  const [isSeller, setIsSeller] = React.useState(true);
-
-  React.useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data } = await import('@/lib/supabase').then(m =>
-        m.supabase.from('users').select('is_seller').eq('id', user.id).maybeSingle()
-      );
-      setIsSeller(data?.is_seller ?? false);
-    })();
-  }, [user]);
 
   return (
     <ScreenWrapper>
@@ -66,6 +101,7 @@ export default function HowItWorksScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
+        {/* Steps */}
         {STEPS.map((step, index) => (
           <View key={step.title} style={styles.stepCard}>
             <View style={styles.stepIconWrapper}>
@@ -83,22 +119,57 @@ export default function HowItWorksScreen() {
           </View>
         ))}
 
-        {!isSeller && (
-          <View style={styles.sellerCta}>
-            <Text style={styles.sellerCtaTitle}>Want to sell?</Text>
-            <Text style={styles.sellerCtaSubtitle}>
-              Get a seller invite from a friend to start listing your items.
-            </Text>
-            <Button
-              label="I have a seller code"
-              variant="primary"
-              onPress={() => {
-                // Navigate to seller activation flow
-                // This would open a modal/screen to enter seller invite code
-              }}
-              style={styles.sellerCtaBtn}
-            />
+        <Divider style={styles.sectionDivider} />
+
+        {/* Payments info */}
+        <View style={styles.infoCard}>
+          <Ionicons name="information-circle-outline" size={22} color={colors.primary} />
+          <Text style={styles.infoText}>
+            Dukanoh does not process payments. All transactions are arranged directly between buyer and seller. We recommend using secure payment methods that offer buyer protection.
+          </Text>
+        </View>
+
+        <Divider style={styles.sectionDivider} />
+
+        {/* Buyer tips */}
+        <Text style={styles.sectionTitle}>Buying safely</Text>
+        <Text style={styles.sectionSubtitle}>Tips to protect yourself when purchasing</Text>
+        {BUYER_TIPS.map((tip) => (
+          <View key={tip.text} style={styles.tipRow}>
+            <Ionicons name={tip.icon} size={20} color={colors.primary} />
+            <Text style={styles.tipText}>{tip.text}</Text>
           </View>
+        ))}
+
+        <Divider style={styles.sectionDivider} />
+
+        {/* Seller tips */}
+        <Text style={styles.sectionTitle}>Selling tips</Text>
+        <Text style={styles.sectionSubtitle}>How to make the most of your listings</Text>
+        {SELLER_TIPS.map((tip) => (
+          <View key={tip.text} style={styles.tipRow}>
+            <Ionicons name={tip.icon} size={20} color={colors.primary} />
+            <Text style={styles.tipText}>{tip.text}</Text>
+          </View>
+        ))}
+
+        {/* Seller CTA */}
+        {!isSeller && (
+          <>
+            <Divider style={styles.sectionDivider} />
+            <View style={styles.sellerCta}>
+              <Text style={styles.sellerCtaTitle}>Want to sell?</Text>
+              <Text style={styles.sellerCtaSubtitle}>
+                Get a seller invite from a friend to start listing your items.
+              </Text>
+              <Button
+                label="I have a seller code"
+                variant="primary"
+                onPress={() => {}}
+                style={styles.sellerCtaBtn}
+              />
+            </View>
+          </>
         )}
       </ScrollView>
     </ScreenWrapper>
@@ -113,7 +184,7 @@ function getStyles(colors: ColorTokens) {
       gap: Spacing.lg,
     },
 
-    // Step cards
+    // Steps
     stepCard: {
       flexDirection: 'row',
       gap: Spacing.base,
@@ -146,13 +217,13 @@ function getStyles(colors: ColorTokens) {
     },
     stepNumberText: {
       fontSize: 12,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: FontFamily.bold,
       color: '#FFFFFF',
     },
     stepTitle: {
       ...Typography.body,
       color: colors.textPrimary,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: FontFamily.semibold,
       fontSize: 16,
     },
     stepDescription: {
@@ -161,9 +232,54 @@ function getStyles(colors: ColorTokens) {
       lineHeight: 22,
     },
 
+    // Divider
+    sectionDivider: {
+      marginVertical: Spacing.sm,
+    },
+
+    // Info card
+    infoCard: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.medium,
+      padding: Spacing.base,
+    },
+    infoText: {
+      flex: 1,
+      ...Typography.body,
+      color: colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 22,
+    },
+
+    // Section headers
+    sectionTitle: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+    },
+    sectionSubtitle: {
+      ...Typography.body,
+      color: colors.textSecondary,
+      marginTop: -Spacing.sm,
+    },
+
+    // Tips
+    tipRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: Spacing.sm,
+      paddingVertical: Spacing.sm,
+    },
+    tipText: {
+      flex: 1,
+      ...Typography.body,
+      color: colors.textPrimary,
+      lineHeight: 22,
+    },
+
     // Seller CTA
     sellerCta: {
-      marginTop: Spacing.xl,
       backgroundColor: colors.surface,
       borderRadius: BorderRadius.large,
       padding: Spacing.xl,

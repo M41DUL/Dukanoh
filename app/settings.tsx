@@ -7,19 +7,32 @@ import { Header } from '@/components/Header';
 import { Avatar } from '@/components/Avatar';
 import { Divider } from '@/components/Divider';
 import { BottomSheet } from '@/components/BottomSheet';
-import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context/ThemeContext';
 import { useBlocked } from '@/context/BlockedContext';
 import { supabase } from '@/lib/supabase';
 import type { ThemePreference } from '@/context/ThemeContext';
+import type { ComponentProps } from 'react';
+import Constants from 'expo-constants';
+
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
 const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
   { label: 'System', value: 'system' },
   { label: 'Light', value: 'light' },
   { label: 'Dark', value: 'dark' },
 ];
+
+interface MenuRow {
+  icon: IoniconsName;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+  destructive?: boolean;
+  badge?: number;
+}
 
 export default function SettingsScreen() {
   const { user, signOut, refreshProfile } = useAuth();
@@ -31,6 +44,8 @@ export default function SettingsScreen() {
   const [blockedSheetVisible, setBlockedSheetVisible] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<{ id: string; username: string; avatar_url?: string }[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
+
+  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
 
   const openBlockedSheet = useCallback(async () => {
     setBlockedSheetVisible(true);
@@ -80,6 +95,13 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleSignOut = () => {
+    Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', onPress: () => signOut() },
+    ]);
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete account',
@@ -103,97 +125,136 @@ export default function SettingsScreen() {
     );
   };
 
+  const accountRows: MenuRow[] = [
+    {
+      icon: 'ban-outline',
+      title: 'Blocked Users',
+      subtitle: 'Manage blocked accounts',
+      onPress: openBlockedSheet,
+      badge: blockedIds.length > 0 ? blockedIds.length : undefined,
+    },
+    {
+      icon: 'options-outline',
+      title: 'Feed Preferences',
+      subtitle: 'Personalise your feed',
+      onPress: handleResetPreferences,
+    },
+    {
+      icon: 'notifications-outline',
+      title: 'Notifications',
+      subtitle: 'Manage push notifications',
+      onPress: () => {},
+    },
+  ];
+
+  const supportRows: MenuRow[] = [
+    {
+      icon: 'help-circle-outline',
+      title: 'Help & Support',
+      subtitle: 'Get help or send feedback',
+      onPress: () => {},
+    },
+    {
+      icon: 'information-circle-outline',
+      title: 'How Dukanoh Works',
+      subtitle: 'Learn the basics',
+      onPress: () => router.push('/how-it-works'),
+    },
+  ];
+
+  const legalRows: MenuRow[] = [
+    {
+      icon: 'document-text-outline',
+      title: 'Terms & Conditions',
+      onPress: () => {},
+    },
+    {
+      icon: 'shield-outline',
+      title: 'Privacy Policy',
+      onPress: () => {},
+    },
+  ];
+
+  const actionRows: MenuRow[] = [
+    {
+      icon: 'log-out-outline',
+      title: 'Sign Out',
+      onPress: handleSignOut,
+    },
+    {
+      icon: 'trash-outline',
+      title: 'Delete Account',
+      subtitle: 'Permanently remove your data',
+      onPress: handleDeleteAccount,
+      destructive: true,
+    },
+  ];
+
+  const renderRow = (row: MenuRow, index: number, isLast: boolean) => (
+    <View key={row.title}>
+      <TouchableOpacity style={styles.menuRow} onPress={row.onPress} activeOpacity={0.7}>
+        <Ionicons
+          name={row.icon}
+          size={22}
+          color={row.destructive ? colors.error : colors.textPrimary}
+        />
+        <View style={styles.menuRowText}>
+          <Text style={[styles.menuRowTitle, row.destructive && { color: colors.error }]}>
+            {row.title}
+          </Text>
+          {row.subtitle ? (
+            <Text style={styles.menuRowSubtitle}>{row.subtitle}</Text>
+          ) : null}
+        </View>
+        {row.badge ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{row.badge}</Text>
+          </View>
+        ) : null}
+        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+      </TouchableOpacity>
+      {!isLast && <Divider />}
+    </View>
+  );
+
+  const renderSection = (label: string, rows: MenuRow[]) => (
+    <View style={styles.section}>
+      <Text style={styles.sectionLabel}>{label}</Text>
+      {rows.map((row, i) => renderRow(row, i, i === rows.length - 1))}
+    </View>
+  );
+
   return (
     <ScreenWrapper>
       <Header title="Settings" showBack />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {/* Appearance */}
-        <Text style={styles.sectionLabel}>Appearance</Text>
-        <View style={styles.themeRow}>
-          {THEME_OPTIONS.map(opt => (
-            <TouchableOpacity
-              key={opt.value}
-              style={[styles.themeBtn, preference === opt.value && styles.themeBtnActive]}
-              onPress={() => setPreference(opt.value)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.themeBtnText, preference === opt.value && styles.themeBtnTextActive]}>
-                {opt.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Appearance</Text>
+          <View style={styles.themeRow}>
+            {THEME_OPTIONS.map(opt => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[styles.themeBtn, preference === opt.value && styles.themeBtnActive]}
+                onPress={() => setPreference(opt.value)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.themeBtnText, preference === opt.value && styles.themeBtnTextActive]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
-        <Divider style={styles.divider} />
+        {renderSection('Account', accountRows)}
+        {renderSection('Support', supportRows)}
+        {renderSection('Legal', legalRows)}
+        {renderSection('Actions', actionRows)}
 
-        {/* Menu rows */}
-        <TouchableOpacity style={styles.menuRow} onPress={openBlockedSheet} activeOpacity={0.7}>
-          <Ionicons name="ban-outline" size={22} color={colors.textPrimary} />
-          <View style={styles.menuRowText}>
-            <Text style={styles.menuRowTitle}>Blocked Users</Text>
-            <Text style={styles.menuRowSubtitle}>Manage blocked accounts</Text>
-          </View>
-          {blockedIds.length > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{blockedIds.length}</Text>
-            </View>
-          )}
-          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-
-        <Divider />
-
-        <TouchableOpacity style={styles.menuRow} onPress={handleResetPreferences} activeOpacity={0.7}>
-          <Ionicons name="options-outline" size={22} color={colors.textPrimary} />
-          <View style={styles.menuRowText}>
-            <Text style={styles.menuRowTitle}>Feed Preferences</Text>
-            <Text style={styles.menuRowSubtitle}>Personalise your feed</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-
-        <Divider />
-
-        <TouchableOpacity style={styles.menuRow} activeOpacity={0.7}>
-          <Ionicons name="notifications-outline" size={22} color={colors.textPrimary} />
-          <View style={styles.menuRowText}>
-            <Text style={styles.menuRowTitle}>Notifications</Text>
-            <Text style={styles.menuRowSubtitle}>Manage push notifications</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-
-        <Divider style={styles.divider} />
-
-        <TouchableOpacity style={styles.menuRow} onPress={handleDeleteAccount} activeOpacity={0.7}>
-          <Ionicons name="trash-outline" size={22} color={colors.error} />
-          <View style={styles.menuRowText}>
-            <Text style={[styles.menuRowTitle, { color: colors.error }]}>Delete Account</Text>
-            <Text style={styles.menuRowSubtitle}>Permanently remove your data</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-
-        <Divider style={styles.divider} />
-
-        <TouchableOpacity style={styles.menuRow} activeOpacity={0.7}>
-          <Ionicons name="document-text-outline" size={22} color={colors.textPrimary} />
-          <View style={styles.menuRowText}>
-            <Text style={styles.menuRowTitle}>Terms & Conditions</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
-
-        <Divider />
-
-        <TouchableOpacity style={styles.menuRow} activeOpacity={0.7}>
-          <Ionicons name="shield-outline" size={22} color={colors.textPrimary} />
-          <View style={styles.menuRowText}>
-            <Text style={styles.menuRowTitle}>Privacy Policy</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
-        </TouchableOpacity>
+        {/* Footer */}
+        <Text style={styles.footer}>Dukanoh v{appVersion}</Text>
       </ScrollView>
 
       {/* Blocked users sheet */}
@@ -235,16 +296,24 @@ export default function SettingsScreen() {
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     content: {
-      paddingTop: Spacing.xl,
+      paddingTop: Spacing.lg,
       paddingBottom: Spacing['3xl'],
     },
+
+    // Sections
+    section: {
+      marginBottom: Spacing.xl,
+    },
     sectionLabel: {
-      ...Typography.caption,
+      fontSize: 13,
+      fontFamily: FontFamily.semibold,
       color: colors.textSecondary,
       textTransform: 'uppercase',
-      fontFamily: 'Inter_600SemiBold',
+      letterSpacing: 0.5,
       marginBottom: Spacing.sm,
     },
+
+    // Theme picker
     themeRow: {
       flexDirection: 'row',
       borderRadius: BorderRadius.full,
@@ -268,9 +337,8 @@ function getStyles(colors: ColorTokens) {
     themeBtnTextActive: {
       color: '#FFFFFF',
     },
-    divider: {
-      marginVertical: Spacing.sm,
-    },
+
+    // Menu rows
     menuRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -284,7 +352,7 @@ function getStyles(colors: ColorTokens) {
     menuRowTitle: {
       ...Typography.body,
       color: colors.textPrimary,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: FontFamily.semibold,
     },
     menuRowSubtitle: {
       ...Typography.caption,
@@ -302,9 +370,19 @@ function getStyles(colors: ColorTokens) {
     badgeText: {
       ...Typography.caption,
       color: '#FFFFFF',
-      fontFamily: 'Inter_700Bold',
+      fontFamily: FontFamily.bold,
       fontSize: 11,
     },
+
+    // Footer
+    footer: {
+      fontSize: 13,
+      fontFamily: FontFamily.regular,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: Spacing.lg,
+    },
+
     // Blocked sheet
     blockedTitle: {
       ...Typography.subheading,

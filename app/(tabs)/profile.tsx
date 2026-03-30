@@ -22,12 +22,6 @@ interface QuickAction {
   onPress: () => void;
 }
 
-interface SectionRow {
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}
-
 export default function ProfileScreen() {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -73,24 +67,6 @@ export default function ProfileScreen() {
     { icon: 'gift-outline', label: 'Invite', onPress: () => router.push('/invite-friends') },
     { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
     { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
-  ];
-
-  const sectionRows: SectionRow[] = [
-    {
-      title: 'How Dukanoh Works',
-      subtitle: 'Learn the basics',
-      onPress: () => router.push('/how-it-works'),
-    },
-    {
-      title: 'Help & Feedback',
-      subtitle: 'Get support',
-      onPress: () => {},
-    },
-    {
-      title: 'About Dukanoh',
-      subtitle: 'v1.0.0',
-      onPress: () => {},
-    },
   ];
 
   return (
@@ -184,26 +160,6 @@ export default function ProfileScreen() {
             </View>
           </View>
         )}
-
-        {/* ── Section rows ── */}
-        <View style={styles.padded}>
-          {sectionRows.map((row, index) => (
-            <View key={row.title}>
-              <TouchableOpacity
-                style={styles.menuRow}
-                onPress={row.onPress}
-                activeOpacity={0.7}
-              >
-                <View style={styles.menuRowText}>
-                  <Text style={styles.menuRowTitle}>{row.title}</Text>
-                  <Text style={styles.menuRowSubtitle}>{row.subtitle}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-              {index < sectionRows.length - 1 && <Divider />}
-            </View>
-          ))}
-        </View>
 
       </ScrollView>
     </ScreenWrapper>
@@ -330,29 +286,6 @@ function getStyles(colors: ColorTokens) {
       fontFamily: 'Inter_600SemiBold',
     },
 
-    // Section rows
-    menuRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: Spacing.lg,
-    },
-    menuRowText: {
-      flex: 1,
-      gap: 2,
-    },
-    menuRowTitle: {
-      ...Typography.subheading,
-      color: colors.textPrimary,
-      fontSize: 18,
-      fontFamily: 'Inter_500Medium',
-      fontWeight: '500',
-    },
-    menuRowSubtitle: {
-      fontSize: 16,
-      fontFamily: 'Inter_400Regular',
-      color: colors.textSecondary,
-      marginTop: 2,
-    },
 
   });
 }
