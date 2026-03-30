@@ -90,7 +90,7 @@ export default function SavedScreen() {
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     loader: { flex: 1 },
-    content: { flexGrow: 1, paddingBottom: Spacing['2xl'] },
+    content: { flexGrow: 1, paddingTop: Spacing.base, paddingBottom: Spacing['2xl'] },
     row: { gap: Spacing.sm, marginBottom: Spacing.sm },
   });
 }
