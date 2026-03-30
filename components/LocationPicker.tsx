@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { City, ICity } from 'country-state-city';
 import { BottomSheet } from '@/components/BottomSheet';
-import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
+import { SearchBar } from '@/components/SearchBar';
+import { Typography, Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface LocationPickerProps {
@@ -55,22 +56,13 @@ export function LocationPicker({ visible, onClose, onSelect }: LocationPickerPro
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={18} color={colors.textSecondary} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search cities..."
-          placeholderTextColor={colors.textSecondary}
+      <View style={styles.searchWrap}>
+        <SearchBar
           value={search}
           onChangeText={setSearch}
-          autoCorrect={false}
-          autoFocus
+          placeholder="Search cities..."
+          onClear={() => setSearch('')}
         />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )}
       </View>
 
       <FlatList
@@ -105,23 +97,8 @@ function getStyles(colors: ColorTokens) {
       color: colors.textPrimary,
       textAlign: 'center',
     },
-    searchContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.medium,
-      borderWidth: BorderWidth.standard,
-      borderColor: colors.border,
-      paddingHorizontal: Spacing.base,
-      height: 44,
+    searchWrap: {
       marginBottom: Spacing.base,
-      gap: Spacing.sm,
-    },
-    searchInput: {
-      flex: 1,
-      ...Typography.body,
-      color: colors.textPrimary,
-      paddingVertical: 0,
     },
     list: {
       flex: 1,
