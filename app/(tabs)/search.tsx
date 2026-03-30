@@ -1,6 +1,7 @@
 import { Divider } from '@/components/Divider';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { SearchBar, SearchBarHandle } from '@/components/SearchBar';
+import { TabBar } from '@/components/TabBar';
 import {
   BorderRadius,
   ColorTokens,
@@ -11,7 +12,6 @@ import { useSearchHistory } from '@/hooks/useSearchHistory';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -38,7 +38,11 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // ─── Tab system ─────────────────────────────────────────────
 
 type BrowseTab = 'Women' | 'Men' | 'All';
-const BROWSE_TABS: BrowseTab[] = ['Women', 'Men', 'All'];
+const BROWSE_TABS: { key: BrowseTab; label: string }[] = [
+  { key: 'Women', label: 'Women' },
+  { key: 'Men', label: 'Men' },
+  { key: 'All', label: 'All' },
+];
 
 const TAB_CONFIG: Record<BrowseTab, { categories: string[]; occasions: string[] }> = {
   Women: {
@@ -214,28 +218,14 @@ export default function SearchScreen() {
 
       {/* ── Tab bar + Browse directory ────────────────────── */}
       {!searchFocused && (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.browseScroll}>
-          <View style={styles.tabBar}>
-            {BROWSE_TABS.map(tab => (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.tab, activeTab === tab && styles.tabActive]}
-                onPress={() => {
-                  if (tab === activeTab) return;
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  Animated.timing(tabFade, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => {
-                    setActiveTab(tab);
-                    Animated.timing(tabFade, { toValue: 1, duration: 180, useNativeDriver: true }).start();
-                  });
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.tabLabel, activeTab === tab && styles.tabLabelActive]}>
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        <>
+          <TabBar
+            tabs={BROWSE_TABS}
+            activeTab={activeTab}
+            onTabChange={(key) => setActiveTab(key as BrowseTab)}
+            contentFade={tabFade}
+          />
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.browseScroll}>
           <Animated.View style={{ opacity: tabFade }}>
             {TAB_CONFIG[activeTab].categories.map((cat, i) => (
               <React.Fragment key={cat}>
@@ -261,7 +251,8 @@ export default function SearchScreen() {
               onPress={() => openOccasion('Wedding')}
             />
           </Animated.View>
-        </ScrollView>
+          </ScrollView>
+        </>
       )}
     </ScreenWrapper>
   );
@@ -276,33 +267,6 @@ function getStyles(colors: ColorTokens) {
       paddingTop: Spacing.sm,
       paddingBottom: Spacing.xs,
       zIndex: 10,
-    },
-
-    // Tab bar
-    tabBar: {
-      flexDirection: 'row',
-      gap: Spacing.lg,
-      paddingTop: Spacing.xl,
-      paddingBottom: Spacing.md,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    tab: {
-      paddingBottom: Spacing.sm,
-      borderBottomWidth: 2,
-      borderBottomColor: 'transparent',
-    },
-    tabActive: {
-      borderBottomColor: colors.textPrimary,
-    },
-    tabLabel: {
-      fontSize: 16,
-      fontFamily: 'Inter_500Medium',
-      color: colors.textSecondary,
-    },
-    tabLabelActive: {
-      color: colors.textPrimary,
-      fontFamily: 'Inter_600SemiBold',
     },
 
     // Browse directory

@@ -1,14 +1,13 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
+import { TabBar } from '@/components/TabBar';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Badge } from '@/components/Badge';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -88,24 +87,7 @@ export default function OrdersScreen() {
     <ScreenWrapper>
       <Header title="My Orders" showBack />
 
-      {/* Tabs */}
-      <View style={styles.tabRow}>
-        {TABS.map(tab => {
-          const isActive = activeTab === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.tab, isActive && styles.tabActive]}
-              onPress={() => setActiveTab(tab.key)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <TabBar tabs={TABS} activeTab={activeTab} onTabChange={(key) => setActiveTab(key as Tab)} />
 
       {loading ? (
         <LoadingSpinner />
@@ -159,31 +141,6 @@ export default function OrdersScreen() {
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    tabRow: {
-      flexDirection: 'row',
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    tab: {
-      flex: 1,
-      alignItems: 'center',
-      paddingVertical: Spacing.md,
-      borderBottomWidth: 2,
-      borderBottomColor: 'transparent',
-    },
-    tabActive: {
-      borderBottomColor: colors.textPrimary,
-    },
-    tabLabel: {
-      ...Typography.label,
-      color: colors.textSecondary,
-      fontFamily: 'Inter_500Medium',
-      fontSize: 14,
-    },
-    tabLabelActive: {
-      color: colors.textPrimary,
-      fontFamily: 'Inter_600SemiBold',
-    },
     gridContent: {
       flexGrow: 1,
       paddingTop: Spacing.base,

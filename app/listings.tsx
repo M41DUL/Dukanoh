@@ -19,6 +19,7 @@ import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Divider } from '@/components/Divider';
+import { ScrollTabs } from '@/components/ScrollTabs';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { Radio } from '@/components/Radio';
@@ -358,31 +359,7 @@ export default function ListingsScreen() {
 
       {/* Sub-tabs */}
       {subTabs.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.subTabRow}
-          style={styles.subTabScroll}
-        >
-          {subTabs.map(tab => {
-            const isActive = activeSubTab === tab;
-            return (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.subTab, isActive && styles.subTabActive]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setActiveSubTab(tab);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.subTabLabel, isActive && styles.subTabLabelActive]}>
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <ScrollTabs tabs={subTabs} activeTab={activeSubTab ?? subTabs[0]} onTabChange={setActiveSubTab} />
       )}
 
       {loading && !refreshing ? (
@@ -541,34 +518,6 @@ function getStyles(colors: ColorTokens) {
       backgroundColor: colors.primary,
     },
 
-    // Sub-tabs
-    subTabScroll: {
-      flexGrow: 0,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    subTabRow: {
-      gap: Spacing.xl,
-      paddingTop: Spacing.base,
-      paddingBottom: Spacing.md,
-    },
-    subTab: {
-      paddingBottom: Spacing.sm,
-      borderBottomWidth: 2,
-      borderBottomColor: 'transparent',
-    },
-    subTabActive: {
-      borderBottomColor: colors.textPrimary,
-    },
-    subTabLabel: {
-      fontSize: 16,
-      fontFamily: 'Inter_500Medium',
-      color: colors.textSecondary,
-    },
-    subTabLabelActive: {
-      color: colors.textPrimary,
-      fontFamily: 'Inter_600SemiBold',
-    },
 
     // Grid
     gridContent: { flexGrow: 1, paddingTop: Spacing.base, paddingBottom: Spacing['4xl'] },
