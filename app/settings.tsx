@@ -139,8 +139,7 @@ export default function SettingsScreen() {
     {
       icon: 'help-circle-outline',
       title: 'Help & Support',
-      subtitle: 'Get help or send feedback',
-      onPress: () => {},
+      onPress: () => router.push('/help'),
     },
     {
       icon: 'information-circle-outline',

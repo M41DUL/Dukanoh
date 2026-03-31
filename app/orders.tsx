@@ -85,7 +85,7 @@ export default function OrdersScreen() {
 
   return (
     <ScreenWrapper>
-      <Header title="My Orders" showBack />
+      <Header title="My Listings" showBack />
 
       <TabBar tabs={TABS} activeTab={activeTab} onTabChange={(key) => setActiveTab(key as Tab)} />
 

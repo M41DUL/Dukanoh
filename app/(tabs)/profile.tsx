@@ -25,7 +25,7 @@ interface QuickAction {
 const STALE_MS = 30_000;
 
 const quickActions: QuickAction[] = [
-  { icon: 'bag-outline', label: 'My Orders', onPress: () => router.push('/orders') },
+  { icon: 'bag-outline', label: 'My Listings', onPress: () => router.push('/orders') },
   { icon: 'gift-outline', label: 'Invite', onPress: () => router.push('/invite-friends') },
   { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
   { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
@@ -101,13 +101,15 @@ export default function ProfileScreen() {
             <Text style={styles.name}>{profileName}</Text>
           ) : null}
           <Text style={styles.username}>@{username}</Text>
-          {ratingCount > 0 && (
+          {ratingCount > 0 ? (
             <View style={styles.ratingRow}>
               <StarRating rating={ratingAvg} size={14} />
               <Text style={styles.ratingText}>
                 {ratingAvg.toFixed(1)} ({ratingCount})
               </Text>
             </View>
+          ) : (
+            <Text style={styles.noReviews}>No reviews yet</Text>
           )}
           <TouchableOpacity
             style={styles.editBtn}
@@ -211,6 +213,10 @@ function getStyles(colors: ColorTokens) {
       marginTop: Spacing.xs,
     },
     ratingText: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+    },
+    noReviews: {
       ...Typography.caption,
       color: colors.textSecondary,
     },
