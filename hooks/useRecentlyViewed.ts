@@ -22,18 +22,22 @@ export function useRecentlyViewed(currentUserId?: string) {
     const ids: string[] = raw ? JSON.parse(raw) : [];
     if (ids.length === 0) { setItems([]); return; }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('listings')
       .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
       .in('id', ids)
       .eq('status', 'available');
 
+    if (error) {
+      console.warn('useRecentlyViewed fetch failed:', error.message);
+      return;
+    }
     if (!data) { setItems([]); return; }
 
     // Preserve AsyncStorage order and filter out own listings
     const map = new Map((data as unknown as Listing[]).map(l => [l.id, l]));
     const ordered = ids.map(id => map.get(id)).filter(Boolean) as Listing[];
-    setItems(currentUserId ? ordered.filter(l => (l as any).seller_id !== currentUserId) : ordered);
+    setItems(currentUserId ? ordered.filter(l => l.seller_id !== currentUserId) : ordered);
   }, [currentUserId]);
 
   useEffect(() => { load(); }, [load]);

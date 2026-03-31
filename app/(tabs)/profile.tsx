@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
@@ -22,6 +22,15 @@ interface QuickAction {
   onPress: () => void;
 }
 
+const STALE_MS = 30_000;
+
+const quickActions: QuickAction[] = [
+  { icon: 'bag-outline', label: 'My Orders', onPress: () => router.push('/orders') },
+  { icon: 'gift-outline', label: 'Invite', onPress: () => router.push('/invite-friends') },
+  { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
+  { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
+];
+
 export default function ProfileScreen() {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -34,14 +43,19 @@ export default function ProfileScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const username = user?.user_metadata?.username ?? 'username';
+  const lastFetchedRef = useRef<number>(0);
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('users')
       .select('full_name, avatar_url, rating_avg, rating_count')
       .eq('id', user.id)
       .maybeSingle();
+    if (error) {
+      console.warn('fetchProfile failed:', error.message);
+      return;
+    }
     if (data) {
       const name = data.full_name === 'New User' ? '' : (data.full_name ?? '');
       setProfileName(name);
@@ -52,22 +66,20 @@ export default function ProfileScreen() {
   }, [user]);
 
   useFocusEffect(useCallback(() => {
-    fetchProfile();
+    const now = Date.now();
+    if (now - lastFetchedRef.current > STALE_MS) {
+      fetchProfile();
+      lastFetchedRef.current = now;
+    }
     reloadRecent();
   }, [fetchProfile, reloadRecent]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    lastFetchedRef.current = 0;
     await Promise.all([fetchProfile(), reloadRecent()]);
     setRefreshing(false);
   }, [fetchProfile, reloadRecent]);
-
-  const quickActions: QuickAction[] = [
-    { icon: 'bag-outline', label: 'My Orders', onPress: () => router.push('/orders') },
-    { icon: 'gift-outline', label: 'Invite', onPress: () => router.push('/invite-friends') },
-    { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
-    { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
-  ];
 
   return (
     <ScreenWrapper contentStyle={{ paddingHorizontal: 0 }}>
@@ -135,7 +147,7 @@ export default function ProfileScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.recentScroll}
             >
-              {recentItems.map(item => (
+              {recentItems.filter(item => item.images?.[0]).map(item => (
                 <TouchableOpacity
                   key={item.id}
                   style={styles.recentCard}
@@ -143,14 +155,14 @@ export default function ProfileScreen() {
                   activeOpacity={0.8}
                 >
                   <Image
-                    source={{ uri: item.images?.[0] }}
+                    source={{ uri: item.images![0] }}
                     style={styles.recentImage}
                     contentFit="cover"
                     transition={200}
                   />
                   <Text style={styles.recentTitle} numberOfLines={1}>{item.title}</Text>
                   <Text style={styles.recentPrice}>
-                    {'\u00A3'}{item.price?.toFixed(2)}
+                    £{item.price?.toFixed(2)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -232,7 +244,7 @@ function getStyles(colors: ColorTokens) {
     quickActionIcon: {
       width: 52,
       height: 52,
-      borderRadius: 26,
+      borderRadius: 52 / 2,
       borderWidth: BorderWidth.standard,
       borderColor: colors.border,
       alignItems: 'center',
@@ -248,9 +260,6 @@ function getStyles(colors: ColorTokens) {
     sectionTitle: {
       ...Typography.subheading,
       color: colors.textPrimary,
-      fontSize: 18,
-      fontFamily: 'Inter_500Medium',
-      fontWeight: '500',
     },
     sectionSubtitle: {
       fontSize: 16,
