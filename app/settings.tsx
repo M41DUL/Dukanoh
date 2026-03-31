@@ -10,20 +10,12 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
-import { useTheme } from '@/context/ThemeContext';
 import { useBlocked } from '@/context/BlockedContext';
 import { supabase } from '@/lib/supabase';
-import type { ThemePreference } from '@/context/ThemeContext';
 import type { ComponentProps } from 'react';
 import Constants from 'expo-constants';
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
-
-const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
-  { label: 'System', value: 'system' },
-  { label: 'Light', value: 'light' },
-  { label: 'Dark', value: 'dark' },
-];
 
 interface MenuRow {
   icon: IoniconsName;
@@ -36,7 +28,6 @@ interface MenuRow {
 
 export default function SettingsScreen() {
   const { user, signOut, refreshProfile } = useAuth();
-  const { preference, setPreference } = useTheme();
   const { blockedIds, unblockUser } = useBlocked();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -127,23 +118,20 @@ export default function SettingsScreen() {
 
   const accountRows: MenuRow[] = [
     {
+      icon: 'color-palette-outline',
+      title: 'Appearance',
+      onPress: () => router.push('/appearance'),
+    },
+    {
       icon: 'ban-outline',
       title: 'Blocked Users',
-      subtitle: 'Manage blocked accounts',
       onPress: openBlockedSheet,
       badge: blockedIds.length > 0 ? blockedIds.length : undefined,
     },
     {
       icon: 'options-outline',
       title: 'Feed Preferences',
-      subtitle: 'Personalise your feed',
       onPress: handleResetPreferences,
-    },
-    {
-      icon: 'notifications-outline',
-      title: 'Notifications',
-      subtitle: 'Manage push notifications',
-      onPress: () => {},
     },
   ];
 
@@ -190,7 +178,7 @@ export default function SettingsScreen() {
     },
   ];
 
-  const renderRow = (row: MenuRow, index: number, isLast: boolean) => (
+  const renderRow = (row: MenuRow) => (
     <View key={row.title}>
       <TouchableOpacity style={styles.menuRow} onPress={row.onPress} activeOpacity={0.7}>
         <Ionicons
@@ -198,29 +186,23 @@ export default function SettingsScreen() {
           size={22}
           color={row.destructive ? colors.error : colors.textPrimary}
         />
-        <View style={styles.menuRowText}>
-          <Text style={[styles.menuRowTitle, row.destructive && { color: colors.error }]}>
-            {row.title}
-          </Text>
-          {row.subtitle ? (
-            <Text style={styles.menuRowSubtitle}>{row.subtitle}</Text>
-          ) : null}
-        </View>
+        <Text style={[styles.menuRowTitle, row.destructive && { color: colors.error }]}>
+          {row.title}
+        </Text>
         {row.badge ? (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{row.badge}</Text>
           </View>
         ) : null}
-        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        <Ionicons name="arrow-forward" size={18} color={colors.textSecondary} />
       </TouchableOpacity>
-      {!isLast && <Divider />}
+      <Divider style={{ marginVertical: 0 }} />
     </View>
   );
 
-  const renderSection = (label: string, rows: MenuRow[]) => (
+  const renderSection = (rows: MenuRow[]) => (
     <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{label}</Text>
-      {rows.map((row, i) => renderRow(row, i, i === rows.length - 1))}
+      {rows.map(row => renderRow(row))}
     </View>
   );
 
@@ -229,29 +211,10 @@ export default function SettingsScreen() {
       <Header title="Settings" showBack />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* Appearance */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Appearance</Text>
-          <View style={styles.themeRow}>
-            {THEME_OPTIONS.map(opt => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[styles.themeBtn, preference === opt.value && styles.themeBtnActive]}
-                onPress={() => setPreference(opt.value)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.themeBtnText, preference === opt.value && styles.themeBtnTextActive]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {renderSection('Account', accountRows)}
-        {renderSection('Support', supportRows)}
-        {renderSection('Legal', legalRows)}
-        {renderSection('Actions', actionRows)}
+        {renderSection(accountRows)}
+        {renderSection(supportRows)}
+        {renderSection(legalRows)}
+        {renderSection(actionRows)}
 
         {/* Footer */}
         <Text style={styles.footer}>Dukanoh v{appVersion}</Text>
@@ -301,62 +264,19 @@ function getStyles(colors: ColorTokens) {
     },
 
     // Sections
-    section: {
-      marginBottom: Spacing.xl,
-    },
-    sectionLabel: {
-      fontSize: 13,
-      fontFamily: FontFamily.semibold,
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-      marginBottom: Spacing.sm,
-    },
-
-    // Theme picker
-    themeRow: {
-      flexDirection: 'row',
-      borderRadius: BorderRadius.full,
-      borderWidth: BorderWidth.standard,
-      borderColor: colors.border,
-      overflow: 'hidden',
-    },
-    themeBtn: {
-      flex: 1,
-      paddingVertical: Spacing.sm,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    themeBtnActive: {
-      backgroundColor: colors.primary,
-    },
-    themeBtnText: {
-      ...Typography.label,
-      color: colors.textSecondary,
-    },
-    themeBtnTextActive: {
-      color: '#FFFFFF',
-    },
-
+    section: {},
     // Menu rows
     menuRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.md,
-      paddingVertical: Spacing.lg,
-    },
-    menuRowText: {
-      flex: 1,
-      gap: 2,
+      paddingVertical: (Spacing.md + 2) * 2,
     },
     menuRowTitle: {
-      ...Typography.body,
+      flex: 1,
+      fontSize: 16,
+      fontFamily: 'Inter_500Medium',
       color: colors.textPrimary,
-      fontFamily: FontFamily.semibold,
-    },
-    menuRowSubtitle: {
-      ...Typography.caption,
-      color: colors.textSecondary,
     },
     badge: {
       backgroundColor: colors.error,
