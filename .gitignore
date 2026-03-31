@@ -45,3 +45,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Financial projections
+*.xlsx
+*.xls
+
+# LibreOffice lock files
+.~lock.*#
