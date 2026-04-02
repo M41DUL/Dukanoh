@@ -12,17 +12,32 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users (mirrors auth.users with extra profile fields)
 CREATE TABLE public.users (
-  id                    UUID REFERENCES auth.users (id) ON DELETE CASCADE PRIMARY KEY,
-  username              TEXT UNIQUE NOT NULL,
-  full_name             TEXT NOT NULL,
-  avatar_url            TEXT,
-  bio                   TEXT,
-  preferred_categories  TEXT[] DEFAULT '{}',
-  onboarding_completed  BOOLEAN DEFAULT FALSE,
-  is_seller             BOOLEAN DEFAULT FALSE,
-  location              TEXT,
-  seller_invite_code    TEXT UNIQUE,
-  created_at            TIMESTAMPTZ DEFAULT NOW()
+  id                          UUID REFERENCES auth.users (id) ON DELETE CASCADE PRIMARY KEY,
+  username                    TEXT UNIQUE NOT NULL,
+  full_name                   TEXT NOT NULL,
+  avatar_url                  TEXT,
+  bio                         TEXT,
+  preferred_categories        TEXT[] DEFAULT '{}',
+  onboarding_completed        BOOLEAN DEFAULT FALSE,
+  is_seller                   BOOLEAN DEFAULT FALSE,
+  location                    TEXT,
+  seller_invite_code          TEXT UNIQUE,
+  created_at                  TIMESTAMPTZ DEFAULT NOW(),
+  -- Seller Hub Pro
+  seller_tier                 TEXT DEFAULT 'free',
+  pro_expires_at              TIMESTAMPTZ,
+  -- Stripe Connect Express
+  stripe_account_id           TEXT,
+  stripe_onboarding_complete  BOOLEAN DEFAULT FALSE,
+  -- Seller profile perks
+  banner_url                  TEXT,
+  avg_response_time_mins      INT,
+  -- Boosts
+  boosts_used                 INT DEFAULT 0,
+  boosts_reset_at             TIMESTAMPTZ,
+  -- Sale mode
+  sale_mode_active            BOOLEAN DEFAULT FALSE,
+  sale_mode_discount_pct      INT
 );
 
 -- Invites (controls access to the platform)
@@ -52,13 +67,39 @@ CREATE TABLE public.listings (
   fabric       TEXT,
   measurements JSONB,
   worn_at      TEXT,
-  images       TEXT[] DEFAULT '{}',
-  buyer_id    UUID REFERENCES public.users (id) ON DELETE SET NULL,
-  status      TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold', 'draft')),
-  view_count  INT DEFAULT 0,
-  sold_at     TIMESTAMPTZ,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  images          TEXT[] DEFAULT '{}',
+  buyer_id        UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  status          TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold', 'draft', 'archived')),
+  view_count      INT DEFAULT 0,
+  save_count      INT DEFAULT 0,
+  sold_at         TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  -- Seller Hub
+  is_boosted      BOOLEAN DEFAULT FALSE,
+  boost_expires_at TIMESTAMPTZ,
+  price_dropped_at TIMESTAMPTZ,
+  original_price  NUMERIC(10,2),
+  collection_id   UUID REFERENCES public.collections (id) ON DELETE SET NULL
 );
+
+-- Collections (must be defined before listings for the FK reference above)
+CREATE TABLE public.collections (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  seller_id  UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.collections ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Collections are publicly readable"
+  ON public.collections FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Sellers can create their own collections"
+  ON public.collections FOR INSERT TO authenticated WITH CHECK (auth.uid() = seller_id);
+CREATE POLICY "Sellers can update their own collections"
+  ON public.collections FOR UPDATE TO authenticated USING (auth.uid() = seller_id) WITH CHECK (auth.uid() = seller_id);
+CREATE POLICY "Sellers can delete their own collections"
+  ON public.collections FOR DELETE TO authenticated USING (auth.uid() = seller_id);
 
 -- Migration for existing databases:
 -- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT 'Women' NOT NULL CHECK (gender IN ('Men', 'Women'));
@@ -479,3 +520,120 @@ CREATE INDEX idx_push_tokens_user ON public.push_tokens (user_id);
 -- =============================================================
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+
+-- =============================================================
+-- SELLER HUB TABLES
+-- =============================================================
+
+-- Listing views (all surfaces — grid, search, story taps, listing detail)
+CREATE TABLE public.listing_views (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id    UUID REFERENCES public.users (id) ON DELETE CASCADE,
+  listing_id UUID REFERENCES public.listings (id) ON DELETE CASCADE,
+  viewed_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.listing_views ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert listing views"
+  ON public.listing_views FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Sellers can read views on their listings"
+  ON public.listing_views FOR SELECT TO authenticated
+  USING (auth.uid() = user_id OR auth.uid() IN (SELECT seller_id FROM public.listings WHERE id = listing_id));
+
+CREATE INDEX idx_listing_views_listing ON public.listing_views (listing_id);
+CREATE INDEX idx_listing_views_user    ON public.listing_views (user_id);
+
+-- Story views (tracks which stories each buyer has seen)
+CREATE TABLE public.story_views (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id    UUID REFERENCES public.users (id) ON DELETE CASCADE,
+  listing_id UUID REFERENCES public.listings (id) ON DELETE CASCADE,
+  viewed_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (user_id, listing_id)
+);
+
+ALTER TABLE public.story_views ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert story views"
+  ON public.story_views FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own story views"
+  ON public.story_views FOR UPDATE TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "Users can read their own story views"
+  ON public.story_views FOR SELECT TO authenticated USING (auth.uid() = user_id);
+
+-- Profile views
+CREATE TABLE public.profile_views (
+  id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  profile_user_id UUID REFERENCES public.users (id) ON DELETE CASCADE,
+  viewer_user_id  UUID REFERENCES public.users (id) ON DELETE CASCADE,
+  viewed_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.profile_views ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert profile views"
+  ON public.profile_views FOR INSERT TO authenticated WITH CHECK (auth.uid() = viewer_user_id);
+CREATE POLICY "Profile owners can read their views"
+  ON public.profile_views FOR SELECT TO authenticated USING (auth.uid() = profile_user_id);
+
+CREATE INDEX idx_profile_views_profile ON public.profile_views (profile_user_id);
+
+-- Transactions (Stripe Connect — buyer to seller payments)
+CREATE TABLE public.transactions (
+  id               UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  listing_id       UUID REFERENCES public.listings (id) ON DELETE SET NULL,
+  seller_id        UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  buyer_id         UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  amount           NUMERIC(10,2) NOT NULL,
+  stripe_payment_id TEXT,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own transactions"
+  ON public.transactions FOR SELECT TO authenticated
+  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+
+CREATE INDEX idx_transactions_seller ON public.transactions (seller_id);
+CREATE INDEX idx_transactions_buyer  ON public.transactions (buyer_id);
+
+-- Listing price history (seller eyes only)
+CREATE TABLE public.listing_price_history (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  listing_id UUID REFERENCES public.listings (id) ON DELETE CASCADE,
+  old_price  NUMERIC(10,2) NOT NULL,
+  new_price  NUMERIC(10,2) NOT NULL,
+  changed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.listing_price_history ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Sellers can read price history for their listings"
+  ON public.listing_price_history FOR SELECT TO authenticated
+  USING (auth.uid() IN (SELECT seller_id FROM public.listings WHERE id = listing_id));
+
+CREATE INDEX idx_price_history_listing ON public.listing_price_history (listing_id);
+
+-- In-app notifications (price drop alerts etc.)
+CREATE TABLE public.notifications (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id    UUID REFERENCES public.users (id) ON DELETE CASCADE,
+  type       TEXT NOT NULL,
+  title      TEXT NOT NULL,
+  body       TEXT,
+  listing_id UUID REFERENCES public.listings (id) ON DELETE CASCADE,
+  read       BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read their own notifications"
+  ON public.notifications FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "Users can update their own notifications"
+  ON public.notifications FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX idx_notifications_user ON public.notifications (user_id);
