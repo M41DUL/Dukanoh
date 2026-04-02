@@ -82,21 +82,148 @@ ADD COLUMN pro_expires_at TIMESTAMPTZ;
 ```
 Profile Tab
   ↓
-User has 1+ listings → "Seller Hub" button appears
+User has 1+ listings → "Seller Hub" entry card appears (below quick links)
   ↓
-Tap "Seller Hub"
+Subscriber → card shows live earnings, views, saves summary
+Non-subscriber → card shows locked metrics + "Upgrade to Pro" CTA
   ↓
-Paywall Screen (full screen)
-  ├── Feature list
-  ├── Price (£X/month)
-  └── "Start 14-day free trial" CTA
+Tap card → hub slides up as modal from bottom
   ↓
-Apple/Google native payment sheet (via RevenueCat)
-  ↓
-Payment confirmed → Seller Hub unlocks immediately
-  ↓
-Returning subscribers → skip paywall, go straight in
+Non-subscriber sees paywall screen first
+Subscriber goes straight into hub
 ```
+
+---
+
+## UI Spec
+
+### Overall Theme
+The Seller Hub has its own fixed theme — always dark regardless of system light/dark mode setting.
+
+**Palette:**
+| Token | Colour | Use |
+|-------|--------|-----|
+| Background | `#0A0A1A` | Deep navy — always dark |
+| Surface | `#13132E` | Card backgrounds |
+| Surface elevated | `#1C1C40` | Raised cards |
+| Accent | `#C7A84F` | Gold — numbers, highlights, Pro badge |
+| Accent secondary | `#3735C5` | Dukanoh brand blue — CTAs |
+| Text primary | `#F5F5F5` | Headings, large numbers |
+| Text secondary | `#8888AA` | Labels, captions |
+| Border | `#2A2A50` | Card borders, dividers |
+| Positive | `#4ADE80` | Earnings up, good stats |
+
+### Navigation
+- Hub presents as a **modal** — slides up from bottom of profile tab
+- Dismissed via X button top left — slides back down
+- Within the hub: **bottom sheets** for quick actions (archive, relist, bulk edit, boost), **push navigation** for full screens (collection detail, listing edit)
+
+### Entry Point on Profile Tab
+Summary card below quick links. Three states:
+```
+State 1: No listings → card not shown
+State 2: Has listings, not subscribed → locked metrics + "Upgrade to Pro" CTA
+State 3: Pro subscriber → live summary: £earned · views · saves
+```
+
+### Paywall Screen
+- Matches intro/onboarding visual style — deep navy, Dukanoh logo, animated entrance
+- Feature list with gold ✦ bullets:
+  - 3 free boosts every month
+  - Analytics & earnings dashboard
+  - Pro seller badge
+  - Collections & archive
+  - Share kit
+  - Price drop alerts to saved buyers
+- Pricing display: "Free for 14 days, no charge until [exact date], then £X/month — cancel anytime"
+- Primary CTA: "Start 14-day free trial" → triggers RevenueCat purchase flow → Apple/Google native payment sheet
+- Always-visible "Maybe later" subtle text link below CTA
+
+### Hub Main Screen (Single Scroll)
+```
+[X]  Seller Hub                    [Pro ✦]
+─────────────────────────────────────────
+[Earnings hero card — full width]
+ Total Earned  £1,240
+ This month £340 | Last month £180
+ [gold line chart — react-native-gifted-charts]
+
+── Performance ───────────────────────────
+[Views card]        [Saves card]
+ 1,240               86
+
+[Profile Visits]    [Enquiries]
+ 42                  18
+
+── Your Listings ─────────────────────────
+[Hub listing cards]
+  [img] Title
+        £40 · Available
+        👁 124  🤍 8  💬 3
+        [⚡ Boost]  [✏ Edit]  [⋯]
+
+── Collections ───────────────────────────
+[+ New Collection]
+[Collection rows → push to detail]
+
+── Top Categories ────────────────────────
+[Occasion tag performance list]
+```
+
+### Hub Listing Card
+Each listing card inside the hub shows:
+- Listing image + title + price + status
+- View, save, and enquiry counts
+- Action row: Boost (gold) · Edit · ⋯ (bottom sheet: archive, relist, delete)
+
+**Boost button states:**
+```
+Available           → "⚡ Boost" (gold, active)
+Active boost        → "Boosted · 2d left" (muted, disabled)
+No free boosts left → "⚡ Boost · Buy" (prompts RevenueCat purchase)
+```
+
+### Pro Badge
+| Surface | Treatment |
+|---------|-----------|
+| Hub header | `Pro ✦` gold pill, top right |
+| Public profile | ✦ gold icon next to username |
+| Listing cards in feed | ✦ gold icon below username |
+
+### Empty States
+All use Ionicons with warm, personality-driven copy:
+
+| Section | Icon | Copy |
+|---------|------|------|
+| No sales | `receipt-outline` | "Your first sale is closer than you think — boost a listing to get in front of the right buyers" |
+| No views | `eye-outline` | "No one's looked yet — share your listings or boost them to start getting eyes on your pieces" |
+| No collections | `folder-outline` | "Group your listings by occasion — Eid, wedding season, festive. Make your shop feel like a proper boutique" |
+| No boosts | `flash-outline` | "Boost a listing and reach buyers who are already interested in your category" |
+| No analytics | `bar-chart-outline` | "Your stats are warming up — views, saves and earnings will appear here as buyers find your listings" |
+| No price history | `pricetag-outline` | "When you edit a listing's price, your history will appear here" |
+
+### Collections — Public Profile
+Collections appear above the listing grid on the seller's public profile. No seller stats shown.
+```
+[profile header]
+
+── Collections ──────────────────────────
+  Eid 2025                            →
+  [img][img][img] +5 more
+
+  Wedding Season                      →
+  [img][img][img] +2 more
+
+── All Listings ─────────────────────────
+[listing grid]
+```
+
+### Chart
+Library: `react-native-gifted-charts`
+- Gold line on deep navy background
+- Area fill below the line (semi-transparent gold)
+- X axis: month labels
+- Tap a point → show exact earnings for that month
 
 ---
 
