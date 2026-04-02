@@ -3,7 +3,72 @@
 ## Overview
 A Pro subscriber feature accessible from the profile tab. Only visible to users with 1+ listings. Full paywall — no free tier access. Subscription managed via RevenueCat (Apple/Google billing). 14-day free trial on first sign-up.
 
-Subscription state stored on `profiles`:
+---
+
+## Payment Infrastructure
+
+Two systems work together — they are completely independent of each other:
+
+| System | Handles | Why |
+|--------|---------|-----|
+| **Stripe Connect Express** | Buyer → seller payments for listing purchases, seller payouts | Physical goods marketplace transactions — exempt from Apple/Google IAP rules |
+| **RevenueCat** | Pro subscription + paid boosts | Digital goods consumed in-app — Apple/Google require their own IAP system for these |
+
+### Stripe Connect Express
+
+Handles all money movement between buyers and sellers for listing purchases.
+
+**Seller onboarding:**
+- Before receiving payments, sellers complete Stripe Express onboarding (Stripe-hosted — ID verification + bank details)
+- Dukanoh redirects seller to Stripe's onboarding URL on first listing publish
+- On completion, Stripe returns `stripe_account_id` stored on seller's profile
+- Sellers without a connected Stripe account cannot complete sales
+
+**Transaction flow:**
+```
+Buyer taps "Buy Now" on listing
+  ↓
+Stripe Payment Intent created (Supabase Edge Function)
+  ↓
+Buyer completes payment (Stripe-hosted sheet)
+  ↓
+Stripe transfers funds to seller's connected account
+  ↓
+Stripe webhook → Supabase Edge Function → inserts row into transactions table
+  ↓
+Listing status updated to 'sold' automatically
+```
+
+**Fees:**
+- UK/European cards: 1.4% + 20p per transaction
+- Non-European cards: 2.9% + 30p per transaction
+- Connect payout: 0.25% + 25p per seller payout
+
+**DB changes:**
+```sql
+ALTER TABLE public.profiles
+ADD COLUMN stripe_account_id TEXT,
+ADD COLUMN stripe_onboarding_complete BOOLEAN DEFAULT false;
+```
+
+### RevenueCat
+
+Handles Pro subscription and paid boosts via Apple/Google's native IAP system. Required for App Store compliance — Apple and Google mandate their own billing for digital goods consumed in-app.
+
+**Free tier:** Covers up to $2,500/month in tracked revenue — no cost until revenue exceeds this.
+
+**Manages:**
+- Pro subscription (monthly recurring, 14-day free trial)
+- Paid boosts (consumable in-app purchase, purchased after free 3/month are used)
+
+**Flow:**
+```
+RevenueCat webhook → Supabase Edge Function
+  ↓
+Updates seller_tier, pro_expires_at, boosts_used on profiles
+```
+
+**DB changes:**
 ```sql
 ALTER TABLE public.profiles
 ADD COLUMN seller_tier TEXT DEFAULT 'free',
@@ -26,14 +91,12 @@ Paywall Screen (full screen)
   ├── Price (£X/month)
   └── "Start 14-day free trial" CTA
   ↓
-Apple/Google native payment sheet
+Apple/Google native payment sheet (via RevenueCat)
   ↓
 Payment confirmed → Seller Hub unlocks immediately
   ↓
 Returning subscribers → skip paywall, go straight in
 ```
-
-RevenueCat webhook → Supabase Edge Function → updates `seller_tier` + `pro_expires_at` on subscription purchase, renewal, and cancellation.
 
 ---
 
@@ -44,11 +107,10 @@ RevenueCat webhook → Supabase Edge Function → updates `seller_tier` + `pro_e
 ### 3. Listing Management Tools
 ### 4. Seller Profile Perks
 ### 5. Buyer Tools
-
-### 6. Pricing & Sales Strategy *(to be specced)*
-### 7. Inventory & Organisation *(to be specced)*
-### 8. South Asian Platform-Specific *(to be specced)*
-### 9. Growth & Reach *(to be specced)*
+### 6. Pricing & Sales Strategy
+### 7. Inventory & Organisation
+### 8. South Asian Platform-Specific
+### 9. Growth & Reach
 
 ---
 
