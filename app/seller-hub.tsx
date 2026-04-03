@@ -21,21 +21,20 @@ import { LineChart } from 'react-native-gifted-charts';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { BottomSheet } from '@/components/BottomSheet';
-import { Spacing, BorderRadius, FontFamily, Typography } from '@/constants/theme';
+import { Spacing, BorderRadius, FontFamily, Typography, proColors } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
-// ── Seller Hub theme (always dark) ──────────────────────────
+// ── Dukanoh Pro theme — sourced from design system ───────────
 const HUB = {
-  background: '#0A0A1A',
-  surface: '#13132E',
-  surfaceElevated: '#1C1C40',
-  accent: '#C7A84F',
-  accentSecondary: '#3735C5',
-  textPrimary: '#F5F5F5',
-  textSecondary: '#8888AA',
-  border: '#2A2A50',
-  positive: '#4ADE80',
+  background:    proColors.background,
+  surface:       proColors.surface,
+  surfaceElevated: proColors.surfaceAlt,
+  accent:        proColors.primary,
+  textPrimary:   proColors.textPrimary,
+  textSecondary: proColors.textSecondary,
+  border:        proColors.border,
+  positive:      proColors.success,
 } as const;
 
 const FEATURES = [
@@ -171,7 +170,7 @@ function HubPaywall() {
           <View style={styles.proPill}>
             <Text style={styles.proPillText}>Pro ✦</Text>
           </View>
-          <Text style={styles.heading}>Seller Hub</Text>
+          <Text style={styles.heading}>Dukanoh Pro</Text>
           <Text style={styles.subheading}>Sell more. Know more. Earn more.</Text>
         </Animated.View>
 
@@ -374,7 +373,7 @@ function HubDashboard() {
         >
           <Ionicons name="close" size={22} color={HUB.textSecondary} />
         </TouchableOpacity>
-        <Text style={styles.dashTitle}>Seller Hub</Text>
+        <Text style={styles.dashTitle}>Dukanoh Pro</Text>
         <View style={styles.proPillSmall}>
           <Text style={styles.proPillSmallText}>Pro ✦</Text>
         </View>

@@ -40,6 +40,35 @@ export const darkColors = {
   overlay: 'rgba(0,0,0,0.2)',
 };
 
+// ── Dukanoh Pro theme (always dark, gold accent) ─────────────
+// Used only in Pro areas (seller-hub, pro card). Not app-wide.
+// Accessibility: all pairings tested against WCAG AA (4.5:1 min).
+// Gold (#C7A84F) on navy (#0A0A1A) = ~9:1 ✓
+// Gold on surface (#13132E)        = ~8.5:1 ✓
+// Gold on surfaceAlt (#1C1C40)     = ~7.1:1 ✓
+// textPrimary on background        = ~18:1 ✓
+// textSecondary (#8888AA) on bg    = ~5.9:1 ✓
+export const proColors = {
+  primary: '#C7A84F',         // gold — main interactive colour, CTAs, icons
+  primaryDim: '#A8863A',      // deeper gold — pressed/active states
+  primaryLight: '#201A04',    // dark gold tint — pill/badge backgrounds
+  primaryText: '#C7A84F',     // gold text on dark surfaces
+  secondary: '#8888AA',       // muted lilac-grey — secondary actions, labels
+  secondaryDim: '#6B6B88',    // deeper muted — pressed secondary
+  secondaryLight: '#1A1A30',  // subtle secondary background
+  background: '#0A0A1A',      // deep navy
+  surface: '#13132E',         // card / elevated surface
+  surfaceAlt: '#1C1C40',      // further elevated (icon wraps, inputs)
+  textPrimary: '#F5F5F5',     // primary body text
+  textSecondary: '#8888AA',   // muted / caption text
+  border: '#2A2A50',          // card borders, dividers
+  error: '#FF6B6B',           // errors (same as dark mode)
+  success: '#4ADE80',         // positive values, earnings delta
+  amber: '#F59E0B',           // warnings
+  like: '#FF4D6A',            // heart / save
+  overlay: 'rgba(0,0,0,0.4)',
+};
+
 export type ColorTokens = typeof lightColors;
 
 // Static fallback — screens should use useThemeColors() hook instead

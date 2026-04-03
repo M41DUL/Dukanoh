@@ -5,24 +5,32 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
 import { StarRating } from '@/components/StarRating';
-import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import type { ComponentProps } from 'react';
 
-// ── Seller Hub theme (always dark, independent of app theme) ──
+// ── Dukanoh Pro theme — sourced from design system ───────────
 const HUB = {
-  background: '#0A0A1A',
-  surface: '#13132E',
-  accent: '#C7A84F',
-  accentSecondary: '#3735C5',
-  textPrimary: '#F5F5F5',
-  textSecondary: '#8888AA',
-  border: '#2A2A50',
+  background:    proColors.background,
+  surface:       proColors.surface,
+  accent:        proColors.primary,
+  textPrimary:   proColors.textPrimary,
+  textSecondary: proColors.textSecondary,
+  border:        proColors.border,
 } as const;
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+
+const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
+  { icon: 'flash-outline',            label: '3 free boosts every month' },
+  { icon: 'bar-chart-outline',        label: 'Analytics & earnings dashboard' },
+  { icon: 'shield-checkmark-outline', label: 'Pro seller badge' },
+  { icon: 'folder-outline',           label: 'Collections & archive' },
+  { icon: 'share-social-outline',     label: 'Share kit for Instagram & WhatsApp' },
+  { icon: 'pricetag-outline',         label: 'Price drop alerts to saved buyers' },
+];
 
 interface QuickAction {
   icon: IoniconsName;
@@ -187,7 +195,7 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* ── Seller Hub entry card ── */}
+        {/* ── Dukanoh Pro entry card ── */}
         {listingCount > 0 && (
           <TouchableOpacity
             style={styles.hubCard}
@@ -195,7 +203,7 @@ export default function ProfileScreen() {
             activeOpacity={0.85}
           >
             <View style={styles.hubCardHeader}>
-              <Text style={styles.hubCardTitle}>Seller Hub</Text>
+              <Text style={styles.hubCardTitle}>Dukanoh Pro</Text>
               {sellerTier === 'pro' ? (
                 <View style={styles.proBadge}>
                   <Text style={styles.proBadgeText}>Pro ✦</Text>
@@ -204,6 +212,19 @@ export default function ProfileScreen() {
                 <Ionicons name="lock-closed" size={16} color={HUB.textSecondary} />
               )}
             </View>
+
+            {sellerTier !== 'pro' && (
+              <View style={styles.hubFeatureList}>
+                {HUB_FEATURES.map(f => (
+                  <View key={f.label} style={styles.hubFeatureRow}>
+                    <View style={styles.hubFeatureIconWrap}>
+                      <Ionicons name={f.icon} size={14} color={HUB.accent} />
+                    </View>
+                    <Text style={styles.hubFeatureLabel}>{f.label}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {sellerTier === 'pro' && hubSummary ? (
               <>
@@ -224,19 +245,14 @@ export default function ProfileScreen() {
                   </View>
                 </View>
                 <View style={styles.hubCardFooter}>
-                  <Text style={styles.hubCardFooterText}>Open Seller Hub</Text>
+                  <Text style={styles.hubCardFooterText}>Open Dukanoh Pro</Text>
                   <Ionicons name="chevron-forward" size={14} color={HUB.accent} />
                 </View>
               </>
             ) : (
-              <>
-                <Text style={styles.hubLockedText}>
-                  Analytics, boosts, collections and more — built for serious sellers.
-                </Text>
-                <View style={styles.hubUpgradeBtn}>
-                  <Text style={styles.hubUpgradeBtnText}>Upgrade to Pro</Text>
-                </View>
-              </>
+              <View style={styles.hubUpgradeBtn}>
+                <Text style={styles.hubUpgradeBtnText}>Start free trial</Text>
+              </View>
             )}
           </TouchableOpacity>
         )}
@@ -328,7 +344,7 @@ function getStyles(colors: ColorTokens) {
       fontFamily: 'Inter_500Medium',
     },
 
-    // Seller Hub entry card
+    // Dukanoh Pro entry card
     hubCard: {
       marginHorizontal: Spacing.base,
       marginBottom: Spacing.xl,
@@ -394,10 +410,26 @@ function getStyles(colors: ColorTokens) {
       color: HUB.accent,
       fontFamily: FontFamily.medium,
     },
-    hubLockedText: {
+    hubFeatureList: {
+      gap: Spacing.sm,
+    },
+    hubFeatureRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    hubFeatureIconWrap: {
+      width: 26,
+      height: 26,
+      borderRadius: BorderRadius.small,
+      backgroundColor: proColors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    hubFeatureLabel: {
       ...Typography.caption,
-      color: HUB.textSecondary,
-      lineHeight: 18,
+      color: HUB.textPrimary,
+      flex: 1,
     },
     hubUpgradeBtn: {
       backgroundColor: HUB.accent,
