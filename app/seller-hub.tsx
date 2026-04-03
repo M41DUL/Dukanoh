@@ -11,12 +11,16 @@ import {
   Image,
   ActivityIndicator,
   Dimensions,
+  Share,
+  TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-gifted-charts';
+import ViewShot, { captureRef } from 'react-native-view-shot';
 import { DukanohLogo } from '@/components/DukanohLogo';
+import { BottomSheet } from '@/components/BottomSheet';
 import { Spacing, BorderRadius, FontFamily, Typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -216,6 +220,12 @@ function HubDashboard() {
   const [data, setData] = useState<HubData | null>(null);
   const [loading, setLoading] = useState(true);
   const [boostingId, setBoostingId] = useState<string | null>(null);
+  const [createColVisible, setCreateColVisible] = useState(false);
+  const [newColName, setNewColName] = useState('');
+  const [savingCol, setSavingCol] = useState(false);
+  const [assignSheetListing, setAssignSheetListing] = useState<HubListing | null>(null);
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const shareCardRefs = useRef<Record<string, ViewShot | null>>({});
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -314,6 +324,36 @@ function HubDashboard() {
     await fetchData();
     setBoostingId(null);
   }, [fetchData]);
+
+  const handleCreateCollection = useCallback(async () => {
+    if (!user || !newColName.trim()) return;
+    setSavingCol(true);
+    await supabase.from('collections').insert({ seller_id: user.id, name: newColName.trim() });
+    setNewColName('');
+    setCreateColVisible(false);
+    setSavingCol(false);
+    await fetchData();
+  }, [user, newColName, fetchData]);
+
+  const handleAssignCollection = useCallback(async (listingId: string, collectionId: string | null) => {
+    await supabase.from('listings').update({ collection_id: collectionId }).eq('id', listingId);
+    setAssignSheetListing(null);
+    await fetchData();
+  }, [fetchData]);
+
+  const handleShare = useCallback(async (listingId: string) => {
+    const ref = shareCardRefs.current[listingId];
+    if (!ref) return;
+    setSharingId(listingId);
+    try {
+      const uri = await captureRef(ref, { format: 'png', quality: 0.95 });
+      await Share.share({ url: uri, message: 'Check this out on Dukanoh!' });
+    } catch {
+      // user cancelled or capture failed — silent
+    } finally {
+      setSharingId(null);
+    }
+  }, []);
 
   const chartWidth = SCREEN_WIDTH - Spacing.xl * 2 - Spacing.lg * 2 - 2;
 
@@ -416,12 +456,24 @@ function HubDashboard() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Your Listings</Text>
               {data.listings.map(listing => (
-                <HubListingRow
-                  key={listing.id}
-                  listing={listing}
-                  onBoost={handleBoost}
-                  boosting={boostingId === listing.id}
-                />
+                <View key={listing.id}>
+                  {/* Hidden share card — captured by ViewShot */}
+                  <ViewShot
+                    ref={r => { shareCardRefs.current[listing.id] = r; }}
+                    options={{ format: 'png', quality: 0.95 }}
+                    style={styles.shareCardHidden}
+                  >
+                    <ShareCard listing={listing} />
+                  </ViewShot>
+                  <HubListingRow
+                    listing={listing}
+                    onBoost={handleBoost}
+                    boosting={boostingId === listing.id}
+                    onShare={handleShare}
+                    sharing={sharingId === listing.id}
+                    onAssign={() => setAssignSheetListing(listing)}
+                  />
+                </View>
               ))}
             </View>
           )}
@@ -432,7 +484,7 @@ function HubDashboard() {
               <Text style={styles.sectionTitle}>Collections</Text>
               <TouchableOpacity
                 style={styles.sectionAction}
-                onPress={() => {/* create collection flow */}}
+                onPress={() => setCreateColVisible(true)}
                 hitSlop={8}
               >
                 <Ionicons name="add" size={18} color={HUB.accent} />
@@ -468,6 +520,75 @@ function HubDashboard() {
           )}
         </ScrollView>
       )}
+
+      {/* ── Create Collection sheet ── */}
+      <BottomSheet
+        visible={createColVisible}
+        onClose={() => { setCreateColVisible(false); setNewColName(''); }}
+        backgroundColor={HUB.surface}
+        handleColor={HUB.border}
+      >
+        <View style={styles.sheetContent}>
+          <Text style={styles.sheetTitle}>New Collection</Text>
+          <TextInput
+            style={styles.sheetInput}
+            placeholder="e.g. Partywear, Festive Edits…"
+            placeholderTextColor={HUB.textSecondary}
+            value={newColName}
+            onChangeText={setNewColName}
+            autoFocus
+            maxLength={40}
+          />
+          <TouchableOpacity
+            style={[styles.ctaBtn, !newColName.trim() && { opacity: 0.4 }]}
+            onPress={handleCreateCollection}
+            disabled={!newColName.trim() || savingCol}
+            activeOpacity={0.85}
+          >
+            {savingCol
+              ? <ActivityIndicator color={HUB.background} />
+              : <Text style={styles.ctaBtnText}>Create</Text>
+            }
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
+
+      {/* ── Assign to Collection sheet ── */}
+      <BottomSheet
+        visible={assignSheetListing !== null}
+        onClose={() => setAssignSheetListing(null)}
+        backgroundColor={HUB.surface}
+        handleColor={HUB.border}
+      >
+        <View style={styles.sheetContent}>
+          <Text style={styles.sheetTitle}>Add to Collection</Text>
+          {data && data.collections.length === 0 ? (
+            <Text style={styles.sheetEmptyText}>No collections yet — create one first.</Text>
+          ) : (
+            <>
+              {data?.collections.map(col => (
+                <TouchableOpacity
+                  key={col.id}
+                  style={styles.sheetOption}
+                  onPress={() => assignSheetListing && handleAssignCollection(assignSheetListing.id, col.id)}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="folder-outline" size={18} color={HUB.accent} />
+                  <Text style={styles.sheetOptionText}>{col.name}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={[styles.sheetOption, { marginTop: Spacing.sm }]}
+                onPress={() => assignSheetListing && handleAssignCollection(assignSheetListing.id, null)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="close-circle-outline" size={18} color={HUB.textSecondary} />
+                <Text style={[styles.sheetOptionText, { color: HUB.textSecondary }]}>Remove from collection</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -488,10 +609,16 @@ function HubListingRow({
   listing,
   onBoost,
   boosting,
+  onShare,
+  sharing,
+  onAssign,
 }: {
   listing: HubListing;
   onBoost: (id: string) => void;
   boosting: boolean;
+  onShare: (id: string) => void;
+  sharing: boolean;
+  onAssign: () => void;
 }) {
   const isBoostedActive = listing.is_boosted &&
     listing.boost_expires_at != null &&
@@ -524,29 +651,69 @@ function HubListingRow({
         </View>
       </View>
 
-      {isBoostedActive ? (
-        <View style={styles.boostedBadge}>
-          <Ionicons name="flash" size={12} color={HUB.background} />
-          <Text style={styles.boostedBadgeText}>Boosted</Text>
-        </View>
-      ) : (
+      {/* Action buttons */}
+      <View style={styles.listingActions}>
+        {isBoostedActive ? (
+          <View style={styles.boostedBadge}>
+            <Ionicons name="flash" size={12} color={HUB.background} />
+            <Text style={styles.boostedBadgeText}>Boosted</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.boostBtn}
+            onPress={() => onBoost(listing.id)}
+            disabled={boosting}
+            hitSlop={8}
+          >
+            {boosting ? (
+              <ActivityIndicator size="small" color={HUB.accent} />
+            ) : (
+              <>
+                <Ionicons name="flash-outline" size={13} color={HUB.accent} />
+                <Text style={styles.boostBtnText}>Boost</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* Share */}
         <TouchableOpacity
-          style={styles.boostBtn}
-          onPress={() => onBoost(listing.id)}
-          disabled={boosting}
+          style={styles.iconBtn}
+          onPress={() => onShare(listing.id)}
+          disabled={sharing}
           hitSlop={8}
         >
-          {boosting ? (
-            <ActivityIndicator size="small" color={HUB.accent} />
-          ) : (
-            <>
-              <Ionicons name="flash-outline" size={13} color={HUB.accent} />
-              <Text style={styles.boostBtnText}>Boost</Text>
-            </>
-          )}
+          {sharing
+            ? <ActivityIndicator size="small" color={HUB.textSecondary} />
+            : <Ionicons name="share-social-outline" size={18} color={HUB.textSecondary} />
+          }
         </TouchableOpacity>
-      )}
+
+        {/* Assign to collection */}
+        <TouchableOpacity style={styles.iconBtn} onPress={onAssign} hitSlop={8}>
+          <Ionicons name="folder-outline" size={18} color={HUB.textSecondary} />
+        </TouchableOpacity>
+      </View>
     </TouchableOpacity>
+  );
+}
+
+// ── Share Card (off-screen, captured by ViewShot) ────────────
+function ShareCard({ listing }: { listing: HubListing }) {
+  const imageUri = listing.images?.[0];
+  return (
+    <View style={styles.shareCard}>
+      {imageUri ? (
+        <Image source={{ uri: imageUri }} style={styles.shareCardImage} />
+      ) : (
+        <View style={[styles.shareCardImage, { backgroundColor: HUB.surfaceElevated }]} />
+      )}
+      <View style={styles.shareCardBody}>
+        <DukanohLogo width={72} height={13} color={HUB.accent} />
+        <Text style={styles.shareCardTitle} numberOfLines={2}>{listing.title}</Text>
+        <Text style={styles.shareCardPrice}>£{listing.price.toFixed(0)}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -978,5 +1145,93 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: HUB.accent,
     borderRadius: 2,
+  },
+
+  // Listing row action group
+  listingActions: {
+    alignItems: 'flex-end',
+    gap: Spacing.xs,
+  },
+  iconBtn: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Create / Assign collection sheets
+  sheetContent: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing['3xl'],
+    gap: Spacing.md,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontFamily: FontFamily.bold,
+    color: HUB.textPrimary,
+  },
+  sheetInput: {
+    backgroundColor: HUB.surfaceElevated,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: HUB.border,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: 15,
+    fontFamily: FontFamily.regular,
+    color: HUB.textPrimary,
+  },
+  sheetEmptyText: {
+    ...Typography.body,
+    color: HUB.textSecondary,
+  },
+  sheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: HUB.border,
+  },
+  sheetOptionText: {
+    ...Typography.body,
+    color: HUB.textPrimary,
+    fontFamily: FontFamily.medium,
+  },
+
+  // Hidden share card container
+  shareCardHidden: {
+    position: 'absolute',
+    top: -9999,
+    left: -9999,
+  },
+
+  // Share card (visual content captured by ViewShot)
+  shareCard: {
+    width: 300,
+    backgroundColor: HUB.background,
+    borderRadius: BorderRadius.large,
+    overflow: 'hidden',
+  },
+  shareCardImage: {
+    width: 300,
+    height: 360,
+  },
+  shareCardBody: {
+    padding: Spacing.lg,
+    gap: Spacing.xs,
+    backgroundColor: HUB.surface,
+  },
+  shareCardTitle: {
+    fontSize: 15,
+    fontFamily: FontFamily.semibold,
+    color: HUB.textPrimary,
+    marginTop: Spacing.xs,
+  },
+  shareCardPrice: {
+    fontSize: 18,
+    fontFamily: FontFamily.bold,
+    color: HUB.accent,
   },
 });

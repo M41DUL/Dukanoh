@@ -101,6 +101,11 @@ function ListingStoryViewer({
           size="small"
         />
         <Text style={viewerStyles.topUsername}>{story.seller.username}</Text>
+        {story.is_boosted && (
+          <View style={viewerStyles.sponsoredPill}>
+            <Text style={viewerStyles.sponsoredText}>Sponsored</Text>
+          </View>
+        )}
         <Text style={viewerStyles.topTime}>{timeAgo(story.created_at)}</Text>
         <View style={{ flex: 1 }} />
         <TouchableOpacity onPress={onClose} hitSlop={16} style={viewerStyles.topCloseBtn}>
@@ -260,7 +265,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 onPress={() => openStory(index)}
                 activeOpacity={0.9}
               >
-                <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing!.viewed && rowStyles.ringViewed]}>
+                <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing!.is_boosted && rowStyles.ringBoosted, !isApp && !listing!.is_boosted && listing!.viewed && rowStyles.ringViewed]}>
                   <View style={rowStyles.ringInner}>
                     {isApp ? (
                       <Image
@@ -405,6 +410,9 @@ function getRowStyles(colors: ColorTokens) {
     ringViewed: {
       backgroundColor: colors.border,
     },
+    ringBoosted: {
+      backgroundColor: '#C7A84F',
+    },
     ringApp: {
       backgroundColor: colors.secondary,
     },
@@ -495,6 +503,18 @@ const viewerStyles = StyleSheet.create({
     ...Typography.label,
     color: '#fff',
     fontWeight: '600',
+  },
+  sponsoredPill: {
+    backgroundColor: '#C7A84F',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  sponsoredText: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#0A0A1A',
+    letterSpacing: 0.3,
   },
   topTime: {
     ...Typography.caption,

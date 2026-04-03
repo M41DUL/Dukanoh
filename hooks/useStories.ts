@@ -55,12 +55,17 @@ export interface StoryListing {
   images: string[];
   status: 'available' | 'sold';
   viewed: boolean;
+  is_boosted?: boolean;
   created_at?: string;
+  seller_id?: string;
   seller: {
     username: string;
     avatar_url?: string;
   };
 }
+
+const LISTING_SELECT =
+  'id, title, price, images, category, condition, status, created_at, seller_id, is_boosted, seller:users!listings_seller_id_fkey(username, avatar_url)';
 
 export function useStories() {
   const { user } = useAuth();
@@ -71,32 +76,45 @@ export function useStories() {
     if (!user) return;
     setLoading(true);
 
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Organic window: 5 hours
+    const since5h = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
 
-    // Run all queries in parallel
     const [
-      { data: listings },
+      { data: organicListings },
+      { data: boostedListings },
       { data: basketItems },
       { data: viewedListings },
       { data: viewedStories },
     ] = await Promise.all([
-      // 24h available listings (exclude own)
+      // Organic: listed in last 5 hours, exclude own
       supabase
         .from('listings')
-        .select('id, title, price, images, category, condition, status, created_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
+        .select(LISTING_SELECT)
         .eq('status', 'available')
         .neq('seller_id', user.id)
-        .gte('created_at', since)
+        .gte('created_at', since5h)
         .order('created_at', { ascending: false })
         .limit(50),
 
-      // User's basket categories (personalisation signal 1)
+      // Boosted: active boost, exclude own (no time restriction)
+      supabase
+        .from('listings')
+        .select(LISTING_SELECT)
+        .eq('status', 'available')
+        .neq('seller_id', user.id)
+        .eq('is_boosted', true)
+        .gt('boost_expires_at', now)
+        .order('created_at', { ascending: false })
+        .limit(20),
+
+      // Personalisation: basket categories
       supabase
         .from('basket_items')
         .select('listing:listings(category)')
         .eq('user_id', user.id),
 
-      // Recently viewed categories (personalisation signal 2)
+      // Personalisation: recently viewed categories
       supabase
         .from('listing_views')
         .select('listing:listings(category)')
@@ -111,20 +129,44 @@ export function useStories() {
         .eq('user_id', user.id),
     ]);
 
-    // Build preferred categories set
+    const viewedIds = new Set(viewedStories?.map(s => s.listing_id) ?? []);
+
     const preferredCategories = new Set<string>([
       ...(basketItems?.map((b: any) => b.listing?.category).filter(Boolean) ?? []),
       ...(viewedListings?.map((v: any) => v.listing?.category).filter(Boolean) ?? []),
     ]);
 
-    const viewedIds = new Set(viewedStories?.map(s => s.listing_id) ?? []);
+    // Merge boosted + organic, dedup by id
+    const seenIds = new Set<string>();
+    const merged: StoryListing[] = [];
+    for (const l of [...(boostedListings ?? []), ...(organicListings ?? [])]) {
+      if (seenIds.has(l.id)) continue;
+      seenIds.add(l.id);
+      merged.push(l as unknown as StoryListing);
+    }
 
-    // Sort: unviewed + preferred first, then unviewed, then viewed
-    const sorted = [...(listings ?? [])].sort((a, b) => {
+    // Dedup to one listing per seller (keep most recently created — already ordered desc)
+    const seenSellers = new Set<string>();
+    const deduped: StoryListing[] = [];
+    for (const l of merged) {
+      const sellerId = l.seller_id ?? '';
+      if (seenSellers.has(sellerId)) continue;
+      seenSellers.add(sellerId);
+      deduped.push(l);
+    }
+
+    // Sort: boosted unviewed → unviewed + preferred → unviewed → viewed
+    const sorted = [...deduped].sort((a, b) => {
       const aViewed = viewedIds.has(a.id) ? 1 : 0;
       const bViewed = viewedIds.has(b.id) ? 1 : 0;
       if (aViewed !== bViewed) return aViewed - bViewed;
 
+      // Both unviewed — boosted first
+      const aBoosted = a.is_boosted ? 0 : 1;
+      const bBoosted = b.is_boosted ? 0 : 1;
+      if (aBoosted !== bBoosted) return aBoosted - bBoosted;
+
+      // Then preferred category
       const aPref = preferredCategories.has(a.category) ? 0 : 1;
       const bPref = preferredCategories.has(b.category) ? 0 : 1;
       return aPref - bPref;
@@ -132,7 +174,7 @@ export function useStories() {
 
     setStories(
       sorted.map(l => ({
-        ...(l as unknown as StoryListing),
+        ...l,
         viewed: viewedIds.has(l.id),
       }))
     );
@@ -146,7 +188,6 @@ export function useStories() {
   const markViewed = async (listingId: string) => {
     if (!user) return;
 
-    // Optimistic update
     setStories(prev =>
       prev.map(s => (s.id === listingId ? { ...s, viewed: true } : s))
     );
