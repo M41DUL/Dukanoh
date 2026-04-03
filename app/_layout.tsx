@@ -139,6 +139,10 @@ function RootNavigator() {
           name="how-it-works"
           options={{ animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="seller-hub"
+          options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
+        />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {splashVisible && (

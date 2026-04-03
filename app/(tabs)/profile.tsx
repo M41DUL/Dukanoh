@@ -5,13 +5,32 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
 import { StarRating } from '@/components/StarRating';
-import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import type { ComponentProps } from 'react';
 
+// ── Dukanoh Pro theme — sourced from design system ───────────
+const HUB = {
+  background:    proColors.background,
+  surface:       proColors.surface,
+  accent:        proColors.primary,
+  textPrimary:   proColors.textPrimary,
+  textSecondary: proColors.textSecondary,
+  border:        proColors.border,
+} as const;
+
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+
+const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
+  { icon: 'flash-outline',            label: '3 free boosts every month' },
+  { icon: 'bar-chart-outline',        label: 'Analytics & earnings dashboard' },
+  { icon: 'shield-checkmark-outline', label: 'Pro seller badge' },
+  { icon: 'folder-outline',           label: 'Collections & archive' },
+  { icon: 'share-social-outline',     label: 'Share kit for Instagram & WhatsApp' },
+  { icon: 'pricetag-outline',         label: 'Price drop alerts to saved buyers' },
+];
 
 interface QuickAction {
   icon: IoniconsName;
@@ -28,6 +47,12 @@ const quickActions: QuickAction[] = [
   { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
 ];
 
+interface HubSummary {
+  totalViews: number;
+  totalSaves: number;
+  totalEarned: number;
+}
+
 export default function ProfileScreen() {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
@@ -35,6 +60,9 @@ export default function ProfileScreen() {
   const [ratingCount, setRatingCount] = useState(0);
   const [profileName, setProfileName] = useState('');
   const [profileAvatar, setProfileAvatar] = useState<string | undefined>();
+  const [sellerTier, setSellerTier] = useState<string>('free');
+  const [listingCount, setListingCount] = useState(0);
+  const [hubSummary, setHubSummary] = useState<HubSummary | null>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -43,11 +71,18 @@ export default function ProfileScreen() {
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
-    const { data, error } = await supabase
-      .from('users')
-      .select('full_name, avatar_url, rating_avg, rating_count')
-      .eq('id', user.id)
-      .maybeSingle();
+    const [{ data, error }, { count }] = await Promise.all([
+      supabase
+        .from('users')
+        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('seller_id', user.id)
+        .neq('status', 'archived'),
+    ]);
     if (error) {
       console.warn('fetchProfile failed:', error.message);
       return;
@@ -58,8 +93,32 @@ export default function ProfileScreen() {
       setProfileAvatar(data.avatar_url ?? undefined);
       setRatingAvg(data.rating_avg ?? 0);
       setRatingCount(data.rating_count ?? 0);
+      setSellerTier(data.seller_tier ?? 'free');
     }
+    setListingCount(count ?? 0);
   }, [user]);
+
+  const fetchHubSummary = useCallback(async () => {
+    if (!user || sellerTier !== 'pro') return;
+    const [{ data: views }, { data: saves }, { data: earned }] = await Promise.all([
+      supabase
+        .from('listing_views')
+        .select('id', { count: 'exact', head: true })
+        .eq('listings.seller_id', user.id),
+      supabase
+        .from('listings')
+        .select('save_count')
+        .eq('seller_id', user.id),
+      supabase
+        .from('transactions')
+        .select('amount')
+        .eq('seller_id', user.id),
+    ]);
+    const totalViews = (views as any)?.length ?? 0;
+    const totalSaves = (saves ?? []).reduce((sum: number, l: any) => sum + (l.save_count ?? 0), 0);
+    const totalEarned = (earned ?? []).reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0);
+    setHubSummary({ totalViews, totalSaves, totalEarned });
+  }, [user, sellerTier]);
 
   useFocusEffect(useCallback(() => {
     const now = Date.now();
@@ -69,12 +128,16 @@ export default function ProfileScreen() {
     }
   }, [fetchProfile]));
 
+  useFocusEffect(useCallback(() => {
+    if (sellerTier === 'pro') fetchHubSummary();
+  }, [fetchHubSummary, sellerTier]));
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     lastFetchedRef.current = 0;
-    await fetchProfile();
+    await Promise.all([fetchProfile(), sellerTier === 'pro' ? fetchHubSummary() : Promise.resolve()]);
     setRefreshing(false);
-  }, [fetchProfile]);
+  }, [fetchProfile, fetchHubSummary, sellerTier]);
 
   return (
     <ScreenWrapper contentStyle={{ paddingHorizontal: 0 }}>
@@ -132,7 +195,67 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* ── Recently viewed ── */}
+        {/* ── Dukanoh Pro entry card ── */}
+        {listingCount > 0 && (
+          <TouchableOpacity
+            style={styles.hubCard}
+            onPress={() => router.push('/seller-hub')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.hubCardHeader}>
+              <Text style={styles.hubCardTitle}>Dukanoh Pro</Text>
+              {sellerTier === 'pro' ? (
+                <View style={styles.proBadge}>
+                  <Text style={styles.proBadgeText}>Pro ✦</Text>
+                </View>
+              ) : (
+                <Ionicons name="lock-closed" size={16} color={HUB.textSecondary} />
+              )}
+            </View>
+
+            {sellerTier !== 'pro' && (
+              <View style={styles.hubFeatureList}>
+                {HUB_FEATURES.map(f => (
+                  <View key={f.label} style={styles.hubFeatureRow}>
+                    <View style={styles.hubFeatureIconWrap}>
+                      <Ionicons name={f.icon} size={14} color={HUB.accent} />
+                    </View>
+                    <Text style={styles.hubFeatureLabel}>{f.label}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {sellerTier === 'pro' && hubSummary ? (
+              <>
+                <View style={styles.hubMetrics}>
+                  <View style={styles.hubMetric}>
+                    <Text style={styles.hubMetricValue}>£{hubSummary.totalEarned.toFixed(0)}</Text>
+                    <Text style={styles.hubMetricLabel}>Earned</Text>
+                  </View>
+                  <View style={styles.hubMetricDivider} />
+                  <View style={styles.hubMetric}>
+                    <Text style={styles.hubMetricValue}>{hubSummary.totalViews}</Text>
+                    <Text style={styles.hubMetricLabel}>Views</Text>
+                  </View>
+                  <View style={styles.hubMetricDivider} />
+                  <View style={styles.hubMetric}>
+                    <Text style={styles.hubMetricValue}>{hubSummary.totalSaves}</Text>
+                    <Text style={styles.hubMetricLabel}>Saves</Text>
+                  </View>
+                </View>
+                <View style={styles.hubCardFooter}>
+                  <Text style={styles.hubCardFooterText}>Open Dukanoh Pro</Text>
+                  <Ionicons name="chevron-forward" size={14} color={HUB.accent} />
+                </View>
+              </>
+            ) : (
+              <View style={styles.hubUpgradeBtn}>
+                <Text style={styles.hubUpgradeBtnText}>Start free trial</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
 
       </ScrollView>
     </ScreenWrapper>
@@ -221,7 +344,103 @@ function getStyles(colors: ColorTokens) {
       fontFamily: 'Inter_500Medium',
     },
 
-
-
+    // Dukanoh Pro entry card
+    hubCard: {
+      marginHorizontal: Spacing.base,
+      marginBottom: Spacing.xl,
+      backgroundColor: HUB.background,
+      borderRadius: BorderRadius.large,
+      borderWidth: 1,
+      borderColor: HUB.border,
+      padding: Spacing.lg,
+      gap: Spacing.md,
+    },
+    hubCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    hubCardTitle: {
+      ...Typography.subheading,
+      color: HUB.textPrimary,
+      fontFamily: FontFamily.semibold,
+    },
+    proBadge: {
+      backgroundColor: HUB.accent,
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+    },
+    proBadgeText: {
+      ...Typography.caption,
+      color: HUB.background,
+      fontFamily: FontFamily.semibold,
+    },
+    hubMetrics: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    hubMetric: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 2,
+    },
+    hubMetricValue: {
+      ...Typography.subheading,
+      color: HUB.accent,
+      fontFamily: FontFamily.bold,
+    },
+    hubMetricLabel: {
+      ...Typography.caption,
+      color: HUB.textSecondary,
+    },
+    hubMetricDivider: {
+      width: 1,
+      height: 32,
+      backgroundColor: HUB.border,
+    },
+    hubCardFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: 4,
+    },
+    hubCardFooterText: {
+      ...Typography.caption,
+      color: HUB.accent,
+      fontFamily: FontFamily.medium,
+    },
+    hubFeatureList: {
+      gap: Spacing.sm,
+    },
+    hubFeatureRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    hubFeatureIconWrap: {
+      width: 26,
+      height: 26,
+      borderRadius: BorderRadius.small,
+      backgroundColor: proColors.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    hubFeatureLabel: {
+      ...Typography.caption,
+      color: HUB.textPrimary,
+      flex: 1,
+    },
+    hubUpgradeBtn: {
+      backgroundColor: HUB.accent,
+      borderRadius: BorderRadius.full,
+      paddingVertical: Spacing.sm,
+      alignItems: 'center',
+    },
+    hubUpgradeBtnText: {
+      ...Typography.label,
+      color: HUB.background,
+      fontFamily: FontFamily.semibold,
+    },
   });
 }
