@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
@@ -22,7 +22,7 @@ try {
       ) {
         return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
       }
-      return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false };
+      return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true };
     },
   });
 } catch {}
@@ -31,11 +31,26 @@ export function usePushNotifications() {
   const { user } = useAuth();
   const responseListener = useRef<Notifications.Subscription>();
 
+  // Clear badge when app comes to foreground
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        Notifications.setBadgeCountAsync(0).catch(() => {});
+      }
+    });
+    // Also clear immediately on mount
+    Notifications.setBadgeCountAsync(0).catch(() => {});
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     if (!user) return;
 
     registerForPushNotifications().then(async (token) => {
       if (!token) return;
+      // Remove this token from any other user (handles device re-use after login switch)
+      await supabase.from('push_tokens').delete().eq('token', token).neq('user_id', user.id);
+      // Save token for current user
       await supabase.from('push_tokens').upsert(
         { user_id: user.id, token, updated_at: new Date().toISOString() },
         { onConflict: 'user_id,token' }
@@ -50,6 +65,8 @@ export function usePushNotifications() {
           router.push(`/conversation/${data.conversation_id}`);
         } else if (data?.order_id) {
           router.push(`/order/${data.order_id}`);
+        } else if (data?.listing_id) {
+          router.push(`/listing/${data.listing_id}`);
         }
       });
 

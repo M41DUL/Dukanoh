@@ -25,6 +25,10 @@ Deno.serve(async (req) => {
     return handleOrder(supabase, record, old_record);
   }
 
+  if (table === 'listings') {
+    return handlePriceDrop(supabase, record, old_record);
+  }
+
   return new Response(JSON.stringify({ skipped: 'unknown table' }), { status: 200 });
 });
 
@@ -169,6 +173,57 @@ async function handleOrder(
 
   if (messages.length === 0) {
     return new Response(JSON.stringify({ skipped: 'no recipients for status' }), { status: 200 });
+  }
+
+  return sendPush(messages, supabase);
+}
+
+// ─── Price drop notification ──────────────────────────────────
+
+async function handlePriceDrop(
+  supabase: ReturnType<typeof createClient>,
+  record: Record<string, string>,
+  old_record: Record<string, string>
+) {
+  // Only fire if price dropped and listing is still available
+  if (!record?.price || !old_record?.price) {
+    return new Response(JSON.stringify({ skipped: 'no price data' }), { status: 200 });
+  }
+  if (parseFloat(record.price) >= parseFloat(old_record.price)) {
+    return new Response(JSON.stringify({ skipped: 'not a price drop' }), { status: 200 });
+  }
+  if (record.status !== 'available') {
+    return new Response(JSON.stringify({ skipped: 'listing not available' }), { status: 200 });
+  }
+
+  // Get all users who saved this listing
+  const { data: savers } = await supabase
+    .from('saved_items')
+    .select('user_id')
+    .eq('listing_id', record.id);
+
+  if (!savers || savers.length === 0) {
+    return new Response(JSON.stringify({ skipped: 'no savers' }), { status: 200 });
+  }
+
+  const saverIds: string[] = savers.map((s: { user_id: string }) => s.user_id);
+  const title = record.title ?? 'A saved item';
+  const newPrice = parseFloat(record.price).toFixed(2);
+  const messages: object[] = [];
+
+  for (const saverId of saverIds) {
+    const tokens = await getTokens(supabase, saverId);
+    tokens.forEach(t => messages.push({
+      to: t,
+      sound: 'default',
+      title: 'Price drop!',
+      body: `${title} is now £${newPrice}`,
+      data: { listing_id: record.id },
+    }));
+  }
+
+  if (messages.length === 0) {
+    return new Response(JSON.stringify({ skipped: 'no tokens for savers' }), { status: 200 });
   }
 
   return sendPush(messages, supabase);
