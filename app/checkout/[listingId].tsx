@@ -20,6 +20,7 @@ import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { calcProtectionFee, calcOrderTotal, formatGBP } from '@/lib/paymentHelpers';
 
 interface ListingSummary {
   id: string;
@@ -38,13 +39,6 @@ interface AddressState {
   country: string;
 }
 
-function calcFee(price: number) {
-  return Math.round((price * 0.065 + 0.8) * 100) / 100;
-}
-
-function formatGBP(amount: number) {
-  return `£${amount.toFixed(2)}`;
-}
 
 export default function CheckoutScreen() {
   const { listingId } = useLocalSearchParams<{ listingId: string }>();
@@ -95,8 +89,8 @@ export default function CheckoutScreen() {
     }, [user, listingId])
   );
 
-  const protectionFee = listing ? calcFee(listing.price) : 0;
-  const total = listing ? listing.price + protectionFee : 0;
+  const protectionFee = listing ? calcProtectionFee(listing.price) : 0;
+  const total = listing ? calcOrderTotal(listing.price) : 0;
 
   const handlePlaceOrder = async () => {
     if (!listing || !user) return;

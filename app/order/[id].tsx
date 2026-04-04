@@ -20,6 +20,8 @@ import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { formatGBP } from '@/lib/paymentHelpers';
+import { getOrderActions } from '@/lib/orderHelpers';
 
 type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'resolved' | 'cancelled';
 
@@ -56,10 +58,6 @@ interface Order {
   } | null;
   buyer: { username: string; avatar_url: string | null } | null;
   seller: { username: string; avatar_url: string | null; is_verified: boolean } | null;
-}
-
-function formatGBP(amount: number) {
-  return `£${amount.toFixed(2)}`;
 }
 
 function formatDate(dateStr: string) {
@@ -274,12 +272,14 @@ export default function OrderDetailScreen() {
   }
 
   const statusColor = STATUS_COLOR[order.status] ?? colors.textSecondary;
-  const canCancel = (isBuyer || isSeller) && (order.status === 'paid' || order.status === 'created');
-  const canShip = isSeller && order.status === 'paid';
-  const canConfirm = isBuyer && order.status === 'shipped';
-  const canDispute = isBuyer && order.status === 'shipped';
-  const isDisputed = order.status === 'disputed';
-  const canWithdrawDispute = isBuyer && isDisputed;
+  const {
+    canShip,
+    canConfirm,
+    canDispute,
+    canCancel,
+    canWithdrawDispute,
+    isDisputed,
+  } = getOrderActions(order.status, isBuyer, isSeller);
 
   return (
     <ScreenWrapper>
