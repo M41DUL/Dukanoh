@@ -32,11 +32,25 @@ export default function SettingsScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
+  const [isAdmin, setIsAdmin] = useState(false);
   const [blockedSheetVisible, setBlockedSheetVisible] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<{ id: string; username: string; avatar_url?: string }[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
 
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+
+  React.useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'admin_user_ids')
+      .single()
+      .then(({ data }) => {
+        const ids: string[] = JSON.parse(data?.value ?? '[]');
+        setIsAdmin(ids.includes(user.id));
+      });
+  }, [user]);
 
   const openBlockedSheet = useCallback(async () => {
     setBlockedSheetVisible(true);
@@ -237,6 +251,15 @@ export default function SettingsScreen() {
         {renderSection(supportRows)}
         {renderSection(legalRows)}
         {renderSection(actionRows)}
+
+        {isAdmin && renderSection([
+          {
+            icon: 'shield-half-outline',
+            title: 'Disputes',
+            subtitle: 'Admin — resolve buyer/seller disputes',
+            onPress: () => router.push('/admin/disputes'),
+          },
+        ], 'Admin')}
 
         {/* Footer */}
         <Text style={styles.footer}>Dukanoh v{appVersion}</Text>
