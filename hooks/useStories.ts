@@ -65,7 +65,7 @@ export interface StoryListing {
 }
 
 const LISTING_SELECT =
-  'id, title, price, images, category, condition, status, created_at, seller_id, is_boosted, seller:users!listings_seller_id_fkey(username, avatar_url)';
+  'id, title, price, images, category, condition, status, created_at, seller_id, is_boosted, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)';
 
 export function useStories() {
   const { user } = useAuth();

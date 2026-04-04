@@ -226,7 +226,7 @@ export default function ListingsScreen() {
 
     let q = supabase
       .from('listings')
-      .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
+      .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
       .eq('status', 'available')
       .order(orderCol, { ascending });
 

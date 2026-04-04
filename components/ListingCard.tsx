@@ -33,6 +33,8 @@ export interface Listing {
     rating_avg?: number;
     rating_count?: number;
     created_at?: string;
+    seller_tier?: string;
+    is_verified?: boolean;
   };
 }
 
@@ -128,6 +130,15 @@ export function ListingCard({
         />
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}
         <Text style={styles.price}>£{listing.price.toFixed(2)}</Text>
+        <View style={styles.sellerRow}>
+          <Text style={styles.sellerName} numberOfLines={1}>@{listing.seller.username}</Text>
+          {listing.seller.is_verified && (
+            <Text style={styles.verifiedBadge}>✓</Text>
+          )}
+          {listing.seller.seller_tier === 'pro' && (
+            <Text style={styles.proBadge}>◆</Text>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -202,6 +213,28 @@ function getStyles(colors: ColorTokens) {
       ...Typography.body,
       color: colors.textPrimary,
       marginTop: 1,
+    },
+    sellerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      marginTop: 1,
+    },
+    sellerName: {
+      fontSize: 11,
+      fontFamily: FontFamily.regular,
+      color: colors.textSecondary,
+      flex: 1,
+    },
+    verifiedBadge: {
+      fontSize: 10,
+      fontFamily: FontFamily.bold,
+      color: '#3735C5',
+    },
+    proBadge: {
+      fontSize: 10,
+      fontFamily: FontFamily.bold,
+      color: '#C7A84F',
     },
   });
 }

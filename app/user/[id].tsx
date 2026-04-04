@@ -31,6 +31,8 @@ interface Seller {
   rating_avg?: number;
   rating_count?: number;
   created_at?: string;
+  is_verified?: boolean;
+  seller_tier?: string;
 }
 
 interface Review {
@@ -74,7 +76,7 @@ export default function SellerProfileScreen() {
       supabase.from('users').select('*').eq('id', id).single(),
       supabase
         .from('listings')
-        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
+        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
         .eq('seller_id', id)
         .eq('status', 'available')
         .order('created_at', { ascending: false })
@@ -226,7 +228,16 @@ export default function SellerProfileScreen() {
             <View style={styles.profileInfo}>
               <View style={styles.usernameRow}>
                 <Text style={styles.username}>@{seller.username}</Text>
-                <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
+                {seller.is_verified && (
+                  <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
+                    <Text style={[styles.badgePillText, { color: colors.primary }]}>✓ Verified</Text>
+                  </View>
+                )}
+                {seller.seller_tier === 'pro' && (
+                  <View style={[styles.badgePill, { backgroundColor: '#201A04' }]}>
+                    <Text style={[styles.badgePillText, { color: '#C7A84F' }]}>◆ Pro</Text>
+                  </View>
+                )}
               </View>
               {joinedDate ? (
                 <Text style={styles.joinedText}>Joined {joinedDate}</Text>
@@ -410,6 +421,16 @@ function getStyles(colors: ColorTokens) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.xs,
+      flexWrap: 'wrap',
+    },
+    badgePill: {
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+    },
+    badgePillText: {
+      fontSize: 11,
+      fontFamily: FontFamily.semibold,
     },
     username: {
       ...Typography.subheading,
