@@ -253,7 +253,7 @@ Temporarily re-enters a listing into the stories rotation beyond its natural 5-h
 - If Pro subscription lapses, no new free boosts — any active boosts continue until their expiry date
 
 ### Boost Duration
-- 3 days per boost
+- 24 hours per boost
 - After expiry, listing returns to normal (no story presence unless re-boosted)
 - Seller can re-boost the same listing immediately after expiry
 - Only one active boost per listing at a time — boost button disabled while boost is active, shows "Boosted — X days remaining"

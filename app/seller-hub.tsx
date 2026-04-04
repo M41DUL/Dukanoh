@@ -317,8 +317,8 @@ function HubDashboard() {
   const handleBoost = useCallback(async (listingId: string) => {
     setBoostingId(listingId);
     // RevenueCat consumable purchase for boost goes here
-    // On success: update DB is_boosted = true, boost_expires_at = now + 3 days
-    const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    // On success: update DB is_boosted = true, boost_expires_at = now + 24 hours
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     await supabase.from('listings').update({ is_boosted: true, boost_expires_at: expiresAt }).eq('id', listingId);
     await fetchData();
     setBoostingId(null);
