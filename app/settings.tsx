@@ -116,6 +116,27 @@ export default function SettingsScreen() {
     );
   };
 
+  const sellingRows: MenuRow[] = [
+    {
+      icon: 'wallet-outline',
+      title: 'Wallet',
+      subtitle: 'Balances and payouts',
+      onPress: () => router.push('/wallet'),
+    },
+    {
+      icon: 'shield-checkmark-outline',
+      title: 'Get Verified',
+      subtitle: 'Connect Stripe to receive payments',
+      onPress: () => router.push('/stripe-onboarding'),
+    },
+    {
+      icon: 'location-outline',
+      title: 'Delivery Address',
+      subtitle: 'Saved for checkout',
+      onPress: () => router.push('/settings/address'),
+    },
+  ];
+
   const accountRows: MenuRow[] = [
     {
       icon: 'color-palette-outline',
@@ -199,8 +220,9 @@ export default function SettingsScreen() {
     </View>
   );
 
-  const renderSection = (rows: MenuRow[]) => (
+  const renderSection = (rows: MenuRow[], title?: string) => (
     <View style={styles.section}>
+      {title ? <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{title}</Text> : null}
       {rows.map(row => renderRow(row))}
     </View>
   );
@@ -210,6 +232,7 @@ export default function SettingsScreen() {
       <Header title="Settings" showBack />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {renderSection(sellingRows, 'Selling')}
         {renderSection(accountRows)}
         {renderSection(supportRows)}
         {renderSection(legalRows)}
@@ -264,6 +287,13 @@ function getStyles(colors: ColorTokens) {
 
     // Sections
     section: {},
+    sectionTitle: {
+      fontSize: 11,
+      fontFamily: 'Inter_600SemiBold',
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+      paddingBottom: Spacing.xs,
+    },
     // Menu rows
     menuRow: {
       flexDirection: 'row',
