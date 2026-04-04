@@ -26,6 +26,9 @@ type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 
 
 interface Order {
   id: string;
+  buyer_id: string;
+  seller_id: string;
+  listing_id: string | null;
   status: OrderStatus;
   item_price: number;
   total_paid: number;
@@ -96,7 +99,7 @@ export default function OrdersScreen() {
       supabase
         .from('orders')
         .select(`
-          id, status, item_price, total_paid, created_at,
+          id, buyer_id, seller_id, listing_id, status, item_price, total_paid, created_at,
           listing:listings(title, images),
           buyer:users!orders_buyer_id_fkey(username),
           seller:users!orders_seller_id_fkey(username)
@@ -113,6 +116,15 @@ export default function OrdersScreen() {
   }, [user]);
 
   useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
+
+  // Map listing_id → order_id so sold listings can navigate to their order
+  const listingOrderMap = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const o of orders) {
+      if (o.listing_id) map[o.listing_id] = o.id;
+    }
+    return map;
+  }, [orders]);
 
   const listingData = activeTab === 'selling' ? selling : activeTab === 'drafts' ? drafts : bought;
 
@@ -156,6 +168,7 @@ export default function OrdersScreen() {
           renderItem={({ item }) => {
             const statusColor = STATUS_COLOR[item.status] ?? colors.textSecondary;
             const needsAction = ACTION_REQUIRED.includes(item.status);
+            const isSelling = item.seller_id === user?.id;
             return (
               <TouchableOpacity
                 style={[styles.orderRow, { backgroundColor: colors.surface }]}
@@ -178,7 +191,7 @@ export default function OrdersScreen() {
                     {item.listing?.title ?? 'Listing removed'}
                   </Text>
                   <Text style={[styles.orderMeta, { color: colors.textSecondary }]}>
-                    £{item.item_price.toFixed(2)} · {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    {isSelling ? 'Selling' : 'Buying'} · £{item.item_price.toFixed(2)} · {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                   </Text>
                 </View>
 
@@ -215,11 +228,13 @@ export default function OrdersScreen() {
               <ListingCard
                 listing={item}
                 variant="grid"
-                onPress={() =>
-                  activeTab === 'drafts'
-                    ? router.push(`/listing/edit/${item.id}`)
-                    : router.push(`/listing/${item.id}`)
-                }
+                onPress={() => {
+                  if (activeTab === 'drafts') return router.push(`/listing/edit/${item.id}`);
+                  if (activeTab === 'selling' && item.status === 'sold' && listingOrderMap[item.id]) {
+                    return router.push(`/order/${listingOrderMap[item.id]}`);
+                  }
+                  router.push(`/listing/${item.id}`);
+                }}
               />
               {activeTab === 'selling' && (
                 <View style={[

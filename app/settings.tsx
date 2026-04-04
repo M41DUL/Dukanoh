@@ -126,7 +126,7 @@ export default function SettingsScreen() {
     {
       icon: 'shield-checkmark-outline',
       title: 'Get Verified',
-      subtitle: 'Connect Stripe to receive payments',
+      subtitle: 'Verify your identity to receive payments',
       onPress: () => router.push('/stripe-onboarding'),
     },
     {

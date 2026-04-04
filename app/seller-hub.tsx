@@ -202,7 +202,7 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
                 </View>
                 <View style={styles.gateText}>
                   <Text style={styles.gateTitle}>Get Verified first</Text>
-                  <Text style={styles.gateBody}>Complete Stripe ID verification to unlock Pro and receive payments.</Text>
+                  <Text style={styles.gateBody}>Complete Dukanoh Verify to unlock Pro and receive payments.</Text>
                 </View>
               </View>
             )}
@@ -224,7 +224,7 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
             onPress={() => { router.back(); router.push('/stripe-onboarding'); }}
           >
             <Text style={styles.ctaBtnText}>
-              {!isVerified ? 'Set up Stripe verification' : 'Add a listing'}
+              {!isVerified ? 'Set up Dukanoh Verify' : 'Add a listing'}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12} activeOpacity={0.6}>

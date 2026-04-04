@@ -43,8 +43,16 @@ interface Order {
     title: string;
     images: string[];
   } | null;
-  buyer: { username: string; avatar_url: string | null } | null;
-  seller: { username: string; avatar_url: string | null } | null;
+  buyer: {
+    username: string;
+    avatar_url: string | null;
+    address_line1: string | null;
+    address_line2: string | null;
+    city: string | null;
+    postcode: string | null;
+    country: string | null;
+  } | null;
+  seller: { username: string; avatar_url: string | null; is_verified: boolean } | null;
 }
 
 function formatGBP(amount: number) {
@@ -100,8 +108,8 @@ export default function OrderDetailScreen() {
       .select(`
         *,
         listing:listings(title, images),
-        buyer:users!orders_buyer_id_fkey(username, avatar_url),
-        seller:users!orders_seller_id_fkey(username, avatar_url)
+        buyer:users!orders_buyer_id_fkey(username, avatar_url, address_line1, address_line2, city, postcode, country),
+        seller:users!orders_seller_id_fkey(username, avatar_url, is_verified)
       `)
       .eq('id', id)
       .single();
@@ -307,6 +315,48 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
+        {/* ── SELLER: unverified payment nudge ─────────────────── */}
+        {canShip && !order.seller?.is_verified && (
+          <TouchableOpacity
+            style={[styles.verifyNudge, { backgroundColor: colors.amber + '18', borderColor: colors.amber + '40' }]}
+            onPress={() => router.push('/stripe-onboarding')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.amber} />
+            <View style={styles.verifyNudgeText}>
+              <Text style={[styles.verifyNudgeTitle, { color: colors.textPrimary }]}>
+                Complete Dukanoh Verify to receive payment
+              </Text>
+              <Text style={[styles.verifyNudgeSub, { color: colors.textSecondary }]}>
+                Tap to get verified — funds won't reach you until your account is verified.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
+
+        {/* ── SELLER: delivery address ──────────────────────────── */}
+        {canShip && order.buyer && (
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Ship to</Text>
+            {order.buyer.address_line1 ? (
+              <Text style={[styles.addressText, { color: colors.textPrimary }]}>
+                {[
+                  order.buyer.address_line1,
+                  order.buyer.address_line2,
+                  order.buyer.city,
+                  order.buyer.postcode,
+                  order.buyer.country,
+                ].filter(Boolean).join('\n')}
+              </Text>
+            ) : (
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                Buyer has not saved a delivery address yet.
+              </Text>
+            )}
+          </View>
+        )}
+
         {/* ── SELLER: enter tracking + mark shipped ─────────────── */}
         {canShip && (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
@@ -474,6 +524,11 @@ function getStyles(colors: ColorTokens) {
       fontFamily: 'Inter_400Regular',
       lineHeight: 18,
     },
+    addressText: {
+      fontSize: 14,
+      fontFamily: 'Inter_400Regular',
+      lineHeight: 22,
+    },
     inputWrap: {
       borderRadius: BorderRadius.medium,
       borderWidth: 1.5,
@@ -499,6 +554,27 @@ function getStyles(colors: ColorTokens) {
     cancelText: {
       fontSize: 14,
       fontFamily: 'Inter_500Medium',
+    },
+    verifyNudge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      borderRadius: BorderRadius.large,
+      borderWidth: 1,
+      padding: Spacing.base,
+    },
+    verifyNudgeText: {
+      flex: 1,
+      gap: 2,
+    },
+    verifyNudgeTitle: {
+      fontSize: 13,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    verifyNudgeSub: {
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+      lineHeight: 17,
     },
     notFound: {
       flex: 1,

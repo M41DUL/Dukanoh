@@ -92,9 +92,9 @@ export default function WalletScreen() {
     if (!wallet || wallet.available_balance <= 0) return;
     Alert.alert(
       'Withdraw funds',
-      'Bank payouts will be available once your Stripe account is connected. Set up Stripe to start receiving payments.',
+      'Bank payouts will be available once you complete Dukanoh Verify. Set up Dukanoh Pay to start receiving payments.',
       [
-        { text: 'Set up Stripe', onPress: () => router.push('/stripe-onboarding') },
+        { text: 'Set up Dukanoh Verify', onPress: () => router.push('/stripe-onboarding') },
         { text: 'Cancel', style: 'cancel' },
       ]
     );
@@ -172,7 +172,7 @@ export default function WalletScreen() {
           >
             <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
             <Text style={[styles.payoutText, { color: colors.primary }]}>
-              Set up Stripe to receive payouts
+              Set up Dukanoh Pay to receive payouts
             </Text>
           </TouchableOpacity>
         </View>

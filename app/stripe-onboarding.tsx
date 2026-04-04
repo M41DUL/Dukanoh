@@ -22,7 +22,7 @@ const BENEFITS = [
   {
     icon: 'lock-closed-outline' as const,
     title: 'Secure & protected',
-    body: 'Stripe handles all card processing. Dukanoh never stores your bank details.',
+    body: 'Dukanoh Verify handles all card processing. We never store your bank details.',
   },
   {
     icon: 'star-outline' as const,
@@ -39,12 +39,9 @@ export default function StripeOnboardingScreen() {
   const isAlreadyVerified = (user as any)?.is_verified === true;
 
   const handleStartOnboarding = () => {
-    // Stripe Connect Express onboarding redirect goes here when Stripe is wired.
-    // stripe.accounts.create + hosted onboarding link → open in browser
-    // On return, Stripe webhook sets is_verified = true via account.updated event.
-    //
-    // For now: show a placeholder until Stripe credentials are added.
-    alert('Stripe onboarding will be available soon. Come back shortly!');
+    // Dukanoh Verify onboarding redirect goes here when payment provider is wired.
+    // For now: show a placeholder.
+    alert('Dukanoh Verify will be available soon. Come back shortly!');
   };
 
   return (
@@ -63,7 +60,7 @@ export default function StripeOnboardingScreen() {
             Verify your seller account
           </Text>
           <Text style={[styles.heroBody, { color: colors.textSecondary }]}>
-            Complete a quick ID and bank account check via Stripe — the same trusted platform used by millions of businesses worldwide.
+            Complete a quick ID and bank account check via Dukanoh Verify — takes just a few minutes and keeps your payments secure.
           </Text>
         </View>
 
@@ -104,13 +101,13 @@ export default function StripeOnboardingScreen() {
           </View>
         ) : (
           <Button
-            label="Start verification with Stripe"
+            label="Start Dukanoh Verify"
             onPress={handleStartOnboarding}
           />
         )}
 
         <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>
-          Your data is handled by Stripe and subject to their privacy policy. Dukanoh does not store your ID or bank details.
+          Your data is encrypted and handled securely. Dukanoh does not store your ID or bank details.
         </Text>
       </ScrollView>
     </ScreenWrapper>

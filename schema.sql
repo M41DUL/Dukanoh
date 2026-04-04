@@ -741,6 +741,53 @@ CREATE POLICY "Sellers can read their own wallet"
 
 CREATE INDEX idx_wallet_seller ON public.seller_wallet (seller_id);
 
+-- Wallet update trigger (credits/debits seller_wallet on order status changes)
+CREATE OR REPLACE FUNCTION public.handle_order_wallet_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.status = 'paid' AND NEW.status = 'shipped' THEN
+    UPDATE public.seller_wallet
+    SET pending_balance = pending_balance + NEW.item_price
+    WHERE user_id = NEW.seller_id;
+  END IF;
+  IF OLD.status IN ('shipped', 'delivered') AND NEW.status = 'completed' THEN
+    UPDATE public.seller_wallet
+    SET
+      pending_balance   = GREATEST(0, pending_balance - NEW.item_price),
+      available_balance = available_balance + NEW.item_price,
+      lifetime_earned   = lifetime_earned + NEW.item_price,
+      updated_at        = NOW()
+    WHERE user_id = NEW.seller_id;
+  END IF;
+  IF OLD.status = 'shipped' AND NEW.status = 'cancelled' THEN
+    UPDATE public.seller_wallet
+    SET
+      pending_balance = GREATEST(0, pending_balance - NEW.item_price),
+      updated_at      = NOW()
+    WHERE user_id = NEW.seller_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS order_wallet_update ON public.orders;
+CREATE TRIGGER order_wallet_update
+  AFTER UPDATE ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_order_wallet_update();
+
+-- Auto-release function (called by Edge Function cron every hour)
+CREATE OR REPLACE FUNCTION public.auto_release_orders()
+RETURNS void AS $$
+BEGIN
+  UPDATE public.orders
+  SET status = 'completed', completed_at = NOW()
+  WHERE status = 'shipped'
+    AND auto_release_at IS NOT NULL
+    AND auto_release_at <= NOW();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Platform settings (Founder Plan config etc.)
 CREATE TABLE public.platform_settings (
   key   TEXT PRIMARY KEY,
