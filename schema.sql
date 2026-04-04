@@ -871,6 +871,12 @@ CREATE TABLE public.platform_settings (
   value TEXT NOT NULL
 );
 
+ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can read platform settings"
+  ON public.platform_settings FOR SELECT TO authenticated
+  USING (true);
+
 INSERT INTO public.platform_settings (key, value) VALUES
   ('founder_limit', '150'),
   ('founder_count', '0'),
