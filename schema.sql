@@ -37,7 +37,15 @@ CREATE TABLE public.users (
   boosts_reset_at             TIMESTAMPTZ,
   -- Sale mode
   sale_mode_active            BOOLEAN DEFAULT FALSE,
-  sale_mode_discount_pct      INT
+  sale_mode_discount_pct      INT,
+  -- Verified status (set via Stripe Connect onboarding webhook)
+  is_verified                 BOOLEAN DEFAULT FALSE,
+  -- Delivery address (saved on profile, pre-fills at checkout)
+  address_line1               TEXT,
+  address_line2               TEXT,
+  city                        TEXT,
+  postcode                    TEXT,
+  country                     TEXT DEFAULT 'United Kingdom'
 );
 
 -- Invites (controls access to the platform)
@@ -637,3 +645,154 @@ CREATE POLICY "Users can update their own notifications"
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 CREATE INDEX idx_notifications_user ON public.notifications (user_id);
+
+-- =============================================================
+-- COLLECTIONS
+-- =============================================================
+CREATE TABLE public.collections (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  seller_id  UUID REFERENCES public.users (id) ON DELETE CASCADE,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.collections ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Collections are publicly readable"
+  ON public.collections FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Sellers can create their own collections"
+  ON public.collections FOR INSERT TO authenticated WITH CHECK (auth.uid() = seller_id);
+CREATE POLICY "Sellers can update their own collections"
+  ON public.collections FOR UPDATE TO authenticated USING (auth.uid() = seller_id) WITH CHECK (auth.uid() = seller_id);
+CREATE POLICY "Sellers can delete their own collections"
+  ON public.collections FOR DELETE TO authenticated USING (auth.uid() = seller_id);
+
+-- =============================================================
+-- PAYMENTS — MARKETPLACE, WALLET, PLATFORM SETTINGS
+-- =============================================================
+
+-- New columns on users (payments + address)
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address_line1 TEXT;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address_line2 TEXT;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS city TEXT;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS postcode TEXT;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'United Kingdom';
+-- (stripe_account_id and stripe_onboarding_complete already exist above)
+
+-- Orders (full order lifecycle with escrow)
+CREATE TABLE public.orders (
+  id                UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  listing_id        UUID REFERENCES public.listings (id) ON DELETE SET NULL,
+  buyer_id          UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  seller_id         UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  status            TEXT NOT NULL DEFAULT 'created'
+                    CHECK (status IN ('created','paid','shipped','delivered','completed','disputed','resolved','cancelled')),
+  item_price        NUMERIC(10,2) NOT NULL,
+  protection_fee    NUMERIC(10,2) NOT NULL,
+  total_paid        NUMERIC(10,2) NOT NULL,
+  tracking_number   TEXT,
+  courier           TEXT,
+  stripe_payment_id TEXT,
+  dispute_reason    TEXT,
+  shipped_at        TIMESTAMPTZ,
+  delivered_at      TIMESTAMPTZ,
+  auto_release_at   TIMESTAMPTZ,
+  completed_at      TIMESTAMPTZ,
+  cancelled_at      TIMESTAMPTZ,
+  cancelled_by      TEXT CHECK (cancelled_by IN ('buyer','seller','system')),
+  created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Buyers and sellers can read their own orders"
+  ON public.orders FOR SELECT TO authenticated
+  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+
+CREATE POLICY "Buyers can create orders"
+  ON public.orders FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = buyer_id);
+
+CREATE POLICY "Buyers and sellers can update their own orders"
+  ON public.orders FOR UPDATE TO authenticated
+  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+
+CREATE INDEX idx_orders_buyer   ON public.orders (buyer_id);
+CREATE INDEX idx_orders_seller  ON public.orders (seller_id);
+CREATE INDEX idx_orders_listing ON public.orders (listing_id);
+CREATE INDEX idx_orders_status  ON public.orders (status);
+
+-- Seller wallet (pending + available + lifetime balances)
+CREATE TABLE public.seller_wallet (
+  id                UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  seller_id         UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL UNIQUE,
+  pending_balance   NUMERIC(10,2) NOT NULL DEFAULT 0,
+  available_balance NUMERIC(10,2) NOT NULL DEFAULT 0,
+  lifetime_earned   NUMERIC(10,2) NOT NULL DEFAULT 0,
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.seller_wallet ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Sellers can read their own wallet"
+  ON public.seller_wallet FOR SELECT TO authenticated
+  USING (auth.uid() = seller_id);
+
+CREATE INDEX idx_wallet_seller ON public.seller_wallet (seller_id);
+
+-- Platform settings (Founder Plan config etc.)
+CREATE TABLE public.platform_settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+INSERT INTO public.platform_settings (key, value) VALUES
+  ('founder_limit', '150'),
+  ('founder_count', '0'),
+  ('founder_monthly_price', '6.99'),
+  ('founder_annual_price', '59.99'),
+  ('pro_monthly_price', '9.99'),
+  ('pro_annual_price', '84.99');
+
+-- Cancellation strikes (seller accountability)
+CREATE TABLE public.cancellation_strikes (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  seller_id  UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
+  order_id   UUID REFERENCES public.orders (id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.cancellation_strikes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Sellers can read their own strikes"
+  ON public.cancellation_strikes FOR SELECT TO authenticated
+  USING (auth.uid() = seller_id);
+
+CREATE INDEX idx_strikes_seller ON public.cancellation_strikes (seller_id);
+
+-- Dispute evidence (photo uploads for buyer disputes)
+CREATE TABLE public.dispute_evidence (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  order_id   UUID REFERENCES public.orders (id) ON DELETE CASCADE NOT NULL,
+  user_id    UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  image_url  TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.dispute_evidence ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Buyers and sellers can read dispute evidence for their orders"
+  ON public.dispute_evidence FOR SELECT TO authenticated
+  USING (
+    order_id IN (
+      SELECT id FROM public.orders
+      WHERE buyer_id = auth.uid() OR seller_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Buyers can upload dispute evidence"
+  ON public.dispute_evidence FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX idx_dispute_evidence_order ON public.dispute_evidence (order_id);
