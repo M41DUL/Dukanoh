@@ -87,15 +87,19 @@ export default function SellerHubScreen() {
   const [sellerTier, setSellerTier] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
   const [listingCount, setListingCount] = useState(0);
+  const [accountStatus, setAccountStatus] = useState<'active' | 'warned' | 'suspended'>('active');
+  const [strikeCount, setStrikeCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      supabase.from('users').select('seller_tier, is_verified').eq('id', user.id).maybeSingle(),
+      supabase.from('users').select('seller_tier, is_verified, account_status, cancellation_strike_count').eq('id', user.id).maybeSingle(),
       supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', user.id).eq('status', 'available'),
     ]).then(([{ data }, { count }]) => {
       setSellerTier(data?.seller_tier ?? 'free');
       setIsVerified(data?.is_verified ?? false);
+      setAccountStatus(data?.account_status ?? 'active');
+      setStrikeCount(data?.cancellation_strike_count ?? 0);
       setListingCount(count ?? 0);
     });
   }, [user]);
@@ -109,7 +113,7 @@ export default function SellerHubScreen() {
     );
   }
 
-  if (sellerTier === 'pro') return <HubDashboard />;
+  if (sellerTier === 'pro') return <HubDashboard accountStatus={accountStatus} strikeCount={strikeCount} />;
   return <HubPaywall isVerified={isVerified} listingCount={listingCount} />;
 }
 
@@ -350,7 +354,10 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
 }
 
 // ── Pro dashboard ────────────────────────────────────────────
-function HubDashboard() {
+function HubDashboard({ accountStatus, strikeCount }: {
+  accountStatus: 'active' | 'warned' | 'suspended';
+  strikeCount: number;
+}) {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<HubData | null>(null);
@@ -562,6 +569,30 @@ function HubDashboard() {
           contentContainerStyle={[styles.dashScroll, { paddingBottom: insets.bottom + Spacing['3xl'] }]}
           showsVerticalScrollIndicator={false}
         >
+          {/* ── Account status banner ── */}
+          {accountStatus === 'suspended' && (
+            <View style={[styles.strikeBanner, { backgroundColor: '#FF444420', borderColor: '#FF444440' }]}>
+              <Ionicons name="ban-outline" size={18} color="#FF4444" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.strikeBannerTitle, { color: '#FF4444' }]}>Account suspended</Text>
+                <Text style={[styles.strikeBannerBody, { color: HUB.textSecondary }]}>
+                  Your account has been suspended after {strikeCount} cancelled orders. Contact support to appeal.
+                </Text>
+              </View>
+            </View>
+          )}
+          {accountStatus === 'warned' && (
+            <View style={[styles.strikeBanner, { backgroundColor: '#F59E0B20', borderColor: '#F59E0B40' }]}>
+              <Ionicons name="warning-outline" size={18} color="#F59E0B" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.strikeBannerTitle, { color: '#F59E0B' }]}>Account warning</Text>
+                <Text style={[styles.strikeBannerBody, { color: HUB.textSecondary }]}>
+                  You have {strikeCount} cancellation strikes. Reaching 5 will suspend your account.
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* ── Earnings card ── */}
           <View style={styles.earningsCard}>
             <Text style={styles.earningsLabel}>Total Earned</Text>
@@ -1192,6 +1223,25 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  strikeBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: BorderRadius.large,
+    padding: Spacing.base,
+    marginBottom: Spacing.md,
+  },
+  strikeBannerTitle: {
+    fontSize: 13,
+    fontFamily: FontFamily.semiBold,
+    marginBottom: 2,
+  },
+  strikeBannerBody: {
+    fontSize: 12,
+    fontFamily: FontFamily.regular,
+    lineHeight: 17,
   },
   dashScroll: {
     paddingHorizontal: Spacing.xl,

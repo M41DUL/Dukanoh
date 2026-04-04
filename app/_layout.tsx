@@ -167,6 +167,10 @@ function RootNavigator() {
           name="stripe-onboarding"
           options={{ animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="admin/disputes"
+          options={{ animation: 'slide_from_right' }}
+        />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {splashVisible && (

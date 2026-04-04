@@ -40,6 +40,9 @@ CREATE TABLE public.users (
   sale_mode_discount_pct      INT,
   -- Verified status (set via Stripe Connect onboarding webhook)
   is_verified                 BOOLEAN DEFAULT FALSE,
+  -- Cancellation accountability
+  cancellation_strike_count   INT NOT NULL DEFAULT 0,
+  account_status              TEXT NOT NULL DEFAULT 'active' CHECK (account_status IN ('active', 'warned', 'suspended')),
   -- Delivery address (saved on profile, pre-fills at checkout)
   address_line1               TEXT,
   address_line2               TEXT,
@@ -775,6 +778,18 @@ CREATE TRIGGER ensure_wallet_on_order
   FOR EACH ROW
   EXECUTE FUNCTION public.ensure_seller_wallet_exists();
 
+-- Platform ledger: one row per completed order recording the protection fee collected
+CREATE TABLE IF NOT EXISTS public.platform_ledger (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  order_id   UUID REFERENCES public.orders (id) ON DELETE CASCADE NOT NULL UNIQUE,
+  fee_type   TEXT NOT NULL DEFAULT 'buyer_protection',
+  amount     NUMERIC(10,2) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.platform_ledger ENABLE ROW LEVEL SECURITY;
+-- No user-facing RLS policy — ledger is admin-only
+
 -- Wallet update trigger (credits/debits seller_wallet on order status changes)
 CREATE OR REPLACE FUNCTION public.handle_order_wallet_update()
 RETURNS TRIGGER AS $$
@@ -792,6 +807,11 @@ BEGIN
       lifetime_earned   = lifetime_earned + NEW.item_price,
       updated_at        = NOW()
     WHERE seller_id = NEW.seller_id;
+
+    -- Record platform protection fee in ledger
+    INSERT INTO public.platform_ledger (order_id, fee_type, amount)
+    VALUES (NEW.id, 'buyer_protection', NEW.protection_fee)
+    ON CONFLICT (order_id) DO NOTHING;
   END IF;
   IF OLD.status = 'shipped' AND NEW.status = 'cancelled' THEN
     UPDATE public.seller_wallet
@@ -855,6 +875,7 @@ INSERT INTO public.platform_settings (key, value) VALUES
   ('founder_limit', '150'),
   ('founder_count', '0'),
   ('founder_monthly_price', '6.99'),
+  ('admin_user_ids', '[]'),
   ('founder_annual_price', '59.99'),
   ('pro_monthly_price', '9.99'),
   ('pro_annual_price', '84.99');
@@ -874,6 +895,35 @@ CREATE POLICY "Sellers can read their own strikes"
   USING (auth.uid() = seller_id);
 
 CREATE INDEX idx_strikes_seller ON public.cancellation_strikes (seller_id);
+
+-- Trigger: increment strike count and escalate account_status on each new strike
+CREATE OR REPLACE FUNCTION public.handle_cancellation_strike()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_count INT;
+BEGIN
+  UPDATE public.users
+  SET cancellation_strike_count = cancellation_strike_count + 1
+  WHERE id = NEW.seller_id
+  RETURNING cancellation_strike_count INTO v_count;
+
+  IF v_count >= 5 THEN
+    UPDATE public.users SET account_status = 'suspended'
+    WHERE id = NEW.seller_id AND account_status != 'suspended';
+  ELSIF v_count >= 3 THEN
+    UPDATE public.users SET account_status = 'warned'
+    WHERE id = NEW.seller_id AND account_status = 'active';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_cancellation_strike ON public.cancellation_strikes;
+CREATE TRIGGER on_cancellation_strike
+  AFTER INSERT ON public.cancellation_strikes
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_cancellation_strike();
 
 -- Dispute evidence (photo uploads for buyer disputes)
 CREATE TABLE public.dispute_evidence (
