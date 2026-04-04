@@ -7,6 +7,7 @@ import {
   Alert,
   TouchableOpacity,
   TextInput,
+  Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -45,6 +46,10 @@ interface Order {
   delivery_city: string | null;
   delivery_postcode: string | null;
   delivery_country: string | null;
+  // Dispute fields
+  dispute_reason: string | null;
+  dispute_description: string | null;
+  disputed_at: string | null;
   listing: {
     title: string;
     images: string[];
@@ -220,6 +225,34 @@ export default function OrderDetailScreen() {
     );
   };
 
+  // ── Buyer: withdraw dispute (satisfied / resolved directly with seller) ──
+  const handleWithdrawDispute = () => {
+    Alert.alert(
+      'Withdraw dispute',
+      'This will release payment to the seller and mark the order as complete. Only do this if your issue has been resolved.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Withdraw & complete',
+          onPress: async () => {
+            setSubmitting(true);
+            await supabase
+              .from('orders')
+              .update({
+                status: 'completed',
+                delivered_at: new Date().toISOString(),
+                completed_at: new Date().toISOString(),
+              })
+              .eq('id', order!.id)
+              .eq('buyer_id', user!.id);
+            setSubmitting(false);
+            fetchOrder();
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <ScreenWrapper>
@@ -245,6 +278,8 @@ export default function OrderDetailScreen() {
   const canShip = isSeller && order.status === 'paid';
   const canConfirm = isBuyer && order.status === 'shipped';
   const canDispute = isBuyer && order.status === 'shipped';
+  const isDisputed = order.status === 'disputed';
+  const canWithdrawDispute = isBuyer && isDisputed;
 
   return (
     <ScreenWrapper>
@@ -415,6 +450,65 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
+        {/* ── DISPUTE: resolution card ──────────────────────────── */}
+        {isDisputed && (
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <View style={styles.disputeHeader}>
+              <View style={[styles.disputeIconWrap, { backgroundColor: `${colors.error}18` }]}>
+                <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Dispute filed</Text>
+                {order.disputed_at && (
+                  <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                    {formatDate(order.disputed_at)}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            {order.dispute_reason && (
+              <View style={[styles.disputeReasonPill, { backgroundColor: `${colors.error}14` }]}>
+                <Text style={[styles.disputeReasonText, { color: colors.error }]}>
+                  {order.dispute_reason}
+                </Text>
+              </View>
+            )}
+
+            {order.dispute_description && (
+              <Text style={[styles.hint, { color: colors.textPrimary }]}>
+                {order.dispute_description}
+              </Text>
+            )}
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              Our team reviews all disputes and will be in touch within 7 days. You can also contact us directly.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.supportLink, { borderColor: colors.border }]}
+              onPress={() => Linking.openURL('mailto:support@dukanoh.com?subject=Order Dispute ' + order.id)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="mail-outline" size={16} color={colors.primary} />
+              <Text style={[styles.supportLinkText, { color: colors.primary }]}>
+                Contact Dukanoh Support
+              </Text>
+            </TouchableOpacity>
+
+            {canWithdrawDispute && (
+              <Button
+                label="Withdraw dispute"
+                variant="outline"
+                onPress={handleWithdrawDispute}
+                loading={submitting}
+              />
+            )}
+          </View>
+        )}
+
         {/* Cancel */}
         {canCancel && (
           <TouchableOpacity style={styles.cancelLink} onPress={handleCancel}>
@@ -547,6 +641,45 @@ function getStyles(colors: ColorTokens) {
       paddingVertical: Spacing.base,
     },
     cancelText: {
+      fontSize: 14,
+      fontFamily: 'Inter_500Medium',
+    },
+    disputeHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+    },
+    disputeIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: BorderRadius.medium,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    disputeReasonPill: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: Spacing.md,
+      paddingVertical: 4,
+      borderRadius: BorderRadius.full,
+    },
+    disputeReasonText: {
+      fontSize: 12,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    divider: {
+      height: 1,
+    },
+    supportLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      borderWidth: 1,
+      borderRadius: BorderRadius.medium,
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.md,
+    },
+    supportLinkText: {
       fontSize: 14,
       fontFamily: 'Inter_500Medium',
     },

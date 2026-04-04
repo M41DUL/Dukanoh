@@ -55,9 +55,12 @@ export default function DisputeScreen() {
       .update({
         status: 'disputed',
         dispute_reason: reason,
+        dispute_description: description.trim(),
+        disputed_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .eq('buyer_id', user.id); // safety: only the buyer can dispute
+      .eq('buyer_id', user.id)  // safety: only the buyer can dispute
+      .eq('status', 'shipped'); // guard: only valid from shipped state
 
     setSubmitting(false);
 
@@ -127,7 +130,8 @@ export default function DisputeScreen() {
                 multiline
                 numberOfLines={5}
                 value={description}
-                onChangeText={setDescription}
+                onChangeText={t => setDescription(t.slice(0, 500))}
+                maxLength={500}
                 textAlignVertical="top"
               />
             </View>
