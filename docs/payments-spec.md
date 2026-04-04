@@ -45,6 +45,17 @@ created → paid → shipped → delivered → completed
   - Raise a dispute → funds held pending resolution
 - If buyer does nothing within 2 days → **auto-release** to seller wallet
 
+### Delivery address
+- Buyers save a default delivery address on their profile (one-time setup)
+- Address pre-fills at checkout — buyer can edit per order but changes are not saved back
+- Stored as structured fields on `users` table: `address_line1`, `address_line2`, `city`, `postcode`, `country`
+- Country defaults to United Kingdom
+
+### Checkout flow
+- "Buy Now" button on listing detail → straight to checkout screen (no basket)
+- Checkout shows: item summary, delivery address, fee breakdown, total
+- Messaging and buying are independent — buyer can message AND buy separately
+
 ### Shipping
 - Seller ships via any courier of their choice
 - Seller enters tracking number + courier name in app
@@ -54,6 +65,7 @@ created → paid → shipped → delivered → completed
 ### Cancellations
 - **Before shipping:** both buyer and seller can cancel
   - Either party cancels → full item price refunded to buyer instantly
+  - Listing automatically returns to `available` immediately on cancellation
   - Seller cancels → cancellation strike recorded on seller account
   - Too many strikes (3+) → account flagged for review
 - **After shipping:** cancellation not possible — dispute process only
@@ -62,6 +74,14 @@ created → paid → shipped → delivered → completed
 - Buyer wins dispute → **full item price refunded**
 - Buyer protection fee (6.5% + £0.80) is **non-refundable**
 - Refund issued to original payment method via Stripe
+- Platform fee VAT: not shown to buyers. Review with accountant if revenue exceeds £90k VAT threshold.
+
+### Disputes
+- Buyer raises dispute via in-app form: reason selection + description + optional photo upload
+- Dispute data stored in `orders` table (`dispute_reason`) + separate `dispute_evidence` table for photos
+- On dispute creation: Supabase Edge Function sends email notification to Dukanoh support address
+- Admin resolves via Supabase dashboard — updates order status to `resolved`
+- Default outcome if admin doesn't act within 7 days: full refund to buyer
 
 ### Seller wallet
 - Released funds sit in an **in-app wallet**
@@ -175,6 +195,11 @@ created → paid → shipped → delivered → completed
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS stripe_account_id TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS stripe_onboarding_complete BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address_line1 TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address_line2 TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS postcode TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'United Kingdom';
 ```
 *(Note: stripe_account_id and stripe_onboarding_complete already exist in schema — confirm before running)*
 
@@ -277,6 +302,34 @@ CREATE POLICY "Sellers can read their own strikes"
 CREATE INDEX idx_strikes_seller ON public.cancellation_strikes (seller_id);
 ```
 
+### New table: `dispute_evidence`
+```sql
+CREATE TABLE public.dispute_evidence (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  order_id   UUID REFERENCES public.orders (id) ON DELETE CASCADE NOT NULL,
+  user_id    UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  image_url  TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.dispute_evidence ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Buyers and sellers can read dispute evidence for their orders"
+  ON public.dispute_evidence FOR SELECT TO authenticated
+  USING (
+    order_id IN (
+      SELECT id FROM public.orders
+      WHERE buyer_id = auth.uid() OR seller_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Buyers can upload dispute evidence"
+  ON public.dispute_evidence FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX idx_dispute_evidence_order ON public.dispute_evidence (order_id);
+```
+
 ---
 
 ## Screens to build
@@ -284,10 +337,10 @@ CREATE INDEX idx_strikes_seller ON public.cancellation_strikes (seller_id);
 ### Buyer journey
 | Screen | Route | Description |
 |---|---|---|
-| Checkout | `/checkout/[listingId]` | Item summary, delivery address, fee breakdown, Buy button |
+| Checkout | `/checkout/[listingId]` | Item summary, delivery address (pre-filled), fee breakdown, Buy button |
 | Order confirmation | `/order/[id]` | Order placed, what happens next |
 | Order detail (buyer) | `/order/[id]` | Tracking info, confirm receipt, raise dispute |
-| Dispute | `/order/[id]/dispute` | Reason selection + description |
+| Dispute | `/order/[id]/dispute` | Reason selection + description + optional photo upload |
 
 ### Seller journey
 | Screen | Route | Description |
@@ -300,6 +353,7 @@ CREATE INDEX idx_strikes_seller ON public.cancellation_strikes (seller_id);
 | Screen | Route | Description |
 |---|---|---|
 | Orders list | `/orders` | Extend existing screen — add Orders tab alongside Selling/Drafts/Bought |
+| Delivery address | `/settings/address` | Add/edit saved delivery address — address_line1, address_line2, city, postcode, country |
 
 ---
 
