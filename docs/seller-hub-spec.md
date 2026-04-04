@@ -1,79 +1,88 @@
-# Seller Hub — Feature Spec
+# Dukanoh Pro — Feature Spec
 
 ## Overview
-A Pro subscriber feature accessible from the profile tab. Only visible to users with 1+ listings. Full paywall — no free tier access. Subscription managed via RevenueCat (Apple/Google billing). 14-day free trial on first sign-up.
+A Pro subscriber feature accessible from the profile tab. Only visible to users with 1+ listings who have completed Stripe Connect onboarding (Verified). Full paywall — no free tier access to Pro features. Subscription managed via RevenueCat (Apple/Google billing). 14-day free trial on first sign-up.
 
 ---
 
 ## Payment Infrastructure
 
-Two systems work together — they are completely independent of each other:
+Two systems work together — completely independent of each other:
 
 | System | Handles | Why |
 |--------|---------|-----|
-| **Stripe Connect Express** | Buyer → seller payments for listing purchases, seller payouts | Physical goods marketplace transactions — exempt from Apple/Google IAP rules |
-| **RevenueCat** | Pro subscription + paid boosts | Digital goods consumed in-app — Apple/Google require their own IAP system for these |
+| **Stripe Connect Express** | Buyer → seller payments, seller payouts, identity verification | Physical goods marketplace — exempt from Apple/Google IAP rules |
+| **RevenueCat** | Pro subscription + paid boosts | Digital goods consumed in-app — Apple/Google mandate their own billing |
 
 ### Stripe Connect Express
-
-Handles all money movement between buyers and sellers for listing purchases.
+Handles all money movement between buyers and sellers, and seller identity verification.
 
 **Seller onboarding:**
 - Before receiving payments, sellers complete Stripe Express onboarding (Stripe-hosted — ID verification + bank details)
-- Dukanoh redirects seller to Stripe's onboarding URL on first listing publish
-- On completion, Stripe returns `stripe_account_id` stored on seller's profile
-- Sellers without a connected Stripe account cannot complete sales
+- Dukanoh redirects seller to Stripe's onboarding URL
+- On completion, `stripe_onboarding_complete = true` + `is_verified = true` set via Stripe webhook
+- Sellers without a connected Stripe account cannot complete sales or subscribe to Pro
 
 **Transaction flow:**
 ```
-Buyer taps "Buy Now" on listing
+Buyer taps "Buy Now"
   ↓
 Stripe Payment Intent created (Supabase Edge Function)
   ↓
 Buyer completes payment (Stripe-hosted sheet)
   ↓
-Stripe transfers funds to seller's connected account
+Funds held in escrow
   ↓
-Stripe webhook → Supabase Edge Function → inserts row into transactions table
+Seller marks shipped + enters tracking number
   ↓
-Listing status updated to 'sold' automatically
+Buyer confirms receipt (or 2-day auto-release)
+  ↓
+Funds released to seller wallet
+  ↓
+Seller manually withdraws to bank (3–5 days via Stripe)
 ```
 
 **Fees:**
-- UK/European cards: 1.4% + 20p per transaction
-- Non-European cards: 2.9% + 30p per transaction
-- Connect payout: 0.25% + 25p per seller payout
-
-**DB changes:**
-```sql
-ALTER TABLE public.profiles
-ADD COLUMN stripe_account_id TEXT,
-ADD COLUMN stripe_onboarding_complete BOOLEAN DEFAULT false;
-```
+- Platform fee: 6.5% + £0.80 charged to buyer on top of listing price
+- Seller always receives full asking price
+- Stripe processing: ~1.4% + 20p (UK cards) — absorbed by platform fee
 
 ### RevenueCat
-
-Handles Pro subscription and paid boosts via Apple/Google's native IAP system. Required for App Store compliance — Apple and Google mandate their own billing for digital goods consumed in-app.
-
-**Free tier:** Covers up to $2,500/month in tracked revenue — no cost until revenue exceeds this.
+Handles Pro subscription and paid boosts via Apple/Google native IAP.
 
 **Manages:**
-- Pro subscription (monthly recurring, 14-day free trial)
-- Paid boosts (consumable in-app purchase, purchased after free 3/month are used)
+- Pro subscription (monthly/annual recurring, 14-day free trial)
+- Paid boosts (consumable IAP, purchased after free allowance used)
 
 **Flow:**
 ```
 RevenueCat webhook → Supabase Edge Function
   ↓
-Updates seller_tier, pro_expires_at, boosts_used on profiles
+Updates seller_tier, pro_expires_at, boosts_used, boosts_reset_at
 ```
 
-**DB changes:**
-```sql
-ALTER TABLE public.profiles
-ADD COLUMN seller_tier TEXT DEFAULT 'free',
-ADD COLUMN pro_expires_at TIMESTAMPTZ;
-```
+---
+
+## Subscription Pricing
+
+### Founder Plan *(first 150 subscribers only)*
+- £6.99/month
+- £59.99/year (~£5/month, saving 29%)
+- Locked in forever — price never increases for founder subscribers
+- Paywall copy: *"Lock in your price forever — only 150 founder spots available"*
+- Once 150 reached, Founder Plan closed permanently
+- Tracked via `platform_settings` table (`founder_count`, `founder_limit`)
+
+### Standard Pro *(after 150 founders)*
+- £9.99/month
+- £84.99/year (~£7.08/month, saving 29%)
+- Paywall copy: *"Price will increase as Dukanoh grows"*
+
+### Subscription rules
+- On cancellation: Pro features active until `pro_expires_at`, then all Pro features stop immediately
+- On payment failure: 3-day grace period, then revert to free
+- All Pro features stop on lapse — nothing persists publicly (collections, badges, ranking all removed)
+- Resubscribing restores everything instantly — data is preserved in DB
 
 ---
 
@@ -82,130 +91,138 @@ ADD COLUMN pro_expires_at TIMESTAMPTZ;
 ```
 Profile Tab
   ↓
-User has 1+ listings → "Seller Hub" entry card appears (below quick links)
+User has 1+ listings → Dukanoh Pro entry card appears
   ↓
-Subscriber → card shows live earnings, views, saves summary
-Non-subscriber → card shows locked metrics + "Upgrade to Pro" CTA
+Not Verified → card shows feature list + "Set up payments to unlock Pro" CTA
+Verified, not Pro → card shows feature list + "Start free trial" CTA
+Pro subscriber → card shows live earnings, views, saves summary
   ↓
 Tap card → hub slides up as modal from bottom
   ↓
-Non-subscriber sees paywall screen first
-Subscriber goes straight into hub
+Not Verified → paywall shown, "Start free trial" replaced with "Verify your account first"
+              → tap → Stripe onboarding → return to paywall
+Verified, not Pro → paywall shown with "Start free trial" CTA → RevenueCat purchase flow
+Pro → straight into hub dashboard
 ```
 
 ---
 
 ## UI Spec
 
-### Overall Theme
-The Seller Hub has its own fixed theme — always dark regardless of system light/dark mode setting.
+### Theme
+Always dark regardless of system light/dark mode. Sourced from `proColors` in `constants/theme.ts`.
 
-**Palette:**
 | Token | Colour | Use |
 |-------|--------|-----|
-| Background | `#0A0A1A` | Deep navy — always dark |
+| Background | `#0A0A1A` | Deep navy |
 | Surface | `#13132E` | Card backgrounds |
-| Surface elevated | `#1C1C40` | Raised cards |
-| Accent | `#C7A84F` | Gold — numbers, highlights, Pro badge |
-| Accent secondary | `#3735C5` | Dukanoh brand blue — CTAs |
-| Text primary | `#F5F5F5` | Headings, large numbers |
-| Text secondary | `#8888AA` | Labels, captions |
+| Surface elevated | `#1C1C40` | Raised cards, icon wraps |
+| Primary (gold) | `#C7A84F` | CTAs, icons, numbers, Pro badge |
+| Secondary | `#8888AA` | Muted labels, captions, secondary actions |
+| Text primary | `#F5F5F5` | Headings, body |
+| Text secondary | `#8888AA` | Captions, muted text |
 | Border | `#2A2A50` | Card borders, dividers |
 | Positive | `#4ADE80` | Earnings up, good stats |
 
+All colour pairings tested against WCAG AA (4.5:1 minimum).
+
+### Badges
+
+| Badge | Symbol | Colour | Meaning | Shown on |
+|-------|--------|--------|---------|----------|
+| Pro | `◆` | Gold `#C7A84F` | Active Pro subscriber | Public profile + listing cards |
+| Verified | `✓` | Dukanoh blue `#3735C5` | Stripe onboarding complete | Public profile + listing cards |
+| Fast Responder | ⚡ | Gold `#C7A84F` | Avg response < 2hrs (Pro only) | Public profile only |
+
+Both badges shown side by side on listing cards: `✓ ◆`
+
 ### Navigation
 - Hub presents as a **modal** — slides up from bottom of profile tab
-- Dismissed via X button top left — slides back down
-- Within the hub: **bottom sheets** for quick actions (archive, relist, bulk edit, boost), **push navigation** for full screens (collection detail, listing edit)
+- Dismissed via X button top left
+- Within hub: **bottom sheets** for quick actions, **push navigation** for full screens
 
 ### Entry Point on Profile Tab
 Summary card below quick links. Three states:
 ```
 State 1: No listings → card not shown
-State 2: Has listings, not subscribed → locked metrics + "Upgrade to Pro" CTA
-State 3: Pro subscriber → live summary: £earned · views · saves
+State 2: Has listings, not Verified → feature list + "Set up payments to unlock Pro"
+State 3: Verified, not Pro → feature list + "Start free trial"
+State 4: Pro subscriber → live summary: £earned · views · saves
 ```
 
 ### Paywall Screen
 - Matches intro/onboarding visual style — deep navy, Dukanoh logo, animated entrance
-- Feature list with gold ✦ bullets:
-  - 3 free boosts every month
-  - Analytics & earnings dashboard
-  - Pro seller badge
-  - Collections & archive
-  - Share kit
-  - Price drop alerts to saved buyers
-- Pricing display: "Free for 14 days, no charge until [exact date], then £X/month — cancel anytime"
-- Primary CTA: "Start 14-day free trial" → triggers RevenueCat purchase flow → Apple/Google native payment sheet
+- Feature list with Ionicons icon rows (matching profile card):
+  - ⚡ 3 free boosts every month
+  - 📊 Analytics & earnings dashboard
+  - ◆ Pro seller badge + ranking boost
+  - 📁 Collections
+  - 📤 Share kit for Instagram & WhatsApp
+  - 🏷 Price drop labels on your listings
+- Pricing: "Free for 14 days, no charge until [exact date], then £X/month — cancel anytime"
+- Founder Plan shown if `founder_count < 150`: "Lock in your price forever — only [X] founder spots left"
+- Primary CTA: "Start 14-day free trial" (Verified) or "Verify your account first" (not Verified)
 - Always-visible "Maybe later" subtle text link below CTA
 
 ### Hub Main Screen (Single Scroll)
 ```
-[X]  Seller Hub                    [Pro ✦]
+[X]  Dukanoh Pro                   [◆ Pro]
 ─────────────────────────────────────────
 [Earnings hero card — full width]
  Total Earned  £1,240
  This month £340 | Last month £180
- [gold line chart — react-native-gifted-charts]
+ [gold line chart]
+ Time filter: 7 days · This month · All time
 
 ── Performance ───────────────────────────
-[Views card]        [Saves card]
- 1,240               86
+[Views]     [Saves]     [Profile Visits]
 
-[Profile Visits]    [Enquiries]
- 42                  18
+── Active Orders ─────────────────────────
+[Orders needing action — with status indicator]
 
 ── Your Listings ─────────────────────────
-[Hub listing cards]
-  [img] Title
-        £40 · Available
-        👁 124  🤍 8  💬 3
-        [⚡ Boost]  [✏ Edit]  [⋯]
+[Hub listing cards with actions]
 
 ── Collections ───────────────────────────
 [+ New Collection]
-[Collection rows → push to detail]
+[Collection rows]
+
+── Sold Archive ──────────────────────────
+[Completed orders — image, title, price, date, buyer]
 
 ── Top Categories ────────────────────────
-[Occasion tag performance list]
+[Occasion tag performance]
 ```
 
 ### Hub Listing Card
-Each listing card inside the hub shows:
 - Listing image + title + price + status
-- View, save, and enquiry counts
-- Action row: Boost (gold) · Edit · ⋯ (bottom sheet: archive, relist, delete)
+- View, save, enquiry counts
+- Order status indicator only when action needed: "Awaiting shipment"
+- Action row: `⚡ Reach more buyers` · Edit · ⋯ (archive, delete)
 
 **Boost button states:**
 ```
-Available           → "⚡ Boost" (gold, active)
-Active boost        → "Boosted · 2d left" (muted, disabled)
-No free boosts left → "⚡ Boost · Buy" (prompts RevenueCat purchase)
+Default             → "⚡ Reach more buyers"
+Free boosts used    → "⚡ Reach more buyers · £0.99"
+Active boost        → "⚡ Live in stories · 14h"  (disabled)
 ```
 
-### Pro Badge
-| Surface | Treatment |
-|---------|-----------|
-| Hub header | `Pro ✦` gold pill, top right |
-| Public profile | ✦ gold icon next to username |
-| Listing cards in feed | ✦ gold icon below username |
-
 ### Empty States
-All use Ionicons with warm, personality-driven copy:
+All use Ionicons with personality-driven copy:
 
 | Section | Icon | Copy |
 |---------|------|------|
 | No sales | `receipt-outline` | "Your first sale is closer than you think — boost a listing to get in front of the right buyers" |
 | No views | `eye-outline` | "No one's looked yet — share your listings or boost them to start getting eyes on your pieces" |
 | No collections | `folder-outline` | "Group your listings by occasion — Eid, wedding season, festive. Make your shop feel like a proper boutique" |
-| No boosts | `flash-outline` | "Boost a listing and reach buyers who are already interested in your category" |
+| No active boosts | `flash-outline` | "Boost a listing and reach buyers who are already interested in your category" |
 | No analytics | `bar-chart-outline` | "Your stats are warming up — views, saves and earnings will appear here as buyers find your listings" |
 | No price history | `pricetag-outline` | "When you edit a listing's price, your history will appear here" |
 
-### Collections — Public Profile
-Collections appear above the listing grid on the seller's public profile. No seller stats shown.
+### Collections on Public Profile
+Visible only while Pro subscription is active. Disappears immediately on lapse. Data preserved in DB — reappears on resubscription.
 ```
-[profile header]
+[profile header]  ✓ ◆
 
 ── Collections ──────────────────────────
   Eid 2025                            →
@@ -218,244 +235,179 @@ Collections appear above the listing grid on the seller's public profile. No sel
 [listing grid]
 ```
 
-### Chart
-Library: `react-native-gifted-charts`
-- Gold line on deep navy background
-- Area fill below the line (semi-transparent gold)
-- X axis: month labels
-- Tap a point → show exact earnings for that month
-
 ---
 
 ## Features Included in Pro
 
-### 1. Boosts
-### 2. Analytics & Insights
-### 3. Listing Management Tools
-### 4. Seller Profile Perks
-### 5. Buyer Tools
-### 6. Pricing & Sales Strategy
-### 7. Inventory & Organisation
-### 8. South Asian Platform-Specific
-### 9. Growth & Reach
+### Pro-only
+1. Boosts (free allowance + discounted extras)
+2. Analytics & Insights
+3. Pro ranking boost (search, feed, category browse)
+4. Sale Mode
+5. Bulk price editing
+6. Price Drop label
+7. Collections (create, manage, public display)
+8. Share Kit
+9. Pro badge `◆`
+10. Fast Responder badge ⚡ (earned, not automatic)
+
+### Free for all sellers
+- Relist sold listings
+- Archive listings
+- Draft listings
+- Active Orders + Sold Archive
+- Occasion tag performance
+- Star rating + reviews
+- Verified badge `✓` (via Stripe onboarding)
+- Basic listing management (edit, delete)
 
 ---
 
 ## Feature 1 — Boosts
 
 ### What It Does
-Temporarily re-enters a listing into the stories rotation beyond its natural 5-hour organic window. Boosted listings are shown to buyers whose category preferences match the listing's category.
+Promotes a listing into the stories rotation beyond its natural 5-hour organic window. Boosted listings are shown to buyers whose category preferences match the listing's category.
 
 ### Boost Allowance
-- Pro subscribers get 3 free boosts per month
-- Monthly counter resets on the same date each month
-- After 3 free boosts are used, seller can purchase additional boosts individually (pay-as-you-go)
-- If Pro subscription lapses, no new free boosts — any active boosts continue until their expiry date
+| Seller type | Free boosts | Extra boost cost | Simultaneous limit |
+|---|---|---|---|
+| Standard | 0 | £1.49 | 5 |
+| Pro | 3/month | £0.99 | 10 |
 
-### Boost Duration
-- 24 hours per boost
-- After expiry, listing returns to normal (no story presence unless re-boosted)
-- Seller can re-boost the same listing immediately after expiry
-- Only one active boost per listing at a time — boost button disabled while boost is active, shows "Boosted — X days remaining"
+- Free boost reset: subscription anniversary date (every 30 days from subscribe date)
+- Rollover: none — use it or lose it
+- If Pro lapses mid-boost: active boosts continue until natural expiry, no new free boosts
 
-### Organic Story Window (Context)
+### Boost Rules
+| Rule | Detail |
+|---|---|
+| Duration | 24 hours |
+| Re-boost same listing | Allowed immediately — no cooldown |
+| Boost through listing edit | Continues uninterrupted |
+| Boost when listing sells | Ends naturally |
+| Daily purchase limit | None |
+| Applies to | Available listings only |
+
+### Boost Button States
+```
+Default             → "⚡ Reach more buyers"
+Free boosts used    → "⚡ Reach more buyers · £0.99"
+Active boost        → "⚡ Live in stories · 14h"  (disabled, countdown in hours)
+```
+
+### Organic Story Window
 - Every new listing appears organically in stories for 5 hours after publishing
-- Only the first listing per seller per day gets an organic story slot — subsequent listings published the same day do not appear in stories organically
-- After 5 hours the listing drops off stories entirely unless boosted
+- Only the first listing per seller per day gets an organic story slot
+- After 5 hours, listing drops off stories unless boosted
 
 ### Category Targeting
-Boosted listings are only shown to buyers whose category preferences include the listing's category. Uses a hardcoded parent-child category map:
-
+Boosted listings shown to buyers whose category preferences match:
 ```
-Men
-  └── Pathani Suit
-  └── Achkan
-  └── Formal
-
-Women
-  └── Partywear
-  └── Festive
-  └── Wedding
-  └── Formal
-
-Unisex
-  └── Casualwear
-  └── Shoes
+Men → Pathani Suit, Achkan, Formal
+Women → Partywear, Festive, Wedding, Formal
+Unisex → Casualwear, Shoes
 ```
-
-Matching rules:
-- User follows "Women" → sees boosts from Partywear, Festive, Wedding, Formal
-- User follows "Partywear" → sees Partywear boosts only, not all Women
-- Subcategory preference = exact match only, no upward broadening
+- Subcategory preference = exact match only
+- Minimum 9 stories shown — broadens to adjacent categories if below threshold
 
 ### Buyer Experience
-- Boosted stories show a subtle "Sponsored" label next to the seller username in the story top bar
-- Frequency cap: a boosted listing is shown to the same buyer once per day maximum (uses existing `story_views` timestamp)
-- Same seller cap: max 2 boosted stories per seller per buyer session — if a seller has 3+ active boosts, 2 are selected at random per session
-
-### Story Pool & Minimum Threshold
-- Minimum 9 stories shown in the stories row
-- If a buyer's category preferences return fewer than 9 stories, adjacent categories are broadened until threshold is met
-- Fallback chain: exact preferences → adjacent categories → all categories
-- Adjacency map is hardcoded for now
+- Gold ring on boosted story bubble
+- "Sponsored" label in story viewer top bar
+- Frequency cap: shown to same buyer once per day maximum
+- Same-seller cap: max 2 boosted stories per seller per buyer session
 
 ### Seller Feedback
-- Seller sees in hub: "Your boost reached X users interested in [category]"
-- Push notification / inbox message when boost expires: "Your boost on [listing] has ended — X users saw it"
-- Boost button on listing card in hub shows "Boosted — X days remaining" while active
-
-### DB Changes
-
-```sql
--- Profiles
-ALTER TABLE public.profiles
-ADD COLUMN category_preferences TEXT[] DEFAULT '{}',
-ADD COLUMN boosts_used INT DEFAULT 0,
-ADD COLUMN boosts_reset_at TIMESTAMPTZ;
-
--- Listings
-ALTER TABLE public.listings
-ADD COLUMN is_boosted BOOLEAN DEFAULT false,
-ADD COLUMN boost_expires_at TIMESTAMPTZ;
-
--- Boost audit trail
-CREATE TABLE listing_boosts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  listing_id UUID REFERENCES listings(id),
-  seller_id UUID REFERENCES users(id),
-  boosted_at TIMESTAMPTZ DEFAULT NOW(),
-  boost_expires_at TIMESTAMPTZ,
-  was_paid BOOLEAN DEFAULT false
-);
-```
-
-### Stories Query Change
-Current query filters listings by `created_at > now - 24hrs`.
-
-Updated query:
-```sql
-SELECT * FROM listings WHERE
-  (created_at > now() - interval '5 hours' AND is_first_listing_today = true)
-  OR
-  (is_boosted = true AND boost_expires_at > now())
-```
-
-Boosted listings are then filtered client-side against the buyer's `category_preferences` using the hardcoded adjacency map.
+- "Your boost reached X users interested in [category]" shown in hub
+- Inbox message when boost expires: "Your boost on [listing] has ended — X users saw it"
 
 ---
 
 ## Feature 2 — Analytics & Insights
 
-### Dashboard Layout
-
-```
-┌─────────────────┐  ┌─────────────────┐
-│  Total Views    │  │  Total Saves    │
-│     1,240       │  │      86         │
-└─────────────────┘  └─────────────────┘
-
-┌─────────────────────────────────────┐
-│  Total Earned                       │
-│  £1,240                             │
-│  This month £340  |  Last month £180│
-└─────────────────────────────────────┘
-
-┌─────────────────────────────────────┐
-│  Profile Visits        42           │
-│  Total Enquiries       18           │
-│  Avg Response Time     2h           │
-└─────────────────────────────────────┘
-
-┌─────────────────────────────────────┐
-│  Per Listing Breakdown              │
-│  ─────────────────────────────────  │
-│  [listing image] Title              │
-│  👁 240 views  🤍 12 saves  💬 4    │
-│                                     │
-│  [listing image] Title              │
-│  👁 180 views  🤍 8 saves   💬 2    │
-└─────────────────────────────────────┘
-```
+### Metrics
+| Metric | Source |
+|--------|--------|
+| Total views | `listing_views` |
+| Total saves | `saved_items` |
+| Total earned | `transactions` |
+| This month / last month earned | `transactions` filtered by date |
+| Profile visits | `profile_views` |
+| Total enquiries | `conversations` |
+| Avg response time | `conversations` (first reply vs message received) |
+| Per listing: views, saves, enquiries | Grouped by `listing_id` |
 
 ### Time Filter
-7 days | 30 days | All time — defaults to 30 days. Applies to all metrics.
-
-### Metrics
-
-| Metric | Source | Notes |
-|--------|--------|-------|
-| Total views | `listing_views` | All surfaces — grid, search, story taps, listing detail |
-| Total saves | `saved_listings` | Anonymised count only — no buyer identities shown |
-| Total earned | `transactions` | Gross sale amount via Stripe Connect. No platform fees shown |
-| This month earned | `transactions` | Current calendar month |
-| Last month earned | `transactions` | Previous calendar month |
-| Profile visits | `profile_views` | Unique visits to seller's profile |
-| Total enquiries | `conversations` | Conversations where seller is recipient |
-| Avg response time | `conversations` | Derived from first reply timestamp vs message received timestamp |
-| Per listing: views | `listing_views` | Grouped by listing_id |
-| Per listing: saves | `saved_listings` | Grouped by listing_id |
-| Per listing: enquiries | `conversations` | Grouped by listing_id |
+7 days · This month · All time — defaults to 7 days
 
 ### Zero States
-All metrics show immediately. If no data exists yet, display a zero with a short contextual message:
-```
-Profile Visits
-0
-"Visits will appear once buyers view your profile"
-```
-
-### DB Changes
-
-```sql
--- Profile visits
-CREATE TABLE profile_views (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_user_id UUID REFERENCES users(id),
-  viewer_user_id UUID REFERENCES users(id),
-  viewed_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Saves/favourites
-CREATE TABLE saved_listings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id),
-  listing_id UUID REFERENCES listings(id),
-  saved_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, listing_id)
-);
-
--- Transactions (Stripe Connect)
-CREATE TABLE transactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  listing_id UUID REFERENCES listings(id),
-  seller_id UUID REFERENCES users(id),
-  buyer_id UUID REFERENCES users(id),
-  amount NUMERIC(10,2) NOT NULL,
-  stripe_payment_id TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-Note: `listing_views` already exists. Ensure it is written to from all surfaces — grid, search, story taps, and listing detail screen.
+All metrics show immediately with a contextual message if no data exists.
 
 ---
 
-## Feature 3 — Listing Management Tools
+## Feature 3 — Pro Ranking Boost
 
-### Relist
-One-tap duplicate of a sold listing. Creates a new listing pre-filled with the same title, price, category, condition, size, and images. Seller reviews and publishes.
+### What It Does
+Pro sellers' available listings are ranked higher across all discovery surfaces — search results, home feed, and category browse pages.
 
-- Original sold listing remains visible on the seller's public profile as "sold" — builds trust and track record
-- Sold listings do not appear in the main feed or search results
-- Sold listings are visible when a buyer browses that seller's profile directly
+### Surfaces
+- Search results
+- Home feed
+- Category browse pages
 
-### Bulk Edit (Price Only)
-Seller selects multiple listings via checkboxes in the hub and applies a new price across all selected listings in one action.
+### Ranking Rules
+| Rule | Detail |
+|---|---|
+| Applies to | Available listings only |
+| Stacking with boosts | Allowed — boost + Pro ranking both apply |
+| Recency decay | 0–14 days: full boost · 14–60 days: 50% boost · 60+ days: none |
+| Relevance floor | Pro ranking only within the same relevance tier — never overrides a more relevant non-Pro listing |
+| Dilution cap | Max 25% of results per category can be Pro-elevated |
+| Transparency | `◆` Pro badge on listing cards signals elevated ranking to buyers |
+
+### Guardrails (detail)
+
+**Dilution cap — per category:**
+- Applied at category level, not globally
+- If Pro listings exceed 25% of a page, excess reverts to natural recency position
+- Which Pro listings get the boost when over cap: most recently listed wins
+
+**Relevance tiers:**
+```
+Tier 1 — Exact match (title + category + size)
+Tier 2 — Partial match (title + category)
+Tier 3 — Category only
+```
+Pro boost applied within tier only. Tier 1 non-Pro always beats Tier 2 Pro.
+
+**Recency decay:**
+- Accounts for seasonal South Asian fashion cycles (Eid, Diwali, wedding season)
+- 60-day window covers most occasion planning cycles
+
+**CMA compliance:**
+- UK CMA guidelines require disclosure of paid-for prominence
+- `◆` badge on listing cards serves as disclosure — buyers learn Pro sellers rank higher
+
+---
+
+## Feature 4 — Sale Mode
+
+### What It Does
+Seller sets a % discount and activates it across all active listings at once.
+
+- Buyers see "Was £40, Now £32" on affected listing cards and detail screens
+- Original price stored separately — sale price calculated, not overwritten
+- One tap to deactivate, all listings return to original prices instantly
+- Pro only — stops immediately if Pro lapses
+
+---
+
+## Feature 5 — Bulk Price Editing
+
+### What It Does
+Seller selects multiple listings via checkboxes and applies a new price across all selected in one action.
 
 ```
-Hub listing view
-  ↓
-Tap "Edit Prices" → checkboxes appear on each listing card
+Tap "Edit Prices" → checkboxes on listing cards
   ↓
 Select listings
   ↓
@@ -464,230 +416,239 @@ Select listings
 All selected listings updated simultaneously
 ```
 
-Only available on `available` listings — sold and archived listings are not selectable.
+- Available listings only — sold and archived not selectable
+- Pro only
+
+---
+
+## Feature 6 — Price Drop Label
+
+### What It Does
+When a seller manually reduces a listing price, a "Price Drop" label appears on the listing card for buyers.
+
+- Label persists for 7 days after price change, then disappears
+- Seller sees price history timeline in hub listing detail: "£45 → £40 · 3 days ago"
+- Buyers never see price history — label only
+- Pro only
+
+---
+
+## Feature 7 — Collections
+
+### Seller Side (in hub)
+- Create, rename, delete collections
+- Assign listings to a collection (one collection per listing)
+- Collections shown as organisational view in hub
+
+### Buyer Side (on public profile)
+- Visible only while Pro subscription is active
+- Disappears immediately on Pro lapse — data preserved for resubscription
+- Empty collections not shown publicly
+- Buyer taps collection → sees all listings within it
+
+---
+
+## Feature 8 — Share Kit
+
+### What It Does
+Auto-generates a shareable image card for a listing. Seller taps "Share" on any listing → card generated → native share sheet.
+
+**Card contents:**
+- Listing image (full bleed)
+- Title + price
+- Dukanoh logo + "Find on Dukanoh" CTA
+
+**How it works:**
+- `react-native-view-shot` renders hidden styled view, captures as PNG on-device
+- No server needed — fully local
+- Native share sheet handles the rest
+
+---
+
+## Feature 9 — Seller Profile Perks
+
+### Pro Badge `◆`
+- Automatically applied on Pro subscription, removed immediately on lapse
+- Shown on public profile header + each listing card in feed
+- Gold `#C7A84F`
+
+### Verified Badge `✓`
+- Awarded on Stripe Connect onboarding completion
+- Never removed — permanent once verified
+- Shown on public profile header + each listing card in feed
+- Dukanoh blue `#3735C5`
+
+### Fast Responder Badge ⚡
+- Pro only — cannot be earned on free tier
+- Auto-awarded when avg response time drops below 2 hours
+- Calculated from conversation timestamps every 24 hours via Supabase Edge Function
+- Removed automatically if average slips above 2 hours
+- Shown on public profile only — not on listing cards
+- Disappears immediately if Pro lapses
+
+---
+
+## Free Features (available to all sellers)
+
+### Relist
+One-tap duplicate of a sold listing. Creates new listing pre-filled with same title, price, category, condition, size, images. Seller reviews and publishes.
+
+- Original sold listing remains visible on seller's public profile as "sold"
+- Sold listings not shown in main feed or search results
 
 ### Archive
-Hides a listing completely from all buyers. Not visible in feed, search, or the seller's public profile. Only the seller sees it inside their hub under a dedicated "Archived" section. Can be unarchived at any time, returning it to available status.
+Hides listing from all buyers — not visible in feed, search, or public profile. Only seller sees it inside their listings. Can be unarchived at any time.
 
-### DB Changes
+### Active Orders
+Separate section showing orders that need action (paid, shipped, in transit, disputed). Shows order status indicator on listing card only when action is needed — "Awaiting shipment".
 
+### Sold Archive
+Complete sales history. Each entry shows: listing image + title + sale price + date sold + buyer username. Sourced from `listings` (status = 'sold') joined with `transactions`.
+
+### Occasion Tag Performance
+Shows which categories are driving the most views. Join `listing_views` with `listings` on `listing_id`, group by category, count views. Respects analytics time filter.
+
+---
+
+## DB Changes Required
+
+### users table
 ```sql
--- Update listings status enum to include archived
-ALTER TABLE public.listings
-DROP CONSTRAINT IF EXISTS listings_status_check;
-
-ALTER TABLE public.listings
-ADD CONSTRAINT listings_status_check
-CHECK (status IN ('available', 'sold', 'archived'));
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS stripe_account_id TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS stripe_onboarding_complete BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS seller_tier TEXT DEFAULT 'free';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS pro_expires_at TIMESTAMPTZ;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS boosts_used INT DEFAULT 0;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS boosts_reset_at TIMESTAMPTZ;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avg_response_time_mins INT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS sale_mode_active BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS sale_mode_discount_pct INT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS banner_url TEXT;
 ```
 
----
-
-## Feature 4 — Seller Profile Perks
-
-### Pro Seller Badge
-- Automatically applied when seller subscribes to Pro, removed if subscription lapses
-- Shown on the seller's public profile header and on each of their listing cards in the feed
-- Small, non-intrusive badge treatment
-
-### Fast Responder Badge
-- Auto-awarded when seller's average response time drops below 2 hours
-- Calculated from conversation timestamps — time between buyer's first message and seller's first reply
-- Recalculated every 24 hours via Supabase Edge Function
-- Removed automatically if average slips above 2 hours
-- Shown on seller's public profile only — not on listing cards
-
-### Custom Storefront Banner
-- Pro sellers can upload a banner image to the top of their public profile
-- Replaces the default blank/surface colour header
-- Same upload flow as listing images — expo-image-picker + Supabase storage
-
-### DB Changes
-
+### listings table
 ```sql
-ALTER TABLE public.profiles
-ADD COLUMN banner_url TEXT,
-ADD COLUMN avg_response_time_mins INT;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS is_boosted BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS boost_expires_at TIMESTAMPTZ;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS price_dropped_at TIMESTAMPTZ;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS original_price NUMERIC(10,2);
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS collection_id UUID REFERENCES public.collections(id) ON DELETE SET NULL;
+ALTER TABLE public.listings DROP CONSTRAINT IF EXISTS listings_status_check;
+ALTER TABLE public.listings ADD CONSTRAINT listings_status_check
+  CHECK (status IN ('available', 'sold', 'draft', 'archived'));
 ```
 
-Pro badge is derived from `seller_tier` — no extra column needed.
-
----
-
-## Feature 5 — Buyer Tools
-
-### Save Counts Per Listing
-Anonymised save count shown on each listing card within the hub. Seller sees at a glance which listings are generating genuine buyer interest.
-
-- Sourced from `saved_listings` table (specced in Feature 2)
-- Shown on the listing card in the hub — e.g. "🤍 12 saves"
-- No buyer identities exposed — count only
-
-### Notes
-- Offer management already fully built — buyers make offers from listing detail, sellers accept/decline in conversation screen via message protocol
-- Bundle deals deferred to v2 — requires cart + multi-item payment infrastructure with Stripe Connect
-
-### DB Changes
-None — `saved_listings` table already specced in Feature 2.
-
----
-
-## Feature 6 — Pricing & Sales Strategy
-
-### Price History
-- Every price change on a listing is logged with old price, new price, and timestamp
-- Visible to seller only inside the hub listing detail — buyers never see it
-- Shown as a simple timeline: "£45 → £40 · 3 days ago"
-
-### Sale Mode
-- Seller sets a % discount (e.g. 20%) and activates it across all active listings at once
-- Buyers see "Was £40, Now £32" on affected listing cards and detail screens
-- Original price stored separately — sale price is calculated, not overwritten
-- One tap to deactivate, all listings return to original prices instantly
-
-### Price Drop Signal
-- When a seller manually reduces a listing's price outside of Sale Mode, a "Price Drop" label appears on the listing card for buyers
-- Label persists for 7 days after the price change, then disappears
-- Buyers who have saved that listing receive an in-app notification in their inbox: "💰 [Title] dropped to £32 (was £40)" — taps through to listing detail
-- Requires a `notifications` table and a notifications section in the inbox tab
-
-### DB Changes
-
+### New tables
 ```sql
--- Price history
-CREATE TABLE listing_price_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  listing_id UUID REFERENCES listings(id),
+-- Collections
+CREATE TABLE IF NOT EXISTS public.collections (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  seller_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.collections ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Collections publicly readable" ON public.collections FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Sellers manage own collections" ON public.collections FOR ALL TO authenticated USING (auth.uid() = seller_id);
+
+-- Listing views
+CREATE TABLE IF NOT EXISTS public.listing_views (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  viewed_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.listing_views ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users insert own views" ON public.listing_views FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Sellers read own listing views" ON public.listing_views FOR SELECT TO authenticated USING (auth.uid() = user_id);
+
+-- Profile views
+CREATE TABLE IF NOT EXISTS public.profile_views (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  profile_user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  viewer_user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  viewed_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.profile_views ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users insert own profile views" ON public.profile_views FOR INSERT TO authenticated WITH CHECK (auth.uid() = viewer_user_id);
+CREATE POLICY "Sellers read own profile views" ON public.profile_views FOR SELECT TO authenticated USING (auth.uid() = profile_user_id);
+
+-- Story views
+CREATE TABLE IF NOT EXISTS public.story_views (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE,
+  viewed_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, listing_id)
+);
+ALTER TABLE public.story_views ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users manage own story views" ON public.story_views FOR ALL TO authenticated USING (auth.uid() = user_id);
+
+-- Listing price history
+CREATE TABLE IF NOT EXISTS public.listing_price_history (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE,
   old_price NUMERIC(10,2) NOT NULL,
   new_price NUMERIC(10,2) NOT NULL,
   changed_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE public.listing_price_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Sellers read own price history" ON public.listing_price_history FOR SELECT TO authenticated
+  USING (listing_id IN (SELECT id FROM public.listings WHERE seller_id = auth.uid()));
 
--- Sale mode on profiles
-ALTER TABLE public.profiles
-ADD COLUMN sale_mode_active BOOLEAN DEFAULT false,
-ADD COLUMN sale_mode_discount_pct INT;
-
--- Price drop tracking on listings
-ALTER TABLE public.listings
-ADD COLUMN price_dropped_at TIMESTAMPTZ,
-ADD COLUMN original_price NUMERIC(10,2);
-
--- In-app notifications
-CREATE TABLE notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id),
-  type TEXT NOT NULL,
-  title TEXT NOT NULL,
-  body TEXT,
-  listing_id UUID REFERENCES listings(id),
-  read BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+-- Boost audit trail
+CREATE TABLE IF NOT EXISTS public.listing_boosts (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE,
+  seller_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  boosted_at TIMESTAMPTZ DEFAULT NOW(),
+  boost_expires_at TIMESTAMPTZ,
+  was_paid BOOLEAN DEFAULT FALSE,
+  amount_paid NUMERIC(10,2)
 );
-```
+ALTER TABLE public.listing_boosts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Sellers read own boosts" ON public.listing_boosts FOR SELECT TO authenticated USING (auth.uid() = seller_id);
+CREATE POLICY "Sellers insert own boosts" ON public.listing_boosts FOR INSERT TO authenticated WITH CHECK (auth.uid() = seller_id);
 
----
-
-## Feature 7 — Inventory & Organisation
-
-### Collections
-Seller creates named groups to organise their listings — e.g. "Eid 2025", "Wedding Season", "Size 12".
-
-**Seller side (in hub):**
-- Create, rename, and delete collections
-- Assign listings to a collection — one collection per listing
-- Collections shown in hub as a separate organisational view alongside the main listings list
-
-**Buyer side (on seller's public profile):**
-- Collections appear as browsable sections on the seller's profile
-- Buyer can tap a collection to see all listings within it
-- Empty collections not shown publicly
-
-### Sold Archive
-A dedicated "Sold" section within the hub showing the seller's complete sales history.
-
-Each entry shows:
-- Listing image + title
-- Sale price
-- Date sold
-- Buyer username
-
-Sourced from `listings` filtered by `status = 'sold'` joined with `transactions` for sale price and buyer. Ordered by most recently sold.
-
-### DB Changes
-
-```sql
--- Collections
-CREATE TABLE collections (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  seller_id UUID REFERENCES users(id),
-  name TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+-- Platform settings (founder count etc)
+CREATE TABLE IF NOT EXISTS public.platform_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
-
-ALTER TABLE public.listings
-ADD COLUMN collection_id UUID REFERENCES collections(id) ON DELETE SET NULL;
+INSERT INTO public.platform_settings (key, value) VALUES
+  ('founder_limit', '150'),
+  ('founder_count', '0'),
+  ('founder_monthly_price', '6.99'),
+  ('founder_annual_price', '59.99'),
+  ('pro_monthly_price', '9.99'),
+  ('pro_annual_price', '84.99')
+ON CONFLICT (key) DO NOTHING;
 ```
-
-Sold Archive requires no new DB changes — sourced from existing `listings` and `transactions` tables.
 
 ---
 
-## Feature 8 — South Asian Platform-Specific
+## Screens to Build / Update
 
-### Occasion Tag Performance
-Shows the seller which categories are driving the most views on their listings. Surfaced inside the Analytics section of the hub.
-
-**What it shows:**
-```
-Your top performing categories
-─────────────────────────────
-🥇 Festive       340 views
-🥈 Partywear     210 views
-🥉 Wedding        95 views
-```
-
-**How it works:**
-- Join `listing_views` with `listings` on `listing_id` to get the category of each viewed listing
-- Group by category, count views, filter to the seller's listings only
-- Ordered by view count descending
-- Respects the analytics time filter (7 days / 30 days / All time)
-
-**Zero state:** "No view data yet — share your listings to get started"
-
-### Deferred
-- Seasonal prompts — deferred to v2
-- Size demand signal — deferred until sufficient search volume data exists
-
-### DB Changes
-None — fully derivable from existing `listing_views` and `listings` tables.
+| Screen | Route | Notes |
+|--------|-------|-------|
+| Dukanoh Pro paywall | `app/seller-hub.tsx` | Already built — update copy + Verified gate |
+| Pro dashboard | `app/seller-hub.tsx` | Already built — add Active Orders, Sold Archive |
+| Profile entry card | `app/(tabs)/profile.tsx` | Already built — add Verified state |
+| Stripe onboarding | `app/stripe-onboarding.tsx` | New — prompt + redirect to Stripe Express |
+| Public user profile | `app/user/[id].tsx` | Add ✓ ◆ badges, collections section |
+| Listing card | `components/ListingCard.tsx` | Add ✓ ◆ badges |
+| Listing detail | `app/listing/[id].tsx` | Add ✓ ◆ badges next to seller name |
 
 ---
 
-## Feature 9 — Growth & Reach
+## RevenueCat Integration Points (when ready)
+- Pro subscription: `Purchases.purchasePackage()` in paywall CTA
+- Boost consumable: `Purchases.purchasePackage()` on boost button
+- Entitlement check: `Purchases.getCustomerInfo()` on app load
+- Webhook: update `seller_tier`, `pro_expires_at`, `founder_count` in DB
 
-### Share Kit
-Auto-generate a shareable image card for a listing. Seller taps "Share" on any listing in the hub → card is generated → native share sheet opens → seller shares to Instagram, WhatsApp, or anywhere else.
-
-**Card contents:**
-- Listing image (full bleed)
-- Title + price overlaid
-- Dukanoh logo/branding
-- "Find on Dukanoh" CTA
-
-**How it works:**
-- `react-native-view-shot` renders a hidden styled view and captures it as an image on-device
-- No server needed — fast, fully local
-- Native share sheet handles the rest
-
-**New package required:**
-```
-react-native-view-shot
-```
-
-### Deferred
-- Follower system — new social graph, scoped as a separate future feature
-- Referral tracker — deferred to v2
-
-### DB Changes
-None.
+## Stripe Integration Points (when ready)
+- Seller onboarding: `stripe.accounts.create` + hosted onboarding link
+- Webhook `account.updated`: set `is_verified = true`, `stripe_onboarding_complete = true`
+- Payment capture, escrow, release, refunds: see `payments-spec.md`
