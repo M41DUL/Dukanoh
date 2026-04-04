@@ -709,7 +709,7 @@ export default function ListingDetailScreen() {
       {user?.id !== listing.seller_id && listing.status === 'available' && (
         <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
           <Button label="Message" variant="outline" onPress={handleMessage} style={styles.ctaBtn} />
-          <Button label="Make an offer" onPress={() => setOfferVisible(true)} style={styles.ctaBtn} />
+          <Button label="Buy Now" onPress={() => router.push(`/checkout/${id}`)} style={styles.ctaBtn} />
         </View>
       )}
       {user?.id !== listing.seller_id && listing.status === 'sold' && (

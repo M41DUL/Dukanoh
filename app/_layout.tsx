@@ -143,6 +143,30 @@ function RootNavigator() {
           name="seller-hub"
           options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
         />
+        <Stack.Screen
+          name="settings/address"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="checkout/[listingId]"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="order/[id]"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="order/[id]/dispute"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="wallet"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="stripe-onboarding"
+          options={{ animation: 'slide_from_right' }}
+        />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {splashVisible && (
