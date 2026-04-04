@@ -29,6 +29,18 @@ Deno.serve(async (req) => {
     return handlePriceDrop(supabase, record, old_record);
   }
 
+  if (table === 'conversations') {
+    return handleNewEnquiry(supabase, record);
+  }
+
+  if (table === 'saved_items') {
+    return handleListingSaved(supabase, record);
+  }
+
+  if (table === 'reviews') {
+    return handleReview(supabase, record);
+  }
+
   return new Response(JSON.stringify({ skipped: 'unknown table' }), { status: 200 });
 });
 
@@ -174,6 +186,106 @@ async function handleOrder(
   if (messages.length === 0) {
     return new Response(JSON.stringify({ skipped: 'no recipients for status' }), { status: 200 });
   }
+
+  return sendPush(messages, supabase);
+}
+
+// ─── New enquiry notification ─────────────────────────────────
+
+async function handleNewEnquiry(supabase: ReturnType<typeof createClient>, record: Record<string, string>) {
+  // conversations INSERT — notify seller of first message
+  if (!record?.seller_id || !record?.buyer_id || !record?.listing_id) {
+    return new Response(JSON.stringify({ skipped: 'missing fields' }), { status: 200 });
+  }
+
+  const [{ data: buyer }, { data: listing }] = await Promise.all([
+    supabase.from('users').select('username').eq('id', record.buyer_id).single(),
+    supabase.from('listings').select('title').eq('id', record.listing_id).single(),
+  ]);
+
+  const buyerName = buyer?.username ?? 'Someone';
+  const itemTitle = listing?.title ?? 'your listing';
+  const tokens = await getTokens(supabase, record.seller_id);
+
+  if (tokens.length === 0) {
+    return new Response(JSON.stringify({ skipped: 'no tokens' }), { status: 200 });
+  }
+
+  const messages = tokens.map(t => ({
+    to: t,
+    sound: 'default',
+    title: `New enquiry on ${itemTitle}`,
+    body: `@${buyerName} sent you a message`,
+    data: { conversation_id: record.id },
+  }));
+
+  return sendPush(messages, supabase);
+}
+
+// ─── Listing saved notification ───────────────────────────────
+
+async function handleListingSaved(supabase: ReturnType<typeof createClient>, record: Record<string, string>) {
+  if (!record?.listing_id || !record?.user_id) {
+    return new Response(JSON.stringify({ skipped: 'missing fields' }), { status: 200 });
+  }
+
+  const [{ data: listing }, { data: saver }] = await Promise.all([
+    supabase.from('listings').select('title, seller_id').eq('id', record.listing_id).single(),
+    supabase.from('users').select('username').eq('id', record.user_id).single(),
+  ]);
+
+  if (!listing?.seller_id) {
+    return new Response(JSON.stringify({ skipped: 'no seller' }), { status: 200 });
+  }
+
+  // Don't notify if seller saves their own listing
+  if (listing.seller_id === record.user_id) {
+    return new Response(JSON.stringify({ skipped: 'self-save' }), { status: 200 });
+  }
+
+  const saverName = saver?.username ?? 'Someone';
+  const tokens = await getTokens(supabase, listing.seller_id);
+
+  if (tokens.length === 0) {
+    return new Response(JSON.stringify({ skipped: 'no tokens' }), { status: 200 });
+  }
+
+  const messages = tokens.map(t => ({
+    to: t,
+    sound: 'default',
+    title: `@${saverName} saved your listing`,
+    body: listing.title ?? 'One of your listings was saved',
+    data: { listing_id: record.listing_id },
+  }));
+
+  return sendPush(messages, supabase);
+}
+
+// ─── Review notification ──────────────────────────────────────
+
+async function handleReview(supabase: ReturnType<typeof createClient>, record: Record<string, string>) {
+  if (!record?.seller_id || !record?.reviewer_id) {
+    return new Response(JSON.stringify({ skipped: 'missing fields' }), { status: 200 });
+  }
+
+  const { data: reviewer } = await supabase
+    .from('users').select('username').eq('id', record.reviewer_id).single();
+
+  const reviewerName = reviewer?.username ?? 'Someone';
+  const stars = '★'.repeat(parseInt(record.rating ?? '5'));
+  const tokens = await getTokens(supabase, record.seller_id);
+
+  if (tokens.length === 0) {
+    return new Response(JSON.stringify({ skipped: 'no tokens' }), { status: 200 });
+  }
+
+  const messages = tokens.map(t => ({
+    to: t,
+    sound: 'default',
+    title: `New review ${stars}`,
+    body: `@${reviewerName} left you a review`,
+    data: { user_id: record.seller_id },
+  }));
 
   return sendPush(messages, supabase);
 }
