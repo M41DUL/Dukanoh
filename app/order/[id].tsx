@@ -39,19 +39,17 @@ interface Order {
   completed_at: string | null;
   cancelled_at: string | null;
   created_at: string;
+  // Delivery address snapshot (captured at checkout — immutable)
+  delivery_address_line1: string | null;
+  delivery_address_line2: string | null;
+  delivery_city: string | null;
+  delivery_postcode: string | null;
+  delivery_country: string | null;
   listing: {
     title: string;
     images: string[];
   } | null;
-  buyer: {
-    username: string;
-    avatar_url: string | null;
-    address_line1: string | null;
-    address_line2: string | null;
-    city: string | null;
-    postcode: string | null;
-    country: string | null;
-  } | null;
+  buyer: { username: string; avatar_url: string | null } | null;
   seller: { username: string; avatar_url: string | null; is_verified: boolean } | null;
 }
 
@@ -108,7 +106,7 @@ export default function OrderDetailScreen() {
       .select(`
         *,
         listing:listings(title, images),
-        buyer:users!orders_buyer_id_fkey(username, avatar_url, address_line1, address_line2, city, postcode, country),
+        buyer:users!orders_buyer_id_fkey(username, avatar_url),
         seller:users!orders_seller_id_fkey(username, avatar_url, is_verified)
       `)
       .eq('id', id)
@@ -135,17 +133,14 @@ export default function OrderDetailScreen() {
       return;
     }
     setSubmitting(true);
-    const autoReleaseAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        status: 'shipped',
-        tracking_number: trackingNumber.trim(),
-        courier: courier.trim() || null,
-        shipped_at: new Date().toISOString(),
-        auto_release_at: autoReleaseAt,
-      })
-      .eq('id', order.id);
+    // mark_order_shipped RPC uses server-side NOW() for shipped_at and auto_release_at,
+    // eliminating any device clock skew. It also enforces the paid→shipped guard at DB level.
+    const { error } = await supabase.rpc('mark_order_shipped', {
+      p_order_id:  order.id,
+      p_seller_id: user!.id,
+      p_tracking:  trackingNumber.trim(),
+      p_courier:   courier.trim() || null,
+    });
     setSubmitting(false);
     if (error) {
       Alert.alert('Error', 'Could not update order. Please try again.');
@@ -335,23 +330,23 @@ export default function OrderDetailScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── SELLER: delivery address ──────────────────────────── */}
-        {canShip && order.buyer && (
+        {/* ── SELLER: delivery address (snapshot from checkout) ─── */}
+        {canShip && (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Ship to</Text>
-            {order.buyer.address_line1 ? (
+            {order.delivery_address_line1 ? (
               <Text style={[styles.addressText, { color: colors.textPrimary }]}>
                 {[
-                  order.buyer.address_line1,
-                  order.buyer.address_line2,
-                  order.buyer.city,
-                  order.buyer.postcode,
-                  order.buyer.country,
+                  order.delivery_address_line1,
+                  order.delivery_address_line2,
+                  order.delivery_city,
+                  order.delivery_postcode,
+                  order.delivery_country,
                 ].filter(Boolean).join('\n')}
               </Text>
             ) : (
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Buyer has not saved a delivery address yet.
+                No delivery address was saved at checkout.
               </Text>
             )}
           </View>

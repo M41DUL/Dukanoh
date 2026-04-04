@@ -701,6 +701,12 @@ CREATE TABLE public.orders (
   completed_at      TIMESTAMPTZ,
   cancelled_at      TIMESTAMPTZ,
   cancelled_by      TEXT CHECK (cancelled_by IN ('buyer','seller','system')),
+  -- Delivery address snapshot (captured at checkout, immutable)
+  delivery_address_line1  TEXT,
+  delivery_address_line2  TEXT,
+  delivery_city           TEXT,
+  delivery_postcode       TEXT,
+  delivery_country        TEXT,
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -722,6 +728,15 @@ CREATE INDEX idx_orders_buyer   ON public.orders (buyer_id);
 CREATE INDEX idx_orders_seller  ON public.orders (seller_id);
 CREATE INDEX idx_orders_listing ON public.orders (listing_id);
 CREATE INDEX idx_orders_status  ON public.orders (status);
+
+-- Prevent two orders for the same listing (race condition guard)
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_listing_id_unique UNIQUE (listing_id);
+
+-- Partial index for the auto-release cron query
+CREATE INDEX IF NOT EXISTS idx_orders_auto_release
+  ON public.orders (auto_release_at)
+  WHERE status = 'shipped';
 
 -- Seller wallet (pending + available + lifetime balances)
 CREATE TABLE public.seller_wallet (
@@ -748,7 +763,7 @@ BEGIN
   IF OLD.status = 'paid' AND NEW.status = 'shipped' THEN
     UPDATE public.seller_wallet
     SET pending_balance = pending_balance + NEW.item_price
-    WHERE user_id = NEW.seller_id;
+    WHERE seller_id = NEW.seller_id;
   END IF;
   IF OLD.status IN ('shipped', 'delivered') AND NEW.status = 'completed' THEN
     UPDATE public.seller_wallet
@@ -757,14 +772,14 @@ BEGIN
       available_balance = available_balance + NEW.item_price,
       lifetime_earned   = lifetime_earned + NEW.item_price,
       updated_at        = NOW()
-    WHERE user_id = NEW.seller_id;
+    WHERE seller_id = NEW.seller_id;
   END IF;
   IF OLD.status = 'shipped' AND NEW.status = 'cancelled' THEN
     UPDATE public.seller_wallet
     SET
       pending_balance = GREATEST(0, pending_balance - NEW.item_price),
       updated_at      = NOW()
-    WHERE user_id = NEW.seller_id;
+    WHERE seller_id = NEW.seller_id;
   END IF;
   RETURN NEW;
 END;
@@ -775,6 +790,29 @@ CREATE TRIGGER order_wallet_update
   AFTER UPDATE ON public.orders
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_order_wallet_update();
+
+-- mark_order_shipped RPC — uses server time, enforces paid→shipped guard
+CREATE OR REPLACE FUNCTION public.mark_order_shipped(
+  p_order_id  UUID,
+  p_seller_id UUID,
+  p_tracking  TEXT,
+  p_courier   TEXT DEFAULT NULL
+)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.orders
+  SET
+    status          = 'shipped',
+    tracking_number = p_tracking,
+    courier         = p_courier,
+    shipped_at      = NOW(),
+    auto_release_at = NOW() + INTERVAL '2 days'
+  WHERE
+    id        = p_order_id
+    AND seller_id = p_seller_id
+    AND status    = 'paid';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Auto-release function (called by Edge Function cron every hour)
 CREATE OR REPLACE FUNCTION public.auto_release_orders()

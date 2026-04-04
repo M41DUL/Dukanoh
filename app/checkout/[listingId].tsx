@@ -115,7 +115,8 @@ export default function CheckoutScreen() {
 
     setPlacing(true);
 
-    // Create order (status: 'paid' — mock until Stripe is wired)
+    // Create order (status: 'paid' — mock until payment provider is wired)
+    // Snapshot the delivery address so it's fixed even if the buyer updates their profile later.
     const { data: order, error } = await supabase
       .from('orders')
       .insert({
@@ -126,6 +127,11 @@ export default function CheckoutScreen() {
         item_price: listing.price,
         protection_fee: protectionFee,
         total_paid: total,
+        delivery_address_line1: address!.address_line1,
+        delivery_address_line2: address!.address_line2 ?? null,
+        delivery_city: address!.city,
+        delivery_postcode: address!.postcode,
+        delivery_country: address!.country,
       })
       .select('id')
       .single();
