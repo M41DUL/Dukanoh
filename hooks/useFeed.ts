@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
+import { proRankSort } from '@/utils/proRankSort';
 import type { ComponentProps } from 'react';
 import type { Ionicons } from '@expo/vector-icons';
 
@@ -139,9 +140,11 @@ async function fetchSection(userId: string, categories: string[], blockedIds: st
     .gte('expires_at', now);
 
   const boostedIds = new Set((boosts ?? []).map(b => b.listing_id));
-  return listings
+  const withBoost = listings
     .map(l => ({ ...l, isBoosted: boostedIds.has(l.id) }))
     .sort((a, b) => (b.isBoosted ? 1 : 0) - (a.isBoosted ? 1 : 0));
+
+  return proRankSort(withBoost);
 }
 
 function getGreeting(): string {

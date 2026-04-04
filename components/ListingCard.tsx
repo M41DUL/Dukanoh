@@ -27,6 +27,8 @@ export interface Listing {
   save_count?: number;
   created_at?: string;
   isBoosted?: boolean;
+  price_dropped_at?: string | null;
+  original_price?: number | null;
   seller: {
     username: string;
     avatar_url?: string;
@@ -129,7 +131,15 @@ export function ListingCard({
           boldStyle={styles.titleHighlight}
         />
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}
-        <Text style={styles.price}>£{listing.price.toFixed(2)}</Text>
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>£{listing.price.toFixed(2)}</Text>
+          {listing.price_dropped_at && listing.original_price && listing.original_price > listing.price && (
+            <Text style={styles.originalPrice}>£{listing.original_price.toFixed(2)}</Text>
+          )}
+        </View>
+        {listing.price_dropped_at && (
+          <Text style={styles.priceDropLabel}>↓ Price dropped</Text>
+        )}
         <View style={styles.sellerRow}>
           <Text style={styles.sellerName} numberOfLines={1}>@{listing.seller.username}</Text>
           {listing.seller.is_verified && (
@@ -209,10 +219,26 @@ function getStyles(colors: ColorTokens) {
     title: { ...Typography.body, color: colors.textPrimary, fontWeight: '600', fontFamily: FontFamily.semibold },
     titleHighlight: { fontFamily: 'Inter_700Bold', fontWeight: '700' },
     meta: { ...Typography.body, color: colors.textSecondary },
+    priceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      marginTop: 1,
+    },
     price: {
       ...Typography.body,
       color: colors.textPrimary,
-      marginTop: 1,
+    },
+    originalPrice: {
+      fontSize: 11,
+      fontFamily: FontFamily.regular,
+      color: colors.textSecondary,
+      textDecorationLine: 'line-through',
+    },
+    priceDropLabel: {
+      fontSize: 11,
+      fontFamily: FontFamily.semibold,
+      color: colors.success,
     },
     sellerRow: {
       flexDirection: 'row',

@@ -61,6 +61,7 @@ export default function ProfileScreen() {
   const [profileName, setProfileName] = useState('');
   const [profileAvatar, setProfileAvatar] = useState<string | undefined>();
   const [sellerTier, setSellerTier] = useState<string>('free');
+  const [isVerified, setIsVerified] = useState(false);
   const [listingCount, setListingCount] = useState(0);
   const [hubSummary, setHubSummary] = useState<HubSummary | null>(null);
   const colors = useThemeColors();
@@ -74,7 +75,7 @@ export default function ProfileScreen() {
     const [{ data, error }, { count }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier')
+        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier, is_verified')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -94,6 +95,7 @@ export default function ProfileScreen() {
       setRatingAvg(data.rating_avg ?? 0);
       setRatingCount(data.rating_count ?? 0);
       setSellerTier(data.seller_tier ?? 'free');
+      setIsVerified(data.is_verified ?? false);
     }
     setListingCount(count ?? 0);
   }, [user]);
@@ -159,6 +161,20 @@ export default function ProfileScreen() {
             <Text style={styles.name}>{profileName}</Text>
           ) : null}
           <Text style={styles.username}>@{username}</Text>
+          {(isVerified || sellerTier === 'pro') && (
+            <View style={styles.badgeRow}>
+              {isVerified && (
+                <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
+                  <Text style={[styles.badgePillText, { color: colors.primary }]}>✓ Verified</Text>
+                </View>
+              )}
+              {sellerTier === 'pro' && (
+                <View style={[styles.badgePill, { backgroundColor: '#201A04' }]}>
+                  <Text style={[styles.badgePillText, { color: '#C7A84F' }]}>◆ Pro</Text>
+                </View>
+              )}
+            </View>
+          )}
           {ratingCount > 0 ? (
             <View style={styles.ratingRow}>
               <StarRating rating={ratingAvg} size={14} />
@@ -301,6 +317,20 @@ function getStyles(colors: ColorTokens) {
     noReviews: {
       ...Typography.caption,
       color: colors.textSecondary,
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      gap: Spacing.xs,
+      marginTop: 4,
+    },
+    badgePill: {
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+    },
+    badgePillText: {
+      fontSize: 11,
+      fontFamily: FontFamily.semibold,
     },
     editBtn: {
       marginTop: Spacing.md,

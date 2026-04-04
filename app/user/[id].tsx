@@ -33,6 +33,7 @@ interface Seller {
   created_at?: string;
   is_verified?: boolean;
   seller_tier?: string;
+  avg_response_time_mins?: number | null;
 }
 
 interface Review {
@@ -236,6 +237,13 @@ export default function SellerProfileScreen() {
                 {seller.seller_tier === 'pro' && (
                   <View style={[styles.badgePill, { backgroundColor: '#201A04' }]}>
                     <Text style={[styles.badgePillText, { color: '#C7A84F' }]}>◆ Pro</Text>
+                  </View>
+                )}
+                {seller.seller_tier === 'pro' &&
+                  seller.avg_response_time_mins != null &&
+                  seller.avg_response_time_mins <= 120 && (
+                  <View style={[styles.badgePill, { backgroundColor: '#1F2D08' }]}>
+                    <Text style={[styles.badgePillText, { color: '#C7F75E' }]}>⚡ Fast Responder</Text>
                   </View>
                 )}
               </View>

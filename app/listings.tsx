@@ -29,6 +29,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlocked } from '@/context/BlockedContext';
 import { supabase } from '@/lib/supabase';
+import { proRankSort } from '@/utils/proRankSort';
 
 // ─── Constants ──────────────────────────────────────────────
 
@@ -313,7 +314,9 @@ export default function ListingsScreen() {
     }
 
     setFetchError(false);
-    const items = applyClientFilters((data ?? []) as unknown as Listing[], trimmedQuery);
+    const filtered = applyClientFilters((data ?? []) as unknown as Listing[], trimmedQuery);
+    // Only apply Pro ranking when not doing a text search (text search should respect relevance)
+    const items = isTextSearch ? filtered : proRankSort(filtered);
 
     if (reset) {
       setListings(items);

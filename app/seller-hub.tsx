@@ -362,6 +362,9 @@ function HubDashboard() {
   const [assignSheetListing, setAssignSheetListing] = useState<HubListing | null>(null);
   const [sharingId, setSharingId] = useState<string | null>(null);
   const shareCardRefs = useRef<Record<string, ViewShot | null>>({});
+  // Boost quota state
+  const [boostsUsed, setBoostsUsed] = useState(0);
+  const [boostsResetAt, setBoostsResetAt] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -372,14 +375,18 @@ function HubDashboard() {
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
     const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [txAll, txThis, txLast, listingsRes, profileViewsRes, collectionsRes] = await Promise.all([
+    const [txAll, txThis, txLast, listingsRes, profileViewsRes, collectionsRes, userRes] = await Promise.all([
       supabase.from('transactions').select('amount, created_at').eq('seller_id', user.id),
       supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', thisMonthStart),
       supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
       supabase.from('listings').select('id, title, price, images, status, is_boosted, boost_expires_at, view_count, save_count, occasion').eq('seller_id', user.id).in('status', ['available', 'sold']).order('created_at', { ascending: false }),
       supabase.from('profile_views').select('id', { count: 'exact', head: true }).eq('profile_user_id', user.id).gte('viewed_at', last30Days),
       supabase.from('collections').select('id, name').eq('seller_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('users').select('boosts_used, boosts_reset_at').eq('id', user.id).single(),
     ]);
+
+    setBoostsUsed(userRes.data?.boosts_used ?? 0);
+    setBoostsResetAt(userRes.data?.boosts_reset_at ?? null);
 
     const allTx = txAll.data ?? [];
     const totalEarned = allTx.reduce((s, t) => s + (t.amount ?? 0), 0);
@@ -452,14 +459,44 @@ function HubDashboard() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleBoost = useCallback(async (listingId: string) => {
+    if (!user || !data) return;
+    const now = new Date();
+
+    // Enforce simultaneous boost limit (Pro: 10, standard: 5 — dashboard is Pro-only, so 10)
+    const activeBoostCount = data.listings.filter(
+      l => l.is_boosted && l.boost_expires_at && new Date(l.boost_expires_at) > now
+    ).length;
+    if (activeBoostCount >= 10) {
+      const { Alert: RNAlert } = require('react-native');
+      RNAlert.alert('Boost limit reached', 'You can have 10 active boosts at once. Wait for one to expire before boosting again.');
+      return;
+    }
+
     setBoostingId(listingId);
-    // RevenueCat consumable purchase for boost goes here
-    // On success: update DB is_boosted = true, boost_expires_at = now + 24 hours
+
+    // Check if free boost allowance needs resetting
+    const resetAt = boostsResetAt ? new Date(boostsResetAt) : null;
+    let currentUsed = boostsUsed;
+    if (!resetAt || resetAt <= now) {
+      const nextReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      await supabase.from('users').update({ boosts_used: 0, boosts_reset_at: nextReset }).eq('id', user.id);
+      currentUsed = 0;
+      setBoostsUsed(0);
+      setBoostsResetAt(nextReset);
+    }
+
+    if (currentUsed < 3) {
+      // Use free boost — deduct from allowance
+      await supabase.from('users').update({ boosts_used: currentUsed + 1 }).eq('id', user.id);
+      setBoostsUsed(currentUsed + 1);
+    }
+    // else: RevenueCat consumable purchase for £0.99 goes here before applying boost
+
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     await supabase.from('listings').update({ is_boosted: true, boost_expires_at: expiresAt }).eq('id', listingId);
     await fetchData();
     setBoostingId(null);
-  }, [fetchData]);
+  }, [user, data, boostsUsed, boostsResetAt, fetchData]);
 
   const handleCreateCollection = useCallback(async () => {
     if (!user || !newColName.trim()) return;
@@ -608,6 +645,7 @@ function HubDashboard() {
                     onShare={handleShare}
                     sharing={sharingId === listing.id}
                     onAssign={() => setAssignSheetListing(listing)}
+                    freeBoostsLeft={Math.max(0, 3 - boostsUsed)}
                   />
                 </View>
               ))}
@@ -748,6 +786,7 @@ function HubListingRow({
   onShare,
   sharing,
   onAssign,
+  freeBoostsLeft,
 }: {
   listing: HubListing;
   onBoost: (id: string) => void;
@@ -755,10 +794,22 @@ function HubListingRow({
   onShare: (id: string) => void;
   sharing: boolean;
   onAssign: () => void;
+  freeBoostsLeft: number;
 }) {
+  const now = new Date();
   const isBoostedActive = listing.is_boosted &&
     listing.boost_expires_at != null &&
-    new Date(listing.boost_expires_at) > new Date();
+    new Date(listing.boost_expires_at) > now;
+
+  const hoursLeft = isBoostedActive
+    ? Math.ceil((new Date(listing.boost_expires_at!).getTime() - Date.now()) / 3_600_000)
+    : 0;
+
+  const boostLabel = isBoostedActive
+    ? `⚡ Live · ${hoursLeft}h`
+    : freeBoostsLeft > 0
+      ? '⚡ Reach more buyers'
+      : '⚡ Reach more buyers · £0.99';
 
   const imageUri = listing.images?.[0];
 
@@ -789,28 +840,20 @@ function HubListingRow({
 
       {/* Action buttons */}
       <View style={styles.listingActions}>
-        {isBoostedActive ? (
-          <View style={styles.boostedBadge}>
-            <Ionicons name="flash" size={12} color={HUB.background} />
-            <Text style={styles.boostedBadgeText}>Boosted</Text>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.boostBtn}
-            onPress={() => onBoost(listing.id)}
-            disabled={boosting}
-            hitSlop={8}
-          >
-            {boosting ? (
-              <ActivityIndicator size="small" color={HUB.accent} />
-            ) : (
-              <>
-                <Ionicons name="flash-outline" size={13} color={HUB.accent} />
-                <Text style={styles.boostBtnText}>Boost</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.boostBtn, isBoostedActive && styles.boostBtnActive]}
+          onPress={() => !isBoostedActive && onBoost(listing.id)}
+          disabled={boosting || isBoostedActive}
+          hitSlop={8}
+        >
+          {boosting ? (
+            <ActivityIndicator size="small" color={HUB.accent} />
+          ) : (
+            <Text style={[styles.boostBtnText, isBoostedActive && styles.boostBtnTextActive]}>
+              {boostLabel}
+            </Text>
+          )}
+        </TouchableOpacity>
 
         {/* Share */}
         <TouchableOpacity
@@ -1357,6 +1400,13 @@ const styles = StyleSheet.create({
   boostBtnText: {
     fontSize: 11,
     fontFamily: FontFamily.semibold,
+    color: HUB.accent,
+  },
+  boostBtnActive: {
+    backgroundColor: HUB.accent + '22',
+    borderColor: HUB.accent + '44',
+  },
+  boostBtnTextActive: {
     color: HUB.accent,
   },
 
