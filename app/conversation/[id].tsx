@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { activeConversationId } from '@/hooks/usePushNotifications';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
@@ -53,6 +54,12 @@ export default function ConversationScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const PAGE_SIZE = 40;
+
+  // Suppress push notifications for this conversation while screen is open
+  useEffect(() => {
+    activeConversationId.current = id ?? null;
+    return () => { activeConversationId.current = null; };
+  }, [id]);
 
   useEffect(() => {
     if (!id || !user) return;

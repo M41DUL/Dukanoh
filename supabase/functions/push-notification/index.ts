@@ -61,7 +61,7 @@ async function handleMessage(supabase: ReturnType<typeof createClient>, record: 
     data: { conversation_id: record.conversation_id },
   }));
 
-  return sendPush(messages);
+  return sendPush(messages, supabase);
 }
 
 // ─── Order notification ───────────────────────────────────────
@@ -171,7 +171,7 @@ async function handleOrder(
     return new Response(JSON.stringify({ skipped: 'no recipients for status' }), { status: 200 });
   }
 
-  return sendPush(messages);
+  return sendPush(messages, supabase);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -185,7 +185,7 @@ async function getTokens(supabase: ReturnType<typeof createClient>, userId: stri
   return data?.map((r: { token: string }) => r.token) ?? [];
 }
 
-async function sendPush(messages: object[]) {
+async function sendPush(messages: object[], supabase: ReturnType<typeof createClient>) {
   const response = await fetch(EXPO_PUSH_URL, {
     method: 'POST',
     headers: {
@@ -196,6 +196,20 @@ async function sendPush(messages: object[]) {
     body: JSON.stringify(messages),
   });
   const result = await response.json();
+
+  // Clean up stale tokens reported as DeviceNotRegistered
+  const tickets: { status: string; details?: { error?: string } }[] = result.data ?? [];
+  const staleTokens: string[] = [];
+  tickets.forEach((ticket, i) => {
+    if (ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
+      const msg = messages[i] as { to: string };
+      if (msg?.to) staleTokens.push(msg.to);
+    }
+  });
+  if (staleTokens.length > 0) {
+    await supabase.from('push_tokens').delete().in('token', staleTokens);
+  }
+
   return new Response(JSON.stringify(result), { status: 200 });
 }
 

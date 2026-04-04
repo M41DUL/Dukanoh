@@ -7,13 +7,23 @@ import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
+// Tracks the conversation ID the user is currently viewing.
+// Set by the conversation screen on mount/unmount.
+export const activeConversationId = { current: null as string | null };
+
 try {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
+    handleNotification: async (notification) => {
+      const data = notification.request.content.data;
+      // Suppress message notifications if user is already in that conversation
+      if (
+        data?.conversation_id &&
+        data.conversation_id === activeConversationId.current
+      ) {
+        return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+      }
+      return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false };
+    },
   });
 } catch {}
 
@@ -32,12 +42,14 @@ export function usePushNotifications() {
       );
     });
 
-    // Navigate to conversation when user taps a notification
+    // Navigate when user taps a notification
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data;
         if (data?.conversation_id) {
           router.push(`/conversation/${data.conversation_id}`);
+        } else if (data?.order_id) {
+          router.push(`/order/${data.order_id}`);
         }
       });
 
