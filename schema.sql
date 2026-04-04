@@ -758,6 +758,23 @@ CREATE POLICY "Sellers can read their own wallet"
 
 CREATE INDEX idx_wallet_seller ON public.seller_wallet (seller_id);
 
+-- Auto-create seller_wallet row when an order is inserted (SECURITY DEFINER bypasses RLS)
+CREATE OR REPLACE FUNCTION public.ensure_seller_wallet_exists()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.seller_wallet (seller_id)
+  VALUES (NEW.seller_id)
+  ON CONFLICT (seller_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS ensure_wallet_on_order ON public.orders;
+CREATE TRIGGER ensure_wallet_on_order
+  AFTER INSERT ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.ensure_seller_wallet_exists();
+
 -- Wallet update trigger (credits/debits seller_wallet on order status changes)
 CREATE OR REPLACE FUNCTION public.handle_order_wallet_update()
 RETURNS TRIGGER AS $$

@@ -142,11 +142,6 @@ export default function CheckoutScreen() {
       return;
     }
 
-    // Ensure seller wallet exists (no-op if already created)
-    await supabase
-      .from('seller_wallet')
-      .upsert({ user_id: listing.seller_id }, { onConflict: 'user_id', ignoreDuplicates: true });
-
     // Mark listing as sold
     await supabase
       .from('listings')
