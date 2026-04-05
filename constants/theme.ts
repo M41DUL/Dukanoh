@@ -91,37 +91,44 @@ export const Typography = {
     fontSize: 32,
     fontWeight: '700' as const,
     fontFamily: 'Inter_700Bold',
+    includeFontPadding: false,
   },
   heading: {
     fontSize: 24,
     fontWeight: '700' as const,
     fontFamily: 'Inter_700Bold',
+    includeFontPadding: false,
   },
   price: {
     fontSize: 28,
     fontWeight: '700' as const,
     fontFamily: 'Inter_700Bold',
+    includeFontPadding: false,
   },
   subheading: {
     fontSize: 18,
     fontWeight: '600' as const,
     fontFamily: 'Inter_600SemiBold',
+    includeFontPadding: false,
   },
   body: {
     fontSize: 14,
     fontWeight: '400' as const,
     fontFamily: 'Inter_400Regular',
+    includeFontPadding: false,
   },
   caption: {
     fontSize: 12,
     fontWeight: '400' as const,
     fontFamily: 'Inter_400Regular',
+    includeFontPadding: false,
   },
   label: {
     fontSize: 14,
     fontWeight: '500' as const,
     letterSpacing: 0,
     fontFamily: 'Inter_500Medium',
+    includeFontPadding: false,
   },
 };
 

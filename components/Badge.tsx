@@ -30,7 +30,7 @@ export function Badge({ label, active = false, onPress, style }: BadgeProps) {
 
   return (
     <View style={[styles.badge, active ? styles.active : styles.inactive, style]}>
-      <Text style={[styles.label, active ? styles.activeText : styles.inactiveText]}>
+      <Text style={[styles.label, active ? styles.activeText : styles.inactiveText]} allowFontScaling={false}>
         {label}
       </Text>
     </View>
