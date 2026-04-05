@@ -127,6 +127,7 @@ export default function DisputeScreen() {
                 style={[styles.textArea, { color: colors.textPrimary }]}
                 placeholder="e.g. The item arrived with a large tear on the sleeve that wasn't shown in the photos."
                 placeholderTextColor={colors.textSecondary}
+                underlineColorAndroid="transparent"
                 multiline
                 numberOfLines={5}
                 value={description}

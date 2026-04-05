@@ -401,6 +401,7 @@ export default function OrderDetailScreen() {
                 placeholderTextColor={colors.textSecondary}
                 value={trackingNumber}
                 onChangeText={setTrackingNumber}
+                underlineColorAndroid="transparent"
                 autoCapitalize="characters"
               />
             </View>
@@ -411,6 +412,7 @@ export default function OrderDetailScreen() {
                 placeholderTextColor={colors.textSecondary}
                 value={courier}
                 onChangeText={setCourier}
+                underlineColorAndroid="transparent"
                 autoCapitalize="words"
               />
             </View>

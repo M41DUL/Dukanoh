@@ -36,6 +36,13 @@ module.exports = {
     plugins: [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Dukanoh to access your photos to add listing images.",
+          "cameraPermission": "Allow Dukanoh to use your camera to take listing photos."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           image: "./assets/images/splash-icon.png",

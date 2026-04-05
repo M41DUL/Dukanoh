@@ -741,6 +741,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
             placeholderTextColor={HUB.textSecondary}
             value={newColName}
             onChangeText={setNewColName}
+            underlineColorAndroid="transparent"
             autoFocus
             maxLength={40}
           />

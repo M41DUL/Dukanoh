@@ -60,6 +60,7 @@ export const Input = forwardRef<TextInput, InputProps>(
             style={[styles.input, inputStyle]}
             placeholderTextColor={placeholderColor ?? colors.textSecondary}
             secureTextEntry={isSecure}
+            underlineColorAndroid="transparent"
             onFocus={(e) => { setFocused(true); onFocusProp?.(e); }}
             onBlur={(e) => { setFocused(false); onBlurProp?.(e); }}
             {...props}

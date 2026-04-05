@@ -195,6 +195,7 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(function Se
             onChangeText={onChangeText}
             placeholder={displayPlaceholder}
             placeholderTextColor={colors.textSecondary}
+            underlineColorAndroid="transparent"
             onFocus={enterFocus}
             onSubmitEditing={() => handleSubmit(value)}
             returnKeyType="search"
