@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -312,6 +313,6 @@ const styles = StyleSheet.create({
   },
   ctaSection: {
     gap: Spacing.sm,
-    paddingBottom: LOGO_FINAL_H - 60 + Spacing.xl,
+    paddingBottom: LOGO_FINAL_H - 60 + Spacing.xl + (Platform.OS === 'android' ? 40 : 0),
   },
 });
