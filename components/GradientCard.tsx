@@ -78,6 +78,7 @@ function getStyles(colors: ColorTokens) {
       ...Typography.body,
       color: colors.textPrimary,
       fontFamily: 'Inter_600SemiBold',
+      fontWeight: '600' as const,
     },
     sub: {
       ...Typography.caption,

@@ -121,6 +121,7 @@ function getStyles(colors: ColorTokens, inline: boolean) {
       ...Typography.caption,
       color: colors.primaryText,
       fontFamily: 'Inter_600SemiBold',
+      fontWeight: '600' as const,
     },
     row: {
       flexDirection: 'row',

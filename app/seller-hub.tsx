@@ -7,13 +7,13 @@ import {
   StyleSheet,
   Animated,
   Easing,
-  StatusBar,
   Image,
   ActivityIndicator,
   Dimensions,
   Share,
   TextInput,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -107,7 +107,7 @@ export default function SellerHubScreen() {
   if (sellerTier === null) {
     return (
       <View style={styles.loadingContainer}>
-        <StatusBar barStyle="light-content" />
+        <StatusBar style="light" />
         <ActivityIndicator color={HUB.accent} />
       </View>
     );
@@ -177,7 +177,7 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
   if (notReady) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="light-content" />
+        <StatusBar style="light" />
         <TouchableOpacity
           style={[styles.closeBtn, { top: insets.top + Spacing.md }]}
           onPress={() => router.back()}
@@ -241,7 +241,7 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar style="light" />
 
       <TouchableOpacity
         style={[styles.closeBtn, { top: insets.top + Spacing.md }]}
@@ -543,7 +543,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar style="light" />
 
       {/* Header */}
       <View style={[styles.dashHeader, { paddingTop: Spacing.md }]}>

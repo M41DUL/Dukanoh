@@ -59,12 +59,12 @@ function getStyles(colors: ColorTokens) {
       backgroundColor: colors.surface,
       marginBottom: Spacing.xs,
     },
-    title: { ...Typography.caption, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
+    title: { ...Typography.caption, color: colors.textPrimary, fontFamily: 'Inter_600SemiBold', fontWeight: '600' as const },
     oldPrice: {
       ...Typography.caption,
       color: colors.textSecondary,
       textDecorationLine: 'line-through',
     },
-    newPrice: { ...Typography.caption, color: '#22C55E', fontFamily: 'Inter_700Bold' },
+    newPrice: { ...Typography.caption, color: '#22C55E', fontFamily: 'Inter_700Bold', fontWeight: '700' as const },
   });
 }

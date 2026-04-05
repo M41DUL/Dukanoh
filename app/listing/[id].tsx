@@ -989,9 +989,9 @@ function getStyles(colors: ColorTokens) {
     titleGroup: { gap: Spacing.md },
     titleBlock: { gap: 4 },
     titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-    title: { ...Typography.heading, fontSize: 18, fontFamily: FontFamily.medium, fontWeight: '500' as const, color: colors.textPrimary, flex: 1 },
-    subtitle: { ...Typography.body, fontSize: 14, fontFamily: FontFamily.medium, fontWeight: '500' as const, color: colors.textSecondary },
-    price: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, fontWeight: '500' as const, color: colors.textPrimary },
+    title: { ...Typography.heading, fontSize: 18, fontFamily: FontFamily.medium, color: colors.textPrimary, flex: 1 },
+    subtitle: { ...Typography.body, fontSize: 14, fontFamily: FontFamily.medium, color: colors.textSecondary },
+    price: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, color: colors.textPrimary },
     pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
     demandBanner: {
       width: 100,

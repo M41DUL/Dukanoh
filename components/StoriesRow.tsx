@@ -9,6 +9,7 @@ import {
   StyleSheet,
   StatusBar,
   Animated,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -530,7 +531,7 @@ const viewerStyles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: Spacing.base,
-    paddingBottom: Spacing['3xl'],
+    paddingBottom: Spacing['3xl'] + (Platform.OS === 'android' ? 32 : 0),
     paddingTop: Spacing.lg,
     gap: Spacing.md,
   },
@@ -543,7 +544,6 @@ const viewerStyles = StyleSheet.create({
   },
   listingTitle: {
     ...Typography.body,
-    fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
     color: '#0D0D0D',
   },
@@ -597,7 +597,7 @@ const viewerStyles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: Spacing.xl,
-    paddingBottom: Spacing['3xl'],
+    paddingBottom: Spacing['3xl'] + (Platform.OS === 'android' ? 32 : 0),
     gap: Spacing.sm,
   },
   storyTitle: {

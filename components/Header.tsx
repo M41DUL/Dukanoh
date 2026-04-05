@@ -30,7 +30,7 @@ export function Header({ title, subtitle, onSubtitlePress, showBack = false, rig
 
       {title ? (
         <View style={styles.titleWrap}>
-          <Text style={[styles.title, titleStyle]} numberOfLines={1}>{title}</Text>
+          <Text style={[styles.title, titleStyle]} numberOfLines={1} allowFontScaling={false}>{title}</Text>
           {subtitle ? (
             onSubtitlePress ? (
               <TouchableOpacity onPress={onSubtitlePress} activeOpacity={0.6}>
@@ -67,7 +67,7 @@ function getStyles(colors: ColorTokens) {
     sideRight: { alignItems: 'flex-end' },
     backButton: { padding: Spacing.xs },
     titleWrap: { flex: 1, alignItems: 'center' },
-    title: { fontSize: 16, fontWeight: '600', fontFamily: 'Inter_600SemiBold', color: colors.textPrimary },
+    title: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: colors.textPrimary },
     subtitle: { ...Typography.caption, color: colors.textSecondary, marginTop: 2 },
     subtitleLink: { color: colors.primary },
   });

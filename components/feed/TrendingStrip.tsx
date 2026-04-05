@@ -72,6 +72,7 @@ function getStyles(colors: ColorTokens) {
       ...Typography.caption,
       color: colors.textPrimary,
       fontFamily: 'Inter_600SemiBold',
+      fontWeight: '600' as const,
     },
   });
 }

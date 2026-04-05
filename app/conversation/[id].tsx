@@ -448,7 +448,7 @@ function getStyles(colors: ColorTokens) {
     emptyWrap: {
       alignItems: 'center',
       gap: Spacing.sm,
-      transform: [{ scaleY: -1 }],
+      transform: Platform.OS === 'android' ? [{ scaleX: -1 }, { scaleY: -1 }] : [{ scaleY: -1 }],
     },
     emptyText: {
       ...Typography.caption,
@@ -553,7 +553,7 @@ function getStyles(colors: ColorTokens) {
       flexDirection: 'row',
       alignItems: 'flex-end',
       paddingTop: Spacing.base,
-      paddingBottom: Spacing['2xl'],
+      paddingBottom: Spacing['2xl'] + (Platform.OS === 'android' ? 16 : 0),
       gap: Spacing.sm,
       borderTopWidth: 1,
       borderTopColor: colors.border,
@@ -575,7 +575,7 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'center',
       gap: Spacing.xs,
       paddingTop: Spacing.base,
-      paddingBottom: Spacing['2xl'],
+      paddingBottom: Spacing['2xl'] + (Platform.OS === 'android' ? 16 : 0),
       borderTopWidth: 1,
       borderTopColor: colors.border,
       backgroundColor: colors.background,

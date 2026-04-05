@@ -41,6 +41,7 @@ const styles = StyleSheet.create({
     ...Typography.subheading,
     fontSize: 18,
     fontFamily: 'Inter_500Medium',
+    fontWeight: '500' as const,
   },
   viewAll: {
     fontSize: 16,

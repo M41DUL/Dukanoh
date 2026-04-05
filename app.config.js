@@ -19,6 +19,7 @@ module.exports = {
     android: {
       package: "com.m41dul.dukanoh",
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
+      permissions: ["android.permission.VIBRATE"],
       adaptiveIcon: {
         backgroundColor: "#E6F4FE",
         foregroundImage: "./assets/images/android-icon-foreground.png",

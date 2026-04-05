@@ -21,7 +21,7 @@ export function Badge({ label, active = false, onPress, style }: BadgeProps) {
         onPress={onPress}
         activeOpacity={0.8}
       >
-        <Text style={[styles.label, active ? styles.activeText : styles.inactiveText]}>
+        <Text style={[styles.label, active ? styles.activeText : styles.inactiveText]} allowFontScaling={false}>
           {label}
         </Text>
       </TouchableOpacity>

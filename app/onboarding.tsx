@@ -8,6 +8,7 @@ import {
   Animated,
   Easing,
   useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -576,7 +577,7 @@ function getStyles(colors: ColorTokens) {
       textAlign: 'center',
     },
     logoSpacer: {
-      height: LOGO_FINAL_H - 60,
+      height: LOGO_FINAL_H - 60 + Spacing.xl + (Platform.OS === 'android' ? 40 : 0),
     },
 
     // Welcome sheet

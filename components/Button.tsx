@@ -97,6 +97,7 @@ export function Button({
               variant === 'ghost' && styles.ghostText,
               textColor ? { color: textColor } : {},
             ]}
+            allowFontScaling={false}
           >
             {label}
           </Text>

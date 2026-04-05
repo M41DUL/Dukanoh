@@ -47,7 +47,7 @@ export function TabBar({ tabs, activeTab, onTabChange, contentFade }: TabBarProp
             activeOpacity={0.7}
           >
             <View style={styles.tabLabelWrap}>
-              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]} allowFontScaling={false}>
                 {tab.label}
               </Text>
             </View>

@@ -216,8 +216,8 @@ function getStyles(colors: ColorTokens) {
       padding: 6,
     },
     content: { paddingVertical: Spacing.sm, gap: 3 },
-    title: { ...Typography.body, color: colors.textPrimary, fontWeight: '600', fontFamily: FontFamily.semibold },
-    titleHighlight: { fontFamily: 'Inter_700Bold', fontWeight: '700' },
+    title: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
+    titleHighlight: { fontFamily: 'Inter_700Bold' },
     meta: { ...Typography.body, color: colors.textSecondary },
     priceRow: {
       flexDirection: 'row',
