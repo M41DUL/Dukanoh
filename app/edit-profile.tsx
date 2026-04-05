@@ -113,7 +113,7 @@ export default function EditProfileScreen() {
         { text: 'Take Photo', onPress: takePhoto },
         { text: 'Choose from Library', onPress: pickFromLibrary },
         { text: 'Cancel', style: 'cancel' },
-      ]);
+      ], { cancelable: true });
     }
   }, [takePhoto, pickFromLibrary]);
 

@@ -145,7 +145,7 @@ export default function SellerProfileScreen() {
       { text: 'Spam', onPress: () => submitReport() },
       { text: 'Inappropriate behaviour', onPress: () => submitReport() },
       { text: 'Cancel', style: 'cancel' },
-    ]);
+    ], { cancelable: true });
   };
 
   const handleBlock = () => {
@@ -160,7 +160,7 @@ export default function SellerProfileScreen() {
           router.back();
         },
       },
-    ]);
+    ], { cancelable: true });
   };
 
   const handleShare = () => {
@@ -177,7 +177,7 @@ export default function SellerProfileScreen() {
       options.push({ text: 'Block user', style: 'destructive', onPress: handleBlock });
     }
     options.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert('Options', undefined, options);
+    Alert.alert('Options', undefined, options, { cancelable: true });
   };
 
   if (loading) return <LoadingSpinner />;

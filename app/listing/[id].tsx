@@ -235,7 +235,8 @@ export default function ListingDetailScreen() {
             setListing(prev => prev ? { ...prev, status: 'sold' } : prev);
           },
         },
-      ]
+      ],
+      { cancelable: true }
     );
   };
 
@@ -256,7 +257,7 @@ export default function ListingDetailScreen() {
           router.back();
         },
       },
-    ]);
+    ], { cancelable: true });
   };
 
   const handleCloseBoost = () => setBoostVisible(false);
@@ -299,7 +300,7 @@ export default function ListingDetailScreen() {
       { text: 'Counterfeit or fake', onPress: () => submitReport('Counterfeit or fake') },
       { text: 'Inappropriate content', onPress: () => submitReport('Inappropriate content') },
       { text: 'Cancel', style: 'cancel' },
-    ]);
+    ], { cancelable: true });
   };
 
   const handleBlock = () => {
@@ -317,7 +318,8 @@ export default function ListingDetailScreen() {
             router.back();
           },
         },
-      ]
+      ],
+      { cancelable: true }
     );
   };
 
@@ -327,7 +329,7 @@ export default function ListingDetailScreen() {
       { text: 'Report listing', onPress: handleReport },
       { text: 'Block seller', onPress: handleBlock },
       { text: 'Cancel', style: 'cancel' },
-    ]);
+    ], { cancelable: true });
   };
 
   const handleSellerOptions = () => {
@@ -335,7 +337,7 @@ export default function ListingDetailScreen() {
       { text: 'Share', onPress: handleShare },
       { text: 'Delete draft', style: 'destructive', onPress: handleDeleteDraft },
       { text: 'Cancel', style: 'cancel' },
-    ]);
+    ], { cancelable: true });
   };
 
   const handleDuplicate = async () => {

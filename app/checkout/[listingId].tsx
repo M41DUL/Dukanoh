@@ -102,7 +102,8 @@ export default function CheckoutScreen() {
         [
           { text: 'Add address', onPress: () => router.push('/settings/address') },
           { text: 'Cancel', style: 'cancel' },
-        ]
+        ],
+        { cancelable: true }
       );
       return;
     }

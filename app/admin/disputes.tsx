@@ -109,7 +109,8 @@ export default function AdminDisputesScreen() {
             checkAdminAndLoad();
           },
         },
-      ]
+      ],
+      { cancelable: true }
     );
   };
 
@@ -146,7 +147,8 @@ export default function AdminDisputesScreen() {
             checkAdminAndLoad();
           },
         },
-      ]
+      ],
+      { cancelable: true }
     );
   };
 
