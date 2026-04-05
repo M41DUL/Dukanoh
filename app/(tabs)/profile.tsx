@@ -98,6 +98,7 @@ export default function ProfileScreen() {
       setIsVerified(data.is_verified ?? false);
     }
     setListingCount(count ?? 0);
+    lastFetchedRef.current = Date.now();
   }, [user]);
 
   const fetchHubSummary = useCallback(async () => {
@@ -126,7 +127,6 @@ export default function ProfileScreen() {
     const now = Date.now();
     if (now - lastFetchedRef.current > STALE_MS) {
       fetchProfile();
-      lastFetchedRef.current = now;
     }
   }, [fetchProfile]));
 
