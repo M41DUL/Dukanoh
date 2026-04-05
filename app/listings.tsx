@@ -560,6 +560,8 @@ function getStyles(colors: ColorTokens) {
       gap: Spacing.sm,
       paddingTop: Spacing.base,
       borderTopWidth: StyleSheet.hairlineWidth,
+      marginHorizontal: -Spacing.xl,
+      paddingHorizontal: Spacing.xl,
     },
     filterBtn: { flex: 1 },
   });

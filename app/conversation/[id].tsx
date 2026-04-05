@@ -9,9 +9,9 @@ import {
   Platform,
   TouchableOpacity,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { activeConversationId } from '@/hooks/usePushNotifications';
+import { BottomBar } from '@/components/BottomBar';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
@@ -52,7 +52,6 @@ export default function ConversationScreen() {
   const [hasMore, setHasMore] = useState(true);
   const listRef = useRef<FlatList>(null);
   const colors = useThemeColors();
-  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const PAGE_SIZE = 40;
@@ -377,12 +376,12 @@ export default function ConversationScreen() {
         />
 
         {meta?.listing_status === 'sold' ? (
-          <View style={[styles.soldInputRow, { paddingBottom: insets.bottom + Spacing.base }]}>
+          <BottomBar style={{ justifyContent: 'center' }}>
             <Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} />
             <Text style={styles.soldInputText}>This listing has been sold</Text>
-          </View>
+          </BottomBar>
         ) : (
-          <View style={[styles.inputRow, { paddingBottom: insets.bottom + Spacing.base }]}>
+          <BottomBar style={{ alignItems: 'flex-end' }}>
             <Input
               placeholder="Message…"
               value={text}
@@ -400,7 +399,7 @@ export default function ConversationScreen() {
             >
               <Ionicons name="arrow-up" size={20} color={colors.background} />
             </TouchableOpacity>
-          </View>
+          </BottomBar>
         )}
       </KeyboardAvoidingView>
     </ScreenWrapper>
@@ -551,15 +550,6 @@ function getStyles(colors: ColorTokens) {
     textOnPrimary: { color: '#FFFFFF' },
     textMuted: { color: colors.textSecondary },
     textAmber: { color: colors.amber },
-    inputRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      paddingTop: Spacing.base,
-      gap: Spacing.sm,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      backgroundColor: colors.background,
-    },
     inputContainer: { flex: 1 },
     sendButton: {
       width: 44,
@@ -570,16 +560,6 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'center',
     },
     sendDisabled: { opacity: 0.4 },
-    soldInputRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      paddingTop: Spacing.base,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      backgroundColor: colors.background,
-    },
     soldInputText: {
       ...Typography.caption,
       color: colors.textSecondary,

@@ -17,8 +17,8 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { BottomBar } from '@/components/BottomBar';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { calcProtectionFee, calcOrderTotal, formatGBP } from '@/lib/paymentHelpers';
@@ -45,7 +45,6 @@ export default function CheckoutScreen() {
   const { listingId } = useLocalSearchParams<{ listingId: string }>();
   const { user } = useAuth();
   const colors = useThemeColors();
-  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [listing, setListing] = useState<ListingSummary | null>(null);
@@ -174,7 +173,7 @@ export default function CheckoutScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
+          contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
           {/* Item summary */}
@@ -251,14 +250,15 @@ export default function CheckoutScreen() {
         </ScrollView>
 
         {/* Place order CTA */}
-        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom + Spacing.base }]}>
+        <BottomBar>
           <Button
             label={`Pay ${formatGBP(total)}`}
             onPress={handlePlaceOrder}
             loading={placing}
             disabled={!hasAddress}
+            style={{ flex: 1 }}
           />
-        </View>
+        </BottomBar>
       </KeyboardAvoidingView>
     </ScreenWrapper>
   );
@@ -366,12 +366,6 @@ function getStyles(colors: ColorTokens) {
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
       lineHeight: 17,
-    },
-    footer: {
-      paddingHorizontal: Spacing.base,
-      paddingTop: Spacing.md,
-      paddingBottom: Spacing.lg,
-      borderTopWidth: 1,
     },
   });
 }

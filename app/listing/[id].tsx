@@ -1,4 +1,5 @@
 import { Avatar } from '@/components/Avatar';
+import { BottomBar } from '@/components/BottomBar';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { HowItWorks } from '@/components/HowItWorks';
@@ -709,32 +710,32 @@ export default function ListingDetailScreen() {
 
       {/* STICKY BOTTOM CTA — buyers only */}
       {user?.id !== listing.seller_id && listing.status === 'available' && (
-        <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
+        <BottomBar absolute>
           <Button label="Message" variant="outline" onPress={handleMessage} style={styles.ctaBtn} />
           <Button label="Buy Now" onPress={() => router.push(`/checkout/${id}`)} style={styles.ctaBtn} />
-        </View>
+        </BottomBar>
       )}
       {user?.id !== listing.seller_id && listing.status === 'sold' && (
-        <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
+        <BottomBar absolute>
           <Button label="Ask seller a question" variant="outline" onPress={handleMessage} style={{ flex: 1 }} />
-        </View>
+        </BottomBar>
       )}
 
       {/* STICKY BOTTOM CTA — seller */}
       {user?.id === listing.seller_id && listing.status !== 'sold' && (
-        <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
+        <BottomBar absolute>
           <Button label="Edit" variant="outline" onPress={() => router.push(`/listing/edit/${id}`)} style={styles.ctaBtn} />
           {listing.status === 'draft' ? (
             <Button label="Publish" onPress={handlePublish} style={styles.ctaBtn} />
           ) : (
             <Button label="Mark as sold" onPress={handleMarkSold} style={styles.ctaBtn} />
           )}
-        </View>
+        </BottomBar>
       )}
       {user?.id === listing.seller_id && listing.status === 'sold' && (
-        <View style={[styles.stickyFooter, { paddingBottom: insets.bottom + Spacing.sm }]}>
+        <BottomBar absolute>
           <Button label="Duplicate listing" onPress={handleDuplicate} style={styles.ctaBtn} />
-        </View>
+        </BottomBar>
       )}
 
       <ImageViewerModal
@@ -1011,20 +1012,6 @@ function getStyles(colors: ColorTokens) {
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
 
     // CTAs
-    stickyFooter: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      flexDirection: 'row',
-      gap: Spacing.sm,
-      paddingHorizontal: Spacing.base,
-      paddingTop: Spacing.base,
-      backgroundColor: colors.background,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-    },
-    ctaRow: { flexDirection: 'row', gap: Spacing.sm },
     ctaBtn: { flex: 1 },
     ctaSection: { gap: Spacing.sm, alignItems: 'center' },
     dangerLink: { ...Typography.body, color: colors.error },
