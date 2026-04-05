@@ -901,7 +901,7 @@ function getStyles(colors: ColorTokens) {
     },
     headerTitle: {
       ...Typography.body,
-      fontWeight: '500',
+      fontFamily: 'Inter_500Medium',
       color: colors.textPrimary,
       textAlign: 'center',
     },

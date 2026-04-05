@@ -241,11 +241,11 @@ function getStyles(colors: ColorTokens) {
     username: {
       ...Typography.body,
       color: colors.textPrimary,
-      fontWeight: '600',
+      fontFamily: 'Inter_600SemiBold',
       flex: 1,
     },
     usernameUnread: {
-      fontWeight: '700',
+      fontFamily: 'Inter_700Bold',
     },
     unreadDot: {
       width: 8,
@@ -263,7 +263,7 @@ function getStyles(colors: ColorTokens) {
       color: colors.primary,
     },
     lastMessage: { ...Typography.caption, color: colors.textSecondary, marginTop: 2 },
-    lastMessageUnread: { color: colors.textPrimary, fontWeight: '600' },
+    lastMessageUnread: { color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },
     separator: { marginVertical: 0 },
   });
 }

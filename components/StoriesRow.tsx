@@ -502,7 +502,7 @@ const viewerStyles = StyleSheet.create({
   topUsername: {
     ...Typography.label,
     color: '#fff',
-    fontWeight: '600',
+    fontFamily: 'Inter_600SemiBold',
   },
   sponsoredPill: {
     backgroundColor: '#C7A84F',

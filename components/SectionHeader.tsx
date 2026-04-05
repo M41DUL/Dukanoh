@@ -41,12 +41,10 @@ const styles = StyleSheet.create({
     ...Typography.subheading,
     fontSize: 18,
     fontFamily: 'Inter_500Medium',
-    fontWeight: '500',
   },
   viewAll: {
     fontSize: 16,
     fontFamily: 'Inter_500Medium',
-    fontWeight: '500',
   },
   subtitle: {
     fontSize: 16,

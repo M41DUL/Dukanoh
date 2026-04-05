@@ -123,7 +123,7 @@ function getStyles(colors: ColorTokens) {
     },
     optionSelected: {
       color: colors.primary,
-      fontWeight: '600',
+      fontFamily: 'Inter_600SemiBold',
     },
     emptyMessage: {
       ...Typography.body,
