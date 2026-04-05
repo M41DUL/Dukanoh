@@ -270,7 +270,7 @@ function getStyles(colors: ColorTokens) {
     },
     cancelText: {
       ...Typography.body,
-      color: colors.primary,
+      color: colors.textPrimary,
       fontFamily: 'Inter_500Medium',
     },
   });
