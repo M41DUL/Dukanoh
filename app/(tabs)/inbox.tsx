@@ -260,7 +260,7 @@ function getStyles(colors: ColorTokens) {
       marginLeft: Spacing.sm,
     },
     timeUnread: {
-      color: colors.primary,
+      color: colors.primaryText,
     },
     lastMessage: { ...Typography.caption, color: colors.textSecondary, marginTop: 2 },
     lastMessageUnread: { color: colors.textPrimary, fontFamily: 'Inter_600SemiBold' },

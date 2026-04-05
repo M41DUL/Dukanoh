@@ -165,7 +165,7 @@ export default function ProfileScreen() {
             <View style={styles.badgeRow}>
               {isVerified && (
                 <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
-                  <Text style={[styles.badgePillText, { color: colors.primary }]}>✓ Verified</Text>
+                  <Text style={[styles.badgePillText, { color: colors.primaryText }]}>✓ Verified</Text>
                 </View>
               )}
               {sellerTier === 'pro' && (

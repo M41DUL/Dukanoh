@@ -9,6 +9,7 @@ import {
   Platform,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { activeConversationId } from '@/hooks/usePushNotifications';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -51,6 +52,7 @@ export default function ConversationScreen() {
   const [hasMore, setHasMore] = useState(true);
   const listRef = useRef<FlatList>(null);
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const PAGE_SIZE = 40;
@@ -375,12 +377,12 @@ export default function ConversationScreen() {
         />
 
         {meta?.listing_status === 'sold' ? (
-          <View style={styles.soldInputRow}>
+          <View style={[styles.soldInputRow, { paddingBottom: insets.bottom + Spacing.base }]}>
             <Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} />
             <Text style={styles.soldInputText}>This listing has been sold</Text>
           </View>
         ) : (
-          <View style={styles.inputRow}>
+          <View style={[styles.inputRow, { paddingBottom: insets.bottom + Spacing.base }]}>
             <Input
               placeholder="Message…"
               value={text}
@@ -553,7 +555,6 @@ function getStyles(colors: ColorTokens) {
       flexDirection: 'row',
       alignItems: 'flex-end',
       paddingTop: Spacing.base,
-      paddingBottom: Spacing['2xl'] + (Platform.OS === 'android' ? 16 : 0),
       gap: Spacing.sm,
       borderTopWidth: 1,
       borderTopColor: colors.border,
@@ -575,7 +576,6 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'center',
       gap: Spacing.xs,
       paddingTop: Spacing.base,
-      paddingBottom: Spacing['2xl'] + (Platform.OS === 'android' ? 16 : 0),
       borderTopWidth: 1,
       borderTopColor: colors.border,
       backgroundColor: colors.background,

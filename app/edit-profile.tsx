@@ -10,6 +10,7 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { LocationPicker } from '@/components/LocationPicker';
 import { Spacing, ColorTokens } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -17,6 +18,7 @@ import { supabase } from '@/lib/supabase';
 export default function EditProfileScreen() {
   const { user, refreshProfile } = useAuth();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [name, setName] = useState('');
@@ -152,7 +154,7 @@ export default function EditProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} keyboardShouldPersistTaps="handled">
         <TouchableOpacity style={styles.avatarSection} onPress={handleChangePhoto} activeOpacity={0.7}>
           <Avatar uri={avatarUrl} initials={name[0]?.toUpperCase()} size="xlarge" />
           <Text style={styles.changePhoto}>Change photo</Text>
@@ -224,7 +226,7 @@ function getStyles(colors: ColorTokens) {
     },
     changePhoto: {
       fontSize: 14,
-      color: colors.primary,
+      color: colors.primaryText,
       fontFamily: 'Inter_600SemiBold',
     },
     bioInput: {

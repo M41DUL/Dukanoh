@@ -70,7 +70,7 @@ export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ la
                   {item}
                 </Text>
                 {item === value && (
-                  <Ionicons name="checkmark" size={20} color={colors.primary} />
+                  <Ionicons name="checkmark" size={20} color={colors.primaryText} />
                 )}
               </TouchableOpacity>
             ))}
@@ -122,7 +122,7 @@ function getStyles(colors: ColorTokens) {
       color: colors.textPrimary,
     },
     optionSelected: {
-      color: colors.primary,
+      color: colors.primaryText,
       fontFamily: 'Inter_600SemiBold',
     },
     emptyMessage: {

@@ -17,6 +17,7 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -44,6 +45,7 @@ export default function CheckoutScreen() {
   const { listingId } = useLocalSearchParams<{ listingId: string }>();
   const { user } = useAuth();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [listing, setListing] = useState<ListingSummary | null>(null);
@@ -172,7 +174,7 @@ export default function CheckoutScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Item summary */}
@@ -204,7 +206,7 @@ export default function CheckoutScreen() {
             <View style={styles.sectionHeaderRow}>
               <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Deliver to</Text>
               <TouchableOpacity onPress={() => router.push('/settings/address')} hitSlop={8}>
-                <Text style={[styles.editLink, { color: colors.primary }]}>
+                <Text style={[styles.editLink, { color: colors.primaryText }]}>
                   {hasAddress ? 'Edit' : 'Add address'}
                 </Text>
               </TouchableOpacity>
@@ -249,7 +251,7 @@ export default function CheckoutScreen() {
         </ScrollView>
 
         {/* Place order CTA */}
-        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+        <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.background, paddingBottom: insets.bottom + Spacing.base }]}>
           <Button
             label={`Pay ${formatGBP(total)}`}
             onPress={handlePlaceOrder}

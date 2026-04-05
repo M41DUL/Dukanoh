@@ -5,6 +5,7 @@ import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -34,6 +35,7 @@ const BENEFITS = [
 export default function StripeOnboardingScreen() {
   const { user } = useAuth();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const isAlreadyVerified = (user as any)?.is_verified === true;
@@ -48,7 +50,7 @@ export default function StripeOnboardingScreen() {
     <ScreenWrapper>
       <Header title="Get Verified" showBack />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}

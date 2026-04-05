@@ -17,6 +17,7 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -94,6 +95,7 @@ export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [order, setOrder] = useState<Order | null>(null);
@@ -285,7 +287,7 @@ export default function OrderDetailScreen() {
     <ScreenWrapper>
       <Header title="Order details" showBack />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Status banner */}
@@ -494,8 +496,8 @@ export default function OrderDetailScreen() {
               onPress={() => Linking.openURL('mailto:support@dukanoh.com?subject=Order Dispute ' + order.id)}
               activeOpacity={0.7}
             >
-              <Ionicons name="mail-outline" size={16} color={colors.primary} />
-              <Text style={[styles.supportLinkText, { color: colors.primary }]}>
+              <Ionicons name="mail-outline" size={16} color={colors.primaryText} />
+              <Text style={[styles.supportLinkText, { color: colors.primaryText }]}>
                 Contact Dukanoh Support
               </Text>
             </TouchableOpacity>

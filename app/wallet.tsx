@@ -170,8 +170,8 @@ export default function WalletScreen() {
             onPress={() => router.push('/stripe-onboarding')}
             activeOpacity={0.7}
           >
-            <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
-            <Text style={[styles.payoutText, { color: colors.primary }]}>
+            <Ionicons name="shield-checkmark-outline" size={16} color={colors.primaryText} />
+            <Text style={[styles.payoutText, { color: colors.primaryText }]}>
               Set up Dukanoh Pay to receive payouts
             </Text>
           </TouchableOpacity>

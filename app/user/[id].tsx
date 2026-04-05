@@ -231,7 +231,7 @@ export default function SellerProfileScreen() {
                 <Text style={styles.username}>@{seller.username}</Text>
                 {seller.is_verified && (
                   <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
-                    <Text style={[styles.badgePillText, { color: colors.primary }]}>✓ Verified</Text>
+                    <Text style={[styles.badgePillText, { color: colors.primaryText }]}>✓ Verified</Text>
                   </View>
                 )}
                 {seller.seller_tier === 'pro' && (
@@ -287,8 +287,8 @@ export default function SellerProfileScreen() {
               activeOpacity={0.8}
               onPress={() => router.push(`/conversation/${firstConversationId}`)}
             >
-              <Ionicons name="chatbubble-outline" size={16} color={colors.primary} />
-              <Text style={[styles.messageBtnText, { color: colors.primary }]}>Message</Text>
+              <Ionicons name="chatbubble-outline" size={16} color={colors.primaryText} />
+              <Text style={[styles.messageBtnText, { color: colors.primaryText }]}>Message</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -310,8 +310,8 @@ export default function SellerProfileScreen() {
                 )
               }
             >
-              <Ionicons name="star-outline" size={16} color={colors.primary} />
-              <Text style={[styles.rateBtnText, { color: colors.primary }]}>
+              <Ionicons name="star-outline" size={16} color={colors.primaryText} />
+              <Text style={[styles.rateBtnText, { color: colors.primaryText }]}>
                 Rate this seller
               </Text>
             </TouchableOpacity>

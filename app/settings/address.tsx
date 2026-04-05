@@ -15,6 +15,7 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Spacing, ColorTokens } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -30,6 +31,7 @@ interface AddressForm {
 export default function DeliveryAddressScreen() {
   const { user } = useAuth();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [form, setForm] = useState<AddressForm>({
@@ -118,7 +120,7 @@ export default function DeliveryAddressScreen() {
           <LoadingSpinner />
         ) : (
           <ScrollView
-            contentContainerStyle={styles.content}
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >

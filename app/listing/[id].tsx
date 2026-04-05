@@ -528,15 +528,15 @@ export default function ListingDetailScreen() {
           {user?.id === listing.seller_id && (
             <View style={styles.analyticsStrip}>
               <View style={styles.analyticsCell}>
-                <Text style={[styles.analyticsValue, { color: colors.primary }]}>{listing.view_count ?? 0}</Text>
+                <Text style={[styles.analyticsValue, { color: colors.primaryText }]}>{listing.view_count ?? 0}</Text>
                 <Text style={styles.analyticsLabel}>Views</Text>
               </View>
               <View style={styles.analyticsCell}>
-                <Text style={[styles.analyticsValue, { color: colors.primary }]}>{saveCount}</Text>
+                <Text style={[styles.analyticsValue, { color: colors.primaryText }]}>{saveCount}</Text>
                 <Text style={styles.analyticsLabel}>Saves</Text>
               </View>
               <TouchableOpacity style={styles.analyticsCell} onPress={() => router.push('/(tabs)/inbox')} activeOpacity={0.7}>
-                <Text style={[styles.analyticsValue, { color: colors.primary }]}>{offerCount}</Text>
+                <Text style={[styles.analyticsValue, { color: colors.primaryText }]}>{offerCount}</Text>
                 <View style={styles.analyticsLabelRow}>
                   <Text style={styles.analyticsLabel}>Offers</Text>
                   <Ionicons name="chevron-forward" size={10} color={colors.textSecondary} />
@@ -544,7 +544,7 @@ export default function ListingDetailScreen() {
               </TouchableOpacity>
               {listing.status !== 'draft' && listing.created_at && (
                 <View style={styles.analyticsCell}>
-                  <Text style={[styles.analyticsValue, { color: colors.primary }]}>
+                  <Text style={[styles.analyticsValue, { color: colors.primaryText }]}>
                     {Math.floor((Date.now() - new Date(listing.created_at).getTime()) / (1000 * 60 * 60 * 24))}
                   </Text>
                   <Text style={styles.analyticsLabel}>Days listed</Text>
@@ -778,8 +778,8 @@ export default function ListingDetailScreen() {
                 onPress={() => { setOfferPreset(pct); setOfferAmount(amount); setOfferError(''); }}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.offerPresetPrice, active && { color: colors.primary }]}>£{amount}</Text>
-                <Text style={[styles.offerPresetLabel, active && { color: colors.primary }]}>{label}</Text>
+                <Text style={[styles.offerPresetPrice, active && { color: colors.primaryText }]}>£{amount}</Text>
+                <Text style={[styles.offerPresetLabel, active && { color: colors.primaryText }]}>{label}</Text>
               </TouchableOpacity>
             );
           })}
@@ -788,8 +788,8 @@ export default function ListingDetailScreen() {
             onPress={() => { setOfferPreset('custom'); setOfferAmount(''); setOfferError(''); }}
             activeOpacity={0.8}
           >
-            <Text style={[styles.offerPresetPrice, offerPreset === 'custom' && { color: colors.primary }]}>Custom</Text>
-            <Text style={[styles.offerPresetLabel, offerPreset === 'custom' && { color: colors.primary }]}>Set a price</Text>
+            <Text style={[styles.offerPresetPrice, offerPreset === 'custom' && { color: colors.primaryText }]}>Custom</Text>
+            <Text style={[styles.offerPresetLabel, offerPreset === 'custom' && { color: colors.primaryText }]}>Set a price</Text>
           </TouchableOpacity>
         </View>
 
@@ -1163,7 +1163,7 @@ function getStyles(colors: ColorTokens) {
     },
     betaBadgeText: {
       ...Typography.caption,
-      color: colors.primary,
+      color: colors.primaryText,
       fontFamily: FontFamily.semibold,
     },
 
@@ -1229,7 +1229,7 @@ function getStyles(colors: ColorTokens) {
 
     // Review
     reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
-    reviewBtnText: { ...Typography.body, color: colors.primary, fontFamily: FontFamily.semibold },
+    reviewBtnText: { ...Typography.body, color: colors.primaryText, fontFamily: FontFamily.semibold },
 
     // More from seller
 

@@ -28,6 +28,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SellerOnboarding } from '@/components/SellerOnboarding';
 import { Select, SelectHandle } from '@/components/Select';
 import { Typography, Spacing, BorderRadius, BorderWidth, Genders, CategoriesByGender, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
@@ -59,6 +60,7 @@ export default function SellScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
   const successAnim = useRef(new Animated.Value(0)).current;;
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const scrollRef = useRef<any>(null);
   const fieldPositions = useRef<Record<string, number>>({});
@@ -370,7 +372,7 @@ export default function SellScreen() {
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
         keyboardShouldPersistTaps="handled"
         onScroll={handleScroll}
         scrollEventThrottle={16}
@@ -755,7 +757,7 @@ function getStyles(colors: ColorTokens) {
     multiline: { height: 100, textAlignVertical: 'top' },
     optionalLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_400Regular' },
     measureSection: { gap: Spacing.base },
-    addMeasurementsLink: { ...Typography.caption, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
+    addMeasurementsLink: { ...Typography.caption, color: colors.primaryText, fontFamily: 'Inter_600SemiBold' },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
     progressText: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' as const },
     submitBtn: { marginTop: Spacing.sm },

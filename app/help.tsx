@@ -76,7 +76,7 @@ export default function HelpScreen() {
           onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
           activeOpacity={0.7}
         >
-          <Ionicons name="mail-outline" size={20} color={colors.primary} />
+          <Ionicons name="mail-outline" size={20} color={colors.primaryText} />
           <Text style={styles.emailBtnText}>{SUPPORT_EMAIL}</Text>
           <Ionicons name="arrow-forward" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
@@ -134,7 +134,7 @@ function getStyles(colors: ColorTokens) {
       flex: 1,
       fontSize: 15,
       fontFamily: FontFamily.semibold,
-      color: colors.primary,
+      color: colors.primaryText,
     },
   });
 }
