@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
   },
   logoSpacer: {
-    height: LOGO_FINAL_H - 60 + Spacing.xl,
+    height: LOGO_FINAL_H - 60 + Spacing.xl + (Platform.OS === 'android' ? 40 : 0),
   },
   backBtn: {
     alignSelf: 'flex-start',
