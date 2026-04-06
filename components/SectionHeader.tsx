@@ -43,11 +43,11 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   viewAll: {
-    ...Typography.body,
+    ...Typography.bodyLarge,
     fontFamily: 'Inter_500Medium',
   },
   subtitle: {
-    ...Typography.body,
+    ...Typography.bodyLarge,
     fontFamily: 'Inter_400Regular',
     marginTop: 2,
   },
