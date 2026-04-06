@@ -134,6 +134,8 @@ CREATE TABLE public.conversations (
   last_message_sender_id UUID REFERENCES public.users (id) ON DELETE SET NULL,
   updated_at    TIMESTAMPTZ DEFAULT NOW(),
   created_at    TIMESTAMPTZ DEFAULT NOW(),
+  deleted_by_buyer  BOOLEAN NOT NULL DEFAULT false,
+  deleted_by_seller BOOLEAN NOT NULL DEFAULT false,
   UNIQUE (listing_id, buyer_id)
 );
 
