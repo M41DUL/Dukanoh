@@ -85,7 +85,7 @@ export default function ProfileScreen() {
         .neq('status', 'archived'),
     ]);
     if (error) {
-      console.warn('fetchProfile failed:', error.message);
+      // fetchProfile failed silently
       return;
     }
     if (data) {

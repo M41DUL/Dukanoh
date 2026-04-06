@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { lightColors, Typography, Spacing, FontFamily } from '@/constants/theme';
+import { lightColors, Typography, Spacing } from '@/constants/theme';
 import {
   AUTH_INPUT_STYLE,
   EMAIL_REGEX,

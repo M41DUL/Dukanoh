@@ -160,7 +160,7 @@ export default function DisputeScreen() {
   );
 }
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     content: {
       paddingTop: Spacing.lg,

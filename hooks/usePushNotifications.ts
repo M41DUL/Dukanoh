@@ -73,7 +73,7 @@ export function usePushNotifications() {
     return () => {
       try {
         if (responseListener.current) {
-          Notifications.removeNotificationSubscription(responseListener.current);
+          responseListener.current.remove();
         }
       } catch {}
     };

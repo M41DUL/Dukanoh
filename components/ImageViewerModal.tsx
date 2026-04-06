@@ -14,13 +14,13 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-
-const AnimatedImage = Animated.createAnimatedComponent(Image);
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, FontFamily } from '@/constants/theme';
 import { StatusBar } from 'expo-status-bar';
+
+const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 const { width, height } = Dimensions.get('window');
 

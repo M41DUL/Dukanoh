@@ -3,7 +3,6 @@ import {
   CATEGORY_LAYOUT,
   CATEGORY_DISTANCES,
   MAX_DIST,
-  CENTRE,
   BASE_WIDTH,
   computeDistances,
   getEntranceDelay,

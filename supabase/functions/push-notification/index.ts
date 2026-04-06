@@ -1,5 +1,7 @@
+/* eslint-disable import/no-unresolved */
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+/* eslint-enable import/no-unresolved */
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 

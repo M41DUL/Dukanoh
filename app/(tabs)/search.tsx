@@ -262,7 +262,7 @@ export default function SearchScreen() {
 
 // ─── Styles ───────────────────────────────────────────────
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     // Search bar
     searchBarWrapper: {

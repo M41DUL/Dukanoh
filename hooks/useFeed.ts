@@ -128,7 +128,7 @@ async function fetchSection(userId: string, categories: string[], blockedIds: st
   if (blockedIds.length > 0) query = query.not('seller_id', 'in', `(${blockedIds.join(',')})`);
   if (categories.length > 0) query = query.in('category', categories);
 
-  const { data, error } = await query;
+  const { data, error: _error } = await query;
   const listings = (data ?? []) as unknown as Listing[];
   if (listings.length === 0) return listings;
 

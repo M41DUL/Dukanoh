@@ -228,9 +228,10 @@ export default function InboxScreen() {
     return msg;
   };
 
+  // eslint-disable-next-line react/display-name
   const renderRightActions = (item: Conversation) => (
     _progress: Animated.AnimatedInterpolation<number>,
-    dragX: Animated.AnimatedInterpolation<number>
+    _dragX: Animated.AnimatedInterpolation<number>
   ) => {
     return (
       <TouchableOpacity

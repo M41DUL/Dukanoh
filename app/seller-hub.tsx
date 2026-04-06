@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -418,7 +418,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
 
     // Collection listing counts
     const collectionIds = (collectionsRes.data ?? []).map(c => c.id);
-    let collectionCounts: Record<string, number> = {};
+    const collectionCounts: Record<string, number> = {};
     if (collectionIds.length > 0) {
       const { data: clData } = await supabase
         .from('listings')

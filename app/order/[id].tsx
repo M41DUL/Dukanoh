@@ -552,7 +552,7 @@ const metaStyles = StyleSheet.create({
   value: { fontSize: 13 },
 });
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     content: {
       paddingTop: Spacing.base,

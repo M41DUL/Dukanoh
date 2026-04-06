@@ -89,7 +89,7 @@ const SELLER_TIPS: Tip[] = [
 ];
 
 export default function HowItWorksScreen() {
-  const { user, isSeller } = useAuth();
+  const { isSeller } = useAuth();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 

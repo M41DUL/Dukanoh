@@ -164,8 +164,6 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
   const progress = useRef(new Animated.Value(0)).current;
   const timerAnim = useRef<Animated.CompositeAnimation | null>(null);
 
-  if (stories.length === 0) return null;
-
   const activeStory = activeIndex !== null ? stories[activeIndex] : null;
   const isSingleAppStory = stories.length === 1 && stories[0].type === 'app';
 
@@ -228,6 +226,8 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   });
+
+  if (stories.length === 0) return null;
 
   return (
     <>
