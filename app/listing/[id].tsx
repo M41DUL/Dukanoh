@@ -597,7 +597,6 @@ export default function ListingDetailScreen() {
               <TouchableOpacity style={styles.totalPriceRow} onPress={() => setPriceBreakdownVisible(true)} activeOpacity={0.7}>
                 <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price).toFixed(2)} Includes Buyer Protect</Text>
                 <Ionicons name="shield-checkmark-outline" size={13} color={colors.textPrimary} />
-                <Ionicons name="information-circle-outline" size={15} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
           </View>
