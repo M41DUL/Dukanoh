@@ -616,6 +616,10 @@ CREATE POLICY "Users can read their own transactions"
   ON public.transactions FOR SELECT TO authenticated
   USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
 
+-- Transactions are created server-side by Edge Functions / triggers only.
+-- No direct client INSERT is permitted — this is intentional.
+-- Service role bypasses RLS so server-side inserts still work.
+
 CREATE INDEX idx_transactions_seller ON public.transactions (seller_id);
 CREATE INDEX idx_transactions_buyer  ON public.transactions (buyer_id);
 
@@ -650,6 +654,9 @@ CREATE TABLE public.notifications (
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+-- Notifications are created server-side only (Edge Functions / triggers).
+-- No client INSERT policy is defined — this is intentional.
+-- Service role bypasses RLS so server-side inserts still work.
 CREATE POLICY "Users can read their own notifications"
   ON public.notifications FOR SELECT TO authenticated USING (auth.uid() = user_id);
 CREATE POLICY "Users can update their own notifications"
@@ -657,27 +664,6 @@ CREATE POLICY "Users can update their own notifications"
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 CREATE INDEX idx_notifications_user ON public.notifications (user_id);
-
--- =============================================================
--- COLLECTIONS
--- =============================================================
-CREATE TABLE public.collections (
-  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  seller_id  UUID REFERENCES public.users (id) ON DELETE CASCADE,
-  name       TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE public.collections ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Collections are publicly readable"
-  ON public.collections FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Sellers can create their own collections"
-  ON public.collections FOR INSERT TO authenticated WITH CHECK (auth.uid() = seller_id);
-CREATE POLICY "Sellers can update their own collections"
-  ON public.collections FOR UPDATE TO authenticated USING (auth.uid() = seller_id) WITH CHECK (auth.uid() = seller_id);
-CREATE POLICY "Sellers can delete their own collections"
-  ON public.collections FOR DELETE TO authenticated USING (auth.uid() = seller_id);
 
 -- =============================================================
 -- PAYMENTS — MARKETPLACE, WALLET, PLATFORM SETTINGS
@@ -736,7 +722,8 @@ CREATE POLICY "Buyers can create orders"
 
 CREATE POLICY "Buyers and sellers can update their own orders"
   ON public.orders FOR UPDATE TO authenticated
-  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+  USING (auth.uid() = buyer_id OR auth.uid() = seller_id)
+  WITH CHECK (auth.uid() = buyer_id OR auth.uid() = seller_id);
 
 CREATE INDEX idx_orders_buyer   ON public.orders (buyer_id);
 CREATE INDEX idx_orders_seller  ON public.orders (seller_id);
@@ -797,7 +784,9 @@ CREATE TABLE IF NOT EXISTS public.platform_ledger (
 );
 
 ALTER TABLE public.platform_ledger ENABLE ROW LEVEL SECURITY;
--- No user-facing RLS policy — ledger is admin-only
+-- Ledger is admin/service-role only — all client access explicitly denied
+CREATE POLICY "No client access to platform ledger"
+  ON public.platform_ledger FOR ALL TO authenticated USING (false);
 
 -- Wallet update trigger (credits/debits seller_wallet on order status changes)
 CREATE OR REPLACE FUNCTION public.handle_order_wallet_update()
@@ -963,5 +952,38 @@ CREATE POLICY "Buyers and sellers can read dispute evidence for their orders"
 CREATE POLICY "Buyers can upload dispute evidence"
   ON public.dispute_evidence FOR INSERT TO authenticated
   WITH CHECK (auth.uid() = user_id);
+
+-- =============================================================
+-- BOOSTS (listing promotions)
+-- =============================================================
+CREATE TABLE IF NOT EXISTS public.boosts (
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  listing_id  UUID REFERENCES public.listings (id) ON DELETE CASCADE NOT NULL,
+  seller_id   UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  amount_paid NUMERIC(10,2) DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (listing_id)
+);
+
+ALTER TABLE public.boosts ENABLE ROW LEVEL SECURITY;
+
+-- Boosts are publicly readable so the feed can surface boosted listings
+CREATE POLICY "Boosts are publicly readable"
+  ON public.boosts FOR SELECT TO authenticated USING (true);
+
+-- Only the seller can create a boost for their own listing
+CREATE POLICY "Sellers can create boosts for their listings"
+  ON public.boosts FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = seller_id);
+
+-- Sellers can delete (cancel) their own boosts
+CREATE POLICY "Sellers can delete their own boosts"
+  ON public.boosts FOR DELETE TO authenticated
+  USING (auth.uid() = seller_id);
+
+CREATE INDEX idx_boosts_listing   ON public.boosts (listing_id);
+CREATE INDEX idx_boosts_seller    ON public.boosts (seller_id);
+CREATE INDEX idx_boosts_expires   ON public.boosts (expires_at);
 
 CREATE INDEX idx_dispute_evidence_order ON public.dispute_evidence (order_id);

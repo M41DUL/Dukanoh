@@ -37,6 +37,7 @@ export default function InboxScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
+  const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchConversations = useCallback(async () => {
     if (!user) return;
@@ -134,11 +135,16 @@ export default function InboxScreen() {
     if (!user) return;
     const { eventType, new: row } = payload;
 
+    const debouncedFetch = () => {
+      if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+      fetchDebounceRef.current = setTimeout(() => { fetchConversations(); }, 300);
+    };
+
     if (eventType === 'UPDATE' && row) {
       setConversations(prev => {
         const idx = prev.findIndex(c => c.id === row.id);
         if (idx === -1) {
-          fetchConversations();
+          debouncedFetch();
           return prev;
         }
         const updated = [...prev];
@@ -152,7 +158,7 @@ export default function InboxScreen() {
         return updated;
       });
     } else {
-      fetchConversations();
+      debouncedFetch();
     }
   }, [user, fetchConversations]);
 
@@ -174,6 +180,7 @@ export default function InboxScreen() {
       .subscribe();
 
     return () => {
+      channel.unsubscribe();
       supabase.removeChannel(channel);
     };
   }, [user, handleRealtimeChange]);

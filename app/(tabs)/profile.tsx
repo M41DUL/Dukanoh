@@ -103,10 +103,10 @@ export default function ProfileScreen() {
 
   const fetchHubSummary = useCallback(async () => {
     if (!user || sellerTier !== 'pro') return;
-    const [{ data: views }, { data: saves }, { data: earned }] = await Promise.all([
+    const [{ count: viewCount }, { data: saves }, { data: earned }] = await Promise.all([
       supabase
         .from('listing_views')
-        .select('id', { count: 'exact', head: true })
+        .select('listing_id, listings!inner(seller_id)', { count: 'exact' })
         .eq('listings.seller_id', user.id),
       supabase
         .from('listings')
@@ -117,7 +117,7 @@ export default function ProfileScreen() {
         .select('amount')
         .eq('seller_id', user.id),
     ]);
-    const totalViews = (views as any)?.length ?? 0;
+    const totalViews = viewCount ?? 0;
     const totalSaves = (saves ?? []).reduce((sum: number, l: any) => sum + (l.save_count ?? 0), 0);
     const totalEarned = (earned ?? []).reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0);
     setHubSummary({ totalViews, totalSaves, totalEarned });
@@ -169,8 +169,8 @@ export default function ProfileScreen() {
                 </View>
               )}
               {sellerTier === 'pro' && (
-                <View style={[styles.badgePill, { backgroundColor: '#201A04' }]}>
-                  <Text style={[styles.badgePillText, { color: '#C7A84F' }]}>◆ Pro</Text>
+                <View style={[styles.badgePill, { backgroundColor: proColors.primaryLight }]}>
+                  <Text style={[styles.badgePillText, { color: proColors.primaryText }]}>◆ Pro</Text>
                 </View>
               )}
             </View>

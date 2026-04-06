@@ -105,76 +105,65 @@ export default function ListingDetailScreen() {
   useEffect(() => {
     if (!id) return;
 
-    supabase
-      .from('listings')
-      .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at)')
-      .eq('id', id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setListing(data as unknown as Listing);
-          setSaveCount((data as any).save_count ?? 0);
-          supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }).then(({ data: rate }) => {
-            if (rate !== null) setResponseRate(rate as number);
-          });
-          supabase
-            .from('listings')
-            .select('id', { count: 'exact', head: true })
-            .eq('seller_id', data.seller_id)
-            .eq('status', 'sold')
-            .then(({ count }) => setSoldCount(count ?? 0));
-          supabase
-            .from('listings')
-            .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
-            .eq('seller_id', data.seller_id)
-            .eq('status', 'available')
-            .neq('id', id)
-            .order('created_at', { ascending: false })
-            .limit(4)
-            .then(({ data: others }) => {
-              if (others) setSellerListings(others as unknown as Listing[]);
-            });
-          (() => {
-            let simQ = supabase
-              .from('listings')
-              .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
-              .eq('category', data.category)
-              .eq('status', 'available')
-              .neq('id', id)
-              .neq('seller_id', data.seller_id)
-              .order('created_at', { ascending: false })
-              .limit(4);
-            if (blockedIds.length > 0) simQ = simQ.not('seller_id', 'in', `(${blockedIds.join(',')})`);
-            simQ.then(({ data: similar }) => {
-              if (similar) setSimilarListings(similar as unknown as Listing[]);
-            });
-          })();
-          supabase
-            .from('messages')
-            .select('content')
-            .eq('listing_id', id)
-            .then(({ data: msgs }) => {
-              const count = msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0;
-              setOfferCount(count);
-            });
-          if (data.status !== 'draft') {
-            if (user) recordView(id, user.id);
-            supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
-              setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
-            });
-          }
-          supabase
-            .from('boosts')
-            .select('expires_at')
-            .eq('listing_id', id)
-            .gte('expires_at', new Date().toISOString())
-            .maybeSingle()
-            .then(({ data: boost }) => {
-              if (boost) setBoostExpiry(new Date(boost.expires_at));
-            });
-        }
-        setLoading(false);
-      });
+    (async () => {
+      // Primary fetch — must complete first so we have seller_id + category for secondary queries
+      const { data } = await supabase
+        .from('listings')
+        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at)')
+        .eq('id', id)
+        .single();
+
+      if (!data) { setLoading(false); return; }
+
+      setListing(data as unknown as Listing);
+      setSaveCount((data as any).save_count ?? 0);
+
+      // Track view (fire-and-forget, non-blocking)
+      if (data.status !== 'draft') {
+        if (user) recordView(id, user.id);
+        supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
+          setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
+        });
+      }
+
+      // Build similar listings query with optional blocked-seller filter
+      let simQ = supabase
+        .from('listings')
+        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
+        .eq('category', data.category)
+        .eq('status', 'available')
+        .neq('id', id)
+        .neq('seller_id', data.seller_id)
+        .order('created_at', { ascending: false })
+        .limit(4);
+      if (blockedIds.length > 0) simQ = simQ.not('seller_id', 'in', `(${blockedIds.join(',')})`);
+
+      // All secondary queries run in parallel
+      const [
+        { data: rate },
+        { count: sold },
+        { data: others },
+        { data: similar },
+        { data: msgs },
+        { data: boost },
+      ] = await Promise.all([
+        supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }),
+        supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', data.seller_id).eq('status', 'sold'),
+        supabase.from('listings').select('*, seller:users!listings_seller_id_fkey(username, avatar_url)').eq('seller_id', data.seller_id).eq('status', 'available').neq('id', id).order('created_at', { ascending: false }).limit(4),
+        simQ,
+        supabase.from('messages').select('content').eq('listing_id', id),
+        supabase.from('boosts').select('expires_at').eq('listing_id', id).gte('expires_at', new Date().toISOString()).maybeSingle(),
+      ]);
+
+      if (rate !== null) setResponseRate(rate as number);
+      setSoldCount(sold ?? 0);
+      if (others) setSellerListings(others as unknown as Listing[]);
+      if (similar) setSimilarListings(similar as unknown as Listing[]);
+      setOfferCount(msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0);
+      if (boost) setBoostExpiry(new Date(boost.expires_at));
+
+      setLoading(false);
+    })();
   }, [id, blockedIds]);
 
 

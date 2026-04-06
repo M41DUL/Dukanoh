@@ -285,9 +285,8 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
           JSON.stringify({ ...feedData, timestamp: Date.now() }),
         );
       } catch {}
-    } catch (err) {
+    } catch {
       // Prevent infinite skeleton — fall back to empty state
-      console.error('[useFeed] loadData error:', err);
       setLoading(false);
     }
   }, [userId, applyFeedData]);

@@ -193,7 +193,7 @@ function getStyles(colors: ColorTokens) {
       position: 'absolute',
       top: Spacing.xs,
       left: Spacing.xs,
-      backgroundColor: '#C7F75E',
+      backgroundColor: colors.secondary,
       paddingHorizontal: Spacing.sm,
       paddingVertical: 3,
       borderRadius: BorderRadius.full,
@@ -201,7 +201,7 @@ function getStyles(colors: ColorTokens) {
     featuredText: {
       ...Typography.micro,
       fontFamily: FontFamily.semibold,
-      color: '#0D0D0D',
+      color: colors.textPrimary,
     },
     heartBtn: {
       position: 'absolute',

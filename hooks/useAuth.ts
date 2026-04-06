@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 
 export function useAuth() {
@@ -61,6 +62,19 @@ export function useAuth() {
         }
       } catch {}
     }
+
+    // Clear all app-level AsyncStorage cache so stale data
+    // doesn't bleed into the next session (e.g. a different user)
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const appKeys = keys.filter(k =>
+        k.startsWith('feed_') ||
+        k.startsWith('recently_viewed_') ||
+        k.startsWith('theme_')
+      );
+      if (appKeys.length > 0) await AsyncStorage.multiRemove(appKeys);
+    } catch {}
+
     await supabase.auth.signOut();
   };
 

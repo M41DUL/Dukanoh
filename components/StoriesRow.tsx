@@ -110,7 +110,7 @@ function ListingStoryViewer({
         )}
         <Text style={viewerStyles.topTime}>{timeAgo(story.created_at)}</Text>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={onClose} hitSlop={16} style={viewerStyles.topCloseBtn}>
+        <TouchableOpacity onPress={onClose} hitSlop={16} style={viewerStyles.topCloseBtn} accessibilityLabel="Close story" accessibilityRole="button">
           <Ionicons name="close" size={26} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -141,6 +141,8 @@ function ListingStoryViewer({
             onPress={() => toggleSave(story.id, story.price)}
             hitSlop={8}
             activeOpacity={0.7}
+            accessibilityLabel={saved ? 'Remove from saved' : 'Save listing'}
+            accessibilityRole="button"
           >
             <Ionicons
               name={saved ? 'heart' : 'heart-outline'}
@@ -324,7 +326,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                   ))}
                 </View>
 
-                <TouchableOpacity style={viewerStyles.closeButton} onPress={close} hitSlop={16}>
+                <TouchableOpacity style={viewerStyles.closeButton} onPress={close} hitSlop={16} accessibilityLabel="Close story" accessibilityRole="button">
                   <Ionicons name="close" size={26} color="#fff" />
                 </TouchableOpacity>
 

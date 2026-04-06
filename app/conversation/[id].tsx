@@ -136,6 +136,7 @@ export default function ConversationScreen() {
       .subscribe();
 
     return () => {
+      channel.unsubscribe();
       supabase.removeChannel(channel);
     };
   }, [id, user]);
@@ -366,6 +367,10 @@ export default function ConversationScreen() {
           showsVerticalScrollIndicator={false}
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
+          initialNumToRender={20}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          removeClippedSubviews
           ListFooterComponent={loadingMore ? <LoadingSpinner /> : null}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>

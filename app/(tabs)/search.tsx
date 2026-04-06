@@ -155,7 +155,8 @@ export default function SearchScreen() {
         if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
         else if (cats.includes('Women')) setActiveTab('Women');
         else setActiveTab('All');
-      });
+      })
+      .catch(() => {});
   }, [user]);
 
   const colors = useThemeColors();
@@ -195,8 +196,9 @@ export default function SearchScreen() {
   // Handle incoming focus request from home tab
   useEffect(() => {
     if (incomingFocus === '1') {
-      setTimeout(() => searchBarRef.current?.focus(), 100);
+      const timer = setTimeout(() => searchBarRef.current?.focus(), 100);
       router.setParams({ focus: '' });
+      return () => clearTimeout(timer);
     }
   }, [incomingFocus]);
 

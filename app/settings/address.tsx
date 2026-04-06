@@ -134,6 +134,7 @@ export default function DeliveryAddressScreen() {
                 placeholder="House number and street"
                 autoCapitalize="words"
                 returnKeyType="next"
+                maxLength={100}
                 {...field('address_line1')}
               />
               <Input
@@ -141,6 +142,7 @@ export default function DeliveryAddressScreen() {
                 placeholder="Flat, building, etc."
                 autoCapitalize="words"
                 returnKeyType="next"
+                maxLength={100}
                 {...field('address_line2')}
               />
               <Input
@@ -148,6 +150,7 @@ export default function DeliveryAddressScreen() {
                 placeholder="London"
                 autoCapitalize="words"
                 returnKeyType="next"
+                maxLength={60}
                 {...field('city')}
               />
               <Input
@@ -155,6 +158,7 @@ export default function DeliveryAddressScreen() {
                 placeholder="SW1A 1AA"
                 autoCapitalize="characters"
                 returnKeyType="next"
+                maxLength={10}
                 {...field('postcode')}
               />
               <Input
@@ -162,6 +166,7 @@ export default function DeliveryAddressScreen() {
                 placeholder="United Kingdom"
                 autoCapitalize="words"
                 returnKeyType="done"
+                maxLength={60}
                 {...field('country')}
               />
             </View>
