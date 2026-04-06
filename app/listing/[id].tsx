@@ -16,7 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { recordView } from '@/hooks/useRecentlyViewed';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
-import { calcOrderTotal } from '@/lib/paymentHelpers';
+import { calcOrderTotal, calcProtectionFee } from '@/lib/paymentHelpers';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Crypto from 'expo-crypto';
@@ -63,6 +63,7 @@ export default function ListingDetailScreen() {
   const [imageIndex, setImageIndex] = useState(0);
   const [sellerListings, setSellerListings] = useState<Listing[]>([]);
   const [similarListings, setSimilarListings] = useState<Listing[]>([]);
+  const [priceBreakdownVisible, setPriceBreakdownVisible] = useState(false);
   const [offerVisible, setOfferVisible] = useState(false);
   const [offerAmount, setOfferAmount] = useState('');
   const [offerSending, setOfferSending] = useState(false);
@@ -593,10 +594,11 @@ export default function ListingDetailScreen() {
             </View>
             <View style={styles.priceBlock}>
               <Text style={styles.itemPrice}>£{listing.price?.toFixed(2)}</Text>
-              <View style={styles.totalPriceRow}>
+              <TouchableOpacity style={styles.totalPriceRow} onPress={() => setPriceBreakdownVisible(true)} activeOpacity={0.7}>
                 <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price).toFixed(2)} Includes Buyer Protect</Text>
                 <Ionicons name="shield-checkmark-outline" size={13} color={colors.textPrimary} />
-              </View>
+                <Ionicons name="information-circle-outline" size={15} color={colors.textSecondary} />
+              </TouchableOpacity>
             </View>
           </View>
           <View style={styles.hairline} />
@@ -752,6 +754,49 @@ export default function ListingDetailScreen() {
         onClose={() => setViewerVisible(false)}
       />
 
+
+      {/* PRICE BREAKDOWN SHEET */}
+      <BottomSheet visible={priceBreakdownVisible} onClose={() => setPriceBreakdownVisible(false)}>
+        <Text style={styles.modalTitle}>Price breakdown</Text>
+
+        {/* Item price row */}
+        <View style={styles.breakdownRow}>
+          <View style={styles.breakdownIconWrap}>
+            <Ionicons name="pricetag-outline" size={18} color={colors.textPrimary} />
+          </View>
+          <View style={styles.breakdownInfo}>
+            <Text style={styles.breakdownLabel} numberOfLines={1}>{listing.title}</Text>
+            <Text style={styles.breakdownValue}>£{listing.price.toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.breakdownDivider} />
+
+        {/* Buyer Protect row */}
+        <View style={styles.breakdownRow}>
+          <View style={styles.breakdownIconWrap}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.textPrimary} />
+          </View>
+          <View style={styles.breakdownInfo}>
+            <Text style={styles.breakdownLabel}>Buyer Protect fee</Text>
+            <Text style={styles.breakdownValue}>£{calcProtectionFee(listing.price).toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.breakdownDivider} />
+
+        {/* Total row */}
+        <View style={[styles.breakdownRow, { marginTop: Spacing.md }]}>
+          <View style={styles.breakdownInfo}>
+            <Text style={[styles.breakdownLabel, { fontFamily: FontFamily.semibold }]}>Total Including Buyer Protect</Text>
+            <Text style={[styles.breakdownValue, { fontFamily: FontFamily.semibold }]}>£{calcOrderTotal(listing.price).toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.breakdownNote}>
+          Every purchase on Dukanoh comes with Buyer Protect included. If your item doesn't arrive or doesn't match the listing, we've got you covered.
+        </Text>
+      </BottomSheet>
 
       {/* BOOST MODAL */}
 
@@ -1236,6 +1281,45 @@ function getStyles(colors: ColorTokens) {
 
     // Offer sheet
     modalTitle: { ...Typography.subheading, color: colors.textPrimary, marginBottom: Spacing.base, textAlign: 'center' },
+    breakdownRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.base,
+      paddingVertical: Spacing.md,
+    },
+    breakdownIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    breakdownInfo: {
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    breakdownLabel: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    breakdownValue: {
+      ...Typography.body,
+      color: colors.textPrimary,
+    },
+    breakdownDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+    },
+    breakdownNote: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      marginTop: Spacing.xl,
+      lineHeight: 18,
+    },
     offerItemRow: {
       flexDirection: 'row',
       alignItems: 'center',
