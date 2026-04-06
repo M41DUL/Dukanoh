@@ -184,11 +184,10 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'center',
     },
     soldLabel: {
+      ...Typography.body,
       color: '#fff',
-      fontSize: 13,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: FontFamily.bold,
       letterSpacing: 1.5,
-      includeFontPadding: false,
     },
     featuredBadge: {
       position: 'absolute',
@@ -200,10 +199,9 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.full,
     },
     featuredText: {
-      fontSize: 10,
+      ...Typography.micro,
       fontFamily: FontFamily.semibold,
       color: '#0D0D0D',
-      includeFontPadding: false,
     },
     heartBtn: {
       position: 'absolute',
@@ -215,7 +213,7 @@ function getStyles(colors: ColorTokens) {
     },
     content: { paddingVertical: Spacing.sm, gap: 3 },
     title: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
-    titleHighlight: { fontFamily: 'Inter_700Bold' },
+    titleHighlight: { fontFamily: FontFamily.bold },
     meta: { ...Typography.body, color: colors.textSecondary },
     priceRow: {
       flexDirection: 'row',
@@ -228,17 +226,14 @@ function getStyles(colors: ColorTokens) {
       color: colors.textSecondary,
     },
     originalPrice: {
-      fontSize: 11,
-      fontFamily: FontFamily.regular,
+      ...Typography.small,
       color: colors.textSecondary,
       textDecorationLine: 'line-through',
-      includeFontPadding: false,
     },
     priceDropLabel: {
-      fontSize: 11,
+      ...Typography.small,
       fontFamily: FontFamily.semibold,
       color: colors.success,
-      includeFontPadding: false,
     },
     totalRow: {
       flexDirection: 'row',

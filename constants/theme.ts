@@ -123,6 +123,18 @@ export const Typography = {
     fontFamily: 'Inter_400Regular',
     includeFontPadding: false,
   },
+  small: {
+    fontSize: 11,
+    fontWeight: '400' as const,
+    fontFamily: 'Inter_400Regular',
+    includeFontPadding: false,
+  },
+  micro: {
+    fontSize: 10,
+    fontWeight: '400' as const,
+    fontFamily: 'Inter_400Regular',
+    includeFontPadding: false,
+  },
   label: {
     fontSize: 14,
     fontWeight: '500' as const,
