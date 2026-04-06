@@ -1,4 +1,5 @@
 import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
+import { calcOrderTotal } from '@/lib/paymentHelpers';
 import { useSaved } from '@/context/SavedContext';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
@@ -137,18 +138,13 @@ export function ListingCard({
             <Text style={styles.originalPrice}>£{listing.original_price.toFixed(2)}</Text>
           )}
         </View>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price).toFixed(2)} incl.</Text>
+          <Ionicons name="shield-checkmark-outline" size={13} color={colors.textPrimary} />
+        </View>
         {listing.price_dropped_at && (
           <Text style={styles.priceDropLabel}>↓ Price dropped</Text>
         )}
-        <View style={styles.sellerRow}>
-          <Text style={styles.sellerName} numberOfLines={1}>@{listing.seller.username}</Text>
-          {listing.seller.is_verified && (
-            <Text style={styles.verifiedBadge}>✓</Text>
-          )}
-          {listing.seller.seller_tier === 'pro' && (
-            <Text style={styles.proBadge}>◆</Text>
-          )}
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -227,7 +223,7 @@ function getStyles(colors: ColorTokens) {
     },
     price: {
       ...Typography.body,
-      color: colors.textPrimary,
+      color: colors.textSecondary,
     },
     originalPrice: {
       fontSize: 11,
@@ -240,27 +236,16 @@ function getStyles(colors: ColorTokens) {
       fontFamily: FontFamily.semibold,
       color: colors.success,
     },
-    sellerRow: {
+    totalRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 3,
       marginTop: 1,
     },
-    sellerName: {
-      fontSize: 11,
-      fontFamily: FontFamily.regular,
-      color: colors.textSecondary,
-      flex: 1,
-    },
-    verifiedBadge: {
-      fontSize: 10,
-      fontFamily: FontFamily.bold,
-      color: '#3735C5',
-    },
-    proBadge: {
-      fontSize: 10,
-      fontFamily: FontFamily.bold,
-      color: '#C7A84F',
+    totalPrice: {
+      ...Typography.body,
+      fontFamily: FontFamily.semibold,
+      color: colors.textPrimary,
     },
   });
 }
