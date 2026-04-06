@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useRecentSales, RecentSale } from '@/hooks/useRecentSales';
+import { useRecentSales } from '@/hooks/useRecentSales';
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();

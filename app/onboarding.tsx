@@ -72,7 +72,8 @@ function ConfettiParticles({ fire, size }: { fire: boolean; size: number }) {
         useNativeDriver: true,
       }).start();
     });
-  }, [fire]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fire]); // progressAnims are stable Animated.Value refs
 
   const centre = size / 2;
 
@@ -167,7 +168,8 @@ function Bubble({
       easing: Easing.out(Easing.back(1.4)),
       useNativeDriver: true,
     }).start();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // one-time entrance animation — animated values are stable refs
 
   // Colour fade + confetti on selection, shrink on deselection
   useEffect(() => {
@@ -190,7 +192,8 @@ function Bubble({
       ]).start();
     }
     wasActive.current = active;
-  }, [active]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]); // colorAnim and scale are stable Animated.Value refs
 
   // Gentle float when selected
   useEffect(() => {
@@ -206,7 +209,8 @@ function Bubble({
       Animated.timing(float, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     }
     return () => { float.stopAnimation(); };
-  }, [active]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]); // float is a stable Animated.Value ref
 
   const handlePress = async () => {
     await Haptics.selectionAsync();
@@ -317,7 +321,8 @@ function ShimmerOverlay({ visible, screenWidth }: { visible: boolean; screenWidt
         useNativeDriver: true,
       }),
     ).start();
-  }, [visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]); // shimmer is a stable Animated.Value ref
 
   if (!visible) return null;
 
@@ -373,7 +378,8 @@ export default function OnboardingScreen() {
       const timer = setTimeout(() => setShowWelcome(true), 400);
       return () => clearTimeout(timer);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentional mount-only — isReset is a prop that doesn't change after mount
 
   // Stop shimmer once bubbles have finished entering
   useEffect(() => {

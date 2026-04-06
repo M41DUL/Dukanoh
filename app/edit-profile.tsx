@@ -44,7 +44,8 @@ export default function EditProfileScreen() {
           setAvatarUrl(data.avatar_url ?? undefined);
         }
         setLoading(false);
-      });
+      })
+      .catch(() => { setLoading(false); });
   }, [user]);
 
   const uploadAvatar = useCallback(async (uri: string) => {

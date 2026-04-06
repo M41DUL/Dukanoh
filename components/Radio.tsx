@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
-import { Typography, Spacing, ColorTokens } from '@/constants/theme';
+import { Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface RadioProps {

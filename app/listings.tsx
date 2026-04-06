@@ -265,7 +265,8 @@ export default function ListingsScreen() {
     }
 
     return { q, trimmedQuery };
-  }, [user, blockedIds, categoriesStr, occasionPreset, searchQuery, activeSubTab, sort, activeSizes, activeOccasions, activeConditions, activeColours, activeFabrics, activePriceRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, blockedIds, categoriesStr, occasionPreset, searchQuery, activeSubTab, sort, activeSizes, activeOccasions, activeConditions, activeColours, activeFabrics, activePriceRange]); // categories is derived from categoriesStr which is already a dep
 
   const applyClientFilters = useCallback((data: Listing[], trimmedQuery: string) => {
     let results = data;
@@ -274,7 +275,7 @@ export default function ListingsScreen() {
     if (activeSizes.length > 1) {
       const sizeLower = activeSizes.map(s => s.toLowerCase());
       results = results.filter(l =>
-        l.size && sizeLower.some(s => l.size!.toLowerCase().includes(s))
+        l.size && sizeLower.some(s => l.size?.toLowerCase().includes(s))
       );
     }
 

@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet, Share } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Share } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { lightColors, Spacing, BorderRadius, FontFamily, Typography, ColorTokens } from '@/constants/theme';
+import { lightColors, Spacing, BorderRadius, FontFamily, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -250,7 +250,7 @@ export default function InviteFriendsScreen() {
   );
 }
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     root: {
       flex: 1,

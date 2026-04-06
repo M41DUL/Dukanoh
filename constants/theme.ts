@@ -111,6 +111,12 @@ export const Typography = {
     fontFamily: 'Inter_600SemiBold',
     includeFontPadding: false,
   },
+  bodyLarge: {
+    fontSize: 16,
+    fontWeight: '400' as const,
+    fontFamily: 'Inter_400Regular',
+    includeFontPadding: false,
+  },
   body: {
     fontSize: 14,
     fontWeight: '400' as const,
@@ -119,6 +125,18 @@ export const Typography = {
   },
   caption: {
     fontSize: 12,
+    fontWeight: '400' as const,
+    fontFamily: 'Inter_400Regular',
+    includeFontPadding: false,
+  },
+  small: {
+    fontSize: 11,
+    fontWeight: '400' as const,
+    fontFamily: 'Inter_400Regular',
+    includeFontPadding: false,
+  },
+  micro: {
+    fontSize: 10,
     fontWeight: '400' as const,
     fontFamily: 'Inter_400Regular',
     includeFontPadding: false,

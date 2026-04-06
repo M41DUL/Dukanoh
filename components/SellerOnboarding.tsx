@@ -53,9 +53,10 @@ export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps)
 
   useEffect(() => {
     mountedRef.current = true;
+    const timers = timersRef.current;
     return () => {
       mountedRef.current = false;
-      timersRef.current.forEach(clearTimeout);
+      timers.forEach(clearTimeout);
     };
   }, []);
 
@@ -85,7 +86,8 @@ export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps)
       const lineTimer = setTimeout(startLineReveal, 100);
       timersRef.current.push(lineTimer);
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // one-time entrance animation — animated values are stable refs
 
   const handleSubmit = async () => {
     if (!code.trim()) { setError('Please enter your invite code'); return; }

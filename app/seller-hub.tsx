@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Easing,
   Image,
   ActivityIndicator,
+  Alert,
   Dimensions,
   Share,
   TextInput,
@@ -162,7 +163,8 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
       Animated.delay(40),
       animIn(ctaOpacity, ctaY),
     ]).start();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // one-time entrance animation — animated values are stable refs
 
   const isFounderAvailable = founderCount !== null && founderCount < founderLimit;
   const founderSlotsLeft = founderLimit - (founderCount ?? 0);
@@ -418,7 +420,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
 
     // Collection listing counts
     const collectionIds = (collectionsRes.data ?? []).map(c => c.id);
-    let collectionCounts: Record<string, number> = {};
+    const collectionCounts: Record<string, number> = {};
     if (collectionIds.length > 0) {
       const { data: clData } = await supabase
         .from('listings')
@@ -474,8 +476,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
       l => l.is_boosted && l.boost_expires_at && new Date(l.boost_expires_at) > now
     ).length;
     if (activeBoostCount >= 10) {
-      const { Alert: RNAlert } = require('react-native');
-      RNAlert.alert('Boost limit reached', 'You can have 10 active boosts at once. Wait for one to expire before boosting again.');
+      Alert.alert('Boost limit reached', 'You can have 10 active boosts at once. Wait for one to expire before boosting again.');
       return;
     }
 
@@ -833,8 +834,8 @@ function HubListingRow({
     listing.boost_expires_at != null &&
     new Date(listing.boost_expires_at) > now;
 
-  const hoursLeft = isBoostedActive
-    ? Math.ceil((new Date(listing.boost_expires_at!).getTime() - Date.now()) / 3_600_000)
+  const hoursLeft = isBoostedActive && listing.boost_expires_at != null
+    ? Math.ceil((new Date(listing.boost_expires_at).getTime() - Date.now()) / 3_600_000)
     : 0;
 
   const boostLabel = isBoostedActive

@@ -26,11 +26,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then(val => {
-      if (val === 'light' || val === 'dark' || val === 'system') {
-        setPreferenceState(val);
-      }
-    });
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then(val => {
+        if (val === 'light' || val === 'dark' || val === 'system') {
+          setPreferenceState(val);
+        }
+      })
+      .catch(() => {
+        // AsyncStorage unavailable — fall back to system preference silently
+      });
   }, []);
 
   const setPreference = useCallback(async (pref: ThemePreference) => {

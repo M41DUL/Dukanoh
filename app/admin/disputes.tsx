@@ -260,7 +260,7 @@ export default function AdminDisputesScreen() {
   );
 }
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     list: {
       flexGrow: 1,

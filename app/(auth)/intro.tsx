@@ -62,9 +62,10 @@ export default function IntroScreen() {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => {
     mountedRef.current = true;
+    const timers = timersRef.current;
     return () => {
       mountedRef.current = false;
-      timersRef.current.forEach(clearTimeout);
+      timers.forEach(clearTimeout);
     };
   }, []);
 
@@ -144,7 +145,8 @@ export default function IntroScreen() {
       });
     }, 300);
     timersRef.current.push(contentTimer);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // one-time entrance animation — animated values are stable refs
 
   // Restart badge animations when screen regains focus
   const badgesStartedRef = useRef(false);
@@ -152,7 +154,8 @@ export default function IntroScreen() {
     if (isFocused && badgesStartedRef.current) {
       startBadges();
     }
-  }, [isFocused]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFocused]); // startBadges is stable — defined in component but depends only on stable refs
 
   return (
     <View style={styles.container}>

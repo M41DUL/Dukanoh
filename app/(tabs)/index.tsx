@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -17,6 +17,7 @@ import {
 } from '@/components/feed';
 import { Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTheme } from '@/context/ThemeContext';
 import { useStories, getAppStory } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
@@ -28,6 +29,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
   const colors = useThemeColors();
+  const { isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const { stories, loading: storiesLoading, markViewed } = useStories();
@@ -63,7 +65,7 @@ export default function HomeScreen() {
     <ScreenWrapper contentStyle={{ paddingHorizontal: 0 }}>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <DukanohLogo width={80} height={14} color={colors.primary} />
+          <DukanohLogo width={80} height={14} color={isDark ? colors.secondary : colors.primary} />
           <TouchableOpacity
             onPress={() => router.push({ pathname: '/(tabs)/search', params: { focus: '1' } })}
             hitSlop={8}
@@ -169,7 +171,7 @@ export default function HomeScreen() {
   );
 }
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     container: { flex: 1 },
     padded: {

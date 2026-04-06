@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { recordView } from '@/hooks/useRecentlyViewed';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import { calcOrderTotal, calcProtectionFee } from '@/lib/paymentHelpers';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Crypto from 'expo-crypto';
@@ -62,6 +63,7 @@ export default function ListingDetailScreen() {
   const [imageIndex, setImageIndex] = useState(0);
   const [sellerListings, setSellerListings] = useState<Listing[]>([]);
   const [similarListings, setSimilarListings] = useState<Listing[]>([]);
+  const [priceBreakdownVisible, setPriceBreakdownVisible] = useState(false);
   const [offerVisible, setOfferVisible] = useState(false);
   const [offerAmount, setOfferAmount] = useState('');
   const [offerSending, setOfferSending] = useState(false);
@@ -103,77 +105,66 @@ export default function ListingDetailScreen() {
   useEffect(() => {
     if (!id) return;
 
-    supabase
-      .from('listings')
-      .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at)')
-      .eq('id', id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setListing(data as unknown as Listing);
-          setSaveCount((data as any).save_count ?? 0);
-          supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }).then(({ data: rate }) => {
-            if (rate !== null) setResponseRate(rate as number);
-          });
-          supabase
-            .from('listings')
-            .select('id', { count: 'exact', head: true })
-            .eq('seller_id', data.seller_id)
-            .eq('status', 'sold')
-            .then(({ count }) => setSoldCount(count ?? 0));
-          supabase
-            .from('listings')
-            .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
-            .eq('seller_id', data.seller_id)
-            .eq('status', 'available')
-            .neq('id', id)
-            .order('created_at', { ascending: false })
-            .limit(4)
-            .then(({ data: others }) => {
-              if (others) setSellerListings(others as unknown as Listing[]);
-            });
-          (() => {
-            let simQ = supabase
-              .from('listings')
-              .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
-              .eq('category', data.category)
-              .eq('status', 'available')
-              .neq('id', id)
-              .neq('seller_id', data.seller_id)
-              .order('created_at', { ascending: false })
-              .limit(4);
-            if (blockedIds.length > 0) simQ = simQ.not('seller_id', 'in', `(${blockedIds.join(',')})`);
-            simQ.then(({ data: similar }) => {
-              if (similar) setSimilarListings(similar as unknown as Listing[]);
-            });
-          })();
-          supabase
-            .from('messages')
-            .select('content')
-            .eq('listing_id', id)
-            .then(({ data: msgs }) => {
-              const count = msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0;
-              setOfferCount(count);
-            });
-          if (data.status !== 'draft') {
-            if (user) recordView(id, user.id);
-            supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
-              setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
-            });
-          }
-          supabase
-            .from('boosts')
-            .select('expires_at')
-            .eq('listing_id', id)
-            .gte('expires_at', new Date().toISOString())
-            .maybeSingle()
-            .then(({ data: boost }) => {
-              if (boost) setBoostExpiry(new Date(boost.expires_at));
-            });
-        }
-        setLoading(false);
-      });
-  }, [id]);
+    (async () => {
+      // Primary fetch — must complete first so we have seller_id + category for secondary queries
+      const { data } = await supabase
+        .from('listings')
+        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at)')
+        .eq('id', id)
+        .single();
+
+      if (!data) { setLoading(false); return; }
+
+      setListing(data as unknown as Listing);
+      setSaveCount((data as any).save_count ?? 0);
+
+      // Track view (fire-and-forget, non-blocking)
+      if (data.status !== 'draft') {
+        if (user) recordView(id, user.id);
+        supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
+          setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
+        });
+      }
+
+      // Build similar listings query with optional blocked-seller filter
+      let simQ = supabase
+        .from('listings')
+        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
+        .eq('category', data.category)
+        .eq('status', 'available')
+        .neq('id', id)
+        .neq('seller_id', data.seller_id)
+        .order('created_at', { ascending: false })
+        .limit(4);
+      if (blockedIds.length > 0) simQ = simQ.not('seller_id', 'in', `(${blockedIds.join(',')})`);
+
+      // All secondary queries run in parallel
+      const [
+        { data: rate },
+        { count: sold },
+        { data: others },
+        { data: similar },
+        { data: msgs },
+        { data: boost },
+      ] = await Promise.all([
+        supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }),
+        supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', data.seller_id).eq('status', 'sold'),
+        supabase.from('listings').select('*, seller:users!listings_seller_id_fkey(username, avatar_url)').eq('seller_id', data.seller_id).eq('status', 'available').neq('id', id).order('created_at', { ascending: false }).limit(4),
+        simQ,
+        supabase.from('messages').select('content').eq('listing_id', id),
+        supabase.from('boosts').select('expires_at').eq('listing_id', id).gte('expires_at', new Date().toISOString()).maybeSingle(),
+      ]);
+
+      if (rate !== null) setResponseRate(rate as number);
+      setSoldCount(sold ?? 0);
+      if (others) setSellerListings(others as unknown as Listing[]);
+      if (similar) setSimilarListings(similar as unknown as Listing[]);
+      setOfferCount(msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0);
+      if (boost) setBoostExpiry(new Date(boost.expires_at));
+
+      setLoading(false);
+    })();
+  }, [id, blockedIds, user]);
 
 
   useEffect(() => {
@@ -232,7 +223,7 @@ export default function ListingDetailScreen() {
           text: 'Mark as sold',
           style: 'destructive',
           onPress: async () => {
-            await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id!);
+            await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id ?? '');
             setListing(prev => prev ? { ...prev, status: 'sold' } : prev);
           },
         },
@@ -242,7 +233,7 @@ export default function ListingDetailScreen() {
   };
 
   const handlePublish = async () => {
-    await supabase.from('listings').update({ status: 'available' }).eq('id', id!);
+    await supabase.from('listings').update({ status: 'available' }).eq('id', id ?? '');
     setListing(prev => prev ? { ...prev, status: 'available' } : prev);
     Alert.alert('Published!', 'Your listing is now live on the feed.');
   };
@@ -254,7 +245,7 @@ export default function ListingDetailScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await supabase.from('listings').delete().eq('id', id!);
+          await supabase.from('listings').delete().eq('id', id ?? '');
           router.back();
         },
       },
@@ -288,7 +279,7 @@ export default function ListingDetailScreen() {
     if (!user) return;
     await supabase.from('reports').insert({
       reporter_id: user.id,
-      listing_id: id!,
+      listing_id: id ?? '',
       seller_id: listing.seller_id,
       reason,
     });
@@ -385,7 +376,7 @@ export default function ListingDetailScreen() {
     const { error } = await supabase.from('messages').insert({
       id: Crypto.randomUUID(),
       conversation_id: convId,
-      listing_id: id!,
+      listing_id: id ?? '',
       sender_id: user.id,
       receiver_id: listing.seller_id,
       content: `__OFFER__:${amount.toFixed(2)}`,
@@ -590,7 +581,13 @@ export default function ListingDetailScreen() {
                 ].filter(Boolean).join(' · ')}
               </Text>
             </View>
-            <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
+            <View style={styles.priceBlock}>
+              <Text style={styles.itemPrice}>£{listing.price?.toFixed(2)}</Text>
+              <TouchableOpacity style={styles.totalPriceRow} onPress={() => setPriceBreakdownVisible(true)} activeOpacity={0.7}>
+                <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price).toFixed(2)} Includes Buyer Protect</Text>
+                <Ionicons name="shield-checkmark-outline" size={13} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={styles.hairline} />
           {listing.worn_at ? (
@@ -745,6 +742,49 @@ export default function ListingDetailScreen() {
         onClose={() => setViewerVisible(false)}
       />
 
+
+      {/* PRICE BREAKDOWN SHEET */}
+      <BottomSheet visible={priceBreakdownVisible} onClose={() => setPriceBreakdownVisible(false)}>
+        <Text style={styles.modalTitle}>Price breakdown</Text>
+
+        {/* Item price row */}
+        <View style={styles.breakdownRow}>
+          <View style={styles.breakdownIconWrap}>
+            <Ionicons name="pricetag-outline" size={18} color={colors.textPrimary} />
+          </View>
+          <View style={styles.breakdownInfo}>
+            <Text style={styles.breakdownLabel} numberOfLines={1}>{listing.title}</Text>
+            <Text style={styles.breakdownValue}>£{listing.price.toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.breakdownDivider} />
+
+        {/* Buyer Protect row */}
+        <View style={styles.breakdownRow}>
+          <View style={styles.breakdownIconWrap}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.textPrimary} />
+          </View>
+          <View style={styles.breakdownInfo}>
+            <Text style={styles.breakdownLabel}>Buyer Protect fee</Text>
+            <Text style={styles.breakdownValue}>£{calcProtectionFee(listing.price).toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.breakdownDivider} />
+
+        {/* Total row */}
+        <View style={[styles.breakdownRow, { marginTop: Spacing.md }]}>
+          <View style={styles.breakdownInfo}>
+            <Text style={[styles.breakdownLabel, { fontFamily: FontFamily.semibold }]}>Total Including Buyer Protect</Text>
+            <Text style={[styles.breakdownValue, { fontFamily: FontFamily.semibold }]}>£{calcOrderTotal(listing.price).toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.breakdownNote}>
+          Every purchase on Dukanoh comes with Buyer Protect included. If your item doesn't arrive or doesn't match the listing, we've got you covered.
+        </Text>
+      </BottomSheet>
 
       {/* BOOST MODAL */}
 
@@ -995,6 +1035,10 @@ function getStyles(colors: ColorTokens) {
     title: { ...Typography.heading, fontSize: 18, fontFamily: FontFamily.regular, color: colors.textPrimary, flex: 1 },
     subtitle: { ...Typography.body, fontSize: 14, fontFamily: FontFamily.medium, color: colors.textSecondary },
     price: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, color: colors.textPrimary },
+    priceBlock: { gap: 2 },
+    itemPrice: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, color: colors.textSecondary },
+    totalPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    totalPrice: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.semibold, color: colors.textPrimary },
     pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
     demandBanner: {
       width: 100,
@@ -1225,6 +1269,45 @@ function getStyles(colors: ColorTokens) {
 
     // Offer sheet
     modalTitle: { ...Typography.subheading, color: colors.textPrimary, marginBottom: Spacing.base, textAlign: 'center' },
+    breakdownRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.base,
+      paddingVertical: Spacing.md,
+    },
+    breakdownIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    breakdownInfo: {
+      flex: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    breakdownLabel: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    breakdownValue: {
+      ...Typography.body,
+      color: colors.textPrimary,
+    },
+    breakdownDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+    },
+    breakdownNote: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      marginTop: Spacing.xl,
+      lineHeight: 18,
+    },
     offerItemRow: {
       flexDirection: 'row',
       alignItems: 'center',

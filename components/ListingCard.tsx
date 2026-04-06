@@ -1,4 +1,5 @@
 import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
+import { calcOrderTotal } from '@/lib/paymentHelpers';
 import { useSaved } from '@/context/SavedContext';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
@@ -137,18 +138,13 @@ export function ListingCard({
             <Text style={styles.originalPrice}>£{listing.original_price.toFixed(2)}</Text>
           )}
         </View>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price).toFixed(2)} incl.</Text>
+          <Ionicons name="shield-checkmark-outline" size={13} color={colors.textPrimary} />
+        </View>
         {listing.price_dropped_at && (
           <Text style={styles.priceDropLabel}>↓ Price dropped</Text>
         )}
-        <View style={styles.sellerRow}>
-          <Text style={styles.sellerName} numberOfLines={1}>@{listing.seller.username}</Text>
-          {listing.seller.is_verified && (
-            <Text style={styles.verifiedBadge}>✓</Text>
-          )}
-          {listing.seller.seller_tier === 'pro' && (
-            <Text style={styles.proBadge}>◆</Text>
-          )}
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -188,24 +184,24 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'center',
     },
     soldLabel: {
+      ...Typography.body,
       color: '#fff',
-      fontSize: 13,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: FontFamily.bold,
       letterSpacing: 1.5,
     },
     featuredBadge: {
       position: 'absolute',
       top: Spacing.xs,
       left: Spacing.xs,
-      backgroundColor: '#C7F75E',
+      backgroundColor: colors.secondary,
       paddingHorizontal: Spacing.sm,
       paddingVertical: 3,
       borderRadius: BorderRadius.full,
     },
     featuredText: {
-      fontSize: 10,
+      ...Typography.micro,
       fontFamily: FontFamily.semibold,
-      color: '#0D0D0D',
+      color: colors.textPrimary,
     },
     heartBtn: {
       position: 'absolute',
@@ -217,7 +213,7 @@ function getStyles(colors: ColorTokens) {
     },
     content: { paddingVertical: Spacing.sm, gap: 3 },
     title: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
-    titleHighlight: { fontFamily: 'Inter_700Bold' },
+    titleHighlight: { fontFamily: FontFamily.bold },
     meta: { ...Typography.body, color: colors.textSecondary },
     priceRow: {
       flexDirection: 'row',
@@ -227,40 +223,28 @@ function getStyles(colors: ColorTokens) {
     },
     price: {
       ...Typography.body,
-      color: colors.textPrimary,
+      color: colors.textSecondary,
     },
     originalPrice: {
-      fontSize: 11,
-      fontFamily: FontFamily.regular,
+      ...Typography.small,
       color: colors.textSecondary,
       textDecorationLine: 'line-through',
     },
     priceDropLabel: {
-      fontSize: 11,
+      ...Typography.small,
       fontFamily: FontFamily.semibold,
       color: colors.success,
     },
-    sellerRow: {
+    totalRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 3,
       marginTop: 1,
     },
-    sellerName: {
-      fontSize: 11,
-      fontFamily: FontFamily.regular,
-      color: colors.textSecondary,
-      flex: 1,
-    },
-    verifiedBadge: {
-      fontSize: 10,
-      fontFamily: FontFamily.bold,
-      color: '#3735C5',
-    },
-    proBadge: {
-      fontSize: 10,
-      fontFamily: FontFamily.bold,
-      color: '#C7A84F',
+    totalPrice: {
+      ...Typography.body,
+      fontFamily: FontFamily.semibold,
+      color: colors.textPrimary,
     },
   });
 }

@@ -16,7 +16,7 @@ import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Spacing, BorderRadius } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { BottomBar } from '@/components/BottomBar';
 import { useAuth } from '@/hooks/useAuth';
@@ -45,7 +45,7 @@ export default function CheckoutScreen() {
   const { listingId } = useLocalSearchParams<{ listingId: string }>();
   const { user } = useAuth();
   const colors = useThemeColors();
-  const styles = useMemo(() => getStyles(colors), [colors]);
+  const styles = useMemo(() => getStyles(), []);
 
   const [listing, setListing] = useState<ListingSummary | null>(null);
   const [address, setAddress] = useState<AddressState | null>(null);
@@ -123,11 +123,11 @@ export default function CheckoutScreen() {
         item_price: listing.price,
         protection_fee: protectionFee,
         total_paid: total,
-        delivery_address_line1: address!.address_line1,
-        delivery_address_line2: address!.address_line2 ?? null,
-        delivery_city: address!.city,
-        delivery_postcode: address!.postcode,
-        delivery_country: address!.country,
+        delivery_address_line1: address?.address_line1,
+        delivery_address_line2: address?.address_line2 ?? null,
+        delivery_city: address?.city,
+        delivery_postcode: address?.postcode,
+        delivery_country: address?.country,
       })
       .select('id')
       .single();
@@ -139,10 +139,18 @@ export default function CheckoutScreen() {
     }
 
     // Mark listing as sold
-    await supabase
+    const { error: listingError } = await supabase
       .from('listings')
       .update({ status: 'sold', buyer_id: user.id, sold_at: new Date().toISOString() })
       .eq('id', listing.id);
+
+    if (listingError) {
+      // Rollback: cancel the order so the listing doesn't get orphaned
+      await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.id);
+      setPlacing(false);
+      Alert.alert('Error', 'Could not complete order. Please try again.');
+      return;
+    }
 
     setPlacing(false);
     router.replace(`/order/${order.id}`);
@@ -162,7 +170,7 @@ export default function CheckoutScreen() {
   const hasAddress = !!address?.address_line1;
   const addressLine2 = address?.address_line2 ? `\n${address.address_line2}` : '';
   const addressDisplay = hasAddress
-    ? `${address!.address_line1}${addressLine2}\n${address!.city}  ${address!.postcode}\n${address!.country}`
+    ? `${address?.address_line1}${addressLine2}\n${address?.city}  ${address?.postcode}\n${address?.country}`
     : null;
 
   return (
@@ -264,7 +272,7 @@ export default function CheckoutScreen() {
   );
 }
 
-function getStyles(colors: ColorTokens) {
+function getStyles() {
   return StyleSheet.create({
     content: {
       paddingTop: Spacing.base,

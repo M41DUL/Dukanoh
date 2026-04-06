@@ -12,7 +12,7 @@ export interface AppStory {
   ctaRoute: string;
 }
 
-const APP_MESSAGES: Array<Omit<AppStory, 'type' | 'id'>> = [
+const APP_MESSAGES: Omit<AppStory, 'type' | 'id'>[] = [
   {
     headline: 'Welcome to Dukanoh',
     body: 'The South Asian fashion marketplace. Buy and sell pre-loved clothing from your community.',

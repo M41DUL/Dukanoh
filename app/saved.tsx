@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  View,
   FlatList,
   StyleSheet,
   ActivityIndicator,
@@ -21,7 +20,7 @@ import { supabase } from '@/lib/supabase';
 export default function SavedScreen() {
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
-  const { savedIds, toggleSave } = useSaved();
+  const { savedIds } = useSaved();
   const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const colors = useThemeColors();
@@ -44,7 +43,7 @@ export default function SavedScreen() {
       );
     }
     setLoading(false);
-  }, [user]);
+  }, [user, blockedIds]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -87,7 +86,7 @@ export default function SavedScreen() {
   );
 }
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     loader: { flex: 1 },
     content: { flexGrow: 1, paddingTop: Spacing.base, paddingBottom: Spacing['2xl'] },

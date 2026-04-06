@@ -28,10 +28,7 @@ export function useRecentlyViewed(currentUserId?: string) {
       .in('id', ids)
       .eq('status', 'available');
 
-    if (error) {
-      console.warn('useRecentlyViewed fetch failed:', error.message);
-      return;
-    }
+    if (error) return;
     if (!data) { setItems([]); return; }
 
     // Preserve AsyncStorage order and filter out own listings

@@ -36,7 +36,8 @@ export function SplashAnimation({ onAnimationDone, fadeOut, onFadeOutDone }: Spl
         }).start(() => onAnimationDone());
       }, 500);
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // one-time mount animation — logoScale is a stable ref, onAnimationDone is stable at call site
 
   // Fade out when told to
   useEffect(() => {
@@ -47,7 +48,8 @@ export function SplashAnimation({ onAnimationDone, fadeOut, onFadeOutDone }: Spl
         useNativeDriver: true,
       }).start(() => onFadeOutDone());
     }
-  }, [fadeOut]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fadeOut]); // containerOpacity is a stable ref, onFadeOutDone is stable at call site
 
   return (
     <Animated.View style={[styles.container, { opacity: containerOpacity }]}>

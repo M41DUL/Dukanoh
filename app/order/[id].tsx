@@ -38,6 +38,7 @@ interface Order {
   tracking_number: string | null;
   courier: string | null;
   dispute_reason: string | null;
+  dispute_description: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
   completed_at: string | null;
@@ -49,9 +50,6 @@ interface Order {
   delivery_city: string | null;
   delivery_postcode: string | null;
   delivery_country: string | null;
-  // Dispute fields
-  dispute_reason: string | null;
-  dispute_description: string | null;
   disputed_at: string | null;
   listing: {
     title: string;
@@ -132,7 +130,7 @@ export default function OrderDetailScreen() {
 
   // ── Seller: mark as shipped ──────────────────────────────────
   const handleMarkShipped = async () => {
-    if (!order) return;
+    if (!order || !user) return;
     if (!trackingNumber.trim()) {
       Alert.alert('Tracking number required', 'Please enter a tracking number before marking as shipped.');
       return;
@@ -142,7 +140,7 @@ export default function OrderDetailScreen() {
     // eliminating any device clock skew. It also enforces the paid→shipped guard at DB level.
     const { error } = await supabase.rpc('mark_order_shipped', {
       p_order_id:  order.id,
-      p_seller_id: user!.id,
+      p_seller_id: user.id,
       p_tracking:  trackingNumber.trim(),
       p_courier:   courier.trim() || null,
     });
@@ -165,6 +163,7 @@ export default function OrderDetailScreen() {
         {
           text: 'Confirm',
           onPress: async () => {
+            if (!user) return;
             setSubmitting(true);
             await supabase
               .from('orders')
@@ -173,7 +172,8 @@ export default function OrderDetailScreen() {
                 delivered_at: new Date().toISOString(),
                 completed_at: new Date().toISOString(),
               })
-              .eq('id', order.id);
+              .eq('id', order.id)
+              .eq('buyer_id', user.id);
             setSubmitting(false);
             fetchOrder();
           },
@@ -212,10 +212,10 @@ export default function OrderDetailScreen() {
                 .eq('id', order.listing_id);
             }
             // Record strike if seller cancels
-            if (isSeller) {
+            if (isSeller && user) {
               await supabase
                 .from('cancellation_strikes')
-                .insert({ seller_id: user!.id, order_id: order.id });
+                .insert({ seller_id: user.id, order_id: order.id });
             }
             setSubmitting(false);
             fetchOrder();
@@ -235,6 +235,7 @@ export default function OrderDetailScreen() {
         {
           text: 'Withdraw & complete',
           onPress: async () => {
+            if (!user || !order) return;
             setSubmitting(true);
             await supabase
               .from('orders')
@@ -243,8 +244,8 @@ export default function OrderDetailScreen() {
                 delivered_at: new Date().toISOString(),
                 completed_at: new Date().toISOString(),
               })
-              .eq('id', order!.id)
-              .eq('buyer_id', user!.id);
+              .eq('id', order.id)
+              .eq('buyer_id', user.id);
             setSubmitting(false);
             fetchOrder();
           },
@@ -551,7 +552,7 @@ const metaStyles = StyleSheet.create({
   value: { fontSize: 13 },
 });
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     content: {
       paddingTop: Spacing.base,

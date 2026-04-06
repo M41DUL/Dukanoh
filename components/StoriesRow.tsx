@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTheme } from '@/context/ThemeContext';
 import { useSaved } from '@/context/SavedContext';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
@@ -109,7 +110,7 @@ function ListingStoryViewer({
         )}
         <Text style={viewerStyles.topTime}>{timeAgo(story.created_at)}</Text>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={onClose} hitSlop={16} style={viewerStyles.topCloseBtn}>
+        <TouchableOpacity onPress={onClose} hitSlop={16} style={viewerStyles.topCloseBtn} accessibilityLabel="Close story" accessibilityRole="button">
           <Ionicons name="close" size={26} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -140,6 +141,8 @@ function ListingStoryViewer({
             onPress={() => toggleSave(story.id, story.price)}
             hitSlop={8}
             activeOpacity={0.7}
+            accessibilityLabel={saved ? 'Remove from saved' : 'Save listing'}
+            accessibilityRole="button"
           >
             <Ionicons
               name={saved ? 'heart' : 'heart-outline'}
@@ -156,11 +159,10 @@ function ListingStoryViewer({
 export function StoriesRow({ stories, onView }: StoriesRowProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const colors = useThemeColors();
+  const { isDark } = useTheme();
   const rowStyles = useMemo(() => getRowStyles(colors), [colors]);
   const progress = useRef(new Animated.Value(0)).current;
   const timerAnim = useRef<Animated.CompositeAnimation | null>(null);
-
-  if (stories.length === 0) return null;
 
   const activeStory = activeIndex !== null ? stories[activeIndex] : null;
   const isSingleAppStory = stories.length === 1 && stories[0].type === 'app';
@@ -193,7 +195,8 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
       progress.setValue(0);
     }
     return () => stopTimer();
-  }, [activeIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex]); // progress is a stable Animated.Value ref; startTimer/stopTimer depend only on stable refs
 
   const openStory = (index: number) => {
     setActiveIndex(index);
@@ -225,16 +228,18 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
     outputRange: ['0%', '100%'],
   });
 
+  if (stories.length === 0) return null;
+
   return (
     <>
       {isSingleAppStory ? (
         <View style={rowStyles.cardOuter}>
           <GradientCard
-            colors={['#E8FBC5', colors.surface]}
+            colors={isDark ? ['rgba(199,247,94,0.12)', colors.surface] : ['#E8FBC5', colors.surface]}
             title={(stories[0] as AppStory).headline}
             subtitle={(stories[0] as AppStory).body}
-            titleColor="#0D0D0D"
-            subtitleColor="rgba(0,0,0,0.55)"
+            titleColor={colors.textPrimary}
+            subtitleColor={colors.textSecondary}
             onPress={() => openStory(0)}
             left={
               <View style={rowStyles.cardRing}>
@@ -247,7 +252,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 </View>
               </View>
             }
-            right={<Ionicons name="chevron-forward" size={18} color="rgba(0,0,0,0.35)" />}
+            right={<Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />}
           />
         </View>
       ) : (
@@ -266,7 +271,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 onPress={() => openStory(index)}
                 activeOpacity={0.9}
               >
-                <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing!.is_boosted && rowStyles.ringBoosted, !isApp && !listing!.is_boosted && listing!.viewed && rowStyles.ringViewed]}>
+                <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing?.is_boosted && rowStyles.ringBoosted, !isApp && !listing?.is_boosted && listing?.viewed && rowStyles.ringViewed]}>
                   <View style={rowStyles.ringInner}>
                     {isApp ? (
                       <Image
@@ -274,9 +279,9 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                         style={viewerStyles.bubbleImage}
                         contentFit="cover"
                       />
-                    ) : listing!.images?.[0] ? (
+                    ) : listing?.images?.[0] ? (
                       <Image
-                        source={{ uri: listing!.images[0] }}
+                        source={{ uri: listing.images[0] }}
                         style={viewerStyles.bubbleImage}
                         contentFit="cover"
                         transition={200}
@@ -287,7 +292,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                   </View>
                 </View>
                 <Text style={rowStyles.bubbleLabel} numberOfLines={1}>
-                  {isApp ? 'Dukanoh' : listing!.category}
+                  {isApp ? 'Dukanoh' : listing?.category}
                 </Text>
               </TouchableOpacity>
             );
@@ -322,7 +327,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                   ))}
                 </View>
 
-                <TouchableOpacity style={viewerStyles.closeButton} onPress={close} hitSlop={16}>
+                <TouchableOpacity style={viewerStyles.closeButton} onPress={close} hitSlop={16} accessibilityLabel="Close story" accessibilityRole="button">
                   <Ionicons name="close" size={26} color="#fff" />
                 </TouchableOpacity>
 
@@ -372,7 +377,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
               <ListingStoryViewer
                 story={activeStory as StoryListing}
                 stories={stories}
-                activeIndex={activeIndex!}
+                activeIndex={activeIndex ?? 0}
                 progressWidth={progressWidth}
                 onPrev={goPrev}
                 onNext={goNext}

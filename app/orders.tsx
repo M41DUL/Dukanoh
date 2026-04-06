@@ -265,7 +265,7 @@ export default function OrdersScreen() {
   );
 }
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     listContent: {
       flexGrow: 1,
