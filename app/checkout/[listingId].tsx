@@ -123,11 +123,11 @@ export default function CheckoutScreen() {
         item_price: listing.price,
         protection_fee: protectionFee,
         total_paid: total,
-        delivery_address_line1: address!.address_line1,
-        delivery_address_line2: address!.address_line2 ?? null,
-        delivery_city: address!.city,
-        delivery_postcode: address!.postcode,
-        delivery_country: address!.country,
+        delivery_address_line1: address?.address_line1,
+        delivery_address_line2: address?.address_line2 ?? null,
+        delivery_city: address?.city,
+        delivery_postcode: address?.postcode,
+        delivery_country: address?.country,
       })
       .select('id')
       .single();
@@ -170,7 +170,7 @@ export default function CheckoutScreen() {
   const hasAddress = !!address?.address_line1;
   const addressLine2 = address?.address_line2 ? `\n${address.address_line2}` : '';
   const addressDisplay = hasAddress
-    ? `${address!.address_line1}${addressLine2}\n${address!.city}  ${address!.postcode}\n${address!.country}`
+    ? `${address?.address_line1}${addressLine2}\n${address?.city}  ${address?.postcode}\n${address?.country}`
     : null;
 
   return (

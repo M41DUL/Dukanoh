@@ -33,8 +33,8 @@ Deno.serve(async (req) => {
   const { table, record, old_record } = payload;
 
   const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    serviceRoleKey!
+    Deno.env.get('SUPABASE_URL') ?? '',
+    serviceRoleKey ?? ''
   );
 
   if (table === 'messages') {

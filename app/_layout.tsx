@@ -64,7 +64,8 @@ function RootNavigator() {
     }
     // Wait for route to mount, then tell splash to fade out
     setTimeout(() => setRouteReady(true), 100);
-  }, [splashDone, fontsLoaded, loading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splashDone, fontsLoaded, loading]); // intentional: fires once when splash finishes; other deps intentionally excluded
 
   // Handle auth state changes after initial navigation (e.g. login/logout)
   useEffect(() => {
@@ -77,7 +78,7 @@ function RootNavigator() {
     } else if (inAuthGroup) {
       router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
     }
-  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, routeReady]);
+  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, routeReady, splashVisible]);
 
   if (!fontsLoaded || loading) return null;
 

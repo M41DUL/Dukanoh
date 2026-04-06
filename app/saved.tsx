@@ -43,7 +43,7 @@ export default function SavedScreen() {
       );
     }
     setLoading(false);
-  }, [user]);
+  }, [user, blockedIds]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 

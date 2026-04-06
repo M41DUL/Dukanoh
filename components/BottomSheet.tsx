@@ -54,7 +54,8 @@ export function BottomSheet({ visible, onClose, children, fullScreen = false, us
         Animated.timing(sheetAnim, { toValue: SCREEN_HEIGHT, duration: 200, useNativeDriver: true }),
       ]).start(() => setMounted(false));
     }
-  }, [visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]); // backdropAnim and sheetAnim are stable Animated.Value refs
 
   // Android back button
   useEffect(() => {
@@ -108,7 +109,8 @@ export function BottomSheet({ visible, onClose, children, fullScreen = false, us
     });
 
     return () => { show.remove(); hide.remove(); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // keyboardOffset is a stable Animated.Value ref
 
   if (!mounted && !visible) return null;
 

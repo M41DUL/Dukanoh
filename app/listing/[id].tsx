@@ -164,7 +164,7 @@ export default function ListingDetailScreen() {
 
       setLoading(false);
     })();
-  }, [id, blockedIds]);
+  }, [id, blockedIds, user]);
 
 
   useEffect(() => {
@@ -223,7 +223,7 @@ export default function ListingDetailScreen() {
           text: 'Mark as sold',
           style: 'destructive',
           onPress: async () => {
-            await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id!);
+            await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id ?? '');
             setListing(prev => prev ? { ...prev, status: 'sold' } : prev);
           },
         },
@@ -233,7 +233,7 @@ export default function ListingDetailScreen() {
   };
 
   const handlePublish = async () => {
-    await supabase.from('listings').update({ status: 'available' }).eq('id', id!);
+    await supabase.from('listings').update({ status: 'available' }).eq('id', id ?? '');
     setListing(prev => prev ? { ...prev, status: 'available' } : prev);
     Alert.alert('Published!', 'Your listing is now live on the feed.');
   };
@@ -245,7 +245,7 @@ export default function ListingDetailScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await supabase.from('listings').delete().eq('id', id!);
+          await supabase.from('listings').delete().eq('id', id ?? '');
           router.back();
         },
       },
@@ -279,7 +279,7 @@ export default function ListingDetailScreen() {
     if (!user) return;
     await supabase.from('reports').insert({
       reporter_id: user.id,
-      listing_id: id!,
+      listing_id: id ?? '',
       seller_id: listing.seller_id,
       reason,
     });
@@ -376,7 +376,7 @@ export default function ListingDetailScreen() {
     const { error } = await supabase.from('messages').insert({
       id: Crypto.randomUUID(),
       conversation_id: convId,
-      listing_id: id!,
+      listing_id: id ?? '',
       sender_id: user.id,
       receiver_id: listing.seller_id,
       content: `__OFFER__:${amount.toFixed(2)}`,

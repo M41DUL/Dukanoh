@@ -195,7 +195,8 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
       progress.setValue(0);
     }
     return () => stopTimer();
-  }, [activeIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndex]); // progress is a stable Animated.Value ref; startTimer/stopTimer depend only on stable refs
 
   const openStory = (index: number) => {
     setActiveIndex(index);
@@ -270,7 +271,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 onPress={() => openStory(index)}
                 activeOpacity={0.9}
               >
-                <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing!.is_boosted && rowStyles.ringBoosted, !isApp && !listing!.is_boosted && listing!.viewed && rowStyles.ringViewed]}>
+                <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing?.is_boosted && rowStyles.ringBoosted, !isApp && !listing?.is_boosted && listing?.viewed && rowStyles.ringViewed]}>
                   <View style={rowStyles.ringInner}>
                     {isApp ? (
                       <Image
@@ -278,9 +279,9 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                         style={viewerStyles.bubbleImage}
                         contentFit="cover"
                       />
-                    ) : listing!.images?.[0] ? (
+                    ) : listing?.images?.[0] ? (
                       <Image
-                        source={{ uri: listing!.images[0] }}
+                        source={{ uri: listing.images[0] }}
                         style={viewerStyles.bubbleImage}
                         contentFit="cover"
                         transition={200}
@@ -291,7 +292,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                   </View>
                 </View>
                 <Text style={rowStyles.bubbleLabel} numberOfLines={1}>
-                  {isApp ? 'Dukanoh' : listing!.category}
+                  {isApp ? 'Dukanoh' : listing?.category}
                 </Text>
               </TouchableOpacity>
             );
@@ -376,7 +377,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
               <ListingStoryViewer
                 story={activeStory as StoryListing}
                 stories={stories}
-                activeIndex={activeIndex!}
+                activeIndex={activeIndex ?? 0}
                 progressWidth={progressWidth}
                 onPrev={goPrev}
                 onNext={goNext}

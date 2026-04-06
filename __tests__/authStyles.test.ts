@@ -91,37 +91,37 @@ describe('getPasswordStrength', () => {
   test('returns error for password under minimum length', () => {
     const result = getPasswordStrength('abc');
     expect(result).not.toBeNull();
-    expect(result!.label).toContain(`${PASSWORD_MIN}`);
+    expect(result?.label).toContain(`${PASSWORD_MIN}`);
   });
 
   test('returns Weak for short simple password', () => {
     const result = getPasswordStrength('abcdef');
-    expect(result!.label).toMatch(/weak/i);
+    expect(result?.label).toMatch(/weak/i);
   });
 
   test('returns Good for 8+ chars with 2 types', () => {
     const result = getPasswordStrength('abcdef12');
-    expect(result!.label).toMatch(/good/i);
+    expect(result?.label).toMatch(/good/i);
   });
 
   test('returns Strong for 10+ chars with 3+ types', () => {
     const result = getPasswordStrength('Abcdef123!');
-    expect(result!.label).toMatch(/strong/i);
+    expect(result?.label).toMatch(/strong/i);
   });
 
   test('8 chars with only lowercase is Weak', () => {
     const result = getPasswordStrength('abcdefgh');
-    expect(result!.label).toMatch(/weak/i);
+    expect(result?.label).toMatch(/weak/i);
   });
 
   test('10 chars with only 2 types is Good, not Strong', () => {
     const result = getPasswordStrength('abcdefgh12');
-    expect(result!.label).toMatch(/good/i);
+    expect(result?.label).toMatch(/good/i);
   });
 
   test('10 chars with upper + lower + number is Strong', () => {
     const result = getPasswordStrength('Abcdefgh12');
-    expect(result!.label).toMatch(/strong/i);
+    expect(result?.label).toMatch(/strong/i);
   });
 });
 

@@ -289,7 +289,7 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
       // Prevent infinite skeleton — fall back to empty state
       setLoading(false);
     }
-  }, [userId, applyFeedData]);
+  }, [userId, applyFeedData, blockedIds]);
 
   // On mount: load cache instantly, then refresh from network
   useEffect(() => {
