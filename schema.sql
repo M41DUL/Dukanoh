@@ -141,7 +141,7 @@ CREATE TABLE public.conversations (
 CREATE TABLE public.messages (
   id              UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   conversation_id UUID REFERENCES public.conversations (id) ON DELETE CASCADE NOT NULL,
-  listing_id      UUID REFERENCES public.listings (id) ON DELETE CASCADE NOT NULL,
+  listing_id      UUID REFERENCES public.listings (id) ON DELETE SET NULL,
   sender_id       UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
   receiver_id     UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
   content         TEXT NOT NULL,
@@ -269,7 +269,6 @@ CREATE POLICY "Users can send messages"
     AND EXISTS (
       SELECT 1 FROM public.conversations c
       WHERE c.id = conversation_id
-        AND c.listing_id = listing_id
         AND (
           (c.buyer_id = auth.uid() AND c.seller_id = receiver_id)
           OR (c.seller_id = auth.uid() AND c.buyer_id = receiver_id)

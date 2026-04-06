@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Alert, View, FlatList, Text, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -50,7 +50,8 @@ export default function InboxScreen() {
         seller:users!conversations_seller_id_fkey ( username, avatar_url )
       `)
       .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       Alert.alert('Error', 'Could not load conversations.');
@@ -76,7 +77,7 @@ export default function InboxScreen() {
     }
 
     setLoading(false);
-  }, [user]);
+  }, [user, blockedIds]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -118,7 +119,7 @@ export default function InboxScreen() {
     }
   }, [user, fetchConversations]);
 
-  useFocusEffect(useCallback(() => {
+  useEffect(() => {
     if (!user) return;
 
     const channel = supabase
@@ -138,7 +139,7 @@ export default function InboxScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, handleRealtimeChange]));
+  }, [user]);
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
