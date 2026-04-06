@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTheme } from '@/context/ThemeContext';
 import { useSaved } from '@/context/SavedContext';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
@@ -156,6 +157,7 @@ function ListingStoryViewer({
 export function StoriesRow({ stories, onView }: StoriesRowProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const colors = useThemeColors();
+  const { isDark } = useTheme();
   const rowStyles = useMemo(() => getRowStyles(colors), [colors]);
   const progress = useRef(new Animated.Value(0)).current;
   const timerAnim = useRef<Animated.CompositeAnimation | null>(null);
@@ -230,11 +232,11 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
       {isSingleAppStory ? (
         <View style={rowStyles.cardOuter}>
           <GradientCard
-            colors={['#E8FBC5', colors.surface]}
+            colors={isDark ? ['rgba(199,247,94,0.12)', colors.surface] : ['#E8FBC5', colors.surface]}
             title={(stories[0] as AppStory).headline}
             subtitle={(stories[0] as AppStory).body}
-            titleColor="#0D0D0D"
-            subtitleColor="rgba(0,0,0,0.55)"
+            titleColor={colors.textPrimary}
+            subtitleColor={colors.textSecondary}
             onPress={() => openStory(0)}
             left={
               <View style={rowStyles.cardRing}>
@@ -247,7 +249,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 </View>
               </View>
             }
-            right={<Ionicons name="chevron-forward" size={18} color="rgba(0,0,0,0.35)" />}
+            right={<Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />}
           />
         </View>
       ) : (

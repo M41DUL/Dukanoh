@@ -297,7 +297,15 @@ ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Reviews are publicly viewable"
   ON public.reviews FOR SELECT USING (true);
 CREATE POLICY "Users can create reviews"
-  ON public.reviews FOR INSERT WITH CHECK (auth.uid() = reviewer_id);
+  ON public.reviews FOR INSERT WITH CHECK (
+    auth.uid() = reviewer_id
+    AND EXISTS (
+      SELECT 1 FROM public.listings
+      WHERE seller_id = reviews.seller_id
+        AND buyer_id  = auth.uid()
+        AND status    = 'sold'
+    )
+  );
 CREATE POLICY "Users can delete own reviews"
   ON public.reviews FOR DELETE USING (auth.uid() = reviewer_id);
 

@@ -125,10 +125,18 @@ export default function SellerProfileScreen() {
         .eq('reviewer_id', user.id)
         .eq('seller_id', id)
         .maybeSingle(),
-    ]).then(([{ data: convs }, { data: existingReview }]) => {
+      supabase
+        .from('listings')
+        .select('id')
+        .eq('seller_id', id)
+        .eq('buyer_id', user.id)
+        .eq('status', 'sold')
+        .limit(1),
+    ]).then(([{ data: convs }, { data: existingReview }, { data: purchases }]) => {
       const hasConversation = (convs ?? []).length > 0;
       const hasReviewed = !!existingReview;
-      setCanReview(hasConversation && !hasReviewed);
+      const hasPurchased = (purchases ?? []).length > 0;
+      setCanReview(hasPurchased && !hasReviewed);
       if (hasConversation && convs && convs[0]) {
         setFirstConversationListingId(convs[0].listing_id as string);
         setFirstConversationId(convs[0].id as string);
