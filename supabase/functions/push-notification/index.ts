@@ -3,12 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 Deno.serve(async (req) => {
-  const authHeader = req.headers.get('Authorization');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (authHeader !== `Bearer ${serviceRoleKey}`) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
   const payload = await req.json();
   const { table, record, old_record } = payload;
 
