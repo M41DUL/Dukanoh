@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { recordView } from '@/hooks/useRecentlyViewed';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import { calcOrderTotal } from '@/lib/paymentHelpers';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Crypto from 'expo-crypto';
@@ -590,7 +591,13 @@ export default function ListingDetailScreen() {
                 ].filter(Boolean).join(' · ')}
               </Text>
             </View>
-            <Text style={styles.price}>£{listing.price?.toFixed(2)}</Text>
+            <View style={styles.priceBlock}>
+              <Text style={styles.itemPrice}>£{listing.price?.toFixed(2)}</Text>
+              <View style={styles.totalPriceRow}>
+                <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price).toFixed(2)} Includes Buyer Protect</Text>
+                <Ionicons name="shield-checkmark-outline" size={13} color={colors.textPrimary} />
+              </View>
+            </View>
           </View>
           <View style={styles.hairline} />
           {listing.worn_at ? (
@@ -995,6 +1002,10 @@ function getStyles(colors: ColorTokens) {
     title: { ...Typography.heading, fontSize: 18, fontFamily: FontFamily.regular, color: colors.textPrimary, flex: 1 },
     subtitle: { ...Typography.body, fontSize: 14, fontFamily: FontFamily.medium, color: colors.textSecondary },
     price: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, color: colors.textPrimary },
+    priceBlock: { gap: 2 },
+    itemPrice: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, color: colors.textSecondary },
+    totalPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    totalPrice: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.semibold, color: colors.textPrimary },
     pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
     demandBanner: {
       width: 100,
