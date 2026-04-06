@@ -175,7 +175,7 @@ export default function ListingDetailScreen() {
         }
         setLoading(false);
       });
-  }, [id]);
+  }, [id, blockedIds]);
 
 
   useEffect(() => {

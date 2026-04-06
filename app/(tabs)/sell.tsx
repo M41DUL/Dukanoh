@@ -311,11 +311,12 @@ export default function SellScreen() {
   }
 
   if (sellerStatus === 'not_seller') {
+    if (!user) return null;
     return (
       <>
         {isFocused && <StatusBar style="light" />}
         <SellerOnboarding
-          userId={user!.id}
+          userId={user.id}
           onActivated={() => setSellerStatus('seller')}
         />
       </>

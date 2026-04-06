@@ -124,7 +124,7 @@ export default function ConversationScreen() {
           setMessages(prev => [payload.new as Message, ...prev]);
           // Mark as read immediately since the user is viewing the conversation
           const msg = payload.new as Message;
-          if (msg.sender_id !== user.id) {
+          if (user && msg.sender_id !== user.id) {
             supabase
               .from('conversations')
               .update({ last_message_sender_id: null })
