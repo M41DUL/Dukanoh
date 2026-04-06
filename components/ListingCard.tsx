@@ -188,6 +188,7 @@ function getStyles(colors: ColorTokens) {
       fontSize: 13,
       fontFamily: 'Inter_700Bold',
       letterSpacing: 1.5,
+      includeFontPadding: false,
     },
     featuredBadge: {
       position: 'absolute',
@@ -202,6 +203,7 @@ function getStyles(colors: ColorTokens) {
       fontSize: 10,
       fontFamily: FontFamily.semibold,
       color: '#0D0D0D',
+      includeFontPadding: false,
     },
     heartBtn: {
       position: 'absolute',
@@ -230,11 +232,13 @@ function getStyles(colors: ColorTokens) {
       fontFamily: FontFamily.regular,
       color: colors.textSecondary,
       textDecorationLine: 'line-through',
+      includeFontPadding: false,
     },
     priceDropLabel: {
       fontSize: 11,
       fontFamily: FontFamily.semibold,
       color: colors.success,
+      includeFontPadding: false,
     },
     totalRow: {
       flexDirection: 'row',
