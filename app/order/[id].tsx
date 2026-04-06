@@ -38,6 +38,7 @@ interface Order {
   tracking_number: string | null;
   courier: string | null;
   dispute_reason: string | null;
+  dispute_description: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
   completed_at: string | null;
@@ -49,9 +50,6 @@ interface Order {
   delivery_city: string | null;
   delivery_postcode: string | null;
   delivery_country: string | null;
-  // Dispute fields
-  dispute_reason: string | null;
-  dispute_description: string | null;
   disputed_at: string | null;
   listing: {
     title: string;
@@ -173,7 +171,8 @@ export default function OrderDetailScreen() {
                 delivered_at: new Date().toISOString(),
                 completed_at: new Date().toISOString(),
               })
-              .eq('id', order.id);
+              .eq('id', order.id)
+              .eq('buyer_id', user!.id);
             setSubmitting(false);
             fetchOrder();
           },

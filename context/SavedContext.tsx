@@ -37,11 +37,10 @@ export function SavedProvider({ children }: { children: React.ReactNode }) {
 
   const toggleSave = useCallback(async (listingId: string, price?: number) => {
     if (!user) return;
-    const previous = savedIds;
     if (savedIds.has(listingId)) {
       setSavedIds(prev => { const s = new Set(prev); s.delete(listingId); return s; });
       const { error } = await supabase.from('saved_items').delete().eq('user_id', user.id).eq('listing_id', listingId);
-      if (error) setSavedIds(previous);
+      if (error) setSavedIds(prev => new Set([...prev, listingId]));
     } else {
       setSavedIds(prev => new Set([...prev, listingId]));
       const { error } = await supabase.from('saved_items').insert({
@@ -49,7 +48,7 @@ export function SavedProvider({ children }: { children: React.ReactNode }) {
         listing_id: listingId,
         price_at_save: price ?? null,
       });
-      if (error) setSavedIds(previous);
+      if (error) setSavedIds(prev => { const s = new Set(prev); s.delete(listingId); return s; });
     }
   }, [user, savedIds]);
 

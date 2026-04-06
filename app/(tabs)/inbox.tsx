@@ -176,7 +176,7 @@ export default function InboxScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, handleRealtimeChange]);
 
   // Android: toggle selection
   const toggleSelect = useCallback((id: string) => {
