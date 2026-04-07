@@ -79,6 +79,12 @@ export function useAuth() {
       if (appKeys.length > 0) await AsyncStorage.multiRemove(appKeys);
     } catch {}
 
+    // Sign out of Google so a different account can be selected next time
+    try {
+      const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+      await GoogleSignin.signOut();
+    } catch {}
+
     await supabase.auth.signOut();
   };
 

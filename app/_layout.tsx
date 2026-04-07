@@ -24,7 +24,6 @@ import { BlockedProvider } from '@/context/BlockedContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
 
 SplashScreen.preventAutoHideAsync();
-configureGoogleSignIn();
 
 function RootNavigator() {
   const [fontsLoaded] = useFonts({
@@ -41,6 +40,8 @@ function RootNavigator() {
 
   const { session, loading, onboardingCompleted, needsUsername } = useAuth();
   usePushNotifications();
+
+  useEffect(() => { configureGoogleSignIn(); }, []);
   const router = useRouter();
   const segments = useSegments();
   const { isDark } = useTheme();
@@ -89,6 +90,13 @@ function RootNavigator() {
       }
     }
   }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, needsUsername, routeReady, splashVisible]);
+
+  // Catch the case where fetchProfile resolves after navigation already happened
+  useEffect(() => {
+    if (!routeReady || splashVisible || !session || !needsUsername) return;
+    const onPicker = segments[0] === 'username-picker';
+    if (!onPicker) router.replace('/username-picker');
+  }, [needsUsername, session, routeReady, splashVisible, segments, router]);
 
   if (!fontsLoaded || loading) return null;
 
