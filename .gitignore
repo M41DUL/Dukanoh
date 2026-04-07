@@ -55,3 +55,7 @@ app-example
 
 # LibreOffice lock files
 .~lock.*#
+
+# Vim swap files
+*.swp
+*.swo
