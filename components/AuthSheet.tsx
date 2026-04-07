@@ -1,10 +1,11 @@
-import React from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, G, ClipPath, Rect, Defs } from 'react-native-svg';
 import { lightColors, Spacing, FontFamily } from '@/constants/theme';
 import { BottomSheet } from './BottomSheet';
 import { Button } from './Button';
+import { signInWithApple, signInWithGoogle } from '@/lib/socialAuth';
 
 function GoogleIcon({ size = 20 }: { size?: number }) {
   return (
@@ -44,10 +45,38 @@ interface AuthSheetProps {
 
 export function AuthSheet({ visible, mode, onClose, onEmail }: AuthSheetProps) {
   const copy = COPY[mode];
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  const handleComingSoon = (provider: string) => {
-    Alert.alert(`${provider} sign-in`, 'Coming soon!');
+  const handleApple = async () => {
+    setAppleLoading(true);
+    try {
+      await signInWithApple();
+      onClose();
+    } catch (err: unknown) {
+      // User cancelled — no alert needed
+      if (err && typeof err === 'object' && 'code' in err && err.code === 'ERR_REQUEST_CANCELED') return;
+      Alert.alert('Apple sign-in failed', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setAppleLoading(false);
+    }
   };
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      onClose();
+    } catch (err: unknown) {
+      // User cancelled — no alert needed
+      if (err && typeof err === 'object' && 'code' in err && (err as { code: string }).code === 'SIGN_IN_CANCELLED') return;
+      Alert.alert('Google sign-in failed', err instanceof Error ? err.message : 'Please try again.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const isLoading = appleLoading || googleLoading;
 
   return (
     <BottomSheet
@@ -60,16 +89,22 @@ export function AuthSheet({ visible, mode, onClose, onEmail }: AuthSheetProps) {
       <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
       <View style={styles.buttons}>
-        <Button
-          label="Continue with Apple"
-          onPress={() => handleComingSoon('Apple')}
-          icon={<Ionicons name="logo-apple" size={18} color="#FFFFFF" />}
-          backgroundColor="#000000"
-          textColor="#FFFFFF"
-        />
+        {Platform.OS === 'ios' && (
+          <Button
+            label="Continue with Apple"
+            onPress={handleApple}
+            loading={appleLoading}
+            disabled={isLoading}
+            icon={<Ionicons name="logo-apple" size={18} color="#FFFFFF" />}
+            backgroundColor="#000000"
+            textColor="#FFFFFF"
+          />
+        )}
         <Button
           label="Continue with Google"
-          onPress={() => handleComingSoon('Google')}
+          onPress={handleGoogle}
+          loading={googleLoading}
+          disabled={isLoading}
           icon={<GoogleIcon size={18} />}
           backgroundColor="#FFFFFF"
           textColor="#0D0D0D"
@@ -78,6 +113,7 @@ export function AuthSheet({ visible, mode, onClose, onEmail }: AuthSheetProps) {
         <Button
           label="Continue with Email"
           onPress={onEmail}
+          disabled={isLoading}
           variant="outline"
           icon={<Ionicons name="mail-outline" size={18} color="#FFFFFF" />}
           textColor="#FFFFFF"

@@ -10,14 +10,17 @@ export function useAuth() {
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [isSeller, setIsSeller] = useState<boolean>(false);
 
+  const [needsUsername, setNeedsUsername] = useState<boolean>(false);
+
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('users')
-      .select('onboarding_completed, is_seller')
+      .select('onboarding_completed, is_seller, username_confirmed')
       .eq('id', userId)
       .maybeSingle();
     setOnboardingCompleted(data?.onboarding_completed ?? false);
     setIsSeller(data?.is_seller ?? false);
+    setNeedsUsername(!(data?.username_confirmed ?? true));
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -41,6 +44,7 @@ export function useAuth() {
       } else {
         setOnboardingCompleted(null);
         setIsSeller(false);
+        setNeedsUsername(false);
       }
     });
 
@@ -78,5 +82,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { session, user, loading, signOut, onboardingCompleted, isSeller, refreshProfile };
+  return { session, user, loading, signOut, onboardingCompleted, isSeller, needsUsername, refreshProfile };
 }

@@ -16,6 +16,7 @@ import {
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
+import { configureGoogleSignIn } from '@/lib/socialAuth';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { SavedProvider } from '@/context/SavedContext';
@@ -23,6 +24,7 @@ import { BlockedProvider } from '@/context/BlockedContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
 
 SplashScreen.preventAutoHideAsync();
+configureGoogleSignIn();
 
 function RootNavigator() {
   const [fontsLoaded] = useFonts({
@@ -37,7 +39,7 @@ function RootNavigator() {
     Inter_900Black,
   });
 
-  const { session, loading, onboardingCompleted } = useAuth();
+  const { session, loading, onboardingCompleted, needsUsername } = useAuth();
   usePushNotifications();
   const router = useRouter();
   const segments = useSegments();
@@ -60,7 +62,11 @@ function RootNavigator() {
       const inAuthGroup = segments[0] === '(auth)';
       if (!inAuthGroup) router.replace('/(auth)/intro');
     } else {
-      router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
+      if (needsUsername) {
+        router.replace('/username-picker');
+      } else {
+        router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
+      }
     }
     // Wait for route to mount, then tell splash to fade out
     setTimeout(() => setRouteReady(true), 100);
@@ -76,9 +82,13 @@ function RootNavigator() {
     if (!session) {
       if (!inAuthGroup) router.replace('/(auth)/intro');
     } else if (inAuthGroup) {
-      router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
+      if (needsUsername) {
+        router.replace('/username-picker');
+      } else {
+        router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
+      }
     }
-  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, routeReady, splashVisible]);
+  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, needsUsername, routeReady, splashVisible]);
 
   if (!fontsLoaded || loading) return null;
 
@@ -88,6 +98,7 @@ function RootNavigator() {
         <Stack.Screen name="(auth)" options={{ animation: 'none' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+        <Stack.Screen name="username-picker" options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen
           name="listings"
           options={{ animation: 'slide_from_right' }}

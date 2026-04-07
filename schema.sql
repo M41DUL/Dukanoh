@@ -14,6 +14,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE public.users (
   id                          UUID REFERENCES auth.users (id) ON DELETE CASCADE PRIMARY KEY,
   username                    TEXT UNIQUE NOT NULL,
+  username_confirmed          BOOLEAN DEFAULT TRUE,
   full_name                   TEXT NOT NULL,
   avatar_url                  TEXT,
   bio                         TEXT,
@@ -156,12 +157,24 @@ CREATE TABLE public.messages (
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_username TEXT;
+  v_confirmed BOOLEAN;
 BEGIN
-  INSERT INTO public.users (id, username, full_name)
+  v_username := NEW.raw_user_meta_data->>'username';
+  IF v_username IS NOT NULL THEN
+    v_confirmed := TRUE;
+  ELSE
+    v_username := 'user_' || substring(NEW.id::text, 1, 8);
+    v_confirmed := FALSE;
+  END IF;
+
+  INSERT INTO public.users (id, username, username_confirmed, full_name)
   VALUES (
     NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'username', 'user_' || substring(NEW.id::text, 1, 8)),
-    COALESCE(NEW.raw_user_meta_data->>'full_name', 'New User')
+    v_username,
+    v_confirmed,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', 'New User')
   );
   RETURN NEW;
 END;
