@@ -11,16 +11,18 @@ export function useAuth() {
   const [isSeller, setIsSeller] = useState<boolean>(false);
 
   const [needsUsername, setNeedsUsername] = useState<boolean>(false);
+  const [username, setUsername] = useState<string>('');
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('users')
-      .select('onboarding_completed, is_seller, username_confirmed')
+      .select('onboarding_completed, is_seller, username_confirmed, username')
       .eq('id', userId)
       .maybeSingle();
     setOnboardingCompleted(data?.onboarding_completed ?? false);
     setIsSeller(data?.is_seller ?? false);
     setNeedsUsername(!(data?.username_confirmed ?? true));
+    setUsername(data?.username ?? '');
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -36,16 +38,20 @@ export function useAuth() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       if (s?.user) {
-        await fetchProfile(s.user.id);
+        fetchProfile(s.user.id).then(() => {
+          setSession(s);
+          setUser(s.user ?? null);
+        });
       } else {
         setOnboardingCompleted(null);
         setIsSeller(false);
         setNeedsUsername(false);
+        setUsername('');
+        setSession(s);
+        setUser(null);
       }
-      setSession(s);
-      setUser(s?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
@@ -88,5 +94,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { session, user, loading, signOut, onboardingCompleted, isSeller, needsUsername, refreshProfile };
+  return { session, user, loading, signOut, onboardingCompleted, isSeller, needsUsername, username, refreshProfile };
 }

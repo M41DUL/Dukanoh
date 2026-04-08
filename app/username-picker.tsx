@@ -26,6 +26,8 @@ export default function UsernamePickerScreen() {
   const [error, setError] = useState('');
   const usernameTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
+  const userId = user?.id;
+
   const checkUsername = useCallback((value: string) => {
     if (usernameTimer.current) clearTimeout(usernameTimer.current);
 
@@ -52,11 +54,14 @@ export default function UsernamePickerScreen() {
 
     usernameTimer.current = setTimeout(async () => {
       try {
-        const { data, error: queryError } = await supabase
+        let query = supabase
           .from('users')
           .select('id')
-          .eq('username', trimmed)
-          .maybeSingle();
+          .eq('username', trimmed);
+
+        if (userId) query = query.neq('id', userId);
+
+        const { data, error: queryError } = await query.maybeSingle();
 
         if (queryError) {
           setUsernameError('Could not check availability');
@@ -74,7 +79,7 @@ export default function UsernamePickerScreen() {
         setCheckingUsername(false);
       }
     }, 500);
-  }, []);
+  }, [userId]);
 
   const handleUsernameChange = (value: string) => {
     const lowered = value.toLowerCase();
