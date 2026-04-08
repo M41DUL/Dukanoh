@@ -107,11 +107,11 @@ ALTER TABLE public.collections ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Collections are publicly readable"
   ON public.collections FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Sellers can create their own collections"
-  ON public.collections FOR INSERT TO authenticated WITH CHECK (auth.uid() = seller_id);
+  ON public.collections FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = seller_id);
 CREATE POLICY "Sellers can update their own collections"
-  ON public.collections FOR UPDATE TO authenticated USING (auth.uid() = seller_id) WITH CHECK (auth.uid() = seller_id);
+  ON public.collections FOR UPDATE TO authenticated USING ((select auth.uid()) = seller_id) WITH CHECK ((select auth.uid()) = seller_id);
 CREATE POLICY "Sellers can delete their own collections"
-  ON public.collections FOR DELETE TO authenticated USING (auth.uid() = seller_id);
+  ON public.collections FOR DELETE TO authenticated USING ((select auth.uid()) = seller_id);
 
 -- Migration for existing databases:
 -- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT 'Women' NOT NULL CHECK (gender IN ('Men', 'Women'));
@@ -178,7 +178,7 @@ BEGIN
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -193,7 +193,7 @@ BEGIN
   WHERE id = NEW.conversation_id;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER on_message_inserted
   AFTER INSERT ON public.messages
@@ -217,11 +217,11 @@ CREATE POLICY "Public profiles are viewable"
 -- update_seller_rating is SECURITY DEFINER (runs as postgres, bypasses RLS) so it is exempt.
 CREATE POLICY "Users can update own profile"
   ON public.users FOR UPDATE
-  USING (auth.uid() = id)
+  USING ((select auth.uid()) = id)
   WITH CHECK (
-    auth.uid() = id
-    AND rating_avg IS NOT DISTINCT FROM (SELECT u.rating_avg FROM public.users u WHERE u.id = auth.uid())
-    AND rating_count IS NOT DISTINCT FROM (SELECT u.rating_count FROM public.users u WHERE u.id = auth.uid())
+    (select auth.uid()) = id
+    AND rating_avg IS NOT DISTINCT FROM (SELECT u.rating_avg FROM public.users u WHERE u.id = (select auth.uid()))
+    AND rating_count IS NOT DISTINCT FROM (SELECT u.rating_count FROM public.users u WHERE u.id = (select auth.uid()))
   );
 
 -- Invites
@@ -233,28 +233,28 @@ CREATE POLICY "Authenticated users can update invites"
 
 -- Listings
 CREATE POLICY "Listings are publicly viewable"
-  ON public.listings FOR SELECT USING (status != 'draft' OR auth.uid() = seller_id);
+  ON public.listings FOR SELECT USING (status != 'draft' OR (select auth.uid()) = seller_id);
 
 CREATE POLICY "Sellers can create listings"
-  ON public.listings FOR INSERT WITH CHECK (auth.uid() = seller_id);
+  ON public.listings FOR INSERT WITH CHECK ((select auth.uid()) = seller_id);
 
 CREATE POLICY "Sellers can update own listings"
-  ON public.listings FOR UPDATE USING (auth.uid() = seller_id);
+  ON public.listings FOR UPDATE USING ((select auth.uid()) = seller_id);
 
 CREATE POLICY "Sellers can delete own listings"
-  ON public.listings FOR DELETE USING (auth.uid() = seller_id);
+  ON public.listings FOR DELETE USING ((select auth.uid()) = seller_id);
 
 -- Conversations
 CREATE POLICY "Participants can view conversations"
   ON public.conversations FOR SELECT
-  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+  USING ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id);
 
 -- INSERT: buyer must be the caller, seller_id must match the listing's actual seller,
 -- listing must be available, and buyer cannot be the seller of their own listing.
 CREATE POLICY "Buyers can create conversations"
   ON public.conversations FOR INSERT WITH CHECK (
-    auth.uid() = buyer_id
-    AND auth.uid() != seller_id
+    (select auth.uid()) = buyer_id
+    AND (select auth.uid()) != seller_id
     AND seller_id = (
       SELECT l.seller_id FROM public.listings l
       WHERE l.id = listing_id AND l.status = 'available'
@@ -265,9 +265,9 @@ CREATE POLICY "Buyers can create conversations"
 -- core identity fields (buyer_id, seller_id, listing_id) must stay the same.
 CREATE POLICY "Participants can update conversations"
   ON public.conversations FOR UPDATE
-  USING (auth.uid() = buyer_id OR auth.uid() = seller_id)
+  USING ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id)
   WITH CHECK (
-    (auth.uid() = buyer_id OR auth.uid() = seller_id)
+    ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id)
     AND buyer_id   = (SELECT c.buyer_id   FROM public.conversations c WHERE c.id = conversations.id)
     AND seller_id  = (SELECT c.seller_id  FROM public.conversations c WHERE c.id = conversations.id)
     AND listing_id = (SELECT c.listing_id FROM public.conversations c WHERE c.id = conversations.id)
@@ -276,17 +276,17 @@ CREATE POLICY "Participants can update conversations"
 -- Messages
 CREATE POLICY "Participants can view messages"
   ON public.messages FOR SELECT
-  USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+  USING ((select auth.uid()) = sender_id OR (select auth.uid()) = receiver_id);
 
 CREATE POLICY "Users can send messages"
   ON public.messages FOR INSERT WITH CHECK (
-    auth.uid() = sender_id
+    (select auth.uid()) = sender_id
     AND EXISTS (
       SELECT 1 FROM public.conversations c
       WHERE c.id = conversation_id
         AND (
-          (c.buyer_id = auth.uid() AND c.seller_id = receiver_id)
-          OR (c.seller_id = auth.uid() AND c.buyer_id = receiver_id)
+          (c.buyer_id = (select auth.uid()) AND c.seller_id = receiver_id)
+          OR (c.seller_id = (select auth.uid()) AND c.buyer_id = receiver_id)
         )
     )
   );
@@ -312,16 +312,16 @@ CREATE POLICY "Reviews are publicly viewable"
   ON public.reviews FOR SELECT USING (true);
 CREATE POLICY "Users can create reviews"
   ON public.reviews FOR INSERT WITH CHECK (
-    auth.uid() = reviewer_id
+    (select auth.uid()) = reviewer_id
     AND EXISTS (
       SELECT 1 FROM public.listings
       WHERE seller_id = reviews.seller_id
-        AND buyer_id  = auth.uid()
+        AND buyer_id  = (select auth.uid())
         AND status    = 'sold'
     )
   );
 CREATE POLICY "Users can delete own reviews"
-  ON public.reviews FOR DELETE USING (auth.uid() = reviewer_id);
+  ON public.reviews FOR DELETE USING ((select auth.uid()) = reviewer_id);
 
 CREATE OR REPLACE FUNCTION public.update_seller_rating()
 RETURNS TRIGGER AS $$
@@ -335,7 +335,7 @@ BEGIN
   WHERE id = target_seller;
   RETURN NULL;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER on_review_change
   AFTER INSERT OR DELETE ON public.reviews
@@ -357,11 +357,11 @@ ALTER TABLE public.saved_items ADD COLUMN IF NOT EXISTS price_at_save NUMERIC(10
 ALTER TABLE public.saved_items ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view own saved"
-  ON public.saved_items FOR SELECT USING (auth.uid() = user_id);
+  ON public.saved_items FOR SELECT USING ((select auth.uid()) = user_id);
 CREATE POLICY "Users can save listings"
-  ON public.saved_items FOR INSERT WITH CHECK (auth.uid() = user_id);
+  ON public.saved_items FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
 CREATE POLICY "Users can unsave listings"
-  ON public.saved_items FOR DELETE USING (auth.uid() = user_id);
+  ON public.saved_items FOR DELETE USING ((select auth.uid()) = user_id);
 
 -- =============================================================
 -- INDEXES (performance)
@@ -394,7 +394,7 @@ BEGIN
   END IF;
   RETURN NULL;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER trg_save_count
 AFTER INSERT OR DELETE ON public.saved_items
@@ -407,7 +407,7 @@ ALTER TABLE public.listings ADD CONSTRAINT listings_status_check
 
 DROP POLICY IF EXISTS "Listings are publicly viewable" ON public.listings;
 CREATE POLICY "Listings are publicly viewable"
-  ON public.listings FOR SELECT USING (status != 'draft' OR auth.uid() = seller_id);
+  ON public.listings FOR SELECT USING (status != 'draft' OR (select auth.uid()) = seller_id);
 
 -- sold_at timestamp for social proof
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS sold_at TIMESTAMPTZ;
@@ -426,9 +426,9 @@ CREATE TABLE public.reports (
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can create reports"
-  ON public.reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+  ON public.reports FOR INSERT WITH CHECK ((select auth.uid()) = reporter_id);
 CREATE POLICY "Users can view own reports"
-  ON public.reports FOR SELECT USING (auth.uid() = reporter_id);
+  ON public.reports FOR SELECT USING ((select auth.uid()) = reporter_id);
 
 -- Blocked users
 CREATE TABLE public.blocked_users (
@@ -442,7 +442,7 @@ CREATE TABLE public.blocked_users (
 ALTER TABLE public.blocked_users ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can manage own blocks"
-  ON public.blocked_users FOR ALL USING (auth.uid() = blocker_id);
+  ON public.blocked_users FOR ALL USING ((select auth.uid()) = blocker_id);
 
 -- Seller response rate
 CREATE OR REPLACE FUNCTION public.get_seller_response_rate(p_seller_id UUID)
@@ -466,14 +466,14 @@ BEGIN
 
   RETURN ROUND((replied_convs::NUMERIC / total_convs::NUMERIC) * 100);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE FUNCTION public.increment_view_count(listing_id UUID)
 RETURNS void AS $$
 BEGIN
   UPDATE public.listings SET view_count = view_count + 1 WHERE id = listing_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Atomically consume an invite code (returns true if consumed, false if already used/not found)
 -- Runs as SECURITY DEFINER so it's callable by unauthenticated users during signup
@@ -489,7 +489,7 @@ BEGIN
   GET DIAGNOSTICS v_updated = ROW_COUNT;
   RETURN v_updated > 0;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Atomically consume an invite code and activate the user as a seller.
 -- Returns TRUE if both steps succeeded; rolls back entirely on failure.
@@ -515,7 +515,7 @@ BEGIN
 
   RETURN TRUE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- =============================================================
 -- PUSH NOTIFICATION TOKENS
@@ -532,13 +532,13 @@ CREATE TABLE public.push_tokens (
 ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view own tokens"
-  ON public.push_tokens FOR SELECT USING (auth.uid() = user_id);
+  ON public.push_tokens FOR SELECT USING ((select auth.uid()) = user_id);
 CREATE POLICY "Users can insert own tokens"
-  ON public.push_tokens FOR INSERT WITH CHECK (auth.uid() = user_id);
+  ON public.push_tokens FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
 CREATE POLICY "Users can update own tokens"
-  ON public.push_tokens FOR UPDATE USING (auth.uid() = user_id);
+  ON public.push_tokens FOR UPDATE USING ((select auth.uid()) = user_id);
 CREATE POLICY "Users can delete own tokens"
-  ON public.push_tokens FOR DELETE USING (auth.uid() = user_id);
+  ON public.push_tokens FOR DELETE USING ((select auth.uid()) = user_id);
 
 CREATE INDEX idx_push_tokens_user ON public.push_tokens (user_id);
 
@@ -569,10 +569,10 @@ CREATE TABLE public.listing_views (
 ALTER TABLE public.listing_views ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can insert listing views"
-  ON public.listing_views FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+  ON public.listing_views FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
 CREATE POLICY "Sellers can read views on their listings"
   ON public.listing_views FOR SELECT TO authenticated
-  USING (auth.uid() = user_id OR auth.uid() IN (SELECT seller_id FROM public.listings WHERE id = listing_id));
+  USING ((select auth.uid()) = user_id OR (select auth.uid()) IN (SELECT seller_id FROM public.listings WHERE id = listing_id));
 
 CREATE INDEX idx_listing_views_listing ON public.listing_views (listing_id);
 CREATE INDEX idx_listing_views_user    ON public.listing_views (user_id);
@@ -589,11 +589,11 @@ CREATE TABLE public.story_views (
 ALTER TABLE public.story_views ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can insert story views"
-  ON public.story_views FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+  ON public.story_views FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = user_id);
 CREATE POLICY "Users can update their own story views"
-  ON public.story_views FOR UPDATE TO authenticated USING (auth.uid() = user_id);
+  ON public.story_views FOR UPDATE TO authenticated USING ((select auth.uid()) = user_id);
 CREATE POLICY "Users can read their own story views"
-  ON public.story_views FOR SELECT TO authenticated USING (auth.uid() = user_id);
+  ON public.story_views FOR SELECT TO authenticated USING ((select auth.uid()) = user_id);
 
 -- Profile views
 CREATE TABLE public.profile_views (
@@ -606,9 +606,9 @@ CREATE TABLE public.profile_views (
 ALTER TABLE public.profile_views ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can insert profile views"
-  ON public.profile_views FOR INSERT TO authenticated WITH CHECK (auth.uid() = viewer_user_id);
+  ON public.profile_views FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = viewer_user_id);
 CREATE POLICY "Profile owners can read their views"
-  ON public.profile_views FOR SELECT TO authenticated USING (auth.uid() = profile_user_id);
+  ON public.profile_views FOR SELECT TO authenticated USING ((select auth.uid()) = profile_user_id);
 
 CREATE INDEX idx_profile_views_profile ON public.profile_views (profile_user_id);
 
@@ -627,7 +627,7 @@ ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can read their own transactions"
   ON public.transactions FOR SELECT TO authenticated
-  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+  USING ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id);
 
 -- Transactions are created server-side by Edge Functions / triggers only.
 -- No direct client INSERT is permitted — this is intentional.
@@ -649,7 +649,7 @@ ALTER TABLE public.listing_price_history ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Sellers can read price history for their listings"
   ON public.listing_price_history FOR SELECT TO authenticated
-  USING (auth.uid() IN (SELECT seller_id FROM public.listings WHERE id = listing_id));
+  USING ((select auth.uid()) IN (SELECT seller_id FROM public.listings WHERE id = listing_id));
 
 CREATE INDEX idx_price_history_listing ON public.listing_price_history (listing_id);
 
@@ -671,10 +671,10 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 -- No client INSERT policy is defined — this is intentional.
 -- Service role bypasses RLS so server-side inserts still work.
 CREATE POLICY "Users can read their own notifications"
-  ON public.notifications FOR SELECT TO authenticated USING (auth.uid() = user_id);
+  ON public.notifications FOR SELECT TO authenticated USING ((select auth.uid()) = user_id);
 CREATE POLICY "Users can update their own notifications"
   ON public.notifications FOR UPDATE TO authenticated
-  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id) WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE INDEX idx_notifications_user ON public.notifications (user_id);
 
@@ -727,16 +727,16 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Buyers and sellers can read their own orders"
   ON public.orders FOR SELECT TO authenticated
-  USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+  USING ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id);
 
 CREATE POLICY "Buyers can create orders"
   ON public.orders FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = buyer_id);
+  WITH CHECK ((select auth.uid()) = buyer_id);
 
 CREATE POLICY "Buyers and sellers can update their own orders"
   ON public.orders FOR UPDATE TO authenticated
-  USING (auth.uid() = buyer_id OR auth.uid() = seller_id)
-  WITH CHECK (auth.uid() = buyer_id OR auth.uid() = seller_id);
+  USING ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id)
+  WITH CHECK ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id);
 
 CREATE INDEX idx_orders_buyer   ON public.orders (buyer_id);
 CREATE INDEX idx_orders_seller  ON public.orders (seller_id);
@@ -766,7 +766,7 @@ ALTER TABLE public.seller_wallet ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Sellers can read their own wallet"
   ON public.seller_wallet FOR SELECT TO authenticated
-  USING (auth.uid() = seller_id);
+  USING ((select auth.uid()) = seller_id);
 
 CREATE INDEX idx_wallet_seller ON public.seller_wallet (seller_id);
 
@@ -779,7 +779,7 @@ BEGIN
   ON CONFLICT (seller_id) DO NOTHING;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS ensure_wallet_on_order ON public.orders;
 CREATE TRIGGER ensure_wallet_on_order
@@ -798,7 +798,7 @@ CREATE TABLE IF NOT EXISTS public.platform_ledger (
 
 ALTER TABLE public.platform_ledger ENABLE ROW LEVEL SECURITY;
 -- Ledger is admin/service-role only — all client access explicitly denied
-CREATE POLICY "No client access to platform ledger"
+CREATE POLICY "No direct access to platform ledger"
   ON public.platform_ledger FOR ALL TO authenticated USING (false);
 
 -- Wallet update trigger (credits/debits seller_wallet on order status changes)
@@ -833,7 +833,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS order_wallet_update ON public.orders;
 CREATE TRIGGER order_wallet_update
@@ -862,7 +862,7 @@ BEGIN
     AND seller_id = p_seller_id
     AND status    = 'paid';
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Auto-release function (called by Edge Function cron every hour)
 CREATE OR REPLACE FUNCTION public.auto_release_orders()
@@ -874,7 +874,7 @@ BEGIN
     AND auto_release_at IS NOT NULL
     AND auto_release_at <= NOW();
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Platform settings (Founder Plan config etc.)
 CREATE TABLE public.platform_settings (
@@ -909,7 +909,7 @@ ALTER TABLE public.cancellation_strikes ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Sellers can read their own strikes"
   ON public.cancellation_strikes FOR SELECT TO authenticated
-  USING (auth.uid() = seller_id);
+  USING ((select auth.uid()) = seller_id);
 
 CREATE INDEX idx_strikes_seller ON public.cancellation_strikes (seller_id);
 
@@ -934,7 +934,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_cancellation_strike ON public.cancellation_strikes;
 CREATE TRIGGER on_cancellation_strike
@@ -958,13 +958,13 @@ CREATE POLICY "Buyers and sellers can read dispute evidence for their orders"
   USING (
     order_id IN (
       SELECT id FROM public.orders
-      WHERE buyer_id = auth.uid() OR seller_id = auth.uid()
+      WHERE buyer_id = (select auth.uid()) OR seller_id = (select auth.uid())
     )
   );
 
 CREATE POLICY "Buyers can upload dispute evidence"
   ON public.dispute_evidence FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- =============================================================
 -- BOOSTS (listing promotions)
@@ -988,15 +988,49 @@ CREATE POLICY "Boosts are publicly readable"
 -- Only the seller can create a boost for their own listing
 CREATE POLICY "Sellers can create boosts for their listings"
   ON public.boosts FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() = seller_id);
+  WITH CHECK ((select auth.uid()) = seller_id);
 
 -- Sellers can delete (cancel) their own boosts
 CREATE POLICY "Sellers can delete their own boosts"
   ON public.boosts FOR DELETE TO authenticated
-  USING (auth.uid() = seller_id);
+  USING ((select auth.uid()) = seller_id);
 
 CREATE INDEX idx_boosts_listing   ON public.boosts (listing_id);
 CREATE INDEX idx_boosts_seller    ON public.boosts (seller_id);
 CREATE INDEX idx_boosts_expires   ON public.boosts (expires_at);
 
 CREATE INDEX idx_dispute_evidence_order ON public.dispute_evidence (order_id);
+
+-- =============================================================
+-- INDEXES — missing foreign key indexes (added for performance)
+-- =============================================================
+CREATE INDEX IF NOT EXISTS idx_blocked_users_blocked_id             ON public.blocked_users (blocked_id);
+CREATE INDEX IF NOT EXISTS idx_blocked_users_blocker_id             ON public.blocked_users (blocker_id);
+CREATE INDEX IF NOT EXISTS idx_cancellation_strikes_order_id        ON public.cancellation_strikes (order_id);
+CREATE INDEX IF NOT EXISTS idx_collections_seller_id                ON public.collections (seller_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_listing_id             ON public.conversations (listing_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_last_message_sender_id ON public.conversations (last_message_sender_id);
+CREATE INDEX IF NOT EXISTS idx_dispute_evidence_user_id             ON public.dispute_evidence (user_id);
+CREATE INDEX IF NOT EXISTS idx_invites_created_by                   ON public.invites (created_by);
+CREATE INDEX IF NOT EXISTS idx_invites_used_by                      ON public.invites (used_by);
+CREATE INDEX IF NOT EXISTS idx_listing_price_history_listing_id     ON public.listing_price_history (listing_id);
+CREATE INDEX IF NOT EXISTS idx_listing_views_listing_id             ON public.listing_views (listing_id);
+CREATE INDEX IF NOT EXISTS idx_listing_views_user_id                ON public.listing_views (user_id);
+CREATE INDEX IF NOT EXISTS idx_listings_collection_id               ON public.listings (collection_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender_id                   ON public.messages (sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver_id                 ON public.messages (receiver_id);
+CREATE INDEX IF NOT EXISTS idx_messages_listing_id                  ON public.messages (listing_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id                ON public.notifications (user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_listing_id             ON public.notifications (listing_id);
+CREATE INDEX IF NOT EXISTS idx_platform_ledger_order_id             ON public.platform_ledger (order_id);
+CREATE INDEX IF NOT EXISTS idx_profile_views_profile_user_id        ON public.profile_views (profile_user_id);
+CREATE INDEX IF NOT EXISTS idx_profile_views_viewer_user_id         ON public.profile_views (viewer_user_id);
+CREATE INDEX IF NOT EXISTS idx_reports_reporter_id                  ON public.reports (reporter_id);
+CREATE INDEX IF NOT EXISTS idx_reports_seller_id                    ON public.reports (seller_id);
+CREATE INDEX IF NOT EXISTS idx_reports_listing_id                   ON public.reports (listing_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_listing_id                   ON public.reviews (listing_id);
+CREATE INDEX IF NOT EXISTS idx_story_views_listing_id               ON public.story_views (listing_id);
+CREATE INDEX IF NOT EXISTS idx_story_views_user_id                  ON public.story_views (user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_buyer_id                ON public.transactions (buyer_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_seller_id               ON public.transactions (seller_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_listing_id              ON public.transactions (listing_id);
