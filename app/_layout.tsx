@@ -91,12 +91,7 @@ function RootNavigator() {
     }
   }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, needsUsername, routeReady, splashVisible]);
 
-  // Catch the case where fetchProfile resolves after navigation already happened
-  useEffect(() => {
-    if (!routeReady || splashVisible || !session || !needsUsername) return;
-    const onPicker = segments[0] === 'username-picker';
-    if (!onPicker) router.replace('/username-picker');
-  }, [needsUsername, session, routeReady, splashVisible, segments, router]);
+
 
   if (!fontsLoaded || loading) return null;
 

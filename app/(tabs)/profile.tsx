@@ -67,7 +67,7 @@ export default function ProfileScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const username = user?.user_metadata?.username ?? 'username';
+  const [username, setUsername] = useState(user?.user_metadata?.username ?? '');
   const lastFetchedRef = useRef<number>(0);
 
   const fetchProfile = useCallback(async () => {
@@ -75,7 +75,7 @@ export default function ProfileScreen() {
     const [{ data, error }, { count }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier, is_verified')
+        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier, is_verified, username')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -96,6 +96,7 @@ export default function ProfileScreen() {
       setRatingCount(data.rating_count ?? 0);
       setSellerTier(data.seller_tier ?? 'free');
       setIsVerified(data.is_verified ?? false);
+      if (data.username) setUsername(data.username);
     }
     setListingCount(count ?? 0);
     lastFetchedRef.current = Date.now();

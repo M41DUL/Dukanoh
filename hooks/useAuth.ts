@@ -36,16 +36,16 @@ export function useAuth() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (s?.user) {
-        fetchProfile(s.user.id);
+        await fetchProfile(s.user.id);
       } else {
         setOnboardingCompleted(null);
         setIsSeller(false);
         setNeedsUsername(false);
       }
+      setSession(s);
+      setUser(s?.user ?? null);
     });
 
     return () => subscription.unsubscribe();

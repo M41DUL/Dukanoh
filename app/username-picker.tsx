@@ -99,6 +99,8 @@ export default function UsernamePickerScreen() {
 
       if (updateError) throw updateError;
 
+      // Refresh profile first so needsUsername is false before navigating
+      // This prevents the layout watcher from bouncing back to this screen
       await refreshProfile();
       router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
     } catch {
