@@ -26,18 +26,18 @@ interface Tip {
 const STEPS: Step[] = [
   {
     icon: 'search-outline',
-    title: 'Browse',
-    description: 'Discover South Asian fashion from trusted sellers in the community.',
+    title: 'Discover',
+    description: 'Find exclusive pieces from verified members across the community.',
   },
   {
     icon: 'chatbubble-outline',
     title: 'Message',
-    description: 'Chat with sellers, ask questions and make offers directly.',
+    description: 'Chat with members, ask questions and make offers directly.',
   },
   {
-    icon: 'cash-outline',
-    title: 'Agree & Pay',
-    description: 'Arrange payment directly with the seller — no middleman fees.',
+    icon: 'shield-checkmark-outline',
+    title: 'Pay securely',
+    description: 'Checkout with built-in buyer protection. Your payment is held in escrow until you confirm the piece has arrived.',
   },
   {
     icon: 'star-outline',
@@ -49,34 +49,34 @@ const STEPS: Step[] = [
 const BUYER_TIPS: Tip[] = [
   {
     icon: 'shield-checkmark-outline',
-    text: 'Use PayPal Goods & Services for buyer protection on posted items.',
+    text: 'Every purchase includes built-in buyer protection. If a piece doesn\'t arrive or doesn\'t match the listing, we\'ve got you covered.',
   },
   {
     icon: 'eye-outline',
     text: 'Always check photos and ask questions before committing to a purchase.',
   },
   {
-    icon: 'location-outline',
-    text: 'For local pickups, meet in a public place and inspect the item in person.',
+    icon: 'star-half-outline',
+    text: 'Check the member\'s reviews and rating before buying.',
   },
   {
-    icon: 'star-half-outline',
-    text: 'Check the seller\'s reviews and rating before buying.',
+    icon: 'checkmark-circle-outline',
+    text: 'Confirm receipt once your piece arrives to release payment to the seller.',
   },
   {
     icon: 'alert-circle-outline',
-    text: 'If something doesn\'t feel right, report the seller and move on.',
+    text: 'If something doesn\'t feel right, raise a dispute and our team will step in.',
   },
 ];
 
 const SELLER_TIPS: Tip[] = [
   {
     icon: 'camera-outline',
-    text: 'Use clear, well-lit photos from multiple angles to attract buyers.',
+    text: 'Use clear, well-lit photos from multiple angles — great photos sell pieces faster.',
   },
   {
     icon: 'pricetag-outline',
-    text: 'Price fairly — check similar listings to stay competitive.',
+    text: 'Price fairly — check similar pieces to stay competitive.',
   },
   {
     icon: 'chatbubbles-outline',
@@ -123,9 +123,9 @@ export default function HowItWorksScreen() {
 
         {/* Payments info */}
         <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={22} color={colors.primary} />
+          <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
           <Text style={styles.infoText}>
-            Dukanoh does not process payments. All transactions are arranged directly between buyer and seller. We recommend using secure payment methods that offer buyer protection.
+            Every purchase on Dukanoh includes buyer protection. Payments are held in escrow and only released to the seller once you confirm your piece has arrived safely.
           </Text>
         </View>
 
@@ -160,7 +160,7 @@ export default function HowItWorksScreen() {
             <View style={styles.sellerCta}>
               <Text style={styles.sellerCtaTitle}>Want to sell?</Text>
               <Text style={styles.sellerCtaSubtitle}>
-                Get a seller invite from a friend to start listing your items.
+                Get a seller invite from a friend to start listing your pieces.
               </Text>
               <Button
                 label="I have a seller code"

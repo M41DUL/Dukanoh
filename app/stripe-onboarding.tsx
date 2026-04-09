@@ -59,10 +59,10 @@ export default function StripeOnboardingScreen() {
             <Ionicons name="shield-checkmark" size={32} color="#FFFFFF" />
           </View>
           <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>
-            Verify your seller account
+            Become Verified
           </Text>
           <Text style={[styles.heroBody, { color: colors.textSecondary }]}>
-            Complete a quick ID and bank account check via Dukanoh Verify — takes just a few minutes and keeps your payments secure.
+            A quick ID and bank account check — takes a few minutes and unlocks payments, Pro, and your verified badge.
           </Text>
         </View>
 

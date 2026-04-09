@@ -16,24 +16,28 @@ interface FAQ {
 
 const FAQS: FAQ[] = [
   {
-    question: 'How do I pay for an item?',
-    answer: 'Dukanoh does not process payments. Once you agree on a price with the seller, payment is arranged directly between you. We recommend using PayPal Goods & Services for buyer protection on posted items.',
+    question: 'How does buying work?',
+    answer: 'Find a piece you love, message the member if you have questions, then checkout directly in the app. Your payment is held securely in escrow until you confirm the piece has arrived.',
   },
   {
-    question: 'How do I get an invite?',
-    answer: 'Dukanoh is invite-only. Ask a friend who is already on the platform to share their invite link with you.',
+    question: 'What is buyer protection?',
+    answer: 'Every purchase on Dukanoh includes built-in buyer protection. If your piece doesn\'t arrive or doesn\'t match the listing, raise a dispute and our team will step in. Payments are only released to the seller once you confirm receipt.',
   },
   {
-    question: 'Can I return an item?',
-    answer: 'Returns are not managed by Dukanoh. We recommend agreeing on a return policy with the seller before purchasing. Always ask questions and check photos carefully beforehand.',
+    question: 'Can I return a piece?',
+    answer: 'If there\'s an issue with your order — wrong item, not as described, or it never arrived — raise a dispute from your order screen. Our team reviews all disputes and will resolve it fairly.',
   },
   {
     question: 'How do I become a seller?',
-    answer: 'You need a seller invite from an existing seller on Dukanoh. Once you have a code, you can start listing items straight away.',
+    answer: 'You need a seller invite from an existing member on Dukanoh. Once you have a code, you can start listing your pieces straight away.',
   },
   {
-    question: 'What if I have an issue with a buyer or seller?',
-    answer: 'You can report any user or listing by tapping the flag icon on their profile or listing. Our team reviews all reports. For payment disputes, contact your payment provider directly.',
+    question: 'When do I get paid as a seller?',
+    answer: 'Once the buyer confirms receipt of their piece, your earnings are released to your wallet. If they don\'t confirm within 2 days of delivery, funds are released automatically. You can withdraw to your bank once you\'re verified.',
+  },
+  {
+    question: 'What if I have an issue with another member?',
+    answer: 'You can report any member or listing by tapping the flag icon on their profile or listing. For order issues, raise a dispute directly from your order screen and our team will review it.',
   },
   {
     question: 'How do I delete my account?',
