@@ -12,7 +12,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
-import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
+import { ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 
@@ -22,10 +22,10 @@ interface DukanohFitSheetProps {
 }
 
 const HOW_IT_WORKS = [
-  { key: 'Snap',   val: 'Take a photo of any piece you own' },
-  { key: 'Detect', val: 'Style and colour identified instantly' },
-  { key: 'Match',  val: 'Colour-compatible pieces surfaced' },
-];
+  { icon: 'camera-outline',   key: 'Your piece',   val: 'Take a photo of anything in your wardrobe' },
+  { icon: 'color-palette-outline', key: 'The style',    val: 'We read the colour and cut automatically' },
+  { icon: 'bag-handle-outline',    key: 'Your matches', val: 'Pieces that go with it, ready to shop' },
+] as const;
 
 export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
   const colors = useThemeColors();
@@ -102,23 +102,20 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
     <BottomSheet visible={visible} onClose={onClose} useModal>
       <Text style={styles.title}>Dukanoh Fit</Text>
       <Text style={styles.subtitle}>
-        Snap a piece you own — we'll find what goes with it.
+        Have a piece but nothing to wear it with? Snap it and we'll find everything that goes with it.
       </Text>
 
-      <View style={styles.hairline} />
-
-      {HOW_IT_WORKS.map(({ key, val }) => (
+      {HOW_IT_WORKS.map(({ icon, key, val }) => (
         <View key={key} style={styles.detailRow}>
-          <Text style={styles.detailKey}>{key}</Text>
-          <Text style={styles.detailVal}>{val}</Text>
+          <View style={styles.iconWrap}>
+            <Ionicons name={icon} size={20} color={colors.primary} />
+          </View>
+          <View style={styles.detailText}>
+            <Text style={styles.detailKey}>{key}</Text>
+            <Text style={styles.detailVal}>{val}</Text>
+          </View>
         </View>
       ))}
-
-      <View style={styles.statCard}>
-        <Text style={styles.statLabel}>
-          Only colour-compatible pieces are shown — no clashing combinations
-        </Text>
-      </View>
 
       <View style={styles.actions}>
         <Button
@@ -127,7 +124,6 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
           onPress={handleTakePhoto}
           loading={validating}
           disabled={validating}
-          icon={!validating ? <Ionicons name="camera-outline" size={18} color="#fff" /> : undefined}
           style={{ alignSelf: 'stretch' }}
         />
         <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.maybeLater}>
@@ -153,41 +149,32 @@ function getStyles(colors: ColorTokens) {
       lineHeight: 22,
       marginBottom: Spacing.base,
     },
-    hairline: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: colors.border,
-    },
     detailRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      paddingVertical: Spacing.base,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      gap: Spacing.base,
+      paddingVertical: Spacing.sm,
+    },
+    iconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    detailText: {
+      flex: 1,
+      gap: 2,
     },
     detailKey: {
-      ...Typography.body,
-      color: colors.textSecondary,
+      ...Typography.label,
+      color: colors.textPrimary,
+      fontFamily: FontFamily.semibold,
     },
     detailVal: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
-      color: colors.textPrimary,
-      flex: 1,
-      textAlign: 'right',
-      marginLeft: Spacing.base,
-    },
-    statCard: {
-      backgroundColor: colors.surface,
-      borderRadius: BorderRadius.medium,
-      padding: Spacing.base,
-      alignItems: 'center',
-      marginTop: Spacing.base,
-    },
-    statLabel: {
-      ...Typography.body,
       color: colors.textSecondary,
-      textAlign: 'center',
       lineHeight: 20,
     },
     actions: {
