@@ -6,14 +6,29 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ─── Clothing detection labels ───────────────────────────────────────────────
+// ─── Clothing detection ──────────────────────────────────────────────────────
+// Rekognition returns a label hierarchy via `Parents`.
+// A label is clothing if:
+//   (a) its Name is in the root set, OR
+//   (b) any of its Parents has Name 'Clothing' or 'Apparel'
+// This covers cases where Rekognition returns 'Dress' (parent: Clothing)
+// without ever returning 'Clothing' as a top-level label.
 
-const CLOTHING_LABELS = new Set([
-  'Clothing', 'Apparel', 'Dress', 'Gown', 'Shirt', 'Blouse',
-  'Skirt', 'Pants', 'Coat', 'Jacket', 'Suit', 'Robe', 'Costume',
-  'Fashion', 'Saree', 'Sari', 'Scarf', 'Shawl', 'Textile', 'Fabric',
-  'Silk', 'Lace', 'Sleeve', 'Collar', 'Lehenga', 'Kurta', 'Dupatta',
+const CLOTHING_ROOT_LABELS = new Set([
+  'Clothing', 'Apparel', 'Fashion', 'Textile', 'Fabric',
+  'Silk', 'Lace', 'Saree', 'Sari', 'Lehenga', 'Kurta', 'Dupatta',
 ]);
+
+interface RekognitionLabel {
+  Name: string;
+  Confidence: number;
+  Parents?: { Name: string }[];
+}
+
+function isClothingLabel(label: RekognitionLabel): boolean {
+  if (CLOTHING_ROOT_LABELS.has(label.Name)) return true;
+  return label.Parents?.some(p => p.Name === 'Clothing' || p.Name === 'Apparel') ?? false;
+}
 
 // ─── Label → app category mapping ───────────────────────────────────────────
 // Priority order — first match wins
@@ -92,14 +107,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { imageBase64 } = await req.json();
+    const { imageBase64: rawBase64 } = await req.json();
 
-    if (!imageBase64) {
+    if (!rawBase64) {
       return new Response(
         JSON.stringify({ error: 'No image provided' }),
         { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Strip data URL prefix if present (e.g. "data:image/jpeg;base64,...")
+    const imageBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
 
     const region = Deno.env.get('AWS_REGION')!;
 
@@ -120,8 +138,8 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           Image: { Bytes: imageBase64 },
-          MaxLabels: 20,
-          MinConfidence: 70,
+          MaxLabels: 30,
+          MinConfidence: 60,
           // IMAGE_PROPERTIES returns dominant colours with SimplifiedColor
           Features: ['GENERAL_LABELS', 'IMAGE_PROPERTIES'],
         }),
@@ -129,20 +147,21 @@ Deno.serve(async (req) => {
     );
 
     if (!response.ok) {
-      const error = await response.text();
+      const rekError = await response.text();
       // eslint-disable-next-line no-console
-      console.error('Rekognition error:', error);
+      console.error('Rekognition error:', rekError);
       return new Response(
-        JSON.stringify({ error: 'Image validation failed' }),
-        { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        JSON.stringify({ isClothing: false }),
+        { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    const labels: string[] = data.Labels?.map((l: { Name: string }) => l.Name) ?? [];
+    const rawLabels: RekognitionLabel[] = data.Labels ?? [];
+    const labels: string[] = rawLabels.map(l => l.Name);
     const dominantColors = data.ImageProperties?.DominantColors ?? [];
 
-    const isClothing = labels.some(l => CLOTHING_LABELS.has(l));
+    const isClothing = rawLabels.some(isClothingLabel);
     const detectedCategory = detectCategory(labels);
     const detectedColour = detectColour(dominantColors);
 
@@ -155,8 +174,8 @@ Deno.serve(async (req) => {
     // eslint-disable-next-line no-console
     console.error('validate-clothing error:', err);
     return new Response(
-      JSON.stringify({ error: 'Something went wrong' }),
-      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      JSON.stringify({ isClothing: false }),
+      { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     );
   }
 });
