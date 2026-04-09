@@ -462,24 +462,88 @@ Which sort option users choose most often — this reveals what buyers care abou
 
 ---
 
-## Proposed future algorithms
+---
 
-These do not exist yet. Each needs a full spec written here before being built.
+## 11. Seasonal category weighting
 
-### A. "You might also like" (listing detail page)
-When a buyer opens a listing, show similar listings below. Similarity based on: same category + overlapping price range + same occasion (if set). Excludes the same seller. Ordered by save_count DESC.
+**What it does**
+During key cultural seasons (Eid, Diwali, wedding season), specific categories get a visibility boost in Trending Categories and Suggested for You. Managed entirely via the Supabase dashboard — no code deploy needed to add or edit a season.
 
-### B. Seller quality score
-A composite score per seller combining: `rating_avg`, `rating_count`, `avg_response_time_mins`, and number of completed sales. Used to break ties in Pro Seller Ranking and potentially surface in search.
+**Where it lives**
+- DB: `seasonal_weights` table
+- `hooks/useFeed.ts` — `fetchActiveSeason()`, applied in `fetchTrendingCategories()` and `loadData()`
 
-### C. Seasonal category weighting
-A configurable table in Supabase that maps date ranges to category boosts (e.g. Eid window → +weight for Festive, Wedding, Partywear). Feeds into Trending Categories and Suggested for You.
+**Data it uses**
+| Column | What it tells us |
+|--------|-----------------|
+| `seasonal_weights.start_date` | When the season begins |
+| `seasonal_weights.end_date` | When the season ends |
+| `seasonal_weights.categories` | Which categories to boost |
+| `seasonal_weights.weight` | Multiplier applied to save counts (default 1.5) |
 
-### D. Price range preference
-Inferred from the user's saved items: calculate their median saved price and use it to soft-filter Suggested for You (prefer listings within ±50% of their median). No onboarding required — learned passively.
+**How it works**
+1. On feed load, query `seasonal_weights` for a row where `start_date <= today <= end_date`.
+2. **Trending Categories**: save counts for seasonal categories are multiplied by `weight` before ranking — they naturally rise to the top during the season.
+3. **Suggested for You**: seasonal categories are merged into the user's `effectiveCats` pool, so listings from those categories appear in the suggested section even if the user hasn't explicitly shown interest in them.
 
-### E. Size preference
-If the user saves multiple items of the same size, surface more listings in that size. Similar to price range preference — passive learning from saves.
+**How to maintain it**
+Managed directly in the Supabase dashboard (`seasonal_weights` table). Add a row before each season:
+
+| Field | Example |
+|-------|---------|
+| `label` | `Eid 2027` |
+| `start_date` | `2027-03-20` |
+| `end_date` | `2027-04-05` |
+| `categories` | `{Festive,Wedding,Partywear}` |
+| `weight` | `1.5` |
+
+Only one season is active at a time (the query takes the first matching row). Rows for past seasons can be left in the table for historical reference.
+
+**Success metric**
+Whether saves and views on seasonal categories increase during the active window compared to the same period without weighting.
+
+**Change log**
+| Date | Change | Reason |
+|------|--------|--------|
+| 2026-04-09 | Initial implementation | South Asian fashion has strong seasonal demand peaks — Eid, Diwali, and wedding season are predictable and high-intent. Static algorithms miss this entirely. |
+
+---
+
+---
+
+## 12. Similar listings (listing detail page)
+
+**What it does**
+When a buyer opens a listing, shows up to 4 similar listings below. Surfaces the most relevant alternatives to help buyers find what they're looking for even if this specific listing doesn't work for them.
+
+**Where it lives**
+`app/listing/[id].tsx` — `simQ` query + client-side occasion sort, around lines 133–185.
+
+**Data it uses**
+| Signal | What it tells us |
+|--------|-----------------|
+| `listings.category` | Primary match — same category only |
+| `listings.occasion` | Secondary match — occasion-matched listings shown first |
+| `listings.save_count` | Popularity signal — most saved shown first within each group |
+
+**How it ranks**
+1. Fetch up to 20 listings in the same category, ordered by `save_count DESC`, excluding the current listing and same seller.
+2. Client-side: split into occasion-match group and remainder (both already save_count ordered).
+3. Return `[...occasionMatches, ...rest].slice(0, 4)`.
+4. If the listing has no occasion set, all results are treated as one group ordered by save_count.
+
+**Success metric**
+Whether buyers who see similar listings tap through and save or purchase one. A high tap-through rate validates relevance.
+
+**Current limitations**
+- Only 4 listings shown — enough for a compact section but may miss better matches.
+- No price range filter — intentional, similar pieces vary widely in price.
+
+**Change log**
+| Date | Change | Reason |
+|------|--------|--------|
+| — | Initial implementation | Same category, newest first, limit 4 |
+| 2026-04-09 | Order by `save_count DESC`; fetch 20, prioritise occasion matches client-side, slice to 4; added `seller_tier` to select for Featured badge | Newest first surfaced low-engagement listings. Save count is a better proxy for what buyers actually want. Occasion matching surfaces more relevant alternatives. |
 
 ---
 

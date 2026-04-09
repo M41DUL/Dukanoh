@@ -1034,3 +1034,22 @@ CREATE INDEX IF NOT EXISTS idx_story_views_user_id                  ON public.st
 CREATE INDEX IF NOT EXISTS idx_transactions_buyer_id                ON public.transactions (buyer_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_seller_id               ON public.transactions (seller_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_listing_id              ON public.transactions (listing_id);
+
+
+-- ─── Seasonal Weights ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.seasonal_weights (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  label       TEXT        NOT NULL,
+  start_date  DATE        NOT NULL,
+  end_date    DATE        NOT NULL,
+  categories  TEXT[]      NOT NULL,
+  weight      NUMERIC     NOT NULL DEFAULT 1.5,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.seasonal_weights ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "seasonal_weights_read"
+  ON public.seasonal_weights FOR SELECT
+  TO authenticated
+  USING (true);

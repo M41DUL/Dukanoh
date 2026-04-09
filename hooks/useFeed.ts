@@ -99,7 +99,27 @@ async function getSavedOccasions(userId: string): Promise<string[]> {
   }
 }
 
-async function fetchTrendingCategories(gender: 'Men' | 'Women' | null): Promise<string[]> {
+interface ActiveSeason {
+  categories: string[];
+  weight: number;
+}
+
+async function fetchActiveSeason(): Promise<ActiveSeason | null> {
+  const today = new Date().toISOString().split('T')[0];
+  const { data } = await supabase
+    .from('seasonal_weights')
+    .select('categories, weight')
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .limit(1)
+    .maybeSingle();
+  return data ?? null;
+}
+
+async function fetchTrendingCategories(
+  gender: 'Men' | 'Women' | null,
+  season: ActiveSeason | null,
+): Promise<string[]> {
   const cacheKey = TRENDING_CACHE_KEY(gender);
   try {
     const cached = await AsyncStorage.getItem(cacheKey);
@@ -124,7 +144,9 @@ async function fetchTrendingCategories(gender: 'Men' | 'Women' | null): Promise<
     const cat: string | undefined = listing?.category;
     if (!cat || listing?.status !== 'available') return acc;
     if (gender && cat !== gender) return acc; // gender filter
-    acc[cat] = (acc[cat] ?? 0) + 1;
+    // Apply seasonal weight multiplier to boost seasonal categories in ranking
+    const multiplier = season?.categories.includes(cat) ? (season.weight ?? 1) : 1;
+    acc[cat] = (acc[cat] ?? 0) + multiplier;
     return acc;
   }, {});
 
@@ -301,7 +323,7 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
     if (!userId) return;
 
     try {
-      const [profile, viewedCats, savedCats, savedOccasions] = await Promise.all([
+      const [profile, viewedCats, savedCats, savedOccasions, activeSeason] = await Promise.all([
         supabase
           .from('users')
           .select('preferred_categories, avatar_url, bio, full_name')
@@ -311,6 +333,7 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
         getViewedCategories(userId),
         getSavedCategories(userId),
         getSavedOccasions(userId),
+        fetchActiveSeason(),
       ]);
 
       const onboardingCats: string[] = profile?.preferred_categories ?? [];
@@ -329,11 +352,18 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
         prefersMen && !prefersWomen ? 'Men' :
         null;
 
-      // Trending now uses gender and save-count signal — fetch after gender is known
-      const trendingCats = await fetchTrendingCategories(gender);
+      // Trending now uses gender, save-count signal, and seasonal weights
+      const trendingCats = await fetchTrendingCategories(gender, activeSeason);
 
       // New-user fallback: if no category or occasion signal yet, use trending categories
-      const effectiveCats = allCats.length > 0 ? allCats : trendingCats;
+      // Merge seasonal categories so Suggested for You surfaces them during active seasons
+      const seasonalCats = activeSeason?.categories ?? [];
+      const effectiveCats = [
+        ...new Set([
+          ...(allCats.length > 0 ? allCats : trendingCats),
+          ...seasonalCats,
+        ]),
+      ];
       const hasSignal = effectiveCats.length > 0 || allOccasions.length > 0;
 
       const [suggestedItems, newArrivalItems, listingCountResult, savedPrices] = await Promise.all([

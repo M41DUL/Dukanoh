@@ -130,16 +130,16 @@ export default function ListingDetailScreen() {
         });
       }
 
-      // Build similar listings query with optional blocked-seller filter
+      // Build similar listings query — fetch 20, then prioritise by occasion match + save_count
       let simQ = supabase
         .from('listings')
-        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
+        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)')
         .eq('category', data.category)
         .eq('status', 'available')
         .neq('id', id)
         .neq('seller_id', data.seller_id)
-        .order('created_at', { ascending: false })
-        .limit(4);
+        .order('save_count', { ascending: false })
+        .limit(20);
       if (blockedIds.length > 0) simQ = simQ.not('seller_id', 'in', `(${blockedIds.join(',')})`);
 
       const isSeller = user?.id === data.seller_id;
@@ -172,7 +172,14 @@ export default function ListingDetailScreen() {
       if (rate !== null) setResponseRate(rate as number);
       setSoldCount(sold ?? 0);
       if (others) setSellerListings(others as unknown as Listing[]);
-      if (similar) setSimilarListings(similar as unknown as Listing[]);
+      if (similar) {
+        // Prioritise occasion matches, then fill with remaining — both groups already ordered by save_count
+        const occasion = data.occasion as string | undefined;
+        const all = similar as unknown as Listing[];
+        const occasionMatches = occasion ? all.filter(l => (l as any).occasion === occasion) : [];
+        const rest = occasion ? all.filter(l => (l as any).occasion !== occasion) : all;
+        setSimilarListings([...occasionMatches, ...rest].slice(0, 4));
+      }
       setOfferCount(msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0);
       if (boost) setBoostExpiry(new Date(boost.expires_at));
       if (sellerBoostData) {
