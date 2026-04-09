@@ -159,7 +159,7 @@ export default function SettingsScreen() {
     },
     {
       icon: 'ban-outline',
-      title: 'Blocked Users',
+      title: 'Blocked Members',
       onPress: openBlockedSheet,
       badge: blockedIds.length > 0 ? blockedIds.length : undefined,
     },
@@ -267,14 +267,14 @@ export default function SettingsScreen() {
 
       {/* Blocked users sheet */}
       <BottomSheet visible={blockedSheetVisible} onClose={() => setBlockedSheetVisible(false)}>
-        <Text style={styles.blockedTitle}>Blocked users</Text>
+        <Text style={styles.blockedTitle}>Blocked members</Text>
         {blockedLoading ? (
           <View style={styles.blockedEmpty}>
             <Text style={styles.blockedEmptyText}>Loading...</Text>
           </View>
         ) : blockedUsers.length === 0 ? (
           <View style={styles.blockedEmpty}>
-            <Text style={styles.blockedEmptyText}>No blocked users</Text>
+            <Text style={styles.blockedEmptyText}>No blocked members</Text>
           </View>
         ) : (
           <FlatList

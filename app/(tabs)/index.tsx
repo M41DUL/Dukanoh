@@ -131,7 +131,7 @@ export default function HomeScreen() {
               <View style={styles.section}>
                 <SectionHeader
                   title="New arrivals"
-                  subtitle="Just listed"
+                  subtitle="Latest pieces"
                   onSeeAll={() =>
                     router.push({
                       pathname: '/listings',
@@ -145,8 +145,8 @@ export default function HomeScreen() {
               <View style={styles.padded}>
                 <EmptyState
                   icon={<Ionicons name="shirt-outline" size={48} color={colors.textSecondary} />}
-                  heading="Nothing to browse yet"
-                  subtext="Be the first to list something and get the community started."
+                  heading="Nothing to discover yet"
+                  subtext="Be the first to list a piece and get the community started."
                   ctaLabel="Start selling"
                   onCta={() => router.push('/(tabs)/sell')}
                 />

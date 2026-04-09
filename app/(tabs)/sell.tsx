@@ -337,7 +337,7 @@ export default function SellScreen() {
             You're live!
           </Animated.Text>
           <Animated.Text style={[styles.successSubtitle, { opacity: successAnim }]}>
-            Your item is now listed and visible to buyers.
+            Your piece is now listed and visible to members.
           </Animated.Text>
           <View style={styles.successActions}>
             <Button
@@ -652,7 +652,7 @@ export default function SellScreen() {
           </Text>
         )}
         <Button
-          label="List Item"
+          label="List Piece"
           onPress={handleSubmit}
           loading={submitting === 'available'}
           disabled={!!submitting}

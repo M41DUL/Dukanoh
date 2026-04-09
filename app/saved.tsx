@@ -77,7 +77,7 @@ export default function SavedScreen() {
             <EmptyState
               icon={<Ionicons name="heart-outline" size={48} color={colors.textSecondary} />}
               heading="Nothing saved yet"
-              subtext="Tap the heart on any listing to save it here."
+              subtext="Tap the heart on any piece to save it here."
             />
           }
         />

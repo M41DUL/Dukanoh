@@ -44,7 +44,7 @@ const FEATURES = [
   { icon: 'shield-checkmark-outline' as const,     label: 'Pro seller badge' },
   { icon: 'folder-outline' as const,               label: 'Collections & archive' },
   { icon: 'share-social-outline' as const,         label: 'Share kit for Instagram & WhatsApp' },
-  { icon: 'pricetag-outline' as const,             label: 'Price drop alerts to saved buyers' },
+  { icon: 'pricetag-outline' as const,             label: 'Price drop alerts to members who saved this' },
 ];
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -841,8 +841,8 @@ function HubListingRow({
   const boostLabel = isBoostedActive
     ? `⚡ Live · ${hoursLeft}h`
     : freeBoostsLeft > 0
-      ? '⚡ Reach more buyers'
-      : '⚡ Reach more buyers · £0.99';
+      ? '⚡ More eyes on this piece'
+      : '⚡ More eyes on this piece · £0.99';
 
   const imageUri = listing.images?.[0];
 

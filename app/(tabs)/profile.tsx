@@ -29,7 +29,7 @@ const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
   { icon: 'shield-checkmark-outline', label: 'Pro seller badge' },
   { icon: 'folder-outline',           label: 'Collections & archive' },
   { icon: 'share-social-outline',     label: 'Share kit for Instagram & WhatsApp' },
-  { icon: 'pricetag-outline',         label: 'Price drop alerts to saved buyers' },
+  { icon: 'pricetag-outline',         label: 'Price drop alerts to members who saved this' },
 ];
 
 interface QuickAction {

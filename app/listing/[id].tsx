@@ -869,7 +869,7 @@ export default function ListingDetailScreen() {
       <BottomSheet visible={boostVisible} onClose={handleCloseBoost}>
         <Text style={styles.boostTitle}>Boost listing</Text>
         <Text style={styles.boostSubtitle}>
-          Push your listing to the top of the feed and get more eyes on your item.
+          Get more eyes on this piece — boosted listings appear at the top of the feed.
         </Text>
         <View style={styles.hairline} />
         <View style={styles.boostDetailRow}>
@@ -886,7 +886,7 @@ export default function ListingDetailScreen() {
           </View>
         </View>
         <View style={[styles.boostStatCard, { marginTop: Spacing.base }]}>
-          <Text style={styles.boostStatLabel}>🚀  Sellers who boost see 3x more views{'\n'}on average</Text>
+          <Text style={styles.boostStatLabel}>🚀  Members who boost see 3x more views{'\n'}on average</Text>
         </View>
         <View style={{ marginTop: Spacing.base, gap: Spacing.sm }}>
           <Button label="Boost now" variant="secondary" onPress={handleBoost} style={{ alignSelf: 'stretch' }} />

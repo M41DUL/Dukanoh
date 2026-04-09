@@ -31,12 +31,12 @@ const PERKS: Perk[] = [
   {
     icon: 'storefront-outline',
     title: 'Your own shop',
-    description: 'List items, manage orders, and build your seller profile.',
+    description: 'List your pieces, manage orders, and build your profile.',
   },
   {
     icon: 'people-outline',
     title: 'Trusted community',
-    description: 'Sell to buyers who appreciate South Asian fashion.',
+    description: 'Sell to members who appreciate great fashion.',
   },
   {
     icon: 'star-outline',
@@ -139,7 +139,7 @@ export default function InviteFriendsScreen() {
           <Text style={styles.heroSubtitle}>
             {isSeller
               ? 'Share your code to let friends start selling on Dukanoh.'
-              : 'Get a seller invite code from a friend to start listing your items.'}
+              : 'Get a seller invite code from a friend to start listing your pieces.'}
           </Text>
         </View>
 
@@ -223,7 +223,7 @@ export default function InviteFriendsScreen() {
             {invitedUsers.length > 0 ? (
               <>
                 <Text style={styles.sectionLabel}>
-                  Invited sellers ({invitedUsers.length})
+                  Invited members ({invitedUsers.length})
                 </Text>
                 {invitedUsers.map(item => (
                   <View key={item.id} style={styles.invitedRow}>

@@ -13,12 +13,12 @@ const BENEFITS = [
   {
     icon: 'shield-checkmark-outline' as const,
     title: 'Get Verified',
-    body: 'A blue ✓ badge appears on your profile and listings so buyers know you\'re a trusted seller.',
+    body: 'A blue ✓ badge appears on your profile and listings so members know you\'re verified.',
   },
   {
     icon: 'wallet-outline' as const,
     title: 'Receive payments',
-    body: 'Payments from buyers go into your wallet and you withdraw to your bank whenever you\'re ready.',
+    body: 'Payments from members go into your wallet and you withdraw to your bank whenever you\'re ready.',
   },
   {
     icon: 'lock-closed-outline' as const,

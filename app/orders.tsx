@@ -131,7 +131,7 @@ export default function OrdersScreen() {
   const emptyProps = {
     selling: {
       heading: 'No listings yet',
-      subtext: 'List your first item to start selling.',
+      subtext: 'List your first piece to start selling.',
       ctaLabel: 'Start selling',
       onCta: () => router.push('/(tabs)/sell'),
     },
@@ -141,8 +141,8 @@ export default function OrdersScreen() {
     },
     bought: {
       heading: 'No purchases yet',
-      subtext: 'Items you buy will appear here.',
-      ctaLabel: 'Browse listings',
+      subtext: 'Pieces you buy will appear here.',
+      ctaLabel: 'Discover pieces',
       onCta: () => router.push('/(tabs)'),
     },
     orders: {

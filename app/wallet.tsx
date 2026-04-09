@@ -145,7 +145,7 @@ export default function WalletScreen() {
           <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
             <Ionicons name="time-outline" size={16} color={colors.amber} />
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              {formatGBP(pending)} is held in escrow and will be released when buyers confirm receipt (up to 2 days after shipping).
+              {formatGBP(pending)} is held in escrow and will be released when members confirm receipt (up to 2 days after shipping).
             </Text>
           </View>
         )}
@@ -217,7 +217,7 @@ export default function WalletScreen() {
           <View style={styles.emptyOrders}>
             <Ionicons name="wallet-outline" size={40} color={colors.border} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              No orders yet. Sales will appear here once buyers purchase your listings.
+              No orders yet. Sales will appear here once members purchase your pieces.
             </Text>
           </View>
         )}
