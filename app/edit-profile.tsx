@@ -31,21 +31,21 @@ export default function EditProfileScreen() {
 
   React.useEffect(() => {
     if (!user) return;
-    supabase
-      .from('users')
-      .select('full_name, username, bio, avatar_url, location')
-      .eq('id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setName(data.full_name === 'New User' ? '' : (data.full_name ?? ''));
-          setBio(data.bio ?? '');
-          setLocation(data.location ?? '');
-          setAvatarUrl(data.avatar_url ?? undefined);
-        }
-        setLoading(false);
-      })
-      .catch(() => { setLoading(false); });
+    Promise.resolve(
+      supabase
+        .from('users')
+        .select('full_name, username, bio, avatar_url, location')
+        .eq('id', user.id)
+        .maybeSingle()
+    ).then(({ data }) => {
+      if (data) {
+        setName(data.full_name === 'New User' ? '' : (data.full_name ?? ''));
+        setBio(data.bio ?? '');
+        setLocation(data.location ?? '');
+        setAvatarUrl(data.avatar_url ?? undefined);
+      }
+      setLoading(false);
+    }).catch(() => { setLoading(false); });
   }, [user]);
 
   const uploadAvatar = useCallback(async (uri: string) => {

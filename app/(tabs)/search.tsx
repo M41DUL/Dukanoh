@@ -154,18 +154,18 @@ export default function SearchScreen() {
         setActiveTab(stored);
         return;
       }
-      supabase
-        .from('users')
-        .select('preferred_categories')
-        .eq('id', user.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          const cats: string[] = data?.preferred_categories ?? [];
-          if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
-          else if (cats.includes('Women')) setActiveTab('Women');
-          else setActiveTab('All');
-        })
-        .catch(() => {});
+      Promise.resolve(
+        supabase
+          .from('users')
+          .select('preferred_categories')
+          .eq('id', user.id)
+          .maybeSingle()
+      ).then(({ data }) => {
+        const cats: string[] = data?.preferred_categories ?? [];
+        if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
+        else if (cats.includes('Women')) setActiveTab('Women');
+        else setActiveTab('All');
+      }).catch(() => {});
     }).catch(() => {});
   }, [user]);
 
