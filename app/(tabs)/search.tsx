@@ -7,6 +7,7 @@ import {
   ColorTokens,
   Spacing
 } from '@/constants/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchHistory } from '@/hooks/useSearchHistory';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -30,6 +31,7 @@ import {
 
 const HERO_BANNER_1 = require('@/assets/images/hero-banner-1.png');
 const HERO_BANNER_2 = require('@/assets/images/hero-banner-2.png');
+const LAST_TAB_KEY = '@dukanoh/search_last_tab';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -142,21 +144,27 @@ export default function SearchScreen() {
   const { saveSearch } = useSearchHistory();
   const { user } = useAuth();
 
-  // Set default tab from user's onboarding preferences
+  // Set default tab: last used tab takes priority, falls back to onboarding preference
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from('users')
-      .select('preferred_categories')
-      .eq('id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        const cats: string[] = data?.preferred_categories ?? [];
-        if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
-        else if (cats.includes('Women')) setActiveTab('Women');
-        else setActiveTab('All');
-      })
-      .catch(() => {});
+    AsyncStorage.getItem(LAST_TAB_KEY).then(stored => {
+      if (stored === 'Women' || stored === 'Men' || stored === 'All') {
+        setActiveTab(stored);
+        return;
+      }
+      supabase
+        .from('users')
+        .select('preferred_categories')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          const cats: string[] = data?.preferred_categories ?? [];
+          if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
+          else if (cats.includes('Women')) setActiveTab('Women');
+          else setActiveTab('All');
+        })
+        .catch(() => {});
+    }).catch(() => {});
   }, [user]);
 
   const colors = useThemeColors();
@@ -224,7 +232,10 @@ export default function SearchScreen() {
           <TabBar
             tabs={BROWSE_TABS}
             activeTab={activeTab}
-            onTabChange={(key) => setActiveTab(key as BrowseTab)}
+            onTabChange={(key) => {
+              setActiveTab(key as BrowseTab);
+              AsyncStorage.setItem(LAST_TAB_KEY, key).catch(() => {});
+            }}
             contentFade={tabFade}
           />
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.browseContent} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" style={styles.browseScroll}>

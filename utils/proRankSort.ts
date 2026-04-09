@@ -1,17 +1,20 @@
 /**
  * Pro ranking boost — applied post-fetch in JS.
  *
- * Rules (from spec):
+ * Rules:
  * - Pro sellers' listings appear higher in feed / search results
  * - Guardrails:
  *   1. Max 25% of results can be Pro-boosted (dilution cap)
  *   2. Listing must be < 60 days old to qualify for boost (recency floor)
+ *   3. Max 1 listing per Pro seller in the promoted slots (seller diversity cap)
+ *      — since results arrive newest-first, the first listing seen per seller
+ *        is always their most recent eligible one.
  *
- * Implementation: eligible Pro listings are moved to the front, capped at
- * floor(n * 0.25). Overflow Pro listings drop back to their original position
- * relative to the rest.
+ * Overflow Pro listings (beyond cap or seller already represented) drop back
+ * to their original position relative to the rest.
  */
 export function proRankSort<T extends {
+  seller_id?: string;
   seller?: { seller_tier?: string } | null;
   created_at?: string;
 }>(listings: T[], maxProFraction = 0.25): T[] {
@@ -27,10 +30,22 @@ export function proRankSort<T extends {
 
   const eligible: T[] = [];
   const rest: T[] = [];
+  const seenProSellers = new Set<string>();
 
   for (const l of listings) {
-    if (isEligible(l)) eligible.push(l);
-    else rest.push(l);
+    if (isEligible(l)) {
+      const sid = l.seller_id;
+      if (sid && !seenProSellers.has(sid)) {
+        // First eligible listing for this Pro seller — promote it
+        seenProSellers.add(sid);
+        eligible.push(l);
+      } else {
+        // Pro seller already has a promoted slot — drop back to rest
+        rest.push(l);
+      }
+    } else {
+      rest.push(l);
+    }
   }
 
   const cap = Math.floor(listings.length * maxProFraction);

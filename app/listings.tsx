@@ -283,9 +283,11 @@ export default function ListingsScreen() {
     if (trimmedQuery && results.length > 0) {
       const fuse = new Fuse(results, {
         keys: [
-          { name: 'title', weight: 0.6 },
-          { name: 'category', weight: 0.2 },
-          { name: 'occasion', weight: 0.2 },
+          { name: 'title', weight: 0.55 },
+          { name: 'category', weight: 0.15 },
+          { name: 'occasion', weight: 0.10 },
+          { name: 'colour', weight: 0.10 },
+          { name: 'fabric', weight: 0.10 },
         ],
         threshold: 0.4,
         includeScore: true,

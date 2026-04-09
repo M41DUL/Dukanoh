@@ -72,6 +72,10 @@ export default function ListingDetailScreen() {
   const offerInputRef = useRef<TextInput>(null);
   const [boostExpiry, setBoostExpiry] = useState<Date | null>(null);
   const [boostVisible, setBoostVisible] = useState(false);
+  const [sellerTier, setSellerTier] = useState<'pro' | 'free'>('free');
+  const [boostsUsed, setBoostsUsed] = useState(0);
+  const [boostsResetAt, setBoostsResetAt] = useState<string | null>(null);
+  const [activeBoostCount, setActiveBoostCount] = useState(0);
   const [responseRate, setResponseRate] = useState<number | null>(null);
   const [soldCount, setSoldCount] = useState<number | null>(null);
   const [saveCount, setSaveCount] = useState(0);
@@ -109,7 +113,7 @@ export default function ListingDetailScreen() {
       // Primary fetch — must complete first so we have seller_id + category for secondary queries
       const { data } = await supabase
         .from('listings')
-        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at)')
+        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier)')
         .eq('id', id)
         .single();
 
@@ -138,6 +142,8 @@ export default function ListingDetailScreen() {
         .limit(4);
       if (blockedIds.length > 0) simQ = simQ.not('seller_id', 'in', `(${blockedIds.join(',')})`);
 
+      const isSeller = user?.id === data.seller_id;
+
       // All secondary queries run in parallel
       const [
         { data: rate },
@@ -146,6 +152,7 @@ export default function ListingDetailScreen() {
         { data: similar },
         { data: msgs },
         { data: boost },
+        sellerBoostData,
       ] = await Promise.all([
         supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }),
         supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', data.seller_id).eq('status', 'sold'),
@@ -153,6 +160,13 @@ export default function ListingDetailScreen() {
         simQ,
         supabase.from('messages').select('content').eq('listing_id', id),
         supabase.from('boosts').select('expires_at').eq('listing_id', id).gte('expires_at', new Date().toISOString()).maybeSingle(),
+        // Only fetch seller boost data if current user owns this listing
+        isSeller
+          ? Promise.all([
+              supabase.from('users').select('seller_tier, boosts_used, boosts_reset_at').eq('id', user!.id).single(),
+              supabase.from('boosts').select('id', { count: 'exact', head: true }).eq('seller_id', user!.id).gte('expires_at', new Date().toISOString()),
+            ])
+          : Promise.resolve(null),
       ]);
 
       if (rate !== null) setResponseRate(rate as number);
@@ -161,6 +175,13 @@ export default function ListingDetailScreen() {
       if (similar) setSimilarListings(similar as unknown as Listing[]);
       setOfferCount(msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0);
       if (boost) setBoostExpiry(new Date(boost.expires_at));
+      if (sellerBoostData) {
+        const [{ data: profile }, { count: boostCount }] = sellerBoostData;
+        setSellerTier((profile?.seller_tier ?? 'free') as 'pro' | 'free');
+        setBoostsUsed(profile?.boosts_used ?? 0);
+        setBoostsResetAt(profile?.boosts_reset_at ?? null);
+        setActiveBoostCount(boostCount ?? 0);
+      }
 
       setLoading(false);
     })();
@@ -256,16 +277,52 @@ export default function ListingDetailScreen() {
 
   const handleBoost = async () => {
     if (!user || !id) return;
-    const { data: existing } = await supabase
-      .from('boosts')
-      .select('id')
-      .eq('listing_id', id)
-      .gte('expires_at', new Date().toISOString())
-      .maybeSingle();
-    if (existing) { setBoostVisible(false); return; }
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    await supabase.from('boosts').insert({ listing_id: id, seller_id: user.id, expires_at: expiresAt, amount_paid: 0 });
+
+    // Already boosted
+    if (boostExpiry) { setBoostVisible(false); return; }
+
+    // Check simultaneous active boost limit
+    const simultaneousLimit = sellerTier === 'pro' ? 10 : 5;
+    if (activeBoostCount >= simultaneousLimit) {
+      Alert.alert(
+        'Boost limit reached',
+        `You can have ${simultaneousLimit} active boosts at once. Wait for one to expire before boosting again.`
+      );
+      return;
+    }
+
+    if (sellerTier === 'pro') {
+      const now = new Date();
+      const resetAt = boostsResetAt ? new Date(boostsResetAt) : null;
+      let currentUsed = boostsUsed;
+
+      // Reset monthly allowance if expired
+      if (!resetAt || resetAt <= now) {
+        const nextReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        await supabase.from('users').update({ boosts_used: 0, boosts_reset_at: nextReset }).eq('id', user.id);
+        currentUsed = 0;
+        setBoostsUsed(0);
+        setBoostsResetAt(nextReset);
+      }
+
+      if (currentUsed < 3) {
+        // Use free monthly boost
+        await supabase.from('users').update({ boosts_used: currentUsed + 1 }).eq('id', user.id);
+        setBoostsUsed(currentUsed + 1);
+      } else {
+        // TODO: RevenueCat consumable purchase for £0.99 — proceed free during beta
+      }
+    } else {
+      // Non-Pro: TODO: RevenueCat consumable purchase for £0.99 — proceed free during beta
+    }
+
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from('boosts').upsert(
+      { listing_id: id, seller_id: user.id, expires_at: expiresAt, amount_paid: 0 },
+      { onConflict: 'listing_id' }
+    );
     setBoostExpiry(new Date(expiresAt));
+    setActiveBoostCount(prev => prev + 1);
     setBoostVisible(false);
   };
 
@@ -554,7 +611,7 @@ export default function ListingDetailScreen() {
                   <Text style={styles.boostedCardTitle}>Listing boosted</Text>
                 </View>
                 <Text style={styles.boostedCardSub}>
-                  {Math.ceil((boostExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days remaining · Showing at the top of the feed
+                  {Math.ceil((boostExpiry.getTime() - Date.now()) / (1000 * 60 * 60))}h remaining · Showing at the top of Stories
                 </Text>
               </View>
             ) : (
@@ -659,6 +716,11 @@ export default function ListingDetailScreen() {
               <View style={styles.sellerNameRow}>
                 <Text style={styles.sellerName}>@{listing.seller?.username}</Text>
                 <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
+                {listing.seller?.seller_tier === 'pro' && (
+                  <View style={styles.featuredBadge}>
+                    <Text style={styles.featuredBadgeText}>Featured</Text>
+                  </View>
+                )}
                 {(listing.seller?.rating_count ?? 0) > 0 && (
                   <View style={styles.sellerRating}>
                     <StarRating rating={listing.seller?.rating_avg ?? 0} size={11} />
@@ -869,20 +931,31 @@ export default function ListingDetailScreen() {
       <BottomSheet visible={boostVisible} onClose={handleCloseBoost}>
         <Text style={styles.boostTitle}>Boost listing</Text>
         <Text style={styles.boostSubtitle}>
-          Get more eyes on this piece — boosted listings appear at the top of the feed.
+          Get more eyes on this piece — your listing jumps to the front of Stories for 24 hours.
         </Text>
         <View style={styles.hairline} />
         <View style={styles.boostDetailRow}>
           <Text style={styles.boostDetailKey}>Duration</Text>
-          <Text style={styles.boostDetailVal}>7 days</Text>
+          <Text style={styles.boostDetailVal}>24 hours</Text>
         </View>
         <View style={styles.boostDetailRow}>
           <Text style={styles.boostDetailKey}>Price</Text>
           <View style={styles.boostPriceRow}>
-            <Text style={[styles.boostDetailVal, { textDecorationLine: 'line-through', color: colors.textSecondary }]}>£0.99</Text>
-            <View style={styles.betaBadge}>
-              <Text style={styles.betaBadgeText}>Free during beta</Text>
-            </View>
+            {sellerTier === 'pro' && boostsUsed < 3 ? (
+              <>
+                <Text style={[styles.boostDetailVal, { color: colors.textPrimary }]}>Free</Text>
+                <View style={styles.betaBadge}>
+                  <Text style={styles.betaBadgeText}>{3 - boostsUsed} left this month</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.boostDetailVal, { textDecorationLine: 'line-through', color: colors.textSecondary }]}>£0.99</Text>
+                <View style={styles.betaBadge}>
+                  <Text style={styles.betaBadgeText}>Free during beta</Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
         <View style={[styles.boostStatCard, { marginTop: Spacing.base }]}>
@@ -1255,6 +1328,8 @@ function getStyles(colors: ColorTokens) {
     sellerInfo: { flex: 1, gap: 2 },
     sellerNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
     sellerName: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
+    featuredBadge: { backgroundColor: colors.secondary, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.full },
+    featuredBadgeText: { ...Typography.micro, fontFamily: FontFamily.semibold, color: colors.textPrimary },
     sellerRating: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     sellerSub: { ...Typography.caption, color: colors.textSecondary },
 

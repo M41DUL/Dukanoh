@@ -65,7 +65,7 @@ export interface StoryListing {
 }
 
 const LISTING_SELECT =
-  'id, title, price, images, category, condition, status, created_at, seller_id, is_boosted, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)';
+  'id, title, price, images, category, condition, status, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)';
 
 export function useStories() {
   const { user } = useAuth();
@@ -82,7 +82,7 @@ export function useStories() {
 
     const [
       { data: organicListings },
-      { data: boostedListings },
+      { data: activeBoosts },
       { data: basketItems },
       { data: viewedListings },
       { data: viewedStories },
@@ -97,16 +97,11 @@ export function useStories() {
         .order('created_at', { ascending: false })
         .limit(50),
 
-      // Boosted: active boost, exclude own (no time restriction)
+      // Active boosts from boosts table — source of truth
       supabase
-        .from('listings')
-        .select(LISTING_SELECT)
-        .eq('status', 'available')
-        .neq('seller_id', user.id)
-        .eq('is_boosted', true)
-        .gt('boost_expires_at', now)
-        .order('created_at', { ascending: false })
-        .limit(20),
+        .from('boosts')
+        .select('listing_id')
+        .gt('expires_at', now),
 
       // Personalisation: basket categories
       supabase
@@ -129,6 +124,20 @@ export function useStories() {
         .eq('user_id', user.id),
     ]);
 
+    // Fetch boosted listings by ID (exclude own)
+    const boostedIds = (activeBoosts ?? []).map(b => b.listing_id);
+    const boostedListings = boostedIds.length > 0
+      ? (await supabase
+          .from('listings')
+          .select(LISTING_SELECT)
+          .in('id', boostedIds)
+          .eq('status', 'available')
+          .neq('seller_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(20)
+        ).data
+      : [];
+
     const viewedIds = new Set(viewedStories?.map(s => s.listing_id) ?? []);
 
     const preferredCategories = new Set<string>([
@@ -137,12 +146,14 @@ export function useStories() {
     ]);
 
     // Merge boosted + organic, dedup by id
+    // Mark boosted listings with is_boosted flag for sort/display
+    const boostedIdSet = new Set(boostedIds);
     const seenIds = new Set<string>();
     const merged: StoryListing[] = [];
     for (const l of [...(boostedListings ?? []), ...(organicListings ?? [])]) {
       if (seenIds.has(l.id)) continue;
       seenIds.add(l.id);
-      merged.push(l as unknown as StoryListing);
+      merged.push({ ...(l as unknown as StoryListing), is_boosted: boostedIdSet.has(l.id) });
     }
 
     // Dedup to one listing per seller (keep most recently created — already ordered desc)

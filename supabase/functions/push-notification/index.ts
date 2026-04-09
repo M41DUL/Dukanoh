@@ -317,7 +317,6 @@ async function handlePriceDrop(
   record: Record<string, string>,
   old_record: Record<string, string>
 ) {
-  // Only fire if price dropped and listing is still available
   if (!record?.price || !old_record?.price) {
     return new Response(JSON.stringify({ skipped: 'no price data' }), { status: 200 });
   }
@@ -328,34 +327,60 @@ async function handlePriceDrop(
     return new Response(JSON.stringify({ skipped: 'listing not available' }), { status: 200 });
   }
 
-  // Get all users who saved this listing
+  const newPrice = parseFloat(record.price);
+  const listingTitle = record.title ?? 'A saved item';
+  const THRESHOLD = 0.10; // 10% minimum drop
+
+  // Fetch savers with their individual price_at_save
   const { data: savers } = await supabase
     .from('saved_items')
-    .select('user_id')
-    .eq('listing_id', record.id);
+    .select('user_id, price_at_save')
+    .eq('listing_id', record.id)
+    .not('price_at_save', 'is', null);
 
   if (!savers || savers.length === 0) {
     return new Response(JSON.stringify({ skipped: 'no savers' }), { status: 200 });
   }
 
-  const saverIds: string[] = savers.map((s: { user_id: string }) => s.user_id);
-  const title = record.title ?? 'A saved item';
-  const newPrice = parseFloat(record.price).toFixed(2);
   const messages: object[] = [];
+  const notificationInserts: object[] = [];
 
-  for (const saverId of saverIds) {
-    const tokens = await getTokens(supabase, saverId);
+  for (const saver of savers as { user_id: string; price_at_save: number }[]) {
+    const savedPrice = saver.price_at_save;
+    const pctDrop = (savedPrice - newPrice) / savedPrice;
+
+    // Only notify if drop is at least 10% relative to what this user saved it at
+    if (pctDrop < THRESHOLD) continue;
+
+    const savingPct = Math.round(pctDrop * 100);
+    const body = `${listingTitle} dropped ${savingPct}% to £${newPrice.toFixed(2)}`;
+
+    const tokens = await getTokens(supabase, saver.user_id);
     tokens.forEach(t => messages.push({
       to: t,
       sound: 'default',
-      title: 'Price drop!',
-      body: `${title} is now £${newPrice}`,
+      title: 'Price drop on a saved item',
+      body,
       data: { listing_id: record.id },
     }));
+
+    // Queue in-app notification insert
+    notificationInserts.push({
+      user_id: saver.user_id,
+      type: 'price_drop',
+      title: 'Price drop on a saved item',
+      body,
+      listing_id: record.id,
+    });
+  }
+
+  // Write in-app notifications (service role bypasses RLS)
+  if (notificationInserts.length > 0) {
+    await supabase.from('notifications').insert(notificationInserts);
   }
 
   if (messages.length === 0) {
-    return new Response(JSON.stringify({ skipped: 'no tokens for savers' }), { status: 200 });
+    return new Response(JSON.stringify({ skipped: 'no eligible savers after threshold' }), { status: 200 });
   }
 
   return sendPush(messages, supabase);

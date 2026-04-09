@@ -103,7 +103,7 @@ export function ListingCard({
             <Text style={styles.soldLabel}>SOLD</Text>
           </View>
         )}
-        {listing.isBoosted && listing.status !== 'sold' && (
+        {(listing.isBoosted || listing.seller?.seller_tier === 'pro') && listing.status !== 'sold' && (
           <View style={styles.featuredBadge}>
             <Text style={styles.featuredText}>Featured</Text>
           </View>

@@ -12,7 +12,8 @@ const nudgeKey = (uid: string) => `@dukanoh/profile_nudge_dismissed/${uid}`;
 const sellNudgeKey = (uid: string) => `@dukanoh/sell_nudge_dismissed/${uid}`;
 const FEED_CACHE_KEY = (uid: string) => `@dukanoh/feed_cache/${uid}`;
 const RECENTLY_VIEWED_KEY = (uid: string) => `@dukanoh/recently_viewed/${uid}`;
-const TRENDING_CACHE_KEY = '@dukanoh/trending_categories';
+const TRENDING_CACHE_KEY = (gender: 'Men' | 'Women' | null) =>
+  `@dukanoh/trending_categories/${gender ?? 'all'}`;
 const TRENDING_TTL_MS = 30 * 60 * 1000; // 30 min
 
 // ── Exported types ──────────────────────────────────────────────────
@@ -80,27 +81,50 @@ async function getSavedCategories(userId: string): Promise<string[]> {
   }
 }
 
-async function fetchTrendingCategories(): Promise<string[]> {
+async function getSavedOccasions(userId: string): Promise<string[]> {
   try {
-    const cached = await AsyncStorage.getItem(TRENDING_CACHE_KEY);
+    const { data } = await supabase
+      .from('saved_items')
+      .select('listings(occasion)')
+      .eq('user_id', userId)
+      .limit(20);
+    if (!data) return [];
+    return [...new Set(
+      data
+        .map(d => (d.listings as any)?.occasion)
+        .filter(Boolean) as string[]
+    )];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchTrendingCategories(gender: 'Men' | 'Women' | null): Promise<string[]> {
+  const cacheKey = TRENDING_CACHE_KEY(gender);
+  try {
+    const cached = await AsyncStorage.getItem(cacheKey);
     if (cached) {
       const { categories, timestamp } = JSON.parse(cached);
       if (Date.now() - timestamp < TRENDING_TTL_MS) return categories;
     }
   } catch {}
 
+  // Count saves per category in the last 7 days — measures buyer demand, not seller supply
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data } = await supabase
-    .from('listings')
-    .select('category')
-    .eq('status', 'available')
+    .from('saved_items')
+    .select('listings(category, status)')
     .gte('created_at', since)
-    .limit(200);
+    .limit(500);
 
   if (!data || data.length === 0) return [];
 
-  const counts = data.reduce<Record<string, number>>((acc, { category }) => {
-    acc[category] = (acc[category] ?? 0) + 1;
+  const counts = data.reduce<Record<string, number>>((acc, row) => {
+    const listing = row.listings as any;
+    const cat: string | undefined = listing?.category;
+    if (!cat || listing?.status !== 'available') return acc;
+    if (gender && cat !== gender) return acc; // gender filter
+    acc[cat] = (acc[cat] ?? 0) + 1;
     return acc;
   }, {});
 
@@ -110,41 +134,103 @@ async function fetchTrendingCategories(): Promise<string[]> {
     .map(([cat]) => cat);
 
   try {
-    await AsyncStorage.setItem(TRENDING_CACHE_KEY, JSON.stringify({ categories, timestamp: Date.now() }));
+    await AsyncStorage.setItem(cacheKey, JSON.stringify({ categories, timestamp: Date.now() }));
   } catch {}
 
   return categories;
 }
 
-async function fetchSection(userId: string, categories: string[], blockedIds: string[] = []): Promise<Listing[]> {
+const SUGGESTED_SELECT = 'id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)';
+
+// Suggested for You: no boosts, occasion signal, seller diversity cap, limit 10
+async function fetchSuggestedSection(
+  userId: string,
+  categories: string[],
+  occasions: string[],
+  blockedIds: string[] = [],
+): Promise<Listing[]> {
+  const buildBase = () => {
+    let q = supabase
+      .from('listings')
+      .select(SUGGESTED_SELECT)
+      .eq('status', 'available')
+      .neq('seller_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(25); // fetch extra to allow for diversity filtering
+    if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
+    return q;
+  };
+
+  // Run category and occasion queries in parallel, then merge
+  const queries: Promise<{ data: any[] | null }>[] = [];
+  if (categories.length > 0) queries.push(buildBase().in('category', categories) as any);
+  if (occasions.length > 0) queries.push(buildBase().in('occasion', occasions) as any);
+  if (queries.length === 0) return [];
+
+  const results = await Promise.all(queries);
+
+  // Merge and deduplicate by listing id
+  const seen = new Set<string>();
+  const merged: Listing[] = [];
+  for (const { data } of results) {
+    for (const item of (data ?? []) as Listing[]) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        merged.push(item);
+      }
+    }
+  }
+
+  // Re-sort merged results by newest first
+  merged.sort((a, b) =>
+    new Date((b as any).created_at).getTime() - new Date((a as any).created_at).getTime()
+  );
+
+  // Apply seller diversity cap: max 2 listings per seller
+  const sellerCount = new Map<string, number>();
+  const diverse = merged.filter(l => {
+    const sid = (l as any).seller_id as string;
+    const count = sellerCount.get(sid) ?? 0;
+    if (count >= 2) return false;
+    sellerCount.set(sid, count + 1);
+    return true;
+  });
+
+  return proRankSort(diverse).slice(0, 10);
+}
+
+// New Arrivals: gender-filtered, no boosts, seller diversity cap, limit 10
+async function fetchNewArrivals(
+  userId: string,
+  gender: 'Men' | 'Women' | null,
+  blockedIds: string[] = [],
+): Promise<Listing[]> {
   let query = supabase
     .from('listings')
-    .select('id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
+    .select(SUGGESTED_SELECT)
     .eq('status', 'available')
     .neq('seller_id', userId)
     .order('created_at', { ascending: false })
-    .limit(6);
+    .limit(25); // fetch extra to allow for diversity filtering
 
   if (blockedIds.length > 0) query = query.not('seller_id', 'in', `(${blockedIds.join(',')})`);
-  if (categories.length > 0) query = query.in('category', categories);
+  if (gender) query = query.eq('category', gender);
 
-  const { data, error: _error } = await query;
+  const { data } = await query;
   const listings = (data ?? []) as unknown as Listing[];
   if (listings.length === 0) return listings;
 
-  const now = new Date().toISOString();
-  const { data: boosts } = await supabase
-    .from('boosts')
-    .select('listing_id')
-    .in('listing_id', listings.map(l => l.id))
-    .gte('expires_at', now);
+  // Apply seller diversity cap: max 2 listings per seller
+  const sellerCount = new Map<string, number>();
+  const diverse = listings.filter(l => {
+    const sid = (l as any).seller_id as string;
+    const count = sellerCount.get(sid) ?? 0;
+    if (count >= 2) return false;
+    sellerCount.set(sid, count + 1);
+    return true;
+  });
 
-  const boostedIds = new Set((boosts ?? []).map(b => b.listing_id));
-  const withBoost = listings
-    .map(l => ({ ...l, isBoosted: boostedIds.has(l.id) }))
-    .sort((a, b) => (b.isBoosted ? 1 : 0) - (a.isBoosted ? 1 : 0));
-
-  return proRankSort(withBoost);
+  return proRankSort(diverse).slice(0, 10);
 }
 
 function getGreeting(): string {
@@ -215,7 +301,7 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
     if (!userId) return;
 
     try {
-      const [profile, viewedCats, savedCats, trendingCats] = await Promise.all([
+      const [profile, viewedCats, savedCats, savedOccasions] = await Promise.all([
         supabase
           .from('users')
           .select('preferred_categories, avatar_url, bio, full_name')
@@ -224,19 +310,35 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
           .then(r => r.data),
         getViewedCategories(userId),
         getSavedCategories(userId),
-        fetchTrendingCategories(),
+        getSavedOccasions(userId),
       ]);
 
       const onboardingCats: string[] = profile?.preferred_categories ?? [];
       const allCats = [...new Set([...onboardingCats, ...viewedCats, ...savedCats])];
+      const allOccasions = [...new Set(savedOccasions)];
       const isComplete = !!(profile?.avatar_url && profile?.bio);
       const rawName = profile?.full_name ?? '';
       const firstName = rawName === 'New User' ? '' : rawName.split(' ')[0];
       setDisplayName(firstName);
 
+      // Derive gender for New Arrivals + Trending filters
+      const prefersWomen = onboardingCats.includes('Women');
+      const prefersMen = onboardingCats.includes('Men');
+      const gender: 'Men' | 'Women' | null =
+        prefersWomen && !prefersMen ? 'Women' :
+        prefersMen && !prefersWomen ? 'Men' :
+        null;
+
+      // Trending now uses gender and save-count signal — fetch after gender is known
+      const trendingCats = await fetchTrendingCategories(gender);
+
+      // New-user fallback: if no category or occasion signal yet, use trending categories
+      const effectiveCats = allCats.length > 0 ? allCats : trendingCats;
+      const hasSignal = effectiveCats.length > 0 || allOccasions.length > 0;
+
       const [suggestedItems, newArrivalItems, listingCountResult, savedPrices] = await Promise.all([
-        allCats.length > 0 ? fetchSection(userId, allCats, blockedIds) : Promise.resolve([]),
-        fetchSection(userId, [], blockedIds),
+        hasSignal ? fetchSuggestedSection(userId, effectiveCats, allOccasions, blockedIds) : Promise.resolve([]),
+        fetchNewArrivals(userId, gender, blockedIds),
         supabase
           .from('listings')
           .select('id', { count: 'exact', head: true })
@@ -250,10 +352,15 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
 
       const userHasListings = (listingCountResult.count ?? 0) > 0;
 
+      const PRICE_DROP_THRESHOLD = 0.10; // 10% minimum drop to surface
+
       const drops: PriceDrop[] = (savedPrices.data ?? [])
         .filter(s => {
           const l = s.listings as unknown as { price: number; status: string } | null;
-          return l && l.price < (s.price_at_save as number) && l.status === 'available';
+          if (!l || l.status !== 'available') return false;
+          const savedPrice = s.price_at_save as number;
+          const pctDrop = (savedPrice - l.price) / savedPrice;
+          return pctDrop >= PRICE_DROP_THRESHOLD;
         })
         .map(s => {
           const l = s.listings as unknown as { id: string; title: string; price: number; images: string[] };
@@ -264,6 +371,12 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
             currentPrice: l.price,
             savedPrice: s.price_at_save as number,
           };
+        })
+        // Sort by biggest percentage drop first
+        .sort((a, b) => {
+          const pctA = (a.savedPrice - a.currentPrice) / a.savedPrice;
+          const pctB = (b.savedPrice - b.currentPrice) / b.savedPrice;
+          return pctB - pctA;
         });
 
       const feedData: Omit<FeedCache, 'timestamp'> = {
@@ -271,7 +384,7 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
         newArrivals: newArrivalItems,
         trending: trendingCats,
         priceDrops: drops,
-        preferredCategories: allCats,
+        preferredCategories: effectiveCats,
         hasListings: userHasListings,
         profileComplete: isComplete,
       };
