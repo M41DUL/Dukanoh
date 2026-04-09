@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,8 +25,10 @@ import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useFeed } from '@/hooks/useFeed';
 import { useBlocked } from '@/context/BlockedContext';
 import { JustSoldToast } from '@/components/JustSoldToast';
+import { DukanohFitSheet } from '@/components/DukanohFitSheet';
 
 export default function HomeScreen() {
+  const [fitSheetVisible, setFitSheetVisible] = useState(false);
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
   const colors = useThemeColors();
@@ -130,7 +132,7 @@ export default function HomeScreen() {
                 colors={[colors.secondary, colors.surface]}
                 title="Dukanoh Fit"
                 subtitle="Snap a piece — find what matches it"
-                onPress={() => router.push('/dukanoh-fit')}
+                onPress={() => setFitSheetVisible(true)}
                 left={
                   <View style={styles.fitIconCircle}>
                     <Ionicons name="camera-outline" size={22} color={colors.textPrimary} />
@@ -186,6 +188,7 @@ export default function HomeScreen() {
         )}
         <JustSoldToast />
       </View>
+      <DukanohFitSheet visible={fitSheetVisible} onClose={() => setFitSheetVisible(false)} />
     </ScreenWrapper>
   );
 }

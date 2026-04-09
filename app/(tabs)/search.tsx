@@ -8,6 +8,7 @@ import {
   Spacing
 } from '@/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DukanohFitSheet } from '@/components/DukanohFitSheet';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchHistory } from '@/hooks/useSearchHistory';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -139,6 +140,7 @@ export default function SearchScreen() {
   // Search state
   const [query, setQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [fitSheetVisible, setFitSheetVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<BrowseTab>('Women');
   const tabFade = useRef(new Animated.Value(1)).current;
   const { saveSearch } = useSearchHistory();
@@ -230,7 +232,7 @@ export default function SearchScreen() {
           {!searchFocused && (
             <TouchableOpacity
               style={styles.fitBtn}
-              onPress={() => router.push('/dukanoh-fit')}
+              onPress={() => setFitSheetVisible(true)}
               activeOpacity={0.7}
               hitSlop={8}
             >
@@ -281,6 +283,7 @@ export default function SearchScreen() {
           </ScrollView>
         </>
       )}
+      <DukanohFitSheet visible={fitSheetVisible} onClose={() => setFitSheetVisible(false)} />
     </ScreenWrapper>
   );
 }

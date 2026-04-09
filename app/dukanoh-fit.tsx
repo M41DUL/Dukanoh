@@ -6,18 +6,16 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
   FlatList,
   Alert,
 } from 'react-native';
-import { router } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { router, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
+import { Select } from '@/components/Select';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -45,10 +43,10 @@ const CATEGORIES = [
   'Lehenga', 'Saree', 'Anarkali', 'Sherwani', 'Kurta',
   'Achkan', 'Pathani Suit', 'Dupatta', 'Blouse', 'Sharara',
   'Salwar', 'Nehru Jacket',
-];
+] as const;
 
-const COLOURS = ['Black', 'White', 'Red', 'Blue', 'Green', 'Gold', 'Pink', 'Maroon', 'Beige', 'Multi', 'Other'];
-const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
+const COLOURS = ['Black', 'White', 'Red', 'Blue', 'Green', 'Gold', 'Pink', 'Maroon', 'Beige', 'Multi', 'Other'] as const;
+const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'] as const;
 const FABRIC_WEIGHTS = ['Light', 'Structured', 'Heavy'] as const;
 
 type FabricWeight = typeof FABRIC_WEIGHTS[number];
@@ -62,56 +60,6 @@ interface RecentLook {
   timestamp: number;
 }
 
-// ─── Pill selector ───────────────────────────────────────────────────────────
-
-function PillSelector({
-  options,
-  selected,
-  onSelect,
-  colors,
-}: {
-  options: readonly string[];
-  selected: string;
-  onSelect: (v: string) => void;
-  colors: ColorTokens;
-}) {
-  const styles = useMemo(() => getPillStyles(colors), [colors]);
-  return (
-    <View style={styles.row}>
-      {options.map(opt => (
-        <TouchableOpacity
-          key={opt}
-          style={[styles.pill, selected === opt && styles.pillActive]}
-          onPress={() => onSelect(opt)}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.pillText, selected === opt && styles.pillTextActive]}>{opt}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
-
-function getPillStyles(colors: ColorTokens) {
-  return StyleSheet.create({
-    row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
-    pill: {
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 6,
-      borderRadius: BorderRadius.full,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-    },
-    pillActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    pillText: { ...Typography.small, color: colors.textSecondary, fontFamily: FontFamily.medium },
-    pillTextActive: { color: '#fff' },
-  });
-}
-
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 export default function DukanohFitScreen() {
@@ -120,21 +68,35 @@ export default function DukanohFitScreen() {
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
 
+  // Params passed from DukanohFitSheet after validation
+  const {
+    photoUri: paramPhotoUri,
+    detectedCategory,
+    detectedColour,
+  } = useLocalSearchParams<{
+    photoUri?: string;
+    detectedCategory?: string;
+    detectedColour?: string;
+  }>();
+
   // Step
   const [step, setStep] = useState<Step>('form');
 
-  // Photo
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-
-  // Form
-  const [category, setCategory] = useState('');
-  const [colour, setColour] = useState('');
+  // Form — pre-fill from Rekognition params if present
+  const [category, setCategory] = useState(detectedCategory ?? '');
+  const [colour, setColour] = useState(detectedColour ?? '');
   const [occasion, setOccasion] = useState('');
-  const [fabricWeight, setFabricWeight] = useState<FabricWeight | ''>('');
-  const [detectedFields, setDetectedFields] = useState<Set<string>>(new Set());
+  const [fabricWeight, setFabricWeight] = useState('');
+
+  // Track which fields were auto-detected
+  const [detectedFields] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    if (detectedCategory) s.add('category');
+    if (detectedColour) s.add('colour');
+    return s;
+  });
 
   // State
-  const [validating, setValidating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Listing[]>([]);
   const [recentLooks, setRecentLooks] = useState<RecentLook[]>([]);
@@ -152,7 +114,7 @@ export default function DukanohFitScreen() {
       const raw = await AsyncStorage.getItem(RATE_LIMIT_KEY);
       const today = new Date().toDateString();
       const data = raw ? JSON.parse(raw) : { date: today, count: 0 };
-      if (data.date !== today) return true; // new day — reset
+      if (data.date !== today) return true;
       return data.count < MAX_SEARCHES_PER_DAY;
     } catch { return true; }
   }, []);
@@ -167,64 +129,6 @@ export default function DukanohFitScreen() {
         : { date: today, count: 1 };
       await AsyncStorage.setItem(RATE_LIMIT_KEY, JSON.stringify(newData));
     } catch {}
-  }, []);
-
-  // ─── Camera ────────────────────────────────────────────────────────────────
-  const openCamera = useCallback(async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Camera access needed', 'Please allow camera access in your settings.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      allowsEditing: false,
-    });
-    if (result.canceled || !result.assets[0]) return;
-
-    const uri = result.assets[0].uri;
-    setPhotoUri(uri);
-    setValidating(true);
-    const isClothing = await validateClothing(uri);
-    setValidating(false);
-
-    if (!isClothing) {
-      setPhotoUri(null);
-      setDetectedFields(new Set());
-      Alert.alert(
-        'Not a clothing item',
-        'Please take a photo of the clothing piece you want to match.',
-        [{ text: 'Try again', onPress: openCamera }]
-      );
-    }
-  }, [validateClothing]);
-
-  // ─── Validate clothing with Rekognition + pre-fill form ───────────────────
-  const validateClothing = useCallback(async (uri: string): Promise<boolean> => {
-    try {
-      // Compress to max 1MB before sending
-      const compressed = await ImageManipulator.manipulateAsync(
-        uri,
-        [{ resize: { width: 800 } }],
-        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-      );
-      if (!compressed.base64) return false;
-
-      const { data, error } = await supabase.functions.invoke('validate-clothing', {
-        body: { imageBase64: compressed.base64 },
-      });
-
-      if (error || !data || !data.isClothing) return false;
-
-      // Pre-fill form with detected values — user can still override
-      const detected = new Set<string>();
-      if (data.detectedCategory) { setCategory(data.detectedCategory); detected.add('category'); }
-      if (data.detectedColour) { setColour(data.detectedColour); detected.add('colour'); }
-      setDetectedFields(detected);
-
-      return true;
-    } catch { return false; }
   }, []);
 
   // ─── Save recent look ──────────────────────────────────────────────────────
@@ -275,8 +179,6 @@ export default function DukanohFitScreen() {
 
     // Colour is a hard filter — never show clashing combinations.
     // Neutrals (Beige, White, Other) match everything so no filter applied.
-    // Occasion is a scoring signal only — occasion-matched pieces rank first
-    // but non-matched pieces are still shown (more results, still valid outfits).
     if (allCompatibleColours.length > 0 && !['Beige', 'White', 'Other'].includes(input.colour)) {
       q = q.in('colour', allCompatibleColours);
     }
@@ -313,16 +215,17 @@ export default function DukanohFitScreen() {
 
     setResults(proRankSort(diverse));
     await incrementRateLimit();
-    await saveRecentLook({ category: input.category, colour: input.colour, occasion: input.occasion, fabricWeight: input.fabricWeight as FabricWeight });
+    await saveRecentLook({
+      category: input.category,
+      colour: input.colour,
+      occasion: input.occasion,
+      fabricWeight: input.fabricWeight as FabricWeight,
+    });
     setLoading(false);
   }, [user, blockedIds, checkRateLimit, incrementRateLimit, saveRecentLook]);
 
   // ─── Submit form ───────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
-    if (!photoUri) {
-      Alert.alert('No photo', 'Please take a photo of your piece first.');
-      return;
-    }
     if (!category || !colour) {
       Alert.alert('Almost there', 'Please select a category and colour to continue.');
       return;
@@ -333,17 +236,13 @@ export default function DukanohFitScreen() {
       occasion: occasion || undefined,
       fabricWeight: (fabricWeight as FabricWeight) || undefined,
     });
-  }, [category, colour, occasion, fabricWeight, photoUri, runMatch]);
+  }, [category, colour, occasion, fabricWeight, runMatch]);
 
   // ─── Render results ────────────────────────────────────────────────────────
   if (step === 'results') {
     return (
       <ScreenWrapper>
-        <Header
-          title="Dukanoh Fit"
-          showBack
-          onBack={() => { setStep('form'); setResults([]); }}
-        />
+        <Header title="Dukanoh Fit" showBack />
         {loading ? (
           <LoadingSpinner />
         ) : (
@@ -381,25 +280,10 @@ export default function DukanohFitScreen() {
       <Header title="Dukanoh Fit" showBack />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* Photo */}
-        <TouchableOpacity style={[styles.photoBox, photoUri && styles.photoBoxFilled]} onPress={openCamera} activeOpacity={0.8} disabled={validating}>
-          {photoUri ? (
-            <>
-              <Image source={{ uri: photoUri }} style={styles.photo} resizeMode="cover" />
-              {validating && (
-                <View style={styles.photoOverlay}>
-                  <ActivityIndicator color="#fff" size="large" />
-                  <Text style={styles.photoOverlayText}>Checking image...</Text>
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.photoPlaceholder}>
-              <Ionicons name="camera-outline" size={32} color={colors.textSecondary} />
-              <Text style={styles.photoHint}>Take a photo of your piece</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {/* Photo preview */}
+        {paramPhotoUri ? (
+          <Image source={{ uri: paramPhotoUri }} style={styles.photo} resizeMode="cover" />
+        ) : null}
 
         {/* Recent looks */}
         {recentLooks.length > 0 && (
@@ -415,7 +299,7 @@ export default function DukanohFitScreen() {
                   setColour(look.colour);
                   setOccasion(look.occasion ?? '');
                   setFabricWeight(look.fabricWeight ?? '');
-                  if (photoUri) runMatch({
+                  if (paramPhotoUri) runMatch({
                     category: look.category,
                     colour: look.colour,
                     occasion: look.occasion,
@@ -439,7 +323,12 @@ export default function DukanohFitScreen() {
             <Text style={styles.sectionLabel}>Category <Text style={styles.required}>*</Text></Text>
             {detectedFields.has('category') && <Text style={styles.detectedTag}>Detected</Text>}
           </View>
-          <PillSelector options={CATEGORIES} selected={category} onSelect={v => { setCategory(v); setDetectedFields(p => { const n = new Set(p); n.delete('category'); return n; }); }} colors={colors} />
+          <Select
+            placeholder="Select category"
+            value={category}
+            options={CATEGORIES}
+            onSelect={v => setCategory(v)}
+          />
         </View>
 
         {/* Colour */}
@@ -448,27 +337,42 @@ export default function DukanohFitScreen() {
             <Text style={styles.sectionLabel}>Colour <Text style={styles.required}>*</Text></Text>
             {detectedFields.has('colour') && <Text style={styles.detectedTag}>Detected</Text>}
           </View>
-          <PillSelector options={COLOURS} selected={colour} onSelect={v => { setColour(v); setDetectedFields(p => { const n = new Set(p); n.delete('colour'); return n; }); }} colors={colors} />
+          <Select
+            placeholder="Select colour"
+            value={colour}
+            options={COLOURS}
+            onSelect={v => setColour(v)}
+          />
         </View>
 
         {/* Occasion */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Occasion <Text style={styles.optional}>(optional)</Text></Text>
-          <PillSelector options={OCCASIONS} selected={occasion} onSelect={v => setOccasion(prev => prev === v ? '' : v)} colors={colors} />
+          <Select
+            placeholder="Select occasion"
+            value={occasion}
+            options={OCCASIONS}
+            onSelect={v => setOccasion(v)}
+          />
         </View>
 
         {/* Fabric weight */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Fabric weight <Text style={styles.optional}>(optional)</Text></Text>
-          <Text style={styles.sectionHint}>Light · Chiffon, Georgette — Structured · Silk, Cotton — Heavy · Velvet, Brocade</Text>
-          <PillSelector options={FABRIC_WEIGHTS} selected={fabricWeight} onSelect={v => setFabricWeight(prev => prev === v ? '' : v as FabricWeight)} colors={colors} />
+          <Text style={styles.sectionHint}>Light · Chiffon, Georgette  ·  Structured · Silk, Cotton  ·  Heavy · Velvet, Brocade</Text>
+          <Select
+            placeholder="Select fabric weight"
+            value={fabricWeight}
+            options={FABRIC_WEIGHTS}
+            onSelect={v => setFabricWeight(v)}
+          />
         </View>
 
         <Button
           label="Find my fit"
           variant="primary"
           onPress={handleSubmit}
-          disabled={validating || !category || !colour || !photoUri}
+          disabled={!category || !colour}
           style={styles.cta}
         />
 
@@ -482,31 +386,24 @@ export default function DukanohFitScreen() {
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     scroll: { paddingBottom: Spacing['4xl'] },
-    photoBox: {
-      height: 200,
+    photo: {
+      width: '100%',
+      height: 220,
       borderRadius: BorderRadius.large,
-      borderWidth: 1.5,
-      borderColor: colors.border,
-      borderStyle: 'dashed',
       marginBottom: Spacing.lg,
-      overflow: 'hidden',
     },
-    photoBoxFilled: { borderStyle: 'solid', borderColor: 'transparent' },
-    photo: { width: '100%', height: '100%' },
-    photoOverlay: {
-      position: 'absolute',
-      top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.sm,
-    },
-    photoOverlayText: { ...Typography.body, color: '#fff', fontFamily: FontFamily.semibold },
-    photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
-    photoHint: { ...Typography.body, color: colors.textSecondary },
     section: { marginBottom: Spacing.lg },
-    labelRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
-    sectionLabel: { ...Typography.label, color: colors.textPrimary, fontFamily: FontFamily.semibold },
+    labelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      marginBottom: Spacing.sm,
+    },
+    sectionLabel: {
+      ...Typography.label,
+      color: colors.textPrimary,
+      fontFamily: FontFamily.semibold,
+    },
     detectedTag: {
       ...Typography.micro,
       color: colors.primary,
@@ -516,7 +413,11 @@ function getStyles(colors: ColorTokens) {
       paddingVertical: 2,
       borderRadius: BorderRadius.full,
     },
-    sectionHint: { ...Typography.small, color: colors.textSecondary, marginBottom: Spacing.sm },
+    sectionHint: {
+      ...Typography.small,
+      color: colors.textSecondary,
+      marginBottom: Spacing.sm,
+    },
     required: { color: colors.error },
     optional: { color: colors.textSecondary, fontFamily: FontFamily.regular },
     recentRow: {
@@ -529,7 +430,6 @@ function getStyles(colors: ColorTokens) {
     },
     recentText: { ...Typography.body, color: colors.textPrimary, flex: 1 },
     cta: { marginTop: Spacing.base },
-    spinner: { marginTop: Spacing.sm },
     gridRow: { gap: Spacing.sm, marginBottom: Spacing.sm },
     gridContent: { flexGrow: 1, paddingTop: Spacing.base, paddingBottom: Spacing['4xl'] },
   });
