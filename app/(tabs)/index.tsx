@@ -15,7 +15,8 @@ import {
   PriceDropsRow,
   NudgeCarousel,
 } from '@/components/feed';
-import { Spacing, ColorTokens } from '@/constants/theme';
+import { GradientCard } from '@/components/GradientCard';
+import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
 import { useStories, getAppStory } from '@/hooks/useStories';
@@ -123,6 +124,24 @@ export default function HomeScreen() {
               <NudgeCarousel slides={nudgeSlides} />
             )}
 
+            {/* Dukanoh Fit entry card */}
+            <View style={styles.padded}>
+              <GradientCard
+                colors={[colors.secondary, colors.surface]}
+                title="Dukanoh Fit"
+                subtitle="Snap a piece — find what matches it"
+                onPress={() => router.push('/dukanoh-fit')}
+                left={
+                  <View style={styles.fitIconCircle}>
+                    <Ionicons name="camera-outline" size={22} color={colors.textPrimary} />
+                  </View>
+                }
+                right={
+                  <Ionicons name="arrow-forward" size={18} color={colors.textSecondary} />
+                }
+              />
+            </View>
+
             <View style={styles.padded}>
               <PriceDropsRow drops={priceDrops} colors={colors} />
             </View>
@@ -176,6 +195,14 @@ function getStyles(_colors: ColorTokens) {
     container: { flex: 1 },
     padded: {
       paddingHorizontal: Spacing.base,
+    },
+    fitIconCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: BorderRadius.full,
+      backgroundColor: 'rgba(0,0,0,0.08)',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     topBar: {
       flexDirection: 'row',

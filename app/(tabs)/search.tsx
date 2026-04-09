@@ -214,16 +214,30 @@ export default function SearchScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.searchBarWrapper}>
-        <SearchBar
-          ref={searchBarRef}
-          value={query}
-          onChangeText={setQuery}
-          showHistory
-          onFocusChange={setSearchFocused}
-          onSubmit={(term) => {
-            if (term.trim()) openSearch(term);
-          }}
-        />
+        <View style={styles.searchRow}>
+          <View style={styles.searchBarFlex}>
+            <SearchBar
+              ref={searchBarRef}
+              value={query}
+              onChangeText={setQuery}
+              showHistory
+              onFocusChange={setSearchFocused}
+              onSubmit={(term) => {
+                if (term.trim()) openSearch(term);
+              }}
+            />
+          </View>
+          {!searchFocused && (
+            <TouchableOpacity
+              style={styles.fitBtn}
+              onPress={() => router.push('/dukanoh-fit')}
+              activeOpacity={0.7}
+              hitSlop={8}
+            >
+              <Ionicons name="camera-outline" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* ── Tab bar + Browse directory ────────────────────── */}
@@ -273,13 +287,27 @@ export default function SearchScreen() {
 
 // ─── Styles ───────────────────────────────────────────────
 
-function getStyles(_colors: ColorTokens) {
+function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     // Search bar
     searchBarWrapper: {
       paddingTop: Spacing.sm,
       paddingBottom: Spacing.xs,
       zIndex: 10,
+    },
+    searchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    searchBarFlex: { flex: 1 },
+    fitBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
 
     // Browse directory

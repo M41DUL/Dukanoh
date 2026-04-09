@@ -187,13 +187,18 @@ export const Categories = [
   'Pathani Suit',
   'Casualwear',
   'Shoes',
+  'Dupatta',
+  'Blouse',
+  'Sharara',
+  'Salwar',
+  'Nehru Jacket',
 ] as const;
 
 export type Category = (typeof Categories)[number];
 
 export const CategoriesByGender: Record<Gender, string[]> = {
-  Women: ['Lehenga', 'Saree', 'Anarkali', 'Kurta', 'Casualwear', 'Shoes'],
-  Men: ['Sherwani', 'Kurta', 'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes'],
+  Women: ['Lehenga', 'Saree', 'Anarkali', 'Kurta', 'Dupatta', 'Blouse', 'Sharara', 'Salwar', 'Casualwear', 'Shoes'],
+  Men: ['Sherwani', 'Kurta', 'Achkan', 'Pathani Suit', 'Salwar', 'Nehru Jacket', 'Casualwear', 'Shoes'],
 };
 
 export const Conditions = ['New', 'Excellent', 'Good', 'Fair'] as const;
