@@ -273,14 +273,15 @@ export default function DukanohFitScreen() {
 
     if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
 
-    // Colour filter — skip if base is a neutral or Other (matches anything)
+    // Colour is a hard filter — never show clashing combinations.
+    // Neutrals (Beige, White, Other) match everything so no filter applied.
+    // Occasion is a scoring signal only — occasion-matched pieces rank first
+    // but non-matched pieces are still shown (more results, still valid outfits).
     if (allCompatibleColours.length > 0 && !['Beige', 'White', 'Other'].includes(input.colour)) {
       q = q.in('colour', allCompatibleColours);
     }
 
-    if (input.occasion) q = q.eq('occasion', input.occasion);
-
-    const { data } = await q.order('save_count', { ascending: false }).limit(50);
+    const { data } = await q.order('save_count', { ascending: false }).limit(100);
 
     const listings = (data ?? []) as unknown as Listing[];
 

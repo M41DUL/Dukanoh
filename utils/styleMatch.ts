@@ -13,10 +13,10 @@
 export const COMPLEMENTARY_CATEGORIES: Record<string, string[]> = {
   Lehenga:        ['Dupatta', 'Blouse'],
   Saree:          ['Blouse', 'Dupatta'],
-  Anarkali:       ['Dupatta'],
+  Anarkali:       ['Dupatta', 'Salwar', 'Sharara'],
   Kurta:          ['Dupatta', 'Salwar', 'Sharara', 'Nehru Jacket'],
-  Sherwani:       ['Salwar'],
-  Achkan:         ['Salwar'],
+  Sherwani:       ['Kurta', 'Salwar'],
+  Achkan:         ['Kurta', 'Salwar'],
   'Pathani Suit': ['Salwar'],
   Dupatta:        ['Lehenga', 'Anarkali', 'Kurta', 'Saree'],
   Blouse:         ['Saree', 'Lehenga'],
@@ -113,6 +113,9 @@ export function scoreMatch(base: MatchInput, candidate: {
     const compatWeights = FABRIC_WEIGHT_COMPAT[base.fabricWeight] ?? [];
     if (compatWeights.includes(candidate.fabricWeight)) score += 1;
   }
+
+  // Popularity signal — well-saved listings get a small boost
+  if ((candidate.save_count ?? 0) >= 5) score += 1;
 
   return score;
 }
