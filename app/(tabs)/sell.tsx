@@ -10,6 +10,7 @@ import {
   Animated,
   Keyboard,
   KeyboardAvoidingView,
+  ActivityIndicator,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -31,7 +32,7 @@ import { Typography, Spacing, BorderRadius, BorderWidth, Genders, CategoriesByGe
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
-import { compressImage } from '@/lib/imageUtils';
+import { compressImage, compressImageForAnalysis } from '@/lib/imageUtils';
 import { validateListing, buildMeasurements as buildMeasurementsHelper, isFormDirty as checkFormDirty, ListingForm } from '@/lib/sellHelpers';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -57,6 +58,8 @@ export default function SellScreen() {
   const [submitting, setSubmitting] = useState<'available' | 'draft' | null>(null);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [errors, setErrors] = useState<Partial<ListingForm & { images: string }>>({});
+  const [coverWarnings, setCoverWarnings] = useState<string[]>([]);
+  const [analysingImages, setAnalysingImages] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const successAnim = useRef(new Animated.Value(0)).current;;
   const colors = useThemeColors();
@@ -88,6 +91,35 @@ export default function SellScreen() {
   }, []);
 
   const isFormDirty = checkFormDirty(form, measurements, images.length);
+
+  // ── Cover quality check ───────────────────────────────────────────────────────
+  const coverImage = images[0];
+  const prevCoverRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!coverImage) { setCoverWarnings([]); return; }
+    if (coverImage === prevCoverRef.current) return;
+    prevCoverRef.current = coverImage;
+    setCoverWarnings([]);
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const imageBase64 = await compressImageForAnalysis(coverImage);
+        if (cancelled) return;
+        const invoke = supabase.functions.invoke('analyse-listing-image', {
+          body: { imageBase64, check: 'quality' },
+        });
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 15000)
+        );
+        const { data } = await Promise.race([invoke, timeout]);
+        if (!cancelled) setCoverWarnings(data?.warnings ?? []);
+      } catch {
+        // fail open — no warnings shown
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [coverImage]);
 
   const formDirtyRef = useRef(isFormDirty);
   const submittingRef = useRef(submitting);
@@ -128,6 +160,22 @@ export default function SellScreen() {
     }
   };
 
+  const runModeration = async (uri: string): Promise<boolean> => {
+    try {
+      const imageBase64 = await compressImageForAnalysis(uri);
+      const invoke = supabase.functions.invoke('analyse-listing-image', {
+        body: { imageBase64, check: 'moderation' },
+      });
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 15000)
+      );
+      const { data } = await Promise.race([invoke, timeout]);
+      return data?.blocked === true;
+    } catch {
+      return false; // fail open
+    }
+  };
+
   const pickFromLibrary = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -143,8 +191,29 @@ export default function SellScreen() {
     });
 
     if (!result.canceled) {
-      setImages(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 8));
-      setErrors(e => ({ ...e, images: undefined }));
+      const uris = result.assets.map(a => a.uri);
+      setAnalysingImages(true);
+      try {
+        const moderationResults = await Promise.all(uris.map(runModeration));
+        const passed = uris.filter((_, i) => !moderationResults[i]);
+        const blockedCount = uris.length - passed.length;
+
+        if (blockedCount > 0) {
+          Alert.alert(
+            'Photo not allowed',
+            blockedCount === 1
+              ? "One photo wasn't allowed and has been removed."
+              : `${blockedCount} photos weren't allowed and have been removed.`,
+          );
+        }
+
+        if (passed.length > 0) {
+          setImages(prev => [...prev, ...passed].slice(0, 8));
+          setErrors(e => ({ ...e, images: undefined }));
+        }
+      } finally {
+        setAnalysingImages(false);
+      }
     }
   };
 
@@ -165,9 +234,17 @@ export default function SellScreen() {
 
       if (result.canceled) break;
 
-      setImages(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, 8));
-      setErrors(e => ({ ...e, images: undefined }));
-      currentCount += result.assets.length;
+      const uri = result.assets[0].uri;
+      setAnalysingImages(true);
+      const blocked = await runModeration(uri).finally(() => setAnalysingImages(false));
+
+      if (blocked) {
+        Alert.alert('Photo not allowed', "This image isn't allowed. Please try another.");
+      } else {
+        setImages(prev => [...prev, uri].slice(0, 8));
+        setErrors(e => ({ ...e, images: undefined }));
+        currentCount += 1;
+      }
 
       // Let camera UI fully dismiss before reopening
       if (currentCount < 8) {
@@ -251,6 +328,8 @@ export default function SellScreen() {
     setMeasurements({ chest: '', waist: '', length: '' });
     setShowMeasurements(false);
     setImages([]);
+    setCoverWarnings([]);
+    prevCoverRef.current = undefined;
   };
 
   const buildMeasurements = () => buildMeasurementsHelper(measurements);
@@ -416,16 +495,34 @@ export default function SellScreen() {
               </View>
             ))}
             {images.length < 8 && (
-              <TouchableOpacity style={styles.addPhotoBtn} onPress={showPhotoOptions} activeOpacity={0.8}>
-                <Ionicons name="camera-outline" size={28} color={colors.textSecondary} />
+              <TouchableOpacity
+                style={[styles.addPhotoBtn, analysingImages && styles.addPhotoBtnDisabled]}
+                onPress={analysingImages ? undefined : showPhotoOptions}
+                activeOpacity={0.8}
+              >
+                {analysingImages ? (
+                  <ActivityIndicator size="small" color={colors.textSecondary} />
+                ) : (
+                  <Ionicons name="camera-outline" size={28} color={colors.textSecondary} />
+                )}
                 <Text style={styles.addPhotoLabel}>
-                  {images.length === 0 ? 'Add Photos' : 'Add More'}
+                  {analysingImages ? 'Checking…' : images.length === 0 ? 'Add Photos' : 'Add More'}
                 </Text>
                 <Text style={styles.addPhotoSub}>{images.length}/8</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
-{errors.images ? <Text style={styles.errorText}>{errors.images}</Text> : null}
+{coverWarnings.length > 0 && (
+            <View style={styles.warningBanner}>
+              {coverWarnings.map((w, i) => (
+                <View key={i} style={styles.warningRow}>
+                  <Ionicons name="warning-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.warningText}>{w}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          {errors.images ? <Text style={[styles.errorText, styles.imageErrorPadded]}>{errors.images}</Text> : null}
         </View>
 
         <View onLayout={e => { fieldPositions.current.title = e.nativeEvent.layout.y; }}>
@@ -753,6 +850,7 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'center',
       gap: 2,
     },
+    addPhotoBtnDisabled: { opacity: 0.5 },
     addPhotoLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
     addPhotoSub: { ...Typography.caption, color: colors.textSecondary },
     multiline: { height: 100, textAlignVertical: 'top' },
@@ -760,6 +858,18 @@ function getStyles(colors: ColorTokens) {
     measureSection: { gap: Spacing.base },
     addMeasurementsLink: { ...Typography.caption, color: colors.primaryText, fontFamily: 'Inter_600SemiBold' },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
+    imageErrorPadded: { paddingHorizontal: Spacing.base },
+    warningBanner: {
+      marginHorizontal: Spacing.base,
+      marginTop: Spacing.sm,
+      gap: Spacing.xs,
+    },
+    warningRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'flex-start' as const,
+      gap: Spacing.xs,
+    },
+    warningText: { ...Typography.caption, color: colors.textSecondary, flex: 1 },
     progressText: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' as const },
     submitBtn: { marginTop: Spacing.sm },
     successContainer: {

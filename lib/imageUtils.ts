@@ -14,3 +14,17 @@ export async function compressImage(uri: string): Promise<string> {
   );
   return result.uri;
 }
+
+/**
+ * Compress an image to 800px wide for Rekognition analysis.
+ * Returns base64-encoded JPEG (without data URL prefix).
+ */
+export async function compressImageForAnalysis(uri: string): Promise<string> {
+  const result = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: 800 } }],
+    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+  );
+  const raw = result.base64 ?? '';
+  return raw.includes(',') ? raw.split(',')[1] : raw;
+}
