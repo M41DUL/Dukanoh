@@ -1,35 +1,8 @@
-// Unit tests for pure logic in supabase/functions/analyse-listing-image/index.ts
-// The functions are replicated here so there is no dependency on Deno or AWS.
-
-// ─── Replicated logic ─────────────────────────────────────────────────────────
-
-const BLOCKED_MODERATION_PARENTS = new Set(['Explicit Nudity']);
-const BLOCKED_MODERATION_NAMES   = new Set(['Explicit Nudity', 'Graphic Violence']);
-
-interface ModerationLabel {
-  Name: string;
-  ParentName?: string;
-  Confidence: number;
-}
-
-function isBlocked(label: ModerationLabel): boolean {
-  if (label.Confidence < 70) return false;
-  if (BLOCKED_MODERATION_NAMES.has(label.Name)) return true;
-  if (label.ParentName && BLOCKED_MODERATION_PARENTS.has(label.ParentName)) return true;
-  return false;
-}
-
-const BACKGROUND_LABELS = new Set([
-  'Room', 'Living Room', 'Bedroom', 'Furniture', 'Floor', 'Table',
-  'Chair', 'Couch', 'Sofa', 'Bed', 'Wall', 'Door', 'Window', 'Lamp',
-  'Carpet', 'Rug', 'Kitchen', 'Bathroom', 'Shelf', 'Cabinet',
-  'Indoors', 'Interior Design', 'Home Decor',
-]);
-
-function hasComplexBackground(labels: { Name: string; Confidence: number }[]): boolean {
-  const count = labels.filter(l => l.Confidence >= 70 && BACKGROUND_LABELS.has(l.Name)).length;
-  return count >= 3;
-}
+// Unit tests for pure logic in supabase/functions/analyse-listing-image/_lib.ts
+import {
+  isBlocked,
+  hasComplexBackground,
+} from '../supabase/functions/analyse-listing-image/_lib';
 
 // ─── isBlocked ────────────────────────────────────────────────────────────────
 

@@ -3,46 +3,15 @@ import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.19';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 
+// ─── Pure logic ───────────────────────────────────────────────────────────────
+// Suggestive is intentionally excluded — South Asian garments (sarees,
+// lehengas) can show midriff and would generate false positives.
+import { isBlocked, hasComplexBackground, ModerationLabel } from './_lib.ts';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-// ─── Moderation ───────────────────────────────────────────────────────────────
-// Block explicit nudity only. Suggestive is intentionally excluded —
-// traditional South Asian garments (sarees, lehengas) can show midriff
-// and would generate false positives.
-
-const BLOCKED_MODERATION_PARENTS = new Set(['Explicit Nudity']);
-const BLOCKED_MODERATION_NAMES   = new Set(['Explicit Nudity', 'Graphic Violence']);
-
-interface ModerationLabel {
-  Name: string;
-  ParentName?: string;
-  Confidence: number;
-}
-
-function isBlocked(label: ModerationLabel): boolean {
-  if (label.Confidence < 70) return false;
-  if (BLOCKED_MODERATION_NAMES.has(label.Name)) return true;
-  if (label.ParentName && BLOCKED_MODERATION_PARENTS.has(label.ParentName)) return true;
-  return false;
-}
-
-// ─── Background complexity ────────────────────────────────────────────────────
-// Labels that suggest a cluttered or non-neutral background.
-
-const BACKGROUND_LABELS = new Set([
-  'Room', 'Living Room', 'Bedroom', 'Furniture', 'Floor', 'Table',
-  'Chair', 'Couch', 'Sofa', 'Bed', 'Wall', 'Door', 'Window', 'Lamp',
-  'Carpet', 'Rug', 'Kitchen', 'Bathroom', 'Shelf', 'Cabinet',
-  'Indoors', 'Interior Design', 'Home Decor',
-]);
-
-function hasComplexBackground(labels: { Name: string; Confidence: number }[]): boolean {
-  const count = labels.filter(l => l.Confidence >= 70 && BACKGROUND_LABELS.has(l.Name)).length;
-  return count >= 3;
-}
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
