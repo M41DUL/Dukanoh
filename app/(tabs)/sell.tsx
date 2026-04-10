@@ -10,6 +10,7 @@ import {
   Animated,
   Keyboard,
   KeyboardAvoidingView,
+  ActivityIndicator,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
@@ -58,6 +59,7 @@ export default function SellScreen() {
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [errors, setErrors] = useState<Partial<ListingForm & { images: string }>>({});
   const [coverWarnings, setCoverWarnings] = useState<string[]>([]);
+  const [analysingImages, setAnalysingImages] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const successAnim = useRef(new Animated.Value(0)).current;;
   const colors = useThemeColors();
@@ -98,12 +100,25 @@ export default function SellScreen() {
     if (coverImage === prevCoverRef.current) return;
     prevCoverRef.current = coverImage;
     setCoverWarnings([]);
-    compressImageForAnalysis(coverImage)
-      .then(imageBase64 => supabase.functions.invoke('analyse-listing-image', {
-        body: { imageBase64, check: 'quality' },
-      }))
-      .then(({ data }) => { setCoverWarnings(data?.warnings ?? []); })
-      .catch(() => { /* fail open — no warnings shown */ });
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const imageBase64 = await compressImageForAnalysis(coverImage);
+        if (cancelled) return;
+        const invoke = supabase.functions.invoke('analyse-listing-image', {
+          body: { imageBase64, check: 'quality' },
+        });
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 15000)
+        );
+        const { data } = await Promise.race([invoke, timeout]);
+        if (!cancelled) setCoverWarnings(data?.warnings ?? []);
+      } catch {
+        // fail open — no warnings shown
+      }
+    })();
+    return () => { cancelled = true; };
   }, [coverImage]);
 
   const formDirtyRef = useRef(isFormDirty);
@@ -148,9 +163,13 @@ export default function SellScreen() {
   const runModeration = async (uri: string): Promise<boolean> => {
     try {
       const imageBase64 = await compressImageForAnalysis(uri);
-      const { data } = await supabase.functions.invoke('analyse-listing-image', {
+      const invoke = supabase.functions.invoke('analyse-listing-image', {
         body: { imageBase64, check: 'moderation' },
       });
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 15000)
+      );
+      const { data } = await Promise.race([invoke, timeout]);
       return data?.blocked === true;
     } catch {
       return false; // fail open
@@ -173,22 +192,27 @@ export default function SellScreen() {
 
     if (!result.canceled) {
       const uris = result.assets.map(a => a.uri);
-      const moderationResults = await Promise.all(uris.map(runModeration));
-      const passed = uris.filter((_, i) => !moderationResults[i]);
-      const blockedCount = uris.length - passed.length;
+      setAnalysingImages(true);
+      try {
+        const moderationResults = await Promise.all(uris.map(runModeration));
+        const passed = uris.filter((_, i) => !moderationResults[i]);
+        const blockedCount = uris.length - passed.length;
 
-      if (blockedCount > 0) {
-        Alert.alert(
-          'Photo not allowed',
-          blockedCount === 1
-            ? 'One photo wasn\'t allowed and has been removed.'
-            : `${blockedCount} photos weren't allowed and have been removed.`,
-        );
-      }
+        if (blockedCount > 0) {
+          Alert.alert(
+            'Photo not allowed',
+            blockedCount === 1
+              ? "One photo wasn't allowed and has been removed."
+              : `${blockedCount} photos weren't allowed and have been removed.`,
+          );
+        }
 
-      if (passed.length > 0) {
-        setImages(prev => [...prev, ...passed].slice(0, 8));
-        setErrors(e => ({ ...e, images: undefined }));
+        if (passed.length > 0) {
+          setImages(prev => [...prev, ...passed].slice(0, 8));
+          setErrors(e => ({ ...e, images: undefined }));
+        }
+      } finally {
+        setAnalysingImages(false);
       }
     }
   };
@@ -211,10 +235,11 @@ export default function SellScreen() {
       if (result.canceled) break;
 
       const uri = result.assets[0].uri;
-      const blocked = await runModeration(uri);
+      setAnalysingImages(true);
+      const blocked = await runModeration(uri).finally(() => setAnalysingImages(false));
 
       if (blocked) {
-        Alert.alert('Photo not allowed', 'This image isn\'t allowed. Please try another.');
+        Alert.alert('Photo not allowed', "This image isn't allowed. Please try another.");
       } else {
         setImages(prev => [...prev, uri].slice(0, 8));
         setErrors(e => ({ ...e, images: undefined }));
@@ -470,10 +495,18 @@ export default function SellScreen() {
               </View>
             ))}
             {images.length < 8 && (
-              <TouchableOpacity style={styles.addPhotoBtn} onPress={showPhotoOptions} activeOpacity={0.8}>
-                <Ionicons name="camera-outline" size={28} color={colors.textSecondary} />
+              <TouchableOpacity
+                style={[styles.addPhotoBtn, analysingImages && styles.addPhotoBtnDisabled]}
+                onPress={analysingImages ? undefined : showPhotoOptions}
+                activeOpacity={0.8}
+              >
+                {analysingImages ? (
+                  <ActivityIndicator size="small" color={colors.textSecondary} />
+                ) : (
+                  <Ionicons name="camera-outline" size={28} color={colors.textSecondary} />
+                )}
                 <Text style={styles.addPhotoLabel}>
-                  {images.length === 0 ? 'Add Photos' : 'Add More'}
+                  {analysingImages ? 'Checking…' : images.length === 0 ? 'Add Photos' : 'Add More'}
                 </Text>
                 <Text style={styles.addPhotoSub}>{images.length}/8</Text>
               </TouchableOpacity>
@@ -817,6 +850,7 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'center',
       gap: 2,
     },
+    addPhotoBtnDisabled: { opacity: 0.5 },
     addPhotoLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
     addPhotoSub: { ...Typography.caption, color: colors.textSecondary },
     multiline: { height: 100, textAlignVertical: 'top' },
