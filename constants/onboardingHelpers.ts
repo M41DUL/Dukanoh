@@ -1,11 +1,15 @@
-import { Categories } from '@/constants/theme';
-
 // ─── Category layout data ───────────────────────────────────
 export type BubbleLayout = { left: number; top: number; size: number };
 
 export const BASE_WIDTH = 390; // iPhone 14 baseline for scaling
 
-export const ONBOARDING_CATEGORIES = Categories.filter((c) => c !== 'All');
+// Fixed list — must match CATEGORY_LAYOUT length and order below.
+// Not derived from Categories so new sell/browse categories don't break the layout.
+export const ONBOARDING_CATEGORIES = [
+  'Lehenga', 'Saree', 'Anarkali',
+  'Sherwani', 'Kurta', 'Achkan',
+  'Pathani Suit', 'Casualwear', 'Shoes',
+] as const;
 
 export const CATEGORY_LAYOUT: BubbleLayout[] = [
   // Row 1

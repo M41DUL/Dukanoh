@@ -19,8 +19,8 @@ describe('ONBOARDING_CATEGORIES', () => {
     expect(ONBOARDING_CATEGORIES).not.toContain('All');
   });
 
-  test('has exactly 9 categories', () => {
-    expect(ONBOARDING_CATEGORIES).toHaveLength(9);
+  test('has the same number of entries as CATEGORY_LAYOUT', () => {
+    expect(ONBOARDING_CATEGORIES).toHaveLength(CATEGORY_LAYOUT.length);
   });
 
   test('includes expected categories', () => {
