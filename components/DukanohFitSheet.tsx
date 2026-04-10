@@ -71,7 +71,10 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
 
       // 15 second timeout — if network is slow we fail gracefully (fix #5)
       const invokeWithTimeout = Promise.race([
-        supabase.functions.invoke('validate-clothing', { body: { imageBase64 } }),
+        supabase.functions.invoke('validate-clothing', {
+          body: { imageBase64 },
+          headers: { 'x-dukanoh-key': process.env.EXPO_PUBLIC_INTERNAL_API_KEY ?? '' },
+        }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Request timed out')), 15000)
         ),

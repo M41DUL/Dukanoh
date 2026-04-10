@@ -1,17 +1,45 @@
 /* eslint-disable import/no-unresolved */
 import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.19';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
-
-// ─── Pure logic ───────────────────────────────────────────────────────────────
-// Suggestive is intentionally excluded — South Asian garments (sarees,
-// lehengas) can show midriff and would generate false positives.
-import { isBlocked, hasComplexBackground, ModerationLabel } from './_lib.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dukanoh-key',
 };
+
+// ─── Moderation ───────────────────────────────────────────────────────────────
+
+// Suggestive is intentionally excluded — South Asian garments (sarees,
+// lehengas) can show midriff and would generate false positives.
+const BLOCKED_MODERATION_PARENTS = new Set(['Explicit Nudity']);
+const BLOCKED_MODERATION_NAMES   = new Set(['Explicit Nudity', 'Graphic Violence']);
+
+interface ModerationLabel {
+  Name: string;
+  ParentName?: string;
+  Confidence: number;
+}
+
+function isBlocked(label: ModerationLabel): boolean {
+  if (label.Confidence < 70) return false;
+  if (BLOCKED_MODERATION_NAMES.has(label.Name)) return true;
+  if (label.ParentName && BLOCKED_MODERATION_PARENTS.has(label.ParentName)) return true;
+  return false;
+}
+
+// ─── Background complexity ────────────────────────────────────────────────────
+
+const BACKGROUND_LABELS = new Set([
+  'Room', 'Living Room', 'Bedroom', 'Furniture', 'Floor', 'Table',
+  'Chair', 'Couch', 'Sofa', 'Bed', 'Wall', 'Door', 'Window', 'Lamp',
+  'Carpet', 'Rug', 'Kitchen', 'Bathroom', 'Shelf', 'Cabinet',
+  'Indoors', 'Interior Design', 'Home Decor',
+]);
+
+function hasComplexBackground(labels: { Name: string; Confidence: number }[]): boolean {
+  const count = labels.filter(l => l.Confidence >= 70 && BACKGROUND_LABELS.has(l.Name)).length;
+  return count >= 3;
+}
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
@@ -26,20 +54,9 @@ Deno.serve(async (req) => {
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
 
-  // ── Auth ──────────────────────────────────────────────────────────────────────
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
+  const apiKey = req.headers.get('x-dukanoh-key');
+  if (apiKey !== Deno.env.get('INTERNAL_API_KEY')) return json({ error: 'Forbidden' }, 403);
 
-  const supabaseClient = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } }
-  );
-
-  const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-  if (authError || !user) return json({ error: 'Unauthorized' }, 401);
-
-  // ── Body ──────────────────────────────────────────────────────────────────────
   try {
     const { imageBase64: rawBase64, check } = await req.json();
 
@@ -65,23 +82,17 @@ Deno.serve(async (req) => {
           'Content-Type': 'application/x-amz-json-1.1',
           'X-Amz-Target': 'RekognitionService.DetectModerationLabels',
         },
-        body: JSON.stringify({
-          Image: { Bytes: imageBase64 },
-          MinConfidence: 70,
-        }),
+        body: JSON.stringify({ Image: { Bytes: imageBase64 }, MinConfidence: 70 }),
       });
-
       if (!res.ok) {
         // eslint-disable-next-line no-console
         console.error('Rekognition moderation error:', res.status);
         // Fail open — don't block the seller if Rekognition is unavailable
         return json({ blocked: false });
       }
-
       const data = await res.json();
       const labels: ModerationLabel[] = data.ModerationLabels ?? [];
-      const blocked = labels.some(isBlocked);
-      return json({ blocked });
+      return json({ blocked: labels.some(isBlocked) });
     }
 
     // ── Quality check ─────────────────────────────────────────────────────────
@@ -98,7 +109,6 @@ Deno.serve(async (req) => {
         Features: ['GENERAL_LABELS', 'IMAGE_PROPERTIES'],
       }),
     });
-
     if (!res.ok) {
       // eslint-disable-next-line no-console
       console.error('Rekognition quality error:', res.status);
@@ -108,25 +118,22 @@ Deno.serve(async (req) => {
     const data = await res.json();
     const quality = data.ImageProperties?.Quality ?? {};
     const labels: { Name: string; Confidence: number }[] = data.Labels ?? [];
-
     const warnings: string[] = [];
 
-    if (typeof quality.Brightness === 'number' && quality.Brightness < 30) {
+    if (typeof quality.Brightness === 'number' && quality.Brightness < 30)
       warnings.push('Your cover photo looks a bit dark — better-lit photos help buyers see the details.');
-    }
-    if (typeof quality.Sharpness === 'number' && quality.Sharpness < 35) {
+    if (typeof quality.Sharpness === 'number' && quality.Sharpness < 35)
       warnings.push('Your cover photo looks blurry — try holding your phone steady or retaking it.');
-    }
-    if (hasComplexBackground(labels)) {
+    if (hasComplexBackground(labels))
       warnings.push('A plain background helps buyers focus on the item.');
-    }
 
+    // eslint-disable-next-line no-console
+    console.log('Quality — Brightness:', quality.Brightness, 'Sharpness:', quality.Sharpness);
     return json({ warnings });
 
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('analyse-listing-image error:', (err as Error).message);
-    // Fail open on unexpected errors
     return json({ blocked: false, warnings: [] });
   }
 });

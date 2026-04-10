@@ -36,6 +36,8 @@ import { compressImage, compressImageForAnalysis } from '@/lib/imageUtils';
 import { validateListing, buildMeasurements as buildMeasurementsHelper, isFormDirty as checkFormDirty, ListingForm } from '@/lib/sellHelpers';
 import { useAuth } from '@/hooks/useAuth';
 
+const FN_KEY = { 'x-dukanoh-key': process.env.EXPO_PUBLIC_INTERNAL_API_KEY ?? '' };
+
 export default function SellScreen() {
   const { user } = useAuth();
   const isFocused = useIsFocused();
@@ -104,15 +106,11 @@ export default function SellScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const [imageBase64, { data: { session } }] = await Promise.all([
-          compressImageForAnalysis(coverImage),
-          supabase.auth.getSession(),
-        ]);
+        const imageBase64 = await compressImageForAnalysis(coverImage);
         if (cancelled) return;
-        const headers = session ? { Authorization: `Bearer ${session.access_token}` } : {};
         const invoke = supabase.functions.invoke('analyse-listing-image', {
           body: { imageBase64, check: 'quality' },
-          headers,
+          headers: FN_KEY,
         });
         const timeout = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('timeout')), 15000)
@@ -165,24 +163,31 @@ export default function SellScreen() {
     }
   };
 
-  const runModeration = async (uri: string): Promise<boolean> => {
+  // Runs moderation + clothing check in parallel. Returns 'blocked', 'not-clothing', or 'ok'.
+  const runChecks = async (uri: string): Promise<'ok' | 'blocked' | 'not-clothing'> => {
     try {
-      const [imageBase64, { data: { session } }] = await Promise.all([
-        compressImageForAnalysis(uri),
-        supabase.auth.getSession(),
+      const imageBase64 = await compressImageForAnalysis(uri);
+      const timeout = <T,>(p: Promise<T>) => Promise.race([
+        p,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000)),
       ]);
-      const headers = session ? { Authorization: `Bearer ${session.access_token}` } : {};
-      const invoke = supabase.functions.invoke('analyse-listing-image', {
-        body: { imageBase64, check: 'moderation' },
-        headers,
-      });
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 15000)
-      );
-      const { data } = await Promise.race([invoke, timeout]);
-      return data?.blocked === true;
+
+      const [modResult, clothingResult] = await Promise.all([
+        timeout(supabase.functions.invoke('analyse-listing-image', {
+          body: { imageBase64, check: 'moderation' },
+          headers: FN_KEY,
+        })).catch(() => ({ data: { blocked: false } })),
+        timeout(supabase.functions.invoke('validate-clothing', {
+          body: { imageBase64 },
+          headers: FN_KEY,
+        })).catch(() => ({ data: { isClothing: true } })), // fail open
+      ]);
+
+      if ((modResult as { data: { blocked?: boolean } }).data?.blocked) return 'blocked';
+      if ((clothingResult as { data: { isClothing?: boolean } }).data?.isClothing === false) return 'not-clothing';
+      return 'ok';
     } catch {
-      return false; // fail open
+      return 'ok'; // fail open
     }
   };
 
@@ -204,9 +209,10 @@ export default function SellScreen() {
       const uris = result.assets.map(a => a.uri);
       setAnalysingImages(true);
       try {
-        const moderationResults = await Promise.all(uris.map(runModeration));
-        const passed = uris.filter((_, i) => !moderationResults[i]);
-        const blockedCount = uris.length - passed.length;
+        const checkResults = await Promise.all(uris.map(runChecks));
+        const passed = uris.filter((_, i) => checkResults[i] === 'ok');
+        const blockedCount = checkResults.filter(r => r === 'blocked').length;
+        const notClothingCount = checkResults.filter(r => r === 'not-clothing').length;
 
         if (blockedCount > 0) {
           Alert.alert(
@@ -214,6 +220,14 @@ export default function SellScreen() {
             blockedCount === 1
               ? "One photo wasn't allowed and has been removed."
               : `${blockedCount} photos weren't allowed and have been removed.`,
+          );
+        }
+        if (notClothingCount > 0) {
+          Alert.alert(
+            'Not a clothing item',
+            notClothingCount === 1
+              ? "One photo doesn't appear to show clothing and has been removed."
+              : `${notClothingCount} photos don't appear to show clothing and have been removed.`,
           );
         }
 
@@ -246,10 +260,12 @@ export default function SellScreen() {
 
       const uri = result.assets[0].uri;
       setAnalysingImages(true);
-      const blocked = await runModeration(uri).finally(() => setAnalysingImages(false));
+      const checkResult = await runChecks(uri).finally(() => setAnalysingImages(false));
 
-      if (blocked) {
+      if (checkResult === 'blocked') {
         Alert.alert('Photo not allowed', "This image isn't allowed. Please try another.");
+      } else if (checkResult === 'not-clothing') {
+        Alert.alert('Not a clothing item', "Please take a photo of the clothing piece you want to sell.");
       } else {
         setImages(prev => [...prev, uri].slice(0, 8));
         setErrors(e => ({ ...e, images: undefined }));
