@@ -108,7 +108,7 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
       {HOW_IT_WORKS.map(({ icon, key, val }) => (
         <View key={key} style={styles.detailRow}>
           <View style={styles.iconWrap}>
-            <Ionicons name={icon} size={20} color={colors.primary} />
+            <Ionicons name={icon} size={20} color={colors.secondary} />
           </View>
           <View style={styles.detailText}>
             <Text style={styles.detailKey}>{key}</Text>
@@ -159,7 +159,7 @@ function getStyles(colors: ColorTokens) {
       width: 40,
       height: 40,
       borderRadius: BorderRadius.medium,
-      backgroundColor: colors.primaryLight,
+      backgroundColor: `${colors.secondary}22`,
       alignItems: 'center',
       justifyContent: 'center',
     },

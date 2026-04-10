@@ -258,7 +258,7 @@ export default function DukanohFitScreen() {
           {detectedFields.has('category') && (
             <View style={styles.labelRow}>
               <Text style={styles.sectionLabel}>Category <Text style={styles.required}>*</Text></Text>
-              <Text style={styles.detectedTag}>Detected</Text>
+              <Text style={styles.detectedTag}>Does this look right?</Text>
             </View>
           )}
           <Select
@@ -275,7 +275,7 @@ export default function DukanohFitScreen() {
           {detectedFields.has('colour') && (
             <View style={styles.labelRow}>
               <Text style={styles.sectionLabel}>Colour <Text style={styles.required}>*</Text></Text>
-              <Text style={styles.detectedTag}>Detected</Text>
+              <Text style={styles.detectedTag}>Does this look right?</Text>
             </View>
           )}
           <Select
@@ -299,7 +299,7 @@ export default function DukanohFitScreen() {
         </View>
 
         {/* Fabric weight */}
-        <View style={styles.section}>
+        <View style={[styles.section, { marginBottom: 0 }]}>
           <Select
             label="Fabric weight (optional)"
             placeholder="Select fabric weight"
@@ -334,6 +334,7 @@ function getStyles(colors: ColorTokens) {
       width: '100%',
       height: 320,
       borderRadius: BorderRadius.large,
+      marginTop: Spacing.lg,
       marginBottom: Spacing.lg,
     },
     section: { marginBottom: Spacing.lg },
@@ -350,9 +351,9 @@ function getStyles(colors: ColorTokens) {
     },
     detectedTag: {
       ...Typography.micro,
-      color: colors.primary,
+      color: colors.textPrimary,
       fontFamily: FontFamily.semibold,
-      backgroundColor: `${colors.primary}18`,
+      backgroundColor: `${colors.secondary}33`,
       paddingHorizontal: Spacing.xs,
       paddingVertical: 2,
       borderRadius: BorderRadius.full,

@@ -10,6 +10,7 @@ import type { Ionicons } from '@expo/vector-icons';
 // ── Keys & constants ────────────────────────────────────────────────
 const nudgeKey = (uid: string) => `@dukanoh/profile_nudge_dismissed/${uid}`;
 const sellNudgeKey = (uid: string) => `@dukanoh/sell_nudge_dismissed/${uid}`;
+const fitSeenKey = (uid: string) => `@dukanoh/fit_sheet_seen/${uid}`;
 const FEED_CACHE_KEY = (uid: string) => `@dukanoh/feed_cache/${uid}`;
 const RECENTLY_VIEWED_KEY = (uid: string) => `@dukanoh/recently_viewed/${uid}`;
 const TRENDING_CACHE_KEY = (gender: 'Men' | 'Women' | null) =>
@@ -31,7 +32,10 @@ export interface NudgeSlide {
   title: string;
   subtitle: string;
   onPress: () => void;
-  onDismiss: () => void;
+  onDismiss?: () => void;
+  gradientColors?: [string, string];
+  iconColor?: string;
+  iconBg?: string;
 }
 
 interface FeedCache {
@@ -281,6 +285,7 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
   const [displayName, setDisplayName] = useState('');
   const [nudgeDismissed, setNudgeDismissed] = useState(true);
   const [sellNudgeDismissed, setSellNudgeDismissed] = useState(true);
+  const [fitSheetSeen, setFitSheetSeen] = useState(true);
   const [hasListings, setHasListings] = useState(true);
   const hasMounted = useRef(false);
   const lastLoadedAt = useRef(0);
@@ -291,9 +296,11 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
     Promise.all([
       AsyncStorage.getItem(nudgeKey(userId)),
       AsyncStorage.getItem(sellNudgeKey(userId)),
-    ]).then(([profileVal, sellVal]) => {
+      AsyncStorage.getItem(fitSeenKey(userId)),
+    ]).then(([profileVal, sellVal, fitSeenVal]) => {
       setNudgeDismissed(profileVal === 'true');
       setSellNudgeDismissed(sellVal === 'true');
+      setFitSheetSeen(fitSeenVal === 'true');
     });
   }, [userId]);
 
@@ -307,6 +314,12 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
     if (!userId) return;
     await AsyncStorage.setItem(sellNudgeKey(userId), 'true');
     setSellNudgeDismissed(true);
+  }, [userId]);
+
+  const markFitSeen = useCallback(async () => {
+    if (!userId) return;
+    await AsyncStorage.setItem(fitSeenKey(userId), 'true');
+    setFitSheetSeen(true);
   }, [userId]);
 
   const applyFeedData = useCallback((data: Omit<FeedCache, 'timestamp'>) => {
@@ -505,6 +518,8 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
     displayName,
     greeting: getGreeting(),
     nudgeSlides,
+    showFitNudge: !fitSheetSeen,
+    markFitSeen,
     onRefresh,
     loadDataIfStale,
     hasMounted,

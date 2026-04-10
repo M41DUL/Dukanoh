@@ -305,9 +305,9 @@ function getStyles(colors: ColorTokens) {
     },
     searchBarFlex: { flex: 1 },
     fitBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: BorderRadius.medium,
+      width: 46,
+      height: 46,
+      borderRadius: 23,
       backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
