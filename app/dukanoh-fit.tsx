@@ -10,7 +10,6 @@ import {
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImageManipulator from 'expo-image-manipulator';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
@@ -34,8 +33,7 @@ import {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const RATE_LIMIT_KEY = '@dukanoh/fit_searches_today';
-const MAX_SEARCHES_PER_DAY = 10;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Derive from theme — exclude meta/non-garment entries
 const CATEGORIES = Categories.filter(c => !['All', 'Casualwear', 'Shoes'].includes(c));
@@ -79,35 +77,13 @@ export default function DukanohFitScreen() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Listing[]>([]);
 
-  // ─── Rate limit ────────────────────────────────────────────────────────────
-  const checkRateLimit = useCallback(async (): Promise<boolean> => {
-    try {
-      const raw = await AsyncStorage.getItem(RATE_LIMIT_KEY);
-      const today = new Date().toDateString();
-      const data = raw ? JSON.parse(raw) : { date: today, count: 0 };
-      if (data.date !== today) return true;
-      return data.count < MAX_SEARCHES_PER_DAY;
-    } catch { return true; }
-  }, []);
-
-  const incrementRateLimit = useCallback(async () => {
-    try {
-      const raw = await AsyncStorage.getItem(RATE_LIMIT_KEY);
-      const today = new Date().toDateString();
-      const data = raw ? JSON.parse(raw) : { date: today, count: 0 };
-      const newData = data.date === today
-        ? { date: today, count: data.count + 1 }
-        : { date: today, count: 1 };
-      await AsyncStorage.setItem(RATE_LIMIT_KEY, JSON.stringify(newData));
-    } catch {}
-  }, []);
-
   // ─── Run match ─────────────────────────────────────────────────────────────
   const runMatch = useCallback(async (input: MatchInput) => {
     if (!user) return;
 
-    const allowed = await checkRateLimit();
-    if (!allowed) {
+    // Server-side rate limit — atomic check + insert via DB RPC (fixes #2 + #4)
+    const { data: allowed, error: rpcError } = await supabase.rpc('record_fit_search');
+    if (rpcError || !allowed) {
       Alert.alert('Daily limit reached', 'You\'ve used all 10 Dukanoh Fit searches for today. Come back tomorrow.');
       return;
     }
@@ -125,6 +101,9 @@ export default function DukanohFitScreen() {
     const compat = getCompatibleColours(input.colour);
     const allCompatibleColours = [...compat.primary, ...compat.secondary];
 
+    // Validate blockedIds are UUIDs before using in query (fix #3)
+    const safeBlockedIds = blockedIds.filter(id => UUID_REGEX.test(id));
+
     let q = supabase
       .from('listings')
       .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
@@ -132,13 +111,19 @@ export default function DukanohFitScreen() {
       .in('category', complementary)
       .neq('seller_id', user.id);
 
-    if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
+    if (safeBlockedIds.length > 0) q = q.not('seller_id', 'in', `(${safeBlockedIds.join(',')})`);
 
     if (allCompatibleColours.length > 0 && !['Beige', 'White', 'Other'].includes(input.colour)) {
       q = q.in('colour', allCompatibleColours);
     }
 
-    const { data } = await q.order('save_count', { ascending: false }).limit(100);
+    // Handle query errors explicitly (fix #6)
+    const { data, error: queryError } = await q.order('save_count', { ascending: false }).limit(100);
+    if (queryError) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
 
     const listings = (data ?? []) as unknown as Listing[];
 
@@ -167,9 +152,8 @@ export default function DukanohFitScreen() {
     });
 
     setResults(proRankSort(diverse));
-    await incrementRateLimit();
     setLoading(false);
-  }, [user, blockedIds, checkRateLimit, incrementRateLimit]);
+  }, [user, blockedIds]);
 
   // ─── Training image (silent, background) ──────────────────────────────────
   const storeTrainingImage = useCallback((photoUri: string, confirmedCategory: string) => {

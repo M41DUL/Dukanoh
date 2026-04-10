@@ -1,18 +1,18 @@
-// eslint-disable-next-line import/no-unresolved
+/* eslint-disable import/no-unresolved */
 import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.19';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+/* eslint-enable import/no-unresolved */
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ─── Clothing detection ──────────────────────────────────────────────────────
+// ─── Clothing detection ───────────────────────────────────────────────────────
 // Rekognition returns a label hierarchy via `Parents`.
 // A label is clothing if:
 //   (a) its Name is in the root set, OR
 //   (b) any of its Parents has Name 'Clothing' or 'Apparel'
-// This covers cases where Rekognition returns 'Dress' (parent: Clothing)
-// without ever returning 'Clothing' as a top-level label.
 
 const CLOTHING_ROOT_LABELS = new Set([
   'Clothing', 'Apparel', 'Fashion', 'Textile', 'Fabric',
@@ -30,8 +30,7 @@ function isClothingLabel(label: RekognitionLabel): boolean {
   return label.Parents?.some(p => p.Name === 'Clothing' || p.Name === 'Apparel') ?? false;
 }
 
-// ─── Label → app category mapping ───────────────────────────────────────────
-// Priority order — first match wins
+// ─── Label → app category mapping ────────────────────────────────────────────
 
 const LABEL_TO_CATEGORY: [string, string][] = [
   ['Lehenga',      'Lehenga'],
@@ -60,7 +59,7 @@ const LABEL_TO_CATEGORY: [string, string][] = [
   ['Trousers',     'Salwar'],
 ];
 
-// ─── Rekognition SimplifiedColor → app colour mapping ───────────────────────
+// ─── Rekognition SimplifiedColor → app colour mapping ────────────────────────
 
 const SIMPLIFIED_TO_COLOUR: Record<string, string> = {
   red:    'Red',
@@ -89,7 +88,6 @@ function detectCategory(labels: string[]): string | null {
 }
 
 function detectColour(dominantColors: { SimplifiedColor?: string; PixelPercent?: number }[]): string | null {
-  // Use the most dominant colour (already sorted by PixelPercent desc by Rekognition)
   for (const c of dominantColors) {
     const simplified = c.SimplifiedColor?.toLowerCase();
     if (simplified && SIMPLIFIED_TO_COLOUR[simplified]) {
@@ -99,24 +97,56 @@ function detectColour(dominantColors: { SimplifiedColor?: string; PixelPercent?:
   return null;
 }
 
-// ─── Handler ─────────────────────────────────────────────────────────────────
+// ─── Handler ──────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
   }
 
+  // ── Auth ──────────────────────────────────────────────────────────────────────
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { global: { headers: { Authorization: authHeader } } }
+  );
+
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+  if (authError || !user) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // ── Body ──────────────────────────────────────────────────────────────────────
   try {
     const { imageBase64: rawBase64 } = await req.json();
 
-    if (!rawBase64) {
+    if (!rawBase64 || typeof rawBase64 !== 'string') {
       return new Response(
         JSON.stringify({ error: 'No image provided' }),
         { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Strip data URL prefix if present (e.g. "data:image/jpeg;base64,...")
+    // Validate size — base64 of 1.5MB image ≈ 2M chars
+    if (rawBase64.length > 2_500_000) {
+      return new Response(
+        JSON.stringify({ error: 'Image too large' }),
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Strip data URL prefix if present
     const imageBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
 
     const region = Deno.env.get('AWS_REGION')!;
@@ -140,16 +170,15 @@ Deno.serve(async (req) => {
           Image: { Bytes: imageBase64 },
           MaxLabels: 30,
           MinConfidence: 60,
-          // IMAGE_PROPERTIES returns dominant colours with SimplifiedColor
           Features: ['GENERAL_LABELS', 'IMAGE_PROPERTIES'],
         }),
       }
     );
 
     if (!response.ok) {
-      const rekError = await response.text();
+      // Log status only — not the full response body which may contain infra details
       // eslint-disable-next-line no-console
-      console.error('Rekognition error:', rekError);
+      console.error('Rekognition error status:', response.status);
       return new Response(
         JSON.stringify({ isClothing: false }),
         { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
@@ -158,7 +187,7 @@ Deno.serve(async (req) => {
 
     const data = await response.json();
     const rawLabels: RekognitionLabel[] = data.Labels ?? [];
-    const labels: string[] = rawLabels.map(l => l.Name);
+    const labels: string[] = rawLabels.map((l: RekognitionLabel) => l.Name);
     const dominantColors = data.ImageProperties?.DominantColors ?? [];
 
     const isClothing = rawLabels.some(isClothingLabel);
@@ -166,13 +195,13 @@ Deno.serve(async (req) => {
     const detectedColour = detectColour(dominantColors);
 
     return new Response(
-      JSON.stringify({ isClothing, detectedCategory, detectedColour, labels }),
+      JSON.stringify({ isClothing, detectedCategory, detectedColour }),
       { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     );
 
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('validate-clothing error:', err);
+    console.error('validate-clothing error:', (err as Error).message);
     return new Response(
       JSON.stringify({ isClothing: false }),
       { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }

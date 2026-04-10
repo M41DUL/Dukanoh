@@ -69,9 +69,15 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
       const rawBase64 = compressed.base64;
       const imageBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
 
-      const { data } = await supabase.functions.invoke('validate-clothing', {
-        body: { imageBase64 },
-      });
+      // 15 second timeout — if network is slow we fail gracefully (fix #5)
+      const invokeWithTimeout = Promise.race([
+        supabase.functions.invoke('validate-clothing', { body: { imageBase64 } }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out')), 15000)
+        ),
+      ]);
+
+      const { data } = await invokeWithTimeout;
 
       setValidating(false);
 

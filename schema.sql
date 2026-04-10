@@ -1074,3 +1074,51 @@ CREATE POLICY "fit_training_images_no_client_access"
   USING (false);
 
 CREATE INDEX IF NOT EXISTS idx_fit_training_images_category ON public.fit_training_images (category);
+
+
+-- ─── Fit Search Logs ──────────────────────────────────────────────────────────
+-- Server-side rate limiting for Dukanoh Fit searches (10/user/day).
+-- record_fit_search() atomically checks the count and inserts — no race condition.
+
+CREATE TABLE IF NOT EXISTS public.fit_search_logs (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  searched_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_fit_search_logs_user_date
+  ON public.fit_search_logs (user_id, searched_at);
+
+ALTER TABLE public.fit_search_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "fit_search_logs_own"
+  ON public.fit_search_logs FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Atomically checks and records a fit search for the calling user.
+-- Returns true if the search is allowed (under 10/day), false if limit reached.
+CREATE OR REPLACE FUNCTION public.record_fit_search()
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  today_count INTEGER;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext(auth.uid()::text));
+
+  SELECT COUNT(*) INTO today_count
+  FROM fit_search_logs
+  WHERE user_id = auth.uid()
+    AND searched_at >= CURRENT_DATE;
+
+  IF today_count >= 10 THEN
+    RETURN false;
+  END IF;
+
+  INSERT INTO fit_search_logs (user_id) VALUES (auth.uid());
+  RETURN true;
+END;
+$$;
