@@ -163,8 +163,8 @@ export default function ListingDetailScreen() {
         // Only fetch seller boost data if current user owns this listing
         isSeller
           ? Promise.all([
-              supabase.from('users').select('seller_tier, boosts_used, boosts_reset_at').eq('id', user!.id).single(),
-              supabase.from('boosts').select('id', { count: 'exact', head: true }).eq('seller_id', user!.id).gte('expires_at', new Date().toISOString()),
+              supabase.from('users').select('seller_tier, boosts_used, boosts_reset_at').eq('id', user?.id ?? '').single(),
+              supabase.from('boosts').select('id', { count: 'exact', head: true }).eq('seller_id', user?.id ?? '').gte('expires_at', new Date().toISOString()),
             ])
           : Promise.resolve(null),
       ]);
