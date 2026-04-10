@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,8 +24,10 @@ import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useFeed } from '@/hooks/useFeed';
 import { useBlocked } from '@/context/BlockedContext';
 import { JustSoldToast } from '@/components/JustSoldToast';
+import { DukanohFitSheet } from '@/components/DukanohFitSheet';
 
 export default function HomeScreen() {
+  const [fitSheetVisible, setFitSheetVisible] = useState(false);
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
   const colors = useThemeColors();
@@ -45,10 +47,29 @@ export default function HomeScreen() {
     loading,
     refreshing,
     nudgeSlides,
+    showFitNudge,
+    markFitSeen,
     onRefresh,
     loadDataIfStale,
     hasMounted,
   } = useFeed({ userId: user?.id, blockedIds, reloadRecent });
+
+  const allNudgeSlides = useMemo(() => {
+    if (!showFitNudge) return nudgeSlides;
+    return [
+      {
+        key: 'fit',
+        icon: 'camera-outline' as const,
+        title: 'Dukanoh Fit',
+        subtitle: 'Snap a piece — find what matches it',
+        onPress: () => { markFitSeen(); setFitSheetVisible(true); },
+        gradientColors: (isDark ? ['rgba(199,247,94,0.12)', colors.surface] : ['#E8FBC5', colors.surface]) as [string, string],
+        iconColor: isDark ? colors.secondary : colors.textPrimary,
+        iconBg: isDark ? 'rgba(199,247,94,0.15)' : 'rgba(0,0,0,0.1)',
+      },
+      ...nudgeSlides,
+    ];
+  }, [showFitNudge, nudgeSlides, markFitSeen, isDark, colors]);
 
   useFocusEffect(
     useCallback(() => {
@@ -119,8 +140,8 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {nudgeSlides.length > 0 && (
-              <NudgeCarousel slides={nudgeSlides} />
+            {allNudgeSlides.length > 0 && (
+              <NudgeCarousel slides={allNudgeSlides} />
             )}
 
             <View style={styles.padded}>
@@ -167,6 +188,7 @@ export default function HomeScreen() {
         )}
         <JustSoldToast />
       </View>
+      <DukanohFitSheet visible={fitSheetVisible} onClose={() => setFitSheetVisible(false)} />
     </ScreenWrapper>
   );
 }

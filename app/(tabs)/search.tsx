@@ -8,6 +8,7 @@ import {
   Spacing
 } from '@/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DukanohFitSheet } from '@/components/DukanohFitSheet';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchHistory } from '@/hooks/useSearchHistory';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -139,6 +140,7 @@ export default function SearchScreen() {
   // Search state
   const [query, setQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [fitSheetVisible, setFitSheetVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<BrowseTab>('Women');
   const tabFade = useRef(new Animated.Value(1)).current;
   const { saveSearch } = useSearchHistory();
@@ -152,18 +154,18 @@ export default function SearchScreen() {
         setActiveTab(stored);
         return;
       }
-      supabase
-        .from('users')
-        .select('preferred_categories')
-        .eq('id', user.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          const cats: string[] = data?.preferred_categories ?? [];
-          if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
-          else if (cats.includes('Women')) setActiveTab('Women');
-          else setActiveTab('All');
-        })
-        .catch(() => {});
+      Promise.resolve(
+        supabase
+          .from('users')
+          .select('preferred_categories')
+          .eq('id', user.id)
+          .maybeSingle()
+      ).then(({ data }) => {
+        const cats: string[] = data?.preferred_categories ?? [];
+        if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
+        else if (cats.includes('Women')) setActiveTab('Women');
+        else setActiveTab('All');
+      }).catch(() => {});
     }).catch(() => {});
   }, [user]);
 
@@ -214,16 +216,30 @@ export default function SearchScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.searchBarWrapper}>
-        <SearchBar
-          ref={searchBarRef}
-          value={query}
-          onChangeText={setQuery}
-          showHistory
-          onFocusChange={setSearchFocused}
-          onSubmit={(term) => {
-            if (term.trim()) openSearch(term);
-          }}
-        />
+        <View style={styles.searchRow}>
+          <View style={styles.searchBarFlex}>
+            <SearchBar
+              ref={searchBarRef}
+              value={query}
+              onChangeText={setQuery}
+              showHistory
+              onFocusChange={setSearchFocused}
+              onSubmit={(term) => {
+                if (term.trim()) openSearch(term);
+              }}
+            />
+          </View>
+          {!searchFocused && (
+            <TouchableOpacity
+              style={styles.fitBtn}
+              onPress={() => setFitSheetVisible(true)}
+              activeOpacity={0.7}
+              hitSlop={8}
+            >
+              <Ionicons name="camera-outline" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* ── Tab bar + Browse directory ────────────────────── */}
@@ -267,19 +283,34 @@ export default function SearchScreen() {
           </ScrollView>
         </>
       )}
+      <DukanohFitSheet visible={fitSheetVisible} onClose={() => setFitSheetVisible(false)} />
     </ScreenWrapper>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────
 
-function getStyles(_colors: ColorTokens) {
+function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     // Search bar
     searchBarWrapper: {
       paddingTop: Spacing.sm,
       paddingBottom: Spacing.xs,
       zIndex: 10,
+    },
+    searchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    searchBarFlex: { flex: 1 },
+    fitBtn: {
+      width: 46,
+      height: 46,
+      borderRadius: 23,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
 
     // Browse directory

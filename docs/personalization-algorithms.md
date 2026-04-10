@@ -24,6 +24,9 @@ This is the source of truth for every algorithm and ranking decision in Dukanoh.
 8. [Search Tab default](#8-search-tab-default)
 9. [Fuzzy text search](#9-fuzzy-text-search)
 10. [Browse & filter sort options](#10-browse--filter-sort-options)
+11. [Seasonal category weighting](#11-seasonal-category-weighting)
+12. [Similar listings](#12-similar-listings-listing-detail-page)
+13. [Dukanoh Fit](#13-dukanoh-fit)
 
 ---
 
@@ -544,6 +547,117 @@ Whether buyers who see similar listings tap through and save or purchase one. A 
 |------|--------|--------|
 | — | Initial implementation | Same category, newest first, limit 4 |
 | 2026-04-09 | Order by `save_count DESC`; fetch 20, prioritise occasion matches client-side, slice to 4; added `seller_tier` to select for Featured badge | Newest first surfaced low-engagement listings. Save count is a better proxy for what buyers actually want. Occasion matching surfaces more relevant alternatives. |
+
+---
+
+## 13. Dukanoh Fit
+
+**What it does**
+A buyer-facing outfit matching tool. The user photographs a clothing piece they own; AWS Rekognition validates it is clothing and auto-detects the category and colour. The user confirms or overrides the form, then the algorithm finds complementary listings from the platform's inventory.
+
+**Where it lives**
+- Screen: `app/dukanoh-fit.tsx`
+- Matching logic: `utils/styleMatch.ts`
+- Clothing validation: `supabase/functions/validate-clothing/index.ts` (AWS Rekognition)
+- Entry points: camera icon in search bar (`app/(tabs)/search.tsx`) and card on home feed (`app/(tabs)/index.tsx`)
+
+**Data it uses**
+| Source | What it tells us |
+|--------|-----------------|
+| AWS Rekognition `DetectLabels` | Whether the photo is clothing; detected category and dominant colour |
+| `listings.category` | Complementary category filter |
+| `listings.colour` | Colour compatibility filter |
+| `listings.occasion` | Occasion scoring signal |
+| `listings.fabric_weight` | Fabric weight scoring signal |
+| `listings.save_count` | Popularity signal |
+| `users.seller_tier` | Pro seller ranking |
+
+**How it works — validation**
+1. User takes a photo. Image is compressed to 800px wide, 0.7 JPEG quality, sent as base64 to the `validate-clothing` Edge Function.
+2. Rekognition `DetectLabels` runs with `MinConfidence: 60`, `MaxLabels: 30`, features `GENERAL_LABELS` + `IMAGE_PROPERTIES`.
+3. A label is classified as clothing if its `Name` is in the root set (`Clothing`, `Apparel`, `Silk`, `Saree` etc.) **or** any of its `Parents` has `Name: 'Clothing'` or `Name: 'Apparel'`. This catches generic Western labels like `Dress` or `Shirt` which Rekognition returns with `Clothing` as a parent rather than as a top-level label.
+4. If not clothing → user is shown an alert and asked to retake. If clothing → form is pre-filled with detected category and colour; user can override either.
+
+**How it ranks — matching**
+1. Look up complementary categories for the base piece using `COMPLEMENTARY_CATEGORIES` map (e.g. Lehenga → Dupatta, Blouse).
+2. DB query: fetch top 100 listings by `save_count DESC` in complementary categories, status = available, excluding own listings and blocked sellers.
+3. **Colour is a hard DB filter** — only listings with colour-compatible values are fetched. Neutrals (Beige, White, Other) match everything and bypass the filter. This ensures no visually clashing combinations appear in results.
+4. Score each listing client-side:
+
+| Signal | Points |
+|--------|--------|
+| Occasion matches exactly | +3 |
+| Colour is a primary compatible match | +2 |
+| Colour is a secondary compatible match | +1 |
+| Fabric weight is compatible | +1 |
+| `save_count` ≥ 5 (popularity boost) | +1 |
+
+5. Sort by score descending, then `save_count` descending as tiebreaker.
+6. Apply seller diversity cap: max 2 listings per seller.
+7. Apply Pro Seller Ranking (`proRankSort`).
+
+**Complementary categories**
+Defined in `utils/styleMatch.ts` (`COMPLEMENTARY_CATEGORIES`). Each base category maps to what should be paired with it:
+
+| Base | Suggests |
+|------|---------|
+| Lehenga | Dupatta, Blouse |
+| Saree | Blouse, Dupatta |
+| Anarkali | Dupatta, Salwar, Sharara |
+| Kurta | Dupatta, Salwar, Sharara, Nehru Jacket |
+| Sherwani | Kurta, Salwar |
+| Achkan | Kurta, Salwar |
+| Pathani Suit | Salwar |
+| Dupatta | Lehenga, Anarkali, Kurta, Saree |
+| Blouse | Saree, Lehenga |
+| Sharara | Kurta, Anarkali |
+| Salwar | Kurta, Achkan, Sherwani, Pathani Suit |
+| Nehru Jacket | Kurta |
+
+**Colour compatibility**
+Defined in `utils/styleMatch.ts` (`COLOUR_MAP`). Two tiers — primary (+2) and secondary (+1):
+
+| Base colour | Primary matches | Secondary matches |
+|-------------|----------------|-----------------|
+| Red | Gold, Maroon | Beige, Pink, Black |
+| Maroon | Gold, Pink | Beige, White, Red |
+| Pink | Gold, Beige | White, Red, Multi |
+| Green | Gold, Beige | Multi, White |
+| Blue | Gold, Beige | White, Multi |
+| Gold | Red, Maroon, Green | Blue, Pink, Beige |
+| Black | Gold, White | Beige, Multi |
+| Beige / White | — (neutral, matches everything) | — |
+| Multi | Beige, White, Black | Gold |
+
+**Rate limiting**
+10 searches per user per calendar day, enforced server-side via the `record_fit_search()` Postgres RPC. Uses `pg_advisory_xact_lock` to atomically check-and-insert — no race condition. Resets at midnight UTC (calendar day boundary in the DB).
+
+**Success metric**
+Whether users who complete a Dukanoh Fit search tap through to a result listing and save or purchase it. A high abandon rate after seeing results suggests the matches aren't relevant enough.
+
+**Current limitations**
+- Rekognition is a Western-trained model — South Asian garments (lehenga, sherwani) are rarely identified by name. The function falls back to Western equivalents (Dress → Lehenga, Suit → Sherwani) which are close but not exact.
+- No price range signal — the algorithm doesn't try to match the price tier of the uploaded piece.
+- Colour detection is from the full image, not just the garment — background colour can skew the dominant colour result.
+
+**Improvement ideas**
+- **Fallback retry**: if fewer than 8 results are returned after the colour filter, retry without the colour filter (show a "we widened your search" message). Relevant once inventory is larger.
+- **Price tier matching**: infer a price band from the photo (e.g. fabric richness, embroidery) and filter suggestions to a similar range.
+- **Size preference**: if the user's profile has a saved size, prioritise listings in that size.
+
+**Change log**
+| Date | Change | Reason |
+|------|--------|--------|
+| 2026-04-09 | Initial implementation | Feature launch |
+| 2026-04-09 | Upgraded clothing detection to use Rekognition label `Parents` hierarchy instead of flat name matching | Rekognition returns `Dress` (parent: Clothing) not `Clothing` directly — flat matching caused almost all clothing to be rejected |
+| 2026-04-09 | Lowered `MinConfidence` from 70 to 60, raised `MaxLabels` from 20 to 30 | More lenient threshold reduces false rejections on borderline images |
+| 2026-04-09 | Occasion demoted from hard DB filter to scoring signal (+3) | Hard filter returned too few results when inventory is thin; occasion-matched pieces still rank first |
+| 2026-04-09 | Added popularity boost: +1 if `save_count` ≥ 5 | Well-loved listings are a trust signal; mild boost doesn't override colour relevance |
+| 2026-04-09 | Expanded complementary categories: Anarkali → Salwar/Sharara; Sherwani/Achkan → Kurta | Missing pairings meant valid outfit combinations were never surfaced |
+| 2026-04-09 | Increased fetch limit from 50 to 100 | More candidates to score from now that occasion isn't filtering server-side |
+| 2026-04-10 | Rate limiting moved from AsyncStorage (client-only) to server-side `record_fit_search()` RPC with advisory lock | Client-side limit was trivially bypassable; server-side is authoritative and race-condition-free |
+| 2026-04-10 | Added JWT auth to `validate-clothing` and `store-training-image` Edge Functions | Functions were publicly callable without authentication, exposing free AWS Rekognition access |
+| 2026-04-10 | Removed recent looks feature | Simplified form flow; feature added complexity without clear user value at this stage |
 
 ---
 

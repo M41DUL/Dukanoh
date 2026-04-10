@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -58,7 +59,7 @@ export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ la
         {options.length === 0 && emptyMessage ? (
           <Text style={styles.emptyMessage}>{emptyMessage}</Text>
         ) : (
-          <View>
+          <ScrollView style={styles.optionList} bounces={false} showsVerticalScrollIndicator={false}>
             {options.map(item => (
               <TouchableOpacity
                 key={item}
@@ -74,7 +75,7 @@ export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ la
                 )}
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         )}
       </BottomSheet>
     </View>
@@ -104,6 +105,9 @@ function getStyles(colors: ColorTokens) {
     },
     placeholder: { color: colors.textSecondary },
     error: { ...Typography.caption, color: colors.error },
+    optionList: {
+      maxHeight: 380,
+    },
     sheetTitle: {
       ...Typography.subheading,
       color: colors.textPrimary,

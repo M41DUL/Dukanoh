@@ -1149,7 +1149,7 @@ const styles = StyleSheet.create({
   },
   strikeBannerTitle: {
     fontSize: 13,
-    fontFamily: FontFamily.semiBold,
+    fontFamily: FontFamily.semibold,
     marginBottom: 2,
   },
   strikeBannerBody: {

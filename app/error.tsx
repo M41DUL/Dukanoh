@@ -17,7 +17,7 @@ export default function ErrorBoundary({ error, retry }: { error: Error; retry: (
       <TouchableOpacity style={styles.retryBtn} onPress={retry} activeOpacity={0.8}>
         <Text style={styles.retryText}>Try again</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.replace('/(tabs)/')} activeOpacity={0.7}>
+      <TouchableOpacity onPress={() => router.replace('/(tabs)' as any)} activeOpacity={0.7}>
         <Text style={styles.homeLink}>Go to home</Text>
       </TouchableOpacity>
     </View>

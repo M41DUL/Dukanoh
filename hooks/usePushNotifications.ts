@@ -20,16 +20,16 @@ try {
         data?.conversation_id &&
         data.conversation_id === activeConversationId.current
       ) {
-        return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+        return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false, shouldShowBanner: false, shouldShowList: false };
       }
-      return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true };
+      return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true, shouldShowBanner: true, shouldShowList: true };
     },
   });
 } catch {}
 
 export function usePushNotifications() {
   const { user } = useAuth();
-  const responseListener = useRef<Notifications.Subscription>();
+  const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
 
   // Clear badge when app comes to foreground
   useEffect(() => {

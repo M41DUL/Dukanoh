@@ -41,20 +41,22 @@ export function NudgeCarousel({ slides }: { slides: NudgeSlide[] }) {
         {slides.map((slide) => (
           <View key={slide.key} style={styles.slide}>
             <GradientCard
-              colors={[colors.primaryLight ?? colors.surface, colors.surface]}
+              colors={slide.gradientColors ?? [colors.primaryLight ?? colors.surface, colors.surface]}
               title={slide.title}
               subtitle={slide.subtitle}
               onPress={slide.onPress}
               style={{ borderRadius: BorderRadius.full }}
               left={
-                <View style={styles.iconCircle}>
-                  <Ionicons name={slide.icon} size={22} color={colors.primary} />
+                <View style={[styles.iconCircle, slide.iconBg ? { backgroundColor: slide.iconBg } : null]}>
+                  <Ionicons name={slide.icon} size={22} color={slide.iconColor ?? colors.primary} />
                 </View>
               }
               right={
-                <TouchableOpacity onPress={slide.onDismiss} hitSlop={10} style={styles.close}>
-                  <Ionicons name="close" size={18} color={colors.textSecondary} />
-                </TouchableOpacity>
+                slide.onDismiss ? (
+                  <TouchableOpacity onPress={slide.onDismiss} hitSlop={10} style={styles.close}>
+                    <Ionicons name="close" size={18} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                ) : undefined
               }
             />
           </View>
