@@ -104,10 +104,15 @@ export default function SellScreen() {
     let cancelled = false;
     (async () => {
       try {
-        const imageBase64 = await compressImageForAnalysis(coverImage);
+        const [imageBase64, { data: { session } }] = await Promise.all([
+          compressImageForAnalysis(coverImage),
+          supabase.auth.getSession(),
+        ]);
         if (cancelled) return;
+        const headers = session ? { Authorization: `Bearer ${session.access_token}` } : {};
         const invoke = supabase.functions.invoke('analyse-listing-image', {
           body: { imageBase64, check: 'quality' },
+          headers,
         });
         const timeout = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('timeout')), 15000)
@@ -162,9 +167,14 @@ export default function SellScreen() {
 
   const runModeration = async (uri: string): Promise<boolean> => {
     try {
-      const imageBase64 = await compressImageForAnalysis(uri);
+      const [imageBase64, { data: { session } }] = await Promise.all([
+        compressImageForAnalysis(uri),
+        supabase.auth.getSession(),
+      ]);
+      const headers = session ? { Authorization: `Bearer ${session.access_token}` } : {};
       const invoke = supabase.functions.invoke('analyse-listing-image', {
         body: { imageBase64, check: 'moderation' },
+        headers,
       });
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('timeout')), 15000)
