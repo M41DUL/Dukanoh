@@ -66,10 +66,14 @@ Deno.serve(async (req) => {
 
     const imageBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
 
-    const region = Deno.env.get('AWS_REGION')!;
+    const region = Deno.env.get('AWS_REGION');
+    const accessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
+    const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
+    if (!region || !accessKeyId || !secretAccessKey) return json({ error: 'Server misconfigured' }, 500);
+
     const aws = new AwsClient({
-      accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID')!,
-      secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY')!,
+      accessKeyId,
+      secretAccessKey,
       region,
       service: 'rekognition',
     });
