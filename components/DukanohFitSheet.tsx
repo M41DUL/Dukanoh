@@ -12,7 +12,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
-import { ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 
@@ -158,14 +158,13 @@ function getStyles(colors: ColorTokens) {
     iconWrap: {
       width: 40,
       height: 40,
-      borderRadius: 12,
+      borderRadius: BorderRadius.medium,
       backgroundColor: colors.primaryLight,
       alignItems: 'center',
       justifyContent: 'center',
     },
     detailText: {
       flex: 1,
-      gap: 2,
     },
     detailKey: {
       ...Typography.label,

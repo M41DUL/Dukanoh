@@ -1,25 +1,25 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Image,
   FlatList,
   Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as ImageManipulator from 'expo-image-manipulator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
+import { BottomBar } from '@/components/BottomBar';
 import { Select } from '@/components/Select';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Categories, ColorTokens, Colours, FontFamily, Occasions, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlocked } from '@/context/BlockedContext';
@@ -34,31 +34,15 @@ import {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const RECENT_LOOKS_KEY = '@dukanoh/recent_looks';
-const MAX_RECENT = 3;
 const RATE_LIMIT_KEY = '@dukanoh/fit_searches_today';
 const MAX_SEARCHES_PER_DAY = 10;
 
-const CATEGORIES = [
-  'Lehenga', 'Saree', 'Anarkali', 'Sherwani', 'Kurta',
-  'Achkan', 'Pathani Suit', 'Dupatta', 'Blouse', 'Sharara',
-  'Salwar', 'Nehru Jacket',
-] as const;
-
-const COLOURS = ['Black', 'White', 'Red', 'Blue', 'Green', 'Gold', 'Pink', 'Maroon', 'Beige', 'Multi', 'Other'] as const;
-const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'] as const;
+// Derive from theme — exclude meta/non-garment entries
+const CATEGORIES = Categories.filter(c => !['All', 'Casualwear', 'Shoes'].includes(c));
 const FABRIC_WEIGHTS = ['Light', 'Structured', 'Heavy'] as const;
 
 type FabricWeight = typeof FABRIC_WEIGHTS[number];
 type Step = 'form' | 'results';
-
-interface RecentLook {
-  category: string;
-  colour: string;
-  occasion?: string;
-  fabricWeight?: FabricWeight;
-  timestamp: number;
-}
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -68,7 +52,6 @@ export default function DukanohFitScreen() {
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
 
-  // Params passed from DukanohFitSheet after validation
   const {
     photoUri: paramPhotoUri,
     detectedCategory,
@@ -79,16 +62,13 @@ export default function DukanohFitScreen() {
     detectedColour?: string;
   }>();
 
-  // Step
   const [step, setStep] = useState<Step>('form');
 
-  // Form — pre-fill from Rekognition params if present
   const [category, setCategory] = useState(detectedCategory ?? '');
   const [colour, setColour] = useState(detectedColour ?? '');
   const [occasion, setOccasion] = useState('');
   const [fabricWeight, setFabricWeight] = useState('');
 
-  // Track which fields were auto-detected
   const [detectedFields] = useState<Set<string>>(() => {
     const s = new Set<string>();
     if (detectedCategory) s.add('category');
@@ -96,17 +76,8 @@ export default function DukanohFitScreen() {
     return s;
   });
 
-  // State
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Listing[]>([]);
-  const [recentLooks, setRecentLooks] = useState<RecentLook[]>([]);
-
-  // Load recent looks on mount
-  useEffect(() => {
-    AsyncStorage.getItem(RECENT_LOOKS_KEY)
-      .then(raw => { if (raw) setRecentLooks(JSON.parse(raw)); })
-      .catch(() => {});
-  }, []);
 
   // ─── Rate limit ────────────────────────────────────────────────────────────
   const checkRateLimit = useCallback(async (): Promise<boolean> => {
@@ -128,20 +99,6 @@ export default function DukanohFitScreen() {
         ? { date: today, count: data.count + 1 }
         : { date: today, count: 1 };
       await AsyncStorage.setItem(RATE_LIMIT_KEY, JSON.stringify(newData));
-    } catch {}
-  }, []);
-
-  // ─── Save recent look ──────────────────────────────────────────────────────
-  const saveRecentLook = useCallback(async (look: Omit<RecentLook, 'timestamp'>) => {
-    try {
-      const raw = await AsyncStorage.getItem(RECENT_LOOKS_KEY);
-      const existing: RecentLook[] = raw ? JSON.parse(raw) : [];
-      const updated = [
-        { ...look, timestamp: Date.now() },
-        ...existing.filter(l => l.category !== look.category || l.colour !== look.colour || l.occasion !== look.occasion),
-      ].slice(0, MAX_RECENT);
-      await AsyncStorage.setItem(RECENT_LOOKS_KEY, JSON.stringify(updated));
-      setRecentLooks(updated);
     } catch {}
   }, []);
 
@@ -177,8 +134,6 @@ export default function DukanohFitScreen() {
 
     if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
 
-    // Colour is a hard filter — never show clashing combinations.
-    // Neutrals (Beige, White, Other) match everything so no filter applied.
     if (allCompatibleColours.length > 0 && !['Beige', 'White', 'Other'].includes(input.colour)) {
       q = q.in('colour', allCompatibleColours);
     }
@@ -187,7 +142,6 @@ export default function DukanohFitScreen() {
 
     const listings = (data ?? []) as unknown as Listing[];
 
-    // Score each listing
     const scored = listings
       .map(l => ({
         listing: l,
@@ -203,7 +157,6 @@ export default function DukanohFitScreen() {
       .sort((a, b) => b.score - a.score || b.save_count - a.save_count)
       .map(s => s.listing);
 
-    // Seller diversity cap: max 2 per seller
     const sellerCount = new Map<string, number>();
     const diverse = scored.filter(l => {
       const sid = (l as any).seller_id as string;
@@ -215,16 +168,26 @@ export default function DukanohFitScreen() {
 
     setResults(proRankSort(diverse));
     await incrementRateLimit();
-    await saveRecentLook({
-      category: input.category,
-      colour: input.colour,
-      occasion: input.occasion,
-      fabricWeight: input.fabricWeight as FabricWeight,
-    });
     setLoading(false);
-  }, [user, blockedIds, checkRateLimit, incrementRateLimit, saveRecentLook]);
+  }, [user, blockedIds, checkRateLimit, incrementRateLimit]);
 
-  // ─── Submit form ───────────────────────────────────────────────────────────
+  // ─── Training image (silent, background) ──────────────────────────────────
+  const storeTrainingImage = useCallback((photoUri: string, confirmedCategory: string) => {
+    ImageManipulator.manipulateAsync(
+      photoUri,
+      [{ resize: { width: 800 } }],
+      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+    ).then(compressed => {
+      if (!compressed.base64) return;
+      const raw = compressed.base64;
+      const imageBase64 = raw.includes(',') ? raw.split(',')[1] : raw;
+      return supabase.functions.invoke('store-training-image', {
+        body: { imageBase64, category: confirmedCategory },
+      });
+    }).catch(() => {});
+  }, []);
+
+  // ─── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     if (!category || !colour) {
       Alert.alert('Almost there', 'Please select a category and colour to continue.');
@@ -236,9 +199,13 @@ export default function DukanohFitScreen() {
       occasion: occasion || undefined,
       fabricWeight: (fabricWeight as FabricWeight) || undefined,
     });
-  }, [category, colour, occasion, fabricWeight, runMatch]);
+    // Fire training image upload in background — user never waits for this
+    if (paramPhotoUri && category) {
+      storeTrainingImage(paramPhotoUri, category);
+    }
+  }, [category, colour, occasion, fabricWeight, runMatch, paramPhotoUri, storeTrainingImage]);
 
-  // ─── Render results ────────────────────────────────────────────────────────
+  // ─── Results ───────────────────────────────────────────────────────────────
   if (step === 'results') {
     return (
       <ScreenWrapper>
@@ -263,7 +230,7 @@ export default function DukanohFitScreen() {
             ListEmptyComponent={
               <EmptyState
                 heading="No matches found"
-                subtext="Try a different colour or occasion — we'll find the right pieces."
+                subtext="Try a different colour or occasion and we'll find the right pieces."
                 ctaLabel="Try again"
                 onCta={() => { setStep('form'); setResults([]); }}
               />
@@ -274,56 +241,28 @@ export default function DukanohFitScreen() {
     );
   }
 
-  // ─── Render form ───────────────────────────────────────────────────────────
+  // ─── Form ──────────────────────────────────────────────────────────────────
   return (
     <ScreenWrapper>
       <Header title="Dukanoh Fit" showBack />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
-        {/* Photo preview */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+      >
         {paramPhotoUri ? (
-          <Image source={{ uri: paramPhotoUri }} style={styles.photo} resizeMode="cover" />
+          <Image source={{ uri: paramPhotoUri }} style={styles.photo} contentFit="cover" />
         ) : null}
-
-        {/* Recent looks */}
-        {recentLooks.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Recent looks</Text>
-            {recentLooks.map((look, i) => (
-              <TouchableOpacity
-                key={i}
-                style={styles.recentRow}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setCategory(look.category);
-                  setColour(look.colour);
-                  setOccasion(look.occasion ?? '');
-                  setFabricWeight(look.fabricWeight ?? '');
-                  if (paramPhotoUri) runMatch({
-                    category: look.category,
-                    colour: look.colour,
-                    occasion: look.occasion,
-                    fabricWeight: look.fabricWeight,
-                  });
-                }}
-              >
-                <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                <Text style={styles.recentText}>
-                  {look.colour} {look.category}{look.occasion ? ` · ${look.occasion}` : ''}
-                </Text>
-                <Ionicons name="arrow-forward" size={14} color={colors.textSecondary} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
 
         {/* Category */}
         <View style={styles.section}>
-          <View style={styles.labelRow}>
-            <Text style={styles.sectionLabel}>Category <Text style={styles.required}>*</Text></Text>
-            {detectedFields.has('category') && <Text style={styles.detectedTag}>Detected</Text>}
-          </View>
+          {detectedFields.has('category') && (
+            <View style={styles.labelRow}>
+              <Text style={styles.sectionLabel}>Category <Text style={styles.required}>*</Text></Text>
+              <Text style={styles.detectedTag}>Detected</Text>
+            </View>
+          )}
           <Select
+            label={detectedFields.has('category') ? undefined : 'Category *'}
             placeholder="Select category"
             value={category}
             options={CATEGORIES}
@@ -333,50 +272,53 @@ export default function DukanohFitScreen() {
 
         {/* Colour */}
         <View style={styles.section}>
-          <View style={styles.labelRow}>
-            <Text style={styles.sectionLabel}>Colour <Text style={styles.required}>*</Text></Text>
-            {detectedFields.has('colour') && <Text style={styles.detectedTag}>Detected</Text>}
-          </View>
+          {detectedFields.has('colour') && (
+            <View style={styles.labelRow}>
+              <Text style={styles.sectionLabel}>Colour <Text style={styles.required}>*</Text></Text>
+              <Text style={styles.detectedTag}>Detected</Text>
+            </View>
+          )}
           <Select
+            label={detectedFields.has('colour') ? undefined : 'Colour *'}
             placeholder="Select colour"
             value={colour}
-            options={COLOURS}
+            options={Colours}
             onSelect={v => setColour(v)}
           />
         </View>
 
         {/* Occasion */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Occasion <Text style={styles.optional}>(optional)</Text></Text>
           <Select
+            label="Occasion (optional)"
             placeholder="Select occasion"
             value={occasion}
-            options={OCCASIONS}
+            options={Occasions}
             onSelect={v => setOccasion(v)}
           />
         </View>
 
         {/* Fabric weight */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Fabric weight <Text style={styles.optional}>(optional)</Text></Text>
-          <Text style={styles.sectionHint}>Light · Chiffon, Georgette  ·  Structured · Silk, Cotton  ·  Heavy · Velvet, Brocade</Text>
           <Select
+            label="Fabric weight (optional)"
             placeholder="Select fabric weight"
             value={fabricWeight}
             options={FABRIC_WEIGHTS}
             onSelect={v => setFabricWeight(v)}
           />
         </View>
+      </ScrollView>
 
+      <BottomBar>
         <Button
           label="Find my fit"
           variant="primary"
           onPress={handleSubmit}
           disabled={!category || !colour}
-          style={styles.cta}
+          style={{ flex: 1 }}
         />
-
-      </ScrollView>
+      </BottomBar>
     </ScreenWrapper>
   );
 }
@@ -385,10 +327,12 @@ export default function DukanohFitScreen() {
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    scroll: { paddingBottom: Spacing['4xl'] },
+    scroll: {
+      paddingBottom: Spacing['4xl'],
+    },
     photo: {
       width: '100%',
-      height: 220,
+      height: 320,
       borderRadius: BorderRadius.large,
       marginBottom: Spacing.lg,
     },
@@ -413,23 +357,7 @@ function getStyles(colors: ColorTokens) {
       paddingVertical: 2,
       borderRadius: BorderRadius.full,
     },
-    sectionHint: {
-      ...Typography.small,
-      color: colors.textSecondary,
-      marginBottom: Spacing.sm,
-    },
     required: { color: colors.error },
-    optional: { color: colors.textSecondary, fontFamily: FontFamily.regular },
-    recentRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      paddingVertical: Spacing.sm,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    recentText: { ...Typography.body, color: colors.textPrimary, flex: 1 },
-    cta: { marginTop: Spacing.base },
     gridRow: { gap: Spacing.sm, marginBottom: Spacing.sm },
     gridContent: { flexGrow: 1, paddingTop: Spacing.base, paddingBottom: Spacing['4xl'] },
   });

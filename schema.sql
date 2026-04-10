@@ -1053,3 +1053,24 @@ CREATE POLICY "seasonal_weights_read"
   ON public.seasonal_weights FOR SELECT
   TO authenticated
   USING (true);
+
+
+-- ─── Fit Training Images ─────────────────────────────────────────────────────
+-- Stores references to S3-uploaded user photos used to train Rekognition.
+-- Capped at 200 images per category (enforced in store-training-image Edge Function).
+CREATE TABLE IF NOT EXISTS public.fit_training_images (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  category    TEXT        NOT NULL,
+  s3_key      TEXT        NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.fit_training_images ENABLE ROW LEVEL SECURITY;
+
+-- Only Edge Functions (service role) write to this table — no direct client access
+CREATE POLICY "fit_training_images_no_client_access"
+  ON public.fit_training_images FOR ALL
+  TO authenticated
+  USING (false);
+
+CREATE INDEX IF NOT EXISTS idx_fit_training_images_category ON public.fit_training_images (category);
