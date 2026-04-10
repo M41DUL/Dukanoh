@@ -14,6 +14,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
 
 interface DukanohFitSheetProps {
@@ -29,6 +30,7 @@ const HOW_IT_WORKS = [
 
 export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
   const colors = useThemeColors();
+  const { isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const [validating, setValidating] = useState(false);
 
@@ -107,8 +109,8 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
 
       {HOW_IT_WORKS.map(({ icon, key, val }) => (
         <View key={key} style={styles.detailRow}>
-          <View style={styles.iconWrap}>
-            <Ionicons name={icon} size={20} color={colors.secondary} />
+          <View style={[styles.iconWrap, { backgroundColor: isDark ? `${colors.secondary}22` : `${colors.primary}18` }]}>
+            <Ionicons name={icon} size={20} color={isDark ? colors.secondary : colors.primary} />
           </View>
           <View style={styles.detailText}>
             <Text style={styles.detailKey}>{key}</Text>
@@ -159,7 +161,6 @@ function getStyles(colors: ColorTokens) {
       width: 40,
       height: 40,
       borderRadius: BorderRadius.medium,
-      backgroundColor: `${colors.secondary}22`,
       alignItems: 'center',
       justifyContent: 'center',
     },
