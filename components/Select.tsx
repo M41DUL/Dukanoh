@@ -17,6 +17,7 @@ export interface SelectHandle {
 
 interface SelectProps {
   label?: string;
+  required?: boolean;
   placeholder?: string;
   value: string;
   options: readonly string[];
@@ -25,7 +26,7 @@ interface SelectProps {
   emptyMessage?: string;
 }
 
-export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ label, placeholder = 'Select…', value, options, onSelect, error, emptyMessage }, ref) {
+export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ label, required, placeholder = 'Select…', value, options, onSelect, error, emptyMessage }, ref) {
   const [open, setOpen] = useState(false);
 
   useImperativeHandle(ref, () => ({
@@ -41,7 +42,11 @@ export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ la
 
   return (
     <View style={styles.container}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? (
+        <Text style={styles.label}>
+          {label}{required ? <Text style={styles.required}> *</Text> : null}
+        </Text>
+      ) : null}
       <TouchableOpacity
         style={[styles.field, !!error && styles.errorBorder]}
         onPress={() => setOpen(true)}
@@ -86,6 +91,7 @@ function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     container: { gap: Spacing.sm },
     label: { ...Typography.label, color: colors.textPrimary },
+    required: { color: colors.error },
     field: {
       flexDirection: 'row',
       alignItems: 'center',

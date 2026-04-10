@@ -4,7 +4,6 @@ import {
   isCategoryValidForGender,
   isFormDirty,
   ListingForm,
-  Measurements,
 } from '../lib/sellHelpers';
 import {
   Genders,
@@ -22,8 +21,6 @@ const emptyForm: ListingForm = {
   title: '', description: '', price: '', gender: '', category: '',
   condition: '', occasion: '', size: '', colour: '', fabric: '', worn_at: '',
 };
-
-const emptyMeasurements: Measurements = { chest: '', waist: '', length: '' };
 
 const validForm: ListingForm = {
   title: 'Embroidered silk kurta',
@@ -84,87 +81,87 @@ describe('Sell form constants', () => {
 describe('validateListing', () => {
   describe('publish mode (isDraft = false)', () => {
     test('returns no errors for a complete valid form', () => {
-      const errors = validateListing(validForm, emptyMeasurements, 1, false);
+      const errors = validateListing(validForm, 1, false);
       expect(errors).toEqual({});
     });
 
     test('requires at least one image', () => {
-      const errors = validateListing(validForm, emptyMeasurements, 0, false);
+      const errors = validateListing(validForm, 0, false);
       expect(errors.images).toBe('Add at least one photo');
     });
 
     test('requires title', () => {
-      const errors = validateListing({ ...validForm, title: '' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, title: '' }, 1, false);
       expect(errors.title).toBe('Title is required');
     });
 
     test('requires title to be at least 3 characters', () => {
-      const errors = validateListing({ ...validForm, title: 'ab' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, title: 'ab' }, 1, false);
       expect(errors.title).toBe('Title must be at least 3 characters');
     });
 
     test('trims title before checking length', () => {
-      const errors = validateListing({ ...validForm, title: '  ab  ' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, title: '  ab  ' }, 1, false);
       expect(errors.title).toBe('Title must be at least 3 characters');
     });
 
     test('requires description', () => {
-      const errors = validateListing({ ...validForm, description: '' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, description: '' }, 1, false);
       expect(errors.description).toBe('Description is required');
     });
 
     test('requires description to be at least 10 characters', () => {
-      const errors = validateListing({ ...validForm, description: 'Short' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, description: 'Short' }, 1, false);
       expect(errors.description).toBe('Description must be at least 10 characters');
     });
 
     test('requires price of at least £1', () => {
-      const errors = validateListing({ ...validForm, price: '0.50' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, price: '0.50' }, 1, false);
       expect(errors.price).toBe('Enter a price of at least £1');
     });
 
     test('rejects empty price', () => {
-      const errors = validateListing({ ...validForm, price: '' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, price: '' }, 1, false);
       expect(errors.price).toBe('Enter a price of at least £1');
     });
 
     test('rejects non-numeric price', () => {
-      const errors = validateListing({ ...validForm, price: 'abc' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, price: 'abc' }, 1, false);
       expect(errors.price).toBe('Enter a price of at least £1');
     });
 
     test('rejects price above £2,000', () => {
-      const errors = validateListing({ ...validForm, price: '2001' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, price: '2001' }, 1, false);
       expect(errors.price).toBe('Maximum price is £2,000');
     });
 
     test('accepts price at boundaries (£1 and £2000)', () => {
-      expect(validateListing({ ...validForm, price: '1' }, emptyMeasurements, 1, false).price).toBeUndefined();
-      expect(validateListing({ ...validForm, price: '2000' }, emptyMeasurements, 1, false).price).toBeUndefined();
+      expect(validateListing({ ...validForm, price: '1' }, 1, false).price).toBeUndefined();
+      expect(validateListing({ ...validForm, price: '2000' }, 1, false).price).toBeUndefined();
     });
 
-    test('requires gender', () => {
-      const errors = validateListing({ ...validForm, gender: '' }, emptyMeasurements, 1, false);
-      expect(errors.gender).toBe('Select a gender');
+    test('does not require gender (auto-inferred for most categories)', () => {
+      const errors = validateListing({ ...validForm, gender: '' }, 1, false);
+      expect(errors.gender).toBeUndefined();
     });
 
     test('requires category', () => {
-      const errors = validateListing({ ...validForm, category: '' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, category: '' }, 1, false);
       expect(errors.category).toBe('Select a category');
     });
 
     test('requires condition', () => {
-      const errors = validateListing({ ...validForm, condition: '' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, condition: '' }, 1, false);
       expect(errors.condition).toBe('Select a condition');
     });
 
     test('requires size', () => {
-      const errors = validateListing({ ...validForm, size: '' }, emptyMeasurements, 1, false);
+      const errors = validateListing({ ...validForm, size: '' }, 1, false);
       expect(errors.size).toBe('Select a size');
     });
 
     test('returns multiple errors at once', () => {
-      const errors = validateListing(emptyForm, emptyMeasurements, 0, false);
+      const errors = validateListing(emptyForm, 0, false);
       expect(Object.keys(errors).length).toBeGreaterThan(3);
     });
   });
@@ -172,24 +169,24 @@ describe('validateListing', () => {
   describe('draft mode (isDraft = true)', () => {
     test('only requires title for drafts', () => {
       const form = { ...emptyForm, title: 'My draft' };
-      const errors = validateListing(form, emptyMeasurements, 0, true);
+      const errors = validateListing(form, 0, true);
       expect(errors).toEqual({});
     });
 
     test('still validates title in draft mode', () => {
-      const errors = validateListing(emptyForm, emptyMeasurements, 0, true);
+      const errors = validateListing(emptyForm, 0, true);
       expect(errors.title).toBe('Title is required');
     });
 
     test('does not require images in draft mode', () => {
       const form = { ...emptyForm, title: 'Draft' };
-      const errors = validateListing(form, emptyMeasurements, 0, true);
+      const errors = validateListing(form, 0, true);
       expect(errors.images).toBeUndefined();
     });
 
     test('does not require description, price, gender, category, condition, size in draft', () => {
       const form = { ...emptyForm, title: 'Draft listing' };
-      const errors = validateListing(form, emptyMeasurements, 0, true);
+      const errors = validateListing(form, 0, true);
       expect(errors.description).toBeUndefined();
       expect(errors.price).toBeUndefined();
       expect(errors.gender).toBeUndefined();
@@ -198,81 +195,25 @@ describe('validateListing', () => {
       expect(errors.size).toBeUndefined();
     });
   });
-
-  describe('measurements validation', () => {
-    test('skips empty measurements', () => {
-      const errors = validateListing(validForm, emptyMeasurements, 1, false);
-      expect(errors).toEqual({});
-    });
-
-    test('accepts valid measurements', () => {
-      const errors = validateListing(validForm, { chest: '38', waist: '32', length: '44' }, 1, false);
-      expect(errors).toEqual({});
-    });
-
-    test('rejects measurement below 1', () => {
-      const errors = validateListing(validForm, { chest: '0', waist: '', length: '' }, 1, false);
-      expect((errors as any).chest).toBe('Must be 1–99');
-    });
-
-    test('rejects measurement above 99', () => {
-      const errors = validateListing(validForm, { chest: '', waist: '100', length: '' }, 1, false);
-      expect((errors as any).waist).toBe('Must be 1–99');
-    });
-
-    test('rejects non-numeric measurement', () => {
-      const errors = validateListing(validForm, { chest: '', waist: '', length: 'abc' }, 1, false);
-      expect((errors as any).length).toBe('Must be 1–99');
-    });
-
-    test('accepts boundary values (1 and 99)', () => {
-      const errors = validateListing(validForm, { chest: '1', waist: '99', length: '' }, 1, false);
-      expect((errors as any).chest).toBeUndefined();
-      expect((errors as any).waist).toBeUndefined();
-    });
-
-    test('validates measurements even in draft mode', () => {
-      const form = { ...emptyForm, title: 'Draft' };
-      const errors = validateListing(form, { chest: '0', waist: '', length: '' }, 0, true);
-      expect((errors as any).chest).toBe('Must be 1–99');
-    });
-  });
 });
 
 // ─── buildMeasurements ─────────────────────────────────────
 
 describe('buildMeasurements', () => {
-  test('returns null for empty measurements', () => {
-    expect(buildMeasurements(emptyMeasurements)).toBeNull();
+  test('returns null for empty string', () => {
+    expect(buildMeasurements('')).toBeNull();
   });
 
-  test('returns object with valid measurements', () => {
-    expect(buildMeasurements({ chest: '38', waist: '32', length: '44' }))
-      .toEqual({ chest: 38, waist: 32, length: 44 });
+  test('returns null for whitespace-only string', () => {
+    expect(buildMeasurements('   ')).toBeNull();
   });
 
-  test('omits empty fields', () => {
-    expect(buildMeasurements({ chest: '38', waist: '', length: '' }))
-      .toEqual({ chest: 38 });
+  test('returns note object for non-empty string', () => {
+    expect(buildMeasurements('Waist 28", length 42"')).toEqual({ note: 'Waist 28", length 42"' });
   });
 
-  test('omits zero values', () => {
-    expect(buildMeasurements({ chest: '0', waist: '32', length: '' }))
-      .toEqual({ waist: 32 });
-  });
-
-  test('omits negative values', () => {
-    expect(buildMeasurements({ chest: '-5', waist: '', length: '44' }))
-      .toEqual({ length: 44 });
-  });
-
-  test('omits non-numeric values', () => {
-    expect(buildMeasurements({ chest: 'abc', waist: '32', length: '' }))
-      .toEqual({ waist: 32 });
-  });
-
-  test('returns null when all values are invalid', () => {
-    expect(buildMeasurements({ chest: 'abc', waist: '0', length: '-1' })).toBeNull();
+  test('trims the note', () => {
+    expect(buildMeasurements('  Chest 38"  ')).toEqual({ note: 'Chest 38"' });
   });
 });
 
@@ -314,37 +255,37 @@ describe('isCategoryValidForGender', () => {
 
 describe('isFormDirty', () => {
   test('returns false for empty form with no images', () => {
-    expect(isFormDirty(emptyForm, emptyMeasurements, 0)).toBe(false);
+    expect(isFormDirty(emptyForm, '', 0)).toBe(false);
   });
 
   test('returns true when title is filled', () => {
-    expect(isFormDirty({ ...emptyForm, title: 'Test' }, emptyMeasurements, 0)).toBe(true);
+    expect(isFormDirty({ ...emptyForm, title: 'Test' }, '', 0)).toBe(true);
   });
 
   test('returns true when description is filled', () => {
-    expect(isFormDirty({ ...emptyForm, description: 'Desc' }, emptyMeasurements, 0)).toBe(true);
+    expect(isFormDirty({ ...emptyForm, description: 'Desc' }, '', 0)).toBe(true);
   });
 
   test('returns true when price is filled', () => {
-    expect(isFormDirty({ ...emptyForm, price: '10' }, emptyMeasurements, 0)).toBe(true);
+    expect(isFormDirty({ ...emptyForm, price: '10' }, '', 0)).toBe(true);
   });
 
   test('returns true when gender is selected', () => {
-    expect(isFormDirty({ ...emptyForm, gender: 'Men' }, emptyMeasurements, 0)).toBe(true);
+    expect(isFormDirty({ ...emptyForm, gender: 'Men' }, '', 0)).toBe(true);
   });
 
   test('returns true when images are added', () => {
-    expect(isFormDirty(emptyForm, emptyMeasurements, 1)).toBe(true);
+    expect(isFormDirty(emptyForm, '', 1)).toBe(true);
   });
 
-  test('returns true when measurements are filled', () => {
-    expect(isFormDirty(emptyForm, { chest: '38', waist: '', length: '' }, 0)).toBe(true);
+  test('returns true when measurements note is filled', () => {
+    expect(isFormDirty(emptyForm, 'Waist 28"', 0)).toBe(true);
   });
 
   test('returns true when optional fields are filled', () => {
-    expect(isFormDirty({ ...emptyForm, colour: 'Red' }, emptyMeasurements, 0)).toBe(true);
-    expect(isFormDirty({ ...emptyForm, fabric: 'Silk' }, emptyMeasurements, 0)).toBe(true);
-    expect(isFormDirty({ ...emptyForm, occasion: 'Eid' }, emptyMeasurements, 0)).toBe(true);
-    expect(isFormDirty({ ...emptyForm, worn_at: 'Eid 2023' }, emptyMeasurements, 0)).toBe(true);
+    expect(isFormDirty({ ...emptyForm, colour: 'Red' }, '', 0)).toBe(true);
+    expect(isFormDirty({ ...emptyForm, fabric: 'Silk' }, '', 0)).toBe(true);
+    expect(isFormDirty({ ...emptyForm, occasion: 'Eid' }, '', 0)).toBe(true);
+    expect(isFormDirty({ ...emptyForm, worn_at: 'Eid 2023' }, '', 0)).toBe(true);
   });
 });

@@ -14,6 +14,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface InputProps extends TextInputProps {
   label?: string;
+  required?: boolean;
   error?: string;
   hint?: string;
   valid?: boolean;
@@ -26,7 +27,7 @@ interface InputProps extends TextInputProps {
 }
 
 export const Input = forwardRef<TextInput, InputProps>(
-  function Input({ label, error, hint, valid, icon, rightIcon, containerStyle, inputContainerStyle, placeholderColor, hintColor, secureTextEntry, style: inputStyle, onFocus: onFocusProp, onBlur: onBlurProp, ...props }, ref) {
+  function Input({ label, required, error, hint, valid, icon, rightIcon, containerStyle, inputContainerStyle, placeholderColor, hintColor, secureTextEntry, style: inputStyle, onFocus: onFocusProp, onBlur: onBlurProp, ...props }, ref) {
     const innerRef = useRef<TextInput>(null);
     const [focused, setFocused] = useState(false);
     const [hidden, setHidden] = useState(true);
@@ -43,7 +44,11 @@ export const Input = forwardRef<TextInput, InputProps>(
 
     return (
       <View style={[styles.container, containerStyle]}>
-        {label ? <Text style={styles.label}>{label}</Text> : null}
+        {label ? (
+          <Text style={styles.label}>
+            {label}{required ? <Text style={styles.required}> *</Text> : null}
+          </Text>
+        ) : null}
         <Pressable
           onPress={() => innerRef.current?.focus()}
           style={[
@@ -82,6 +87,7 @@ function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     container: { gap: Spacing.sm },
     label: { ...Typography.label, color: colors.textPrimary },
+    required: { color: colors.error },
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'center',

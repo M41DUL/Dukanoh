@@ -14,17 +14,10 @@ export interface ListingForm {
   worn_at: string;
 }
 
-export interface Measurements {
-  chest: string;
-  waist: string;
-  length: string;
-}
-
-export type FormErrors = Partial<ListingForm & { images: string; chest: string; waist: string; length: string }>;
+export type FormErrors = Partial<ListingForm & { images: string }>;
 
 export function validateListing(
   form: ListingForm,
-  measurements: Measurements,
   imageCount: number,
   isDraft: boolean,
 ): FormErrors {
@@ -43,47 +36,44 @@ export function validateListing(
     if (!form.price.trim() || isNaN(price) || price < 1) errors.price = 'Enter a price of at least £1';
     else if (price > 2000) errors.price = 'Maximum price is £2,000';
 
-    if (!form.gender) errors.gender = 'Select a gender';
+    // gender is optional — auto-inferred for most categories; unisex items may omit it
     if (!form.category) errors.category = 'Select a category';
     if (!form.condition) errors.condition = 'Select a condition';
     if (!form.size) errors.size = 'Select a size';
   }
 
-  (['chest', 'waist', 'length'] as const).forEach(key => {
-    const val = measurements[key];
-    if (val) {
-      const num = parseFloat(val);
-      if (isNaN(num) || num < 1 || num > 99) {
-        (errors as any)[key] = 'Must be 1–99';
-      }
-    }
-  });
-
   return errors;
 }
 
-export function buildMeasurements(measurements: Measurements): Record<string, number> | null {
-  const chest = parseFloat(measurements.chest);
-  const waist = parseFloat(measurements.waist);
-  const length = parseFloat(measurements.length);
-  const obj: Record<string, number> = {};
-  if (!isNaN(chest) && chest > 0) obj.chest = chest;
-  if (!isNaN(waist) && waist > 0) obj.waist = waist;
-  if (!isNaN(length) && length > 0) obj.length = length;
-  return Object.keys(obj).length > 0 ? obj : null;
+export function buildMeasurements(note: string): { note: string } | null {
+  const trimmed = note.trim();
+  return trimmed ? { note: trimmed } : null;
 }
+
+export const CATEGORY_TO_GENDER: Record<string, Gender> = {
+  Lehenga:        'Women',
+  Saree:          'Women',
+  Anarkali:       'Women',
+  Dupatta:        'Women',
+  Blouse:         'Women',
+  Sharara:        'Women',
+  Sherwani:       'Men',
+  Achkan:         'Men',
+  'Pathani Suit': 'Men',
+  'Nehru Jacket': 'Men',
+};
 
 export function isCategoryValidForGender(category: string, gender: string): boolean {
   const categories = CategoriesByGender[gender as Gender];
   return categories ? categories.includes(category) : false;
 }
 
-export function isFormDirty(form: ListingForm, measurements: Measurements, imageCount: number): boolean {
+export function isFormDirty(form: ListingForm, measurementsNote: string, imageCount: number): boolean {
   return !!(
     form.title || form.description || form.price || form.gender ||
     form.category || form.condition || form.occasion || form.size ||
     form.colour || form.fabric || form.worn_at ||
-    measurements.chest || measurements.waist || measurements.length ||
+    measurementsNote ||
     imageCount > 0
   );
 }

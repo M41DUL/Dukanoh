@@ -690,26 +690,30 @@ export default function ListingDetailScreen() {
               <View style={styles.hairline} />
               <View style={styles.descriptionBlock}>
                 <Text style={styles.sectionLabel}>Measurements</Text>
-                <View style={styles.measureBody}>
-                  {listing.measurements.chest ? (
-                    <View style={styles.measureLine}>
-                      <Text style={styles.measureKey}>Chest</Text>
-                      <Text style={styles.measureVal}>{listing.measurements.chest}"</Text>
-                    </View>
-                  ) : null}
-                  {listing.measurements.waist ? (
-                    <View style={styles.measureLine}>
-                      <Text style={styles.measureKey}>Waist</Text>
-                      <Text style={styles.measureVal}>{listing.measurements.waist}"</Text>
-                    </View>
-                  ) : null}
-                  {listing.measurements.length ? (
-                    <View style={styles.measureLine}>
-                      <Text style={styles.measureKey}>Length</Text>
-                      <Text style={styles.measureVal}>{listing.measurements.length}"</Text>
-                    </View>
-                  ) : null}
-                </View>
+                {(listing.measurements as any).note ? (
+                  <Text style={styles.description}>{(listing.measurements as any).note}</Text>
+                ) : (
+                  <View style={styles.measureBody}>
+                    {listing.measurements.chest ? (
+                      <View style={styles.measureLine}>
+                        <Text style={styles.measureKey}>Chest</Text>
+                        <Text style={styles.measureVal}>{listing.measurements.chest}"</Text>
+                      </View>
+                    ) : null}
+                    {listing.measurements.waist ? (
+                      <View style={styles.measureLine}>
+                        <Text style={styles.measureKey}>Waist</Text>
+                        <Text style={styles.measureVal}>{listing.measurements.waist}"</Text>
+                      </View>
+                    ) : null}
+                    {listing.measurements.length ? (
+                      <View style={styles.measureLine}>
+                        <Text style={styles.measureKey}>Length</Text>
+                        <Text style={styles.measureVal}>{listing.measurements.length}"</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                )}
               </View>
             </>
           )}
