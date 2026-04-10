@@ -630,10 +630,7 @@ Defined in `utils/styleMatch.ts` (`COLOUR_MAP`). Two tiers — primary (+2) and 
 | Multi | Beige, White, Black | Gold |
 
 **Rate limiting**
-10 searches per user per calendar day, tracked in AsyncStorage. Resets at midnight.
-
-**Recent looks**
-Last 3 form inputs stored in AsyncStorage. Tapping a recent look re-populates the form and re-runs the match if a photo is present.
+10 searches per user per calendar day, enforced server-side via the `record_fit_search()` Postgres RPC. Uses `pg_advisory_xact_lock` to atomically check-and-insert — no race condition. Resets at midnight UTC (calendar day boundary in the DB).
 
 **Success metric**
 Whether users who complete a Dukanoh Fit search tap through to a result listing and save or purchase it. A high abandon rate after seeing results suggests the matches aren't relevant enough.
@@ -642,7 +639,6 @@ Whether users who complete a Dukanoh Fit search tap through to a result listing 
 - Rekognition is a Western-trained model — South Asian garments (lehenga, sherwani) are rarely identified by name. The function falls back to Western equivalents (Dress → Lehenga, Suit → Sherwani) which are close but not exact.
 - No price range signal — the algorithm doesn't try to match the price tier of the uploaded piece.
 - Colour detection is from the full image, not just the garment — background colour can skew the dominant colour result.
-- Rate limit is device-only (AsyncStorage) — a user can bypass it by clearing app data.
 
 **Improvement ideas**
 - **Fallback retry**: if fewer than 8 results are returned after the colour filter, retry without the colour filter (show a "we widened your search" message). Relevant once inventory is larger.
@@ -659,6 +655,9 @@ Whether users who complete a Dukanoh Fit search tap through to a result listing 
 | 2026-04-09 | Added popularity boost: +1 if `save_count` ≥ 5 | Well-loved listings are a trust signal; mild boost doesn't override colour relevance |
 | 2026-04-09 | Expanded complementary categories: Anarkali → Salwar/Sharara; Sherwani/Achkan → Kurta | Missing pairings meant valid outfit combinations were never surfaced |
 | 2026-04-09 | Increased fetch limit from 50 to 100 | More candidates to score from now that occasion isn't filtering server-side |
+| 2026-04-10 | Rate limiting moved from AsyncStorage (client-only) to server-side `record_fit_search()` RPC with advisory lock | Client-side limit was trivially bypassable; server-side is authoritative and race-condition-free |
+| 2026-04-10 | Added JWT auth to `validate-clothing` and `store-training-image` Edge Functions | Functions were publicly callable without authentication, exposing free AWS Rekognition access |
+| 2026-04-10 | Removed recent looks feature | Simplified form flow; feature added complexity without clear user value at this stage |
 
 ---
 
