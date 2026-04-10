@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Animated,
   Easing,
-  Image,
   ActivityIndicator,
   Dimensions,
   Share,
@@ -21,63 +20,17 @@ import { LineChart } from 'react-native-gifted-charts';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { BottomSheet } from '@/components/BottomSheet';
-import { Spacing, BorderRadius, FontFamily, Typography, proColors } from '@/constants/theme';
+import { Spacing, BorderRadius, FontFamily, Typography } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-
-// ── Dukanoh Pro theme — sourced from design system ───────────
-const HUB = {
-  background:    proColors.background,
-  surface:       proColors.surface,
-  surfaceElevated: proColors.surfaceAlt,
-  accent:        proColors.primary,
-  textPrimary:   proColors.textPrimary,
-  textSecondary: proColors.textSecondary,
-  border:        proColors.border,
-  positive:      proColors.success,
-} as const;
-
-const FEATURES = [
-  { icon: 'flash-outline' as const,               label: '3 free boosts every month' },
-  { icon: 'bar-chart-outline' as const,            label: 'Analytics & earnings dashboard' },
-  { icon: 'shield-checkmark-outline' as const,     label: 'Pro seller badge' },
-  { icon: 'folder-outline' as const,               label: 'Collections & archive' },
-  { icon: 'share-social-outline' as const,         label: 'Share kit for Instagram & WhatsApp' },
-  { icon: 'pricetag-outline' as const,             label: 'Price drop alerts to members who saved this' },
-];
+import { HUB, HUB_FEATURES, HubListing, HubCollection, HubData } from '@/components/hub/hubTheme';
+import { HubMetricTile } from '@/components/hub/HubMetricTile';
+import { HubListingRow } from '@/components/hub/HubListingRow';
+import { HubShareCard } from '@/components/hub/HubShareCard';
+import { HubOccasionRow } from '@/components/hub/HubOccasionRow';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-// ── Types ────────────────────────────────────────────────────
-interface HubListing {
-  id: string;
-  title: string;
-  price: number;
-  images: string[];
-  status: string;
-  view_count: number;
-  save_count: number;
-  occasion: string | null;
-}
-
-interface HubCollection {
-  id: string;
-  name: string;
-  listingCount: number;
-}
-
-interface HubData {
-  totalEarned: number;
-  thisMonthEarned: number;
-  lastMonthEarned: number;
-  totalViews: number;
-  totalSaves: number;
-  profileViews30d: number;
-  chartData: { value: number }[];
-  listings: HubListing[];
-  collections: HubCollection[];
-  occasionPerformance: { occasion: string; saves: number; views: number }[];
-}
 
 // ── Root screen: fetch tier and branch ──────────────────────
 export default function SellerHubScreen() {
@@ -87,20 +40,36 @@ export default function SellerHubScreen() {
   const [listingCount, setListingCount] = useState(0);
   const [accountStatus, setAccountStatus] = useState<'active' | 'warned' | 'suspended'>('active');
   const [strikeCount, setStrikeCount] = useState(0);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     Promise.all([
       supabase.from('users').select('seller_tier, is_verified, account_status, cancellation_strike_count').eq('id', user.id).maybeSingle(),
       supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', user.id).eq('status', 'available'),
-    ]).then(([{ data }, { count }]) => {
+    ]).then(([{ data, error }, { count }]) => {
+      if (error) { setLoadError(true); return; }
       setSellerTier(data?.seller_tier ?? 'free');
       setIsVerified(data?.is_verified ?? false);
       setAccountStatus(data?.account_status ?? 'active');
       setStrikeCount(data?.cancellation_strike_count ?? 0);
       setListingCount(count ?? 0);
-    });
+    }).catch(() => setLoadError(true));
   }, [user]);
+
+  if (loadError) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar style="light" />
+        <Text style={{ color: HUB.textSecondary, fontFamily: FontFamily.regular, fontSize: 14 }}>
+          Something went wrong. Please try again.
+        </Text>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={{ marginTop: 16 }}>
+          <Text style={{ color: HUB.accent, fontFamily: FontFamily.semibold, fontSize: 14 }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (sellerTier === null) {
     return (
@@ -111,7 +80,7 @@ export default function SellerHubScreen() {
     );
   }
 
-  if (sellerTier === 'pro') return <HubDashboard accountStatus={accountStatus} strikeCount={strikeCount} />;
+  if (sellerTier === 'pro' || sellerTier === 'founder') return <HubDashboard accountStatus={accountStatus} strikeCount={strikeCount} />;
   return <HubPaywall isVerified={isVerified} listingCount={listingCount} />;
 }
 
@@ -121,13 +90,17 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
   const [founderCount, setFounderCount] = useState<number | null>(null);
   const [founderLimit, setFounderLimit] = useState(150);
+  const [founderMonthlyPrice, setFounderMonthlyPrice] = useState('£6.99');
+  const [founderAnnualPrice, setFounderAnnualPrice] = useState('£59.99');
+  const [standardMonthlyPrice, setStandardMonthlyPrice] = useState('£9.99');
+  const [standardAnnualPrice, setStandardAnnualPrice] = useState('£84.99');
 
   const logoOpacity    = useRef(new Animated.Value(0)).current;
   const logoY          = useRef(new Animated.Value(-20)).current;
   const headingOpacity = useRef(new Animated.Value(0)).current;
   const headingY       = useRef(new Animated.Value(20)).current;
-  const featureOpacities = useRef(FEATURES.map(() => new Animated.Value(0))).current;
-  const featureYs        = useRef(FEATURES.map(() => new Animated.Value(16))).current;
+  const featureOpacities = useRef(HUB_FEATURES.map(() => new Animated.Value(0))).current;
+  const featureYs        = useRef(HUB_FEATURES.map(() => new Animated.Value(16))).current;
   const ctaOpacity     = useRef(new Animated.Value(0)).current;
   const ctaY           = useRef(new Animated.Value(20)).current;
 
@@ -135,12 +108,16 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
     supabase
       .from('platform_settings')
       .select('key, value')
-      .in('key', ['founder_count', 'founder_limit'])
+      .in('key', ['founder_count', 'founder_limit', 'founder_monthly_price', 'founder_annual_price', 'pro_monthly_price', 'pro_annual_price'])
       .then(({ data }) => {
         if (!data) return;
         const row = (k: string) => data.find(r => r.key === k)?.value;
         setFounderCount(parseInt(row('founder_count') ?? '0', 10));
         setFounderLimit(parseInt(row('founder_limit') ?? '150', 10));
+        if (row('founder_monthly_price')) setFounderMonthlyPrice(`£${row('founder_monthly_price')}`);
+        if (row('founder_annual_price'))  setFounderAnnualPrice(`£${row('founder_annual_price')}`);
+        if (row('pro_monthly_price'))     setStandardMonthlyPrice(`£${row('pro_monthly_price')}`);
+        if (row('pro_annual_price'))      setStandardAnnualPrice(`£${row('pro_annual_price')}`);
       });
   }, []);
 
@@ -156,7 +133,7 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
       Animated.delay(60),
       animIn(headingOpacity, headingY),
       Animated.delay(40),
-      Animated.stagger(60, FEATURES.map((_, i) => animIn(featureOpacities[i], featureYs[i]))),
+      Animated.stagger(60, HUB_FEATURES.map((_: unknown, i: number) => animIn(featureOpacities[i], featureYs[i]))),
       Animated.delay(40),
       animIn(ctaOpacity, ctaY),
     ]).start();
@@ -166,26 +143,26 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
   const isFounderAvailable = founderCount !== null && founderCount < founderLimit;
   const founderSlotsLeft = founderLimit - (founderCount ?? 0);
 
-  const monthlyPrice  = isFounderAvailable ? '£6.99' : '£9.99';
-  const annualPrice   = isFounderAvailable ? '£59.99' : '£84.99';
-  const annualMonthly = isFounderAvailable ? '£5.00' : '£7.08';
+  const monthlyPrice = isFounderAvailable ? founderMonthlyPrice : standardMonthlyPrice;
+  const annualPrice  = isFounderAvailable ? founderAnnualPrice  : standardAnnualPrice;
+  const annualMonthly = `£${(parseFloat((isFounderAvailable ? founderAnnualPrice : standardAnnualPrice).replace('£', '')) / 12).toFixed(2)}`;
   const currentPrice  = billingPeriod === 'monthly' ? monthlyPrice : annualMonthly;
 
   // ── Prerequisite gate: not verified or no listings ───────
   const notReady = !isVerified || listingCount === 0;
   if (notReady) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.container}>
         <StatusBar style="light" />
         <TouchableOpacity
-          style={[styles.closeBtn, { top: insets.top + Spacing.md }]}
+          style={[styles.closeBtn, { position: 'absolute', top: insets.top + Spacing.md, left: Spacing.xl, zIndex: 10 }]}
           onPress={() => router.back()}
           hitSlop={16}
         >
           <Ionicons name="close" size={22} color={HUB.textSecondary} />
         </TouchableOpacity>
         <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + Spacing['3xl'] }]}
+          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing['3xl'] + Spacing.lg, paddingBottom: insets.bottom + Spacing['3xl'] }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.logoRow}>
@@ -239,11 +216,11 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <StatusBar style="light" />
 
       <TouchableOpacity
-        style={[styles.closeBtn, { top: insets.top + Spacing.md }]}
+        style={[styles.closeBtn, { position: 'absolute', top: insets.top + Spacing.md, left: Spacing.xl, zIndex: 10 }]}
         onPress={() => router.back()}
         hitSlop={16}
       >
@@ -251,7 +228,7 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
       </TouchableOpacity>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + Spacing['3xl'] }]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing['3xl'] + Spacing.lg, paddingBottom: insets.bottom + Spacing['3xl'] }]}
         showsVerticalScrollIndicator={false}
       >
         <Animated.View style={[styles.logoRow, { opacity: logoOpacity, transform: [{ translateY: logoY }] }]}>
@@ -267,7 +244,7 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
         </Animated.View>
 
         <View style={styles.featureList}>
-          {FEATURES.map((feature, i) => (
+          {HUB_FEATURES.map((feature: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string }, i: number) => (
             <Animated.View
               key={feature.label}
               style={[styles.featureRow, { opacity: featureOpacities[i], transform: [{ translateY: featureYs[i] }] }]}
@@ -361,6 +338,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<HubData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [createColVisible, setCreateColVisible] = useState(false);
   const [newColName, setNewColName] = useState('');
   const [savingCol, setSavingCol] = useState(false);
@@ -371,87 +349,99 @@ function HubDashboard({ accountStatus, strikeCount }: {
   const fetchData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setFetchError(false);
 
-    const now = new Date();
-    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
-    const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    try {
+      const now = new Date();
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+      const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [txAll, txThis, txLast, listingsRes, profileViewsRes, collectionsRes] = await Promise.all([
-      supabase.from('transactions').select('amount, created_at').eq('seller_id', user.id),
-      supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', thisMonthStart),
-      supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
-      supabase.from('listings').select('id, title, price, images, status, view_count, save_count, occasion').eq('seller_id', user.id).in('status', ['available', 'sold']).order('created_at', { ascending: false }),
-      supabase.from('profile_views').select('id', { count: 'exact', head: true }).eq('profile_user_id', user.id).gte('viewed_at', last30Days),
-      supabase.from('collections').select('id, name').eq('seller_id', user.id).order('created_at', { ascending: false }),
-    ]);
+      const [txTotal, txThis, txLast, tx30d, listingsRes, profileViewsRes, collectionsRes] = await Promise.all([
+        supabase.from('transactions').select('amount').eq('seller_id', user.id),
+        supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', thisMonthStart),
+        supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
+        supabase.from('transactions').select('amount, created_at').eq('seller_id', user.id).gte('created_at', last30Days),
+        supabase.from('listings').select('id, title, price, images, status, view_count, save_count, occasion').eq('seller_id', user.id).in('status', ['available', 'sold']).order('created_at', { ascending: false }),
+        supabase.from('profile_views').select('id', { count: 'exact', head: true }).eq('profile_user_id', user.id).gte('viewed_at', last30Days),
+        supabase.from('collections').select('id, name').eq('seller_id', user.id).order('created_at', { ascending: false }),
+      ]);
 
-    const allTx = txAll.data ?? [];
-    const totalEarned = allTx.reduce((s, t) => s + (t.amount ?? 0), 0);
-    const thisMonthEarned = (txThis.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
-    const lastMonthEarned = (txLast.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
+      if (txTotal.error || listingsRes.error || collectionsRes.error) {
+        setFetchError(true);
+        setLoading(false);
+        return;
+      }
 
-    // Build 30-day chart data
-    const buckets: Record<string, number> = {};
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-      buckets[d.toDateString()] = 0;
-    }
-    allTx.forEach(t => {
-      const key = new Date(t.created_at).toDateString();
-      if (key in buckets) buckets[key] += t.amount ?? 0;
-    });
-    const chartData = Object.values(buckets).map(v => ({ value: v }));
+      const totalEarned = (txTotal.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
+      const thisMonthEarned = (txThis.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
+      const lastMonthEarned = (txLast.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
 
-    const listings = (listingsRes.data ?? []) as HubListing[];
-    const totalViews = listings.reduce((s, l) => s + (l.view_count ?? 0), 0);
-    const totalSaves = listings.reduce((s, l) => s + (l.save_count ?? 0), 0);
-
-    // Collection listing counts
-    const collectionIds = (collectionsRes.data ?? []).map(c => c.id);
-    const collectionCounts: Record<string, number> = {};
-    if (collectionIds.length > 0) {
-      const { data: clData } = await supabase
-        .from('listings')
-        .select('collection_id')
-        .eq('seller_id', user.id)
-        .in('collection_id', collectionIds);
-      (clData ?? []).forEach((r: any) => {
-        if (r.collection_id) collectionCounts[r.collection_id] = (collectionCounts[r.collection_id] ?? 0) + 1;
+      // Build 30-day chart data
+      const buckets: Record<string, number> = {};
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+        buckets[d.toDateString()] = 0;
+      }
+      (tx30d.data ?? []).forEach(t => {
+        const key = new Date(t.created_at).toDateString();
+        if (key in buckets) buckets[key] += t.amount ?? 0;
       });
+      const chartData = Object.values(buckets).map(v => ({ value: v }));
+
+      const listings = (listingsRes.data ?? []) as HubListing[];
+      const totalViews = listings.reduce((s, l) => s + (l.view_count ?? 0), 0);
+      const totalSaves = listings.reduce((s, l) => s + (l.save_count ?? 0), 0);
+
+      // Collection listing counts
+      const collectionIds = (collectionsRes.data ?? []).map(c => c.id);
+      const collectionCounts: Record<string, number> = {};
+      if (collectionIds.length > 0) {
+        const { data: clData } = await supabase
+          .from('listings')
+          .select('collection_id')
+          .eq('seller_id', user.id)
+          .in('collection_id', collectionIds);
+        (clData ?? []).forEach((r: { collection_id: string | null }) => {
+          if (r.collection_id) collectionCounts[r.collection_id] = (collectionCounts[r.collection_id] ?? 0) + 1;
+        });
+      }
+      const collections: HubCollection[] = (collectionsRes.data ?? []).map(c => ({
+        id: c.id,
+        name: c.name,
+        listingCount: collectionCounts[c.id] ?? 0,
+      }));
+
+      // Occasion performance
+      const tagMap: Record<string, { saves: number; views: number }> = {};
+      listings.forEach(l => {
+        if (!l.occasion) return;
+        if (!tagMap[l.occasion]) tagMap[l.occasion] = { saves: 0, views: 0 };
+        tagMap[l.occasion].saves += l.save_count ?? 0;
+        tagMap[l.occasion].views += l.view_count ?? 0;
+      });
+      const occasionPerformance = Object.entries(tagMap)
+        .map(([occasion, v]) => ({ occasion, ...v }))
+        .sort((a, b) => b.saves - a.saves)
+        .slice(0, 5);
+
+      setData({
+        totalEarned,
+        thisMonthEarned,
+        lastMonthEarned,
+        totalViews,
+        totalSaves,
+        profileViews30d: profileViewsRes.count ?? 0,
+        chartData,
+        listings,
+        collections,
+        occasionPerformance,
+      });
+    } catch {
+      setFetchError(true);
+    } finally {
+      setLoading(false);
     }
-    const collections: HubCollection[] = (collectionsRes.data ?? []).map(c => ({
-      id: c.id,
-      name: c.name,
-      listingCount: collectionCounts[c.id] ?? 0,
-    }));
-
-    // Occasion performance
-    const tagMap: Record<string, { saves: number; views: number }> = {};
-    listings.forEach(l => {
-      if (!l.occasion) return;
-      if (!tagMap[l.occasion]) tagMap[l.occasion] = { saves: 0, views: 0 };
-      tagMap[l.occasion].saves += l.save_count ?? 0;
-      tagMap[l.occasion].views += l.view_count ?? 0;
-    });
-    const occasionPerformance = Object.entries(tagMap)
-      .map(([occasion, v]) => ({ occasion, ...v }))
-      .sort((a, b) => b.saves - a.saves)
-      .slice(0, 5);
-
-    setData({
-      totalEarned,
-      thisMonthEarned,
-      lastMonthEarned,
-      totalViews,
-      totalSaves,
-      profileViews30d: (profileViewsRes as any).count ?? 0,
-      chartData,
-      listings,
-      collections,
-      occasionPerformance,
-    });
-    setLoading(false);
   }, [user]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -460,20 +450,39 @@ function HubDashboard({ accountStatus, strikeCount }: {
   const handleCreateCollection = useCallback(async () => {
     if (!user || !newColName.trim()) return;
     setSavingCol(true);
-    await supabase.from('collections').insert({ seller_id: user.id, name: newColName.trim() });
+    const { data: newCol } = await supabase
+      .from('collections')
+      .insert({ seller_id: user.id, name: newColName.trim() })
+      .select('id, name')
+      .single();
     setNewColName('');
     setCreateColVisible(false);
     setSavingCol(false);
-    await fetchData();
-  }, [user, newColName, fetchData]);
+    if (newCol) {
+      setData(prev => prev ? {
+        ...prev,
+        collections: [{ id: newCol.id, name: newCol.name, listingCount: 0 }, ...prev.collections],
+      } : prev);
+    }
+  }, [user, newColName]);
 
   const handleAssignCollection = useCallback(async (listingId: string, collectionId: string | null) => {
     await supabase.from('listings').update({ collection_id: collectionId }).eq('id', listingId);
     setAssignSheetListing(null);
-    await fetchData();
-  }, [fetchData]);
+    setData(prev => {
+      if (!prev) return prev;
+      const oldListing = prev.listings.find(l => l.id === listingId);
+      const oldCollectionId = (oldListing as HubListing & { collection_id?: string | null })?.collection_id ?? null;
+      const collections = prev.collections.map(c => {
+        if (c.id === collectionId) return { ...c, listingCount: c.listingCount + 1 };
+        if (c.id === oldCollectionId) return { ...c, listingCount: Math.max(0, c.listingCount - 1) };
+        return c;
+      });
+      return { ...prev, collections };
+    });
+  }, []);
 
-  const handleShare = useCallback(async (listingId: string) => {
+  const handleShare = async (listingId: string) => {
     const ref = shareCardRefs.current[listingId];
     if (!ref) return;
     setSharingId(listingId);
@@ -485,7 +494,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
     } finally {
       setSharingId(null);
     }
-  }, []);
+  };
 
   const chartWidth = SCREEN_WIDTH - Spacing.xl * 2 - Spacing.lg * 2 - 2;
 
@@ -512,7 +521,16 @@ function HubDashboard({ accountStatus, strikeCount }: {
         </View>
       </View>
 
-      {loading || !data ? (
+      {fetchError ? (
+        <View style={styles.dashLoading}>
+          <Text style={{ color: HUB.textSecondary, fontFamily: FontFamily.regular, fontSize: 14 }}>
+            Something went wrong. Please try again.
+          </Text>
+          <TouchableOpacity onPress={fetchData} hitSlop={12} style={{ marginTop: 16 }}>
+            <Text style={{ color: HUB.accent, fontFamily: FontFamily.semibold, fontSize: 14 }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading || !data ? (
         <View style={styles.dashLoading}>
           <ActivityIndicator color={HUB.accent} size="large" />
         </View>
@@ -602,9 +620,9 @@ function HubDashboard({ accountStatus, strikeCount }: {
 
           {/* ── Performance metrics ── */}
           <View style={styles.metricsRow}>
-            <MetricTile label="Listing Views" value={data.totalViews} icon="eye-outline" />
-            <MetricTile label="Saves" value={data.totalSaves} icon="heart-outline" />
-            <MetricTile label="Profile Views" value={data.profileViews30d} icon="person-outline" footnote="30d" />
+            <HubMetricTile label="Listing Views" value={data.totalViews} icon="eye-outline" />
+            <HubMetricTile label="Saves" value={data.totalSaves} icon="heart-outline" />
+            <HubMetricTile label="Profile Views" value={data.profileViews30d} icon="person-outline" footnote="30d" />
           </View>
 
           {/* ── Listings ── */}
@@ -619,7 +637,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
                     options={{ format: 'png', quality: 0.95 }}
                     style={styles.shareCardHidden}
                   >
-                    <ShareCard listing={listing} />
+                    <HubShareCard listing={listing} />
                   </ViewShot>
                   <HubListingRow
                     listing={listing}
@@ -668,7 +686,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Occasion Performance</Text>
               {data.occasionPerformance.map(({ occasion, saves, views }) => (
-                <OccasionRow key={occasion} occasion={occasion} saves={saves} views={views} topSaves={data.occasionPerformance[0].saves} />
+                <HubOccasionRow key={occasion} occasion={occasion} saves={saves} views={views} topSaves={data.occasionPerformance[0].saves} />
               ))}
             </View>
           )}
@@ -748,113 +766,6 @@ function HubDashboard({ accountStatus, strikeCount }: {
   );
 }
 
-// ── Sub-components ───────────────────────────────────────────
-
-function MetricTile({ label, value, icon, footnote }: { label: string; value: number; icon: any; footnote?: string }) {
-  return (
-    <View style={styles.metricTile}>
-      <Ionicons name={icon} size={18} color={HUB.accent} />
-      <Text style={styles.metricValue}>{value.toLocaleString()}</Text>
-      <Text style={styles.metricLabel}>{label}{footnote ? ` (${footnote})` : ''}</Text>
-    </View>
-  );
-}
-
-function HubListingRow({
-  listing,
-  onShare,
-  sharing,
-  onAssign,
-}: {
-  listing: HubListing;
-  onShare: (id: string) => void;
-  sharing: boolean;
-  onAssign: () => void;
-}) {
-  const imageUri = listing.images?.[0];
-
-  return (
-    <TouchableOpacity
-      style={styles.listingRow}
-      activeOpacity={0.8}
-      onPress={() => router.push(`/listing/edit/${listing.id}`)}
-    >
-      {imageUri ? (
-        <Image source={{ uri: imageUri }} style={styles.listingThumb} />
-      ) : (
-        <View style={[styles.listingThumb, styles.listingThumbPlaceholder]}>
-          <Ionicons name="image-outline" size={16} color={HUB.textSecondary} />
-        </View>
-      )}
-
-      <View style={styles.listingInfo}>
-        <Text style={styles.listingTitle} numberOfLines={1}>{listing.title}</Text>
-        <Text style={styles.listingPrice}>£{listing.price.toFixed(0)}</Text>
-        <View style={styles.listingStats}>
-          <Ionicons name="eye-outline" size={12} color={HUB.textSecondary} />
-          <Text style={styles.listingStatText}>{listing.view_count}</Text>
-          <Ionicons name="heart-outline" size={12} color={HUB.textSecondary} style={{ marginLeft: 8 }} />
-          <Text style={styles.listingStatText}>{listing.save_count}</Text>
-        </View>
-      </View>
-
-      {/* Action buttons */}
-      <View style={styles.listingActions}>
-        {/* Share */}
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={() => onShare(listing.id)}
-          disabled={sharing}
-          hitSlop={8}
-        >
-          {sharing
-            ? <ActivityIndicator size="small" color={HUB.textSecondary} />
-            : <Ionicons name="share-social-outline" size={18} color={HUB.textSecondary} />
-          }
-        </TouchableOpacity>
-
-        {/* Assign to collection */}
-        <TouchableOpacity style={styles.iconBtn} onPress={onAssign} hitSlop={8}>
-          <Ionicons name="folder-outline" size={18} color={HUB.textSecondary} />
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ── Share Card (off-screen, captured by ViewShot) ────────────
-function ShareCard({ listing }: { listing: HubListing }) {
-  const imageUri = listing.images?.[0];
-  return (
-    <View style={styles.shareCard}>
-      {imageUri ? (
-        <Image source={{ uri: imageUri }} style={styles.shareCardImage} />
-      ) : (
-        <View style={[styles.shareCardImage, { backgroundColor: HUB.surfaceElevated }]} />
-      )}
-      <View style={styles.shareCardBody}>
-        <DukanohLogo width={72} height={13} color={HUB.accent} />
-        <Text style={styles.shareCardTitle} numberOfLines={2}>{listing.title}</Text>
-        <Text style={styles.shareCardPrice}>£{listing.price.toFixed(0)}</Text>
-      </View>
-    </View>
-  );
-}
-
-function OccasionRow({ occasion, saves, views, topSaves }: { occasion: string; saves: number; views: number; topSaves: number }) {
-  const barWidth = topSaves > 0 ? (saves / topSaves) * 100 : 0;
-  return (
-    <View style={styles.occasionRow}>
-      <View style={styles.occasionMeta}>
-        <Text style={styles.occasionName}>{occasion}</Text>
-        <Text style={styles.occasionStats}>{saves} saves · {views} views</Text>
-      </View>
-      <View style={styles.occasionBarBg}>
-        <View style={[styles.occasionBarFill, { width: `${barWidth}%` }]} />
-      </View>
-    </View>
-  );
-}
 
 // ── Shared styles ────────────────────────────────────────────
 const styles = StyleSheet.create({
@@ -882,7 +793,6 @@ const styles = StyleSheet.create({
   // ── Paywall ──
   scroll: {
     paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing['3xl'] + Spacing.lg,
     gap: Spacing.xl,
   },
   logoRow: {

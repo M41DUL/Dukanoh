@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -9,28 +9,7 @@ import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import type { ComponentProps } from 'react';
-
-// ── Dukanoh Pro theme — sourced from design system ───────────
-const HUB = {
-  background:    proColors.background,
-  surface:       proColors.surface,
-  accent:        proColors.primary,
-  textPrimary:   proColors.textPrimary,
-  textSecondary: proColors.textSecondary,
-  border:        proColors.border,
-} as const;
-
-type IoniconsName = ComponentProps<typeof Ionicons>['name'];
-
-const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
-  { icon: 'flash-outline',            label: '3 free boosts every month' },
-  { icon: 'bar-chart-outline',        label: 'Analytics & earnings dashboard' },
-  { icon: 'shield-checkmark-outline', label: 'Pro seller badge' },
-  { icon: 'folder-outline',           label: 'Collections & archive' },
-  { icon: 'share-social-outline',     label: 'Share kit for Instagram & WhatsApp' },
-  { icon: 'pricetag-outline',         label: 'Price drop alerts to members who saved this' },
-];
+import { HUB, HUB_FEATURES } from '@/components/hub/hubTheme';
 
 interface QuickAction {
   icon: IoniconsName;
@@ -50,7 +29,7 @@ const quickActions: QuickAction[] = [
 interface HubSummary {
   totalViews: number;
   totalSaves: number;
-  totalEarned: number;
+  thisMonthEarned: number;
 }
 
 export default function ProfileScreen() {
@@ -64,6 +43,7 @@ export default function ProfileScreen() {
   const [isVerified, setIsVerified] = useState(false);
   const [listingCount, setListingCount] = useState(0);
   const [hubSummary, setHubSummary] = useState<HubSummary | null>(null);
+  const [hubSummaryLoading, setHubSummaryLoading] = useState(false);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -101,7 +81,12 @@ export default function ProfileScreen() {
   }, [user]);
 
   const fetchHubSummary = useCallback(async () => {
-    if (!user || sellerTier !== 'pro') return;
+    if (!user || (sellerTier !== 'pro' && sellerTier !== 'founder')) return;
+    setHubSummaryLoading(true);
+    const thisMonthStart = new Date();
+    thisMonthStart.setDate(1);
+    thisMonthStart.setHours(0, 0, 0, 0);
+
     const [{ count: viewCount }, { data: saves }, { data: earned }] = await Promise.all([
       supabase
         .from('listing_views')
@@ -114,12 +99,14 @@ export default function ProfileScreen() {
       supabase
         .from('transactions')
         .select('amount')
-        .eq('seller_id', user.id),
+        .eq('seller_id', user.id)
+        .gte('created_at', thisMonthStart.toISOString()),
     ]);
     const totalViews = viewCount ?? 0;
-    const totalSaves = (saves ?? []).reduce((sum: number, l: any) => sum + (l.save_count ?? 0), 0);
-    const totalEarned = (earned ?? []).reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0);
-    setHubSummary({ totalViews, totalSaves, totalEarned });
+    const totalSaves = (saves ?? []).reduce((sum: number, l: { save_count: number | null }) => sum + (l.save_count ?? 0), 0);
+    const thisMonthEarned = (earned ?? []).reduce((sum: number, t: { amount: number | null }) => sum + (t.amount ?? 0), 0);
+    setHubSummary({ totalViews, totalSaves, thisMonthEarned });
+    setHubSummaryLoading(false);
   }, [user, sellerTier]);
 
   useFocusEffect(useCallback(() => {
@@ -130,13 +117,13 @@ export default function ProfileScreen() {
   }, [fetchProfile]));
 
   useFocusEffect(useCallback(() => {
-    if (sellerTier === 'pro') fetchHubSummary();
+    if (sellerTier === 'pro' || sellerTier === 'founder') fetchHubSummary();
   }, [fetchHubSummary, sellerTier]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     lastFetchedRef.current = 0;
-    await Promise.all([fetchProfile(), sellerTier === 'pro' ? fetchHubSummary() : Promise.resolve()]);
+    await Promise.all([fetchProfile(), (sellerTier === 'pro' || sellerTier === 'founder') ? fetchHubSummary() : Promise.resolve()]);
     setRefreshing(false);
   }, [fetchProfile, fetchHubSummary, sellerTier]);
 
@@ -228,7 +215,7 @@ export default function ProfileScreen() {
               )}
             </View>
 
-            {sellerTier !== 'pro' && (
+            {sellerTier !== 'pro' && sellerTier !== 'founder' && (
               <View style={styles.hubFeatureList}>
                 {HUB_FEATURES.map(f => (
                   <View key={f.label} style={styles.hubFeatureRow}>
@@ -241,12 +228,14 @@ export default function ProfileScreen() {
               </View>
             )}
 
-            {sellerTier === 'pro' && hubSummary ? (
+            {(sellerTier === 'pro' || sellerTier === 'founder') && hubSummaryLoading ? (
+              <ActivityIndicator color={HUB.accent} style={{ marginVertical: Spacing.sm }} />
+            ) : (sellerTier === 'pro' || sellerTier === 'founder') && hubSummary ? (
               <>
                 <View style={styles.hubMetrics}>
                   <View style={styles.hubMetric}>
-                    <Text style={styles.hubMetricValue}>£{hubSummary.totalEarned.toFixed(0)}</Text>
-                    <Text style={styles.hubMetricLabel}>Earned</Text>
+                    <Text style={styles.hubMetricValue}>£{hubSummary.thisMonthEarned.toFixed(0)}</Text>
+                    <Text style={styles.hubMetricLabel}>This month</Text>
                   </View>
                   <View style={styles.hubMetricDivider} />
                   <View style={styles.hubMetric}>
@@ -264,11 +253,11 @@ export default function ProfileScreen() {
                   <Ionicons name="chevron-forward" size={14} color={HUB.accent} />
                 </View>
               </>
-            ) : (
+            ) : sellerTier !== 'pro' && sellerTier !== 'founder' ? (
               <View style={styles.hubUpgradeBtn}>
                 <Text style={styles.hubUpgradeBtnText}>Start free trial</Text>
               </View>
-            )}
+            ) : null}
           </TouchableOpacity>
         )}
 
