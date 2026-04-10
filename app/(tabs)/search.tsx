@@ -15,10 +15,12 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { searchFocusRequest } from '@/lib/searchFocusRequest';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  InteractionManager,
   Platform,
   ScrollView,
   StyleSheet,
@@ -134,7 +136,7 @@ const heroBannerStyles = StyleSheet.create({
 // ─── Main screen ────────────────────────────────────────────
 
 export default function SearchScreen() {
-  const { q: incomingQuery, focus: incomingFocus } = useLocalSearchParams<{ q?: string; focus?: string }>();
+  const { q: incomingQuery } = useLocalSearchParams<{ q?: string }>();
   const searchBarRef = useRef<SearchBarHandle>(null);
 
   // Search state
@@ -203,14 +205,15 @@ export default function SearchScreen() {
     }
   }, [incomingQuery, openSearch]);
 
-  // Handle incoming focus request from home tab
-  useEffect(() => {
-    if (incomingFocus === '1') {
-      const timer = setTimeout(() => searchBarRef.current?.focus(), 100);
-      router.setParams({ focus: '' });
-      return () => clearTimeout(timer);
-    }
-  }, [incomingFocus]);
+  // Auto-focus search bar when navigating here from the home tab search icon
+  useFocusEffect(useCallback(() => {
+    if (!searchFocusRequest.pending) return;
+    searchFocusRequest.pending = false;
+    const task = InteractionManager.runAfterInteractions(() => {
+      searchBarRef.current?.focus();
+    });
+    return () => task.cancel();
+  }, []));
 
   // ─── Render ─────────────────────────────────────────────
   return (

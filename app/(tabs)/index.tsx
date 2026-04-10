@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { searchFocusRequest } from '@/lib/searchFocusRequest';
 import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -88,7 +89,7 @@ export default function HomeScreen() {
         <View style={styles.topBar}>
           <DukanohLogo width={80} height={14} color={isDark ? colors.secondary : colors.primary} />
           <TouchableOpacity
-            onPress={() => router.push({ pathname: '/(tabs)/search', params: { focus: '1' } })}
+            onPress={() => { searchFocusRequest.pending = true; router.navigate('/(tabs)/search'); }}
             hitSlop={8}
             style={styles.iconBtn}
           >

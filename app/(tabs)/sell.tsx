@@ -264,8 +264,10 @@ export default function SellScreen() {
 
       if (checkResult === 'blocked') {
         Alert.alert('Photo not allowed', "This image isn't allowed. Please try another.");
+        break;
       } else if (checkResult === 'not-clothing') {
         Alert.alert('Not a clothing item', "Please take a photo of the clothing piece you want to sell.");
+        break;
       } else {
         setImages(prev => [...prev, uri].slice(0, 8));
         setErrors(e => ({ ...e, images: undefined }));
