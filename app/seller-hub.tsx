@@ -37,24 +37,30 @@ export default function SellerHubScreen() {
   const { user } = useAuth();
   const [sellerTier, setSellerTier] = useState<string | null>(null);
   const [isVerified, setIsVerified] = useState(false);
-  const [listingCount, setListingCount] = useState(0);
+  const [hadFreeTrial, setHadFreeTrial] = useState(false);
   const [accountStatus, setAccountStatus] = useState<'active' | 'warned' | 'suspended'>('active');
   const [strikeCount, setStrikeCount] = useState(0);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([
-      supabase.from('users').select('seller_tier, is_verified, account_status, cancellation_strike_count').eq('id', user.id).maybeSingle(),
-      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', user.id).eq('status', 'available'),
-    ]).then(([{ data, error }, { count }]) => {
-      if (error) { setLoadError(true); return; }
-      setSellerTier(data?.seller_tier ?? 'free');
-      setIsVerified(data?.is_verified ?? false);
-      setAccountStatus(data?.account_status ?? 'active');
-      setStrikeCount(data?.cancellation_strike_count ?? 0);
-      setListingCount(count ?? 0);
-    }).catch(() => setLoadError(true));
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('seller_tier, is_verified, had_free_trial, account_status, cancellation_strike_count')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (error) { setLoadError(true); return; }
+        setSellerTier(data?.seller_tier ?? 'free');
+        setIsVerified(data?.is_verified ?? false);
+        setHadFreeTrial(data?.had_free_trial ?? false);
+        setAccountStatus(data?.account_status ?? 'active');
+        setStrikeCount(data?.cancellation_strike_count ?? 0);
+      } catch {
+        setLoadError(true);
+      }
+    })();
   }, [user]);
 
   if (loadError) {
@@ -81,11 +87,11 @@ export default function SellerHubScreen() {
   }
 
   if (sellerTier === 'pro' || sellerTier === 'founder') return <HubDashboard accountStatus={accountStatus} strikeCount={strikeCount} />;
-  return <HubPaywall isVerified={isVerified} listingCount={listingCount} />;
+  return <HubPaywall isVerified={isVerified} hadFreeTrial={hadFreeTrial} />;
 }
 
 // ── Paywall screen ───────────────────────────────────────────
-function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listingCount: number }) {
+function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFreeTrial: boolean }) {
   const insets = useSafeAreaInsets();
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
   const [founderCount, setFounderCount] = useState<number | null>(null);
@@ -143,77 +149,32 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
   const isFounderAvailable = founderCount !== null && founderCount < founderLimit;
   const founderSlotsLeft = founderLimit - (founderCount ?? 0);
 
-  const monthlyPrice = isFounderAvailable ? founderMonthlyPrice : standardMonthlyPrice;
-  const annualPrice  = isFounderAvailable ? founderAnnualPrice  : standardAnnualPrice;
+  const monthlyPrice  = isFounderAvailable ? founderMonthlyPrice : standardMonthlyPrice;
+  const annualPrice   = isFounderAvailable ? founderAnnualPrice  : standardAnnualPrice;
   const annualMonthly = `£${(parseFloat((isFounderAvailable ? founderAnnualPrice : standardAnnualPrice).replace('£', '')) / 12).toFixed(2)}`;
   const currentPrice  = billingPeriod === 'monthly' ? monthlyPrice : annualMonthly;
 
-  // ── Prerequisite gate: not verified or no listings ───────
-  const notReady = !isVerified || listingCount === 0;
-  if (notReady) {
-    return (
-      <View style={styles.container}>
-        <StatusBar style="light" />
-        <TouchableOpacity
-          style={[styles.closeBtn, { position: 'absolute', top: insets.top + Spacing.md, left: Spacing.xl, zIndex: 10 }]}
-          onPress={() => router.back()}
-          hitSlop={16}
-        >
-          <Ionicons name="close" size={22} color={HUB.textSecondary} />
-        </TouchableOpacity>
-        <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing['3xl'] + Spacing.lg, paddingBottom: insets.bottom + Spacing['3xl'] }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.logoRow}>
-            <DukanohLogo width={90} height={16} color={HUB.accent} />
-          </View>
-          <View style={styles.headingBlock}>
-            <View style={styles.proPill}>
-              <Text style={styles.proPillText}>Pro ✦</Text>
-            </View>
-            <Text style={styles.heading}>Dukanoh Pro</Text>
-          </View>
-          <View style={styles.gateCard}>
-            {!isVerified && (
-              <View style={styles.gateRow}>
-                <View style={[styles.gateIconWrap, styles.gateIconIncomplete]}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color={HUB.accent} />
-                </View>
-                <View style={styles.gateText}>
-                  <Text style={styles.gateTitle}>Get Verified first</Text>
-                  <Text style={styles.gateBody}>Complete Dukanoh Verify to unlock Pro and receive payments.</Text>
-                </View>
-              </View>
-            )}
-            {listingCount === 0 && (
-              <View style={styles.gateRow}>
-                <View style={[styles.gateIconWrap, styles.gateIconIncomplete]}>
-                  <Ionicons name="bag-outline" size={20} color={HUB.accent} />
-                </View>
-                <View style={styles.gateText}>
-                  <Text style={styles.gateTitle}>List at least one item</Text>
-                  <Text style={styles.gateBody}>You need an active listing before subscribing to Pro.</Text>
-                </View>
-              </View>
-            )}
-          </View>
-          <TouchableOpacity
-            style={styles.ctaBtn}
-            activeOpacity={0.85}
-            onPress={() => { router.back(); router.push('/stripe-onboarding'); }}
-          >
-            <Text style={styles.ctaBtnText}>
-              {!isVerified ? 'Set up Dukanoh Verify' : 'Add a listing'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12} activeOpacity={0.6}>
-            <Text style={styles.maybeLater}>Maybe later</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-    );
-  }
+  // ── CTA / copy based on verification + trial state ───────
+  const ctaLabel = !isVerified
+    ? 'Get verified to unlock Pro'
+    : hadFreeTrial
+      ? `Subscribe ${billingPeriod === 'annual' ? 'annually' : 'monthly'}`
+      : 'Start 14-day free trial';
+
+  const ctaNote = !isVerified
+    ? 'Complete Dukanoh Verify to start selling and unlock Pro.'
+    : hadFreeTrial
+      ? 'Cancel anytime. Billed via the App Store.'
+      : 'Free for 14 days — no charge until your trial ends. Cancel anytime.';
+
+  const handleCta = () => {
+    if (!isVerified) {
+      router.back();
+      router.push('/stripe-onboarding');
+      return;
+    }
+    // RevenueCat Purchases.purchasePackage() goes here
+  };
 
   return (
     <View style={styles.container}>
@@ -258,67 +219,71 @@ function HubPaywall({ isVerified, listingCount }: { isVerified: boolean; listing
         </View>
 
         <Animated.View style={[styles.ctaBlock, { opacity: ctaOpacity, transform: [{ translateY: ctaY }] }]}>
-          {/* Billing period toggle */}
-          <View style={styles.billingToggle}>
-            <TouchableOpacity
-              style={[styles.toggleOption, billingPeriod === 'monthly' && styles.toggleOptionActive]}
-              onPress={() => setBillingPeriod('monthly')}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.toggleText, billingPeriod === 'monthly' && styles.toggleTextActive]}>Monthly</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.toggleOption, billingPeriod === 'annual' && styles.toggleOptionActive]}
-              onPress={() => setBillingPeriod('annual')}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.toggleText, billingPeriod === 'annual' && styles.toggleTextActive]}>Annual</Text>
-              <View style={styles.savePill}>
-                <Text style={styles.savePillText}>Save 29%</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
 
-          {/* Pricing */}
-          <View style={styles.pricingCard}>
-            {isFounderAvailable && (
-              <View style={styles.founderBadge}>
-                <Text style={styles.founderBadgeText}>
-                  Founder Plan · {founderSlotsLeft} of {founderLimit} spots left
-                </Text>
+          {/* Verification gate banner — shown inline, paywall still fully visible */}
+          {!isVerified && (
+            <View style={styles.gateBanner}>
+              <Ionicons name="shield-checkmark-outline" size={18} color={HUB.accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.gateBannerTitle}>Verification required</Text>
+                <Text style={styles.gateBannerBody}>Complete Dukanoh Verify to start selling and unlock Pro.</Text>
               </View>
-            )}
-            <View style={styles.priceRow}>
-              <Text style={styles.priceAmount}>{currentPrice}</Text>
-              <Text style={styles.pricePer}>/mo</Text>
             </View>
-            {billingPeriod === 'annual' && (
-              <Text style={styles.annualTotal}>
-                Billed as {annualPrice}/year
-              </Text>
-            )}
-            <Text style={styles.pricingNote}>
-              {isFounderAvailable
-                ? 'Lock in your price forever — it will never increase for you.'
-                : 'Price will increase as Dukanoh grows.'}
-            </Text>
-          </View>
+          )}
 
-          <TouchableOpacity
-            style={styles.ctaBtn}
-            activeOpacity={0.85}
-            onPress={() => {
-              // RevenueCat Purchases.purchasePackage() goes here
-            }}
-          >
-            <Text style={styles.ctaBtnText}>
-              Subscribe {billingPeriod === 'annual' ? 'annually' : 'monthly'}
-            </Text>
+          {/* Billing toggle — only shown to verified users */}
+          {isVerified && (
+            <View style={styles.billingToggle}>
+              <TouchableOpacity
+                style={[styles.toggleOption, billingPeriod === 'monthly' && styles.toggleOptionActive]}
+                onPress={() => setBillingPeriod('monthly')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.toggleText, billingPeriod === 'monthly' && styles.toggleTextActive]}>Monthly</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleOption, billingPeriod === 'annual' && styles.toggleOptionActive]}
+                onPress={() => setBillingPeriod('annual')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.toggleText, billingPeriod === 'annual' && styles.toggleTextActive]}>Annual</Text>
+                <View style={styles.savePill}>
+                  <Text style={styles.savePillText}>Save 29%</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Pricing card — only shown to verified users */}
+          {isVerified && (
+            <View style={styles.pricingCard}>
+              {isFounderAvailable && (
+                <View style={styles.founderBadge}>
+                  <Text style={styles.founderBadgeText}>
+                    Founder Plan · {founderSlotsLeft} of {founderLimit} spots left
+                  </Text>
+                </View>
+              )}
+              <View style={styles.priceRow}>
+                <Text style={styles.priceAmount}>{currentPrice}</Text>
+                <Text style={styles.pricePer}>/mo</Text>
+              </View>
+              {billingPeriod === 'annual' && (
+                <Text style={styles.annualTotal}>Billed as {annualPrice}/year</Text>
+              )}
+              <Text style={styles.pricingNote}>
+                {isFounderAvailable
+                  ? 'Lock in your price forever — it will never increase for you.'
+                  : 'Price will increase as Dukanoh grows.'}
+              </Text>
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.85} onPress={handleCta}>
+            <Text style={styles.ctaBtnText}>{ctaLabel}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.trialNote}>
-            Cancel anytime. Billed via the App Store.
-          </Text>
+          <Text style={styles.trialNote}>{ctaNote}</Text>
 
           <TouchableOpacity onPress={() => router.back()} hitSlop={12} activeOpacity={0.6}>
             <Text style={styles.maybeLater}>Maybe later</Text>
@@ -1047,6 +1012,29 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  gateBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: `${HUB.accent}40`,
+    backgroundColor: `${HUB.accent}15`,
+    borderRadius: BorderRadius.large,
+    padding: Spacing.base,
+    marginBottom: Spacing.md,
+  },
+  gateBannerTitle: {
+    fontSize: 13,
+    fontFamily: FontFamily.semibold,
+    color: HUB.textPrimary,
+    marginBottom: 2,
+  },
+  gateBannerBody: {
+    fontSize: 12,
+    fontFamily: FontFamily.regular,
+    color: HUB.textSecondary,
+    lineHeight: 17,
   },
   strikeBanner: {
     flexDirection: 'row',

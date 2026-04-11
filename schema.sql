@@ -27,6 +27,7 @@ CREATE TABLE public.users (
   -- Seller Hub Pro
   seller_tier                 TEXT DEFAULT 'free',
   pro_expires_at              TIMESTAMPTZ,
+  had_free_trial              BOOLEAN DEFAULT FALSE,  -- set true via RevenueCat webhook on trial start; never reset
   -- Stripe Connect Express
   stripe_account_id           TEXT,
   stripe_onboarding_complete  BOOLEAN DEFAULT FALSE,

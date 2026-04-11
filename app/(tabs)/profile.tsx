@@ -41,6 +41,7 @@ export default function ProfileScreen() {
   const [profileAvatar, setProfileAvatar] = useState<string | undefined>();
   const [sellerTier, setSellerTier] = useState<string>('free');
   const [isVerified, setIsVerified] = useState(false);
+  const [hadFreeTrial, setHadFreeTrial] = useState(false);
   const [listingCount, setListingCount] = useState(0);
   const [hubSummary, setHubSummary] = useState<HubSummary | null>(null);
   const [hubSummaryLoading, setHubSummaryLoading] = useState(false);
@@ -54,7 +55,7 @@ export default function ProfileScreen() {
     const [{ data, error }, { count }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier, is_verified')
+        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier, is_verified, had_free_trial')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -75,6 +76,7 @@ export default function ProfileScreen() {
       setRatingCount(data.rating_count ?? 0);
       setSellerTier(data.seller_tier ?? 'free');
       setIsVerified(data.is_verified ?? false);
+      setHadFreeTrial(data.had_free_trial ?? false);
     }
     setListingCount(count ?? 0);
     lastFetchedRef.current = Date.now();
@@ -206,31 +208,42 @@ export default function ProfileScreen() {
           >
             <View style={styles.hubCardHeader}>
               <Text style={styles.hubCardTitle}>Dukanoh Pro</Text>
-              {sellerTier === 'pro' ? (
+              {(sellerTier === 'pro' || sellerTier === 'founder') ? (
                 <View style={styles.proBadge}>
                   <Text style={styles.proBadgeText}>Pro ✦</Text>
                 </View>
               ) : (
-                <Ionicons name="lock-closed" size={16} color={HUB.textSecondary} />
+                <Ionicons name="chevron-forward" size={16} color={HUB.textSecondary} />
               )}
             </View>
 
+            {/* Free user — teaser feature list */}
             {sellerTier !== 'pro' && sellerTier !== 'founder' && (
-              <View style={styles.hubFeatureList}>
-                {HUB_FEATURES.map(f => (
-                  <View key={f.label} style={styles.hubFeatureRow}>
-                    <View style={styles.hubFeatureIconWrap}>
-                      <Ionicons name={f.icon} size={14} color={HUB.accent} />
+              <>
+                <View style={styles.hubFeatureList}>
+                  {HUB_FEATURES.slice(0, 3).map(f => (
+                    <View key={f.label} style={styles.hubFeatureRow}>
+                      <View style={styles.hubFeatureIconWrap}>
+                        <Ionicons name={f.icon} size={14} color={HUB.accent} />
+                      </View>
+                      <Text style={styles.hubFeatureLabel}>{f.label}</Text>
                     </View>
-                    <Text style={styles.hubFeatureLabel}>{f.label}</Text>
-                  </View>
-                ))}
-              </View>
+                  ))}
+                </View>
+                <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - 3} more features</Text>
+                <View style={styles.hubUpgradeBtn}>
+                  <Text style={styles.hubUpgradeBtnText}>
+                    {hadFreeTrial ? 'Subscribe' : 'Start free trial'}
+                  </Text>
+                </View>
+              </>
             )}
 
-            {(sellerTier === 'pro' || sellerTier === 'founder') && hubSummaryLoading ? (
+            {/* Pro/founder user — live metrics */}
+            {(sellerTier === 'pro' || sellerTier === 'founder') && hubSummaryLoading && (
               <ActivityIndicator color={HUB.accent} style={{ marginVertical: Spacing.sm }} />
-            ) : (sellerTier === 'pro' || sellerTier === 'founder') && hubSummary ? (
+            )}
+            {(sellerTier === 'pro' || sellerTier === 'founder') && !hubSummaryLoading && hubSummary && (
               <>
                 <View style={styles.hubMetrics}>
                   <View style={styles.hubMetric}>
@@ -253,11 +266,7 @@ export default function ProfileScreen() {
                   <Ionicons name="chevron-forward" size={14} color={HUB.accent} />
                 </View>
               </>
-            ) : sellerTier !== 'pro' && sellerTier !== 'founder' ? (
-              <View style={styles.hubUpgradeBtn}>
-                <Text style={styles.hubUpgradeBtnText}>Start free trial</Text>
-              </View>
-            ) : null}
+            )}
           </TouchableOpacity>
         )}
 
@@ -440,7 +449,7 @@ function getStyles(colors: ColorTokens) {
       width: 26,
       height: 26,
       borderRadius: BorderRadius.small,
-      backgroundColor: proColors.surfaceAlt,
+      backgroundColor: HUB.surfaceElevated,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -448,6 +457,10 @@ function getStyles(colors: ColorTokens) {
       ...Typography.caption,
       color: HUB.textPrimary,
       flex: 1,
+    },
+    hubMoreText: {
+      ...Typography.caption,
+      color: HUB.textSecondary,
     },
     hubUpgradeBtn: {
       backgroundColor: HUB.accent,
