@@ -6,11 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
-  Easing,
   ActivityIndicator,
   Dimensions,
   Share,
   TextInput,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -92,75 +93,43 @@ export default function SellerHubScreen() {
 }
 
 // ── Paywall screen ───────────────────────────────────────────
+const FIRST_BATCH = 4; // features visible above the fold before "See all"
+
 function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFreeTrial: boolean }) {
   const insets = useSafeAreaInsets();
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
   const [founderCount, setFounderCount] = useState<number | null>(null);
   const [founderLimit, setFounderLimit] = useState(150);
   const [founderMonthlyPrice, setFounderMonthlyPrice] = useState('£6.99');
-  const [founderAnnualPrice, setFounderAnnualPrice] = useState('£59.99');
   const [standardMonthlyPrice, setStandardMonthlyPrice] = useState('£9.99');
-  const [standardAnnualPrice, setStandardAnnualPrice] = useState('£84.99');
 
-  const logoOpacity    = useRef(new Animated.Value(0)).current;
-  const logoY          = useRef(new Animated.Value(-20)).current;
-  const headingOpacity = useRef(new Animated.Value(0)).current;
-  const headingY       = useRef(new Animated.Value(20)).current;
-  const featureOpacities = useRef(HUB_FEATURES.map(() => new Animated.Value(0))).current;
-  const featureYs        = useRef(HUB_FEATURES.map(() => new Animated.Value(16))).current;
-  const ctaOpacity     = useRef(new Animated.Value(0)).current;
-  const ctaY           = useRef(new Animated.Value(20)).current;
+  // "See all benefits" secondary CTA fades out once the user scrolls past it
+  const seeAllOpacity = useRef(new Animated.Value(1)).current;
+  const allFeaturesRef = useRef<View>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const allFeaturesY = useRef(0);
 
   useEffect(() => {
     supabase
       .from('platform_settings')
       .select('key, value')
-      .in('key', ['founder_count', 'founder_limit', 'founder_monthly_price', 'founder_annual_price', 'pro_monthly_price', 'pro_annual_price'])
+      .in('key', ['founder_count', 'founder_limit', 'founder_monthly_price', 'pro_monthly_price'])
       .then(({ data }) => {
         if (!data) return;
         const row = (k: string) => data.find(r => r.key === k)?.value;
         setFounderCount(parseInt(row('founder_count') ?? '0', 10));
         setFounderLimit(parseInt(row('founder_limit') ?? '150', 10));
         if (row('founder_monthly_price')) setFounderMonthlyPrice(`£${row('founder_monthly_price')}`);
-        if (row('founder_annual_price'))  setFounderAnnualPrice(`£${row('founder_annual_price')}`);
         if (row('pro_monthly_price'))     setStandardMonthlyPrice(`£${row('pro_monthly_price')}`);
-        if (row('pro_annual_price'))      setStandardAnnualPrice(`£${row('pro_annual_price')}`);
       });
   }, []);
 
-  useEffect(() => {
-    const animIn = (opacity: Animated.Value, y: Animated.Value) =>
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(y, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]);
-
-    Animated.sequence([
-      animIn(logoOpacity, logoY),
-      Animated.delay(60),
-      animIn(headingOpacity, headingY),
-      Animated.delay(40),
-      Animated.stagger(60, HUB_FEATURES.map((_: unknown, i: number) => animIn(featureOpacities[i], featureYs[i]))),
-      Animated.delay(40),
-      animIn(ctaOpacity, ctaY),
-    ]).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // one-time entrance animation — animated values are stable refs
-
   const isFounderAvailable = founderCount !== null && founderCount < founderLimit;
-  const founderSlotsLeft = founderLimit - (founderCount ?? 0);
+  const founderSlotsLeft   = founderLimit - (founderCount ?? 0);
+  const monthlyPrice       = isFounderAvailable ? founderMonthlyPrice : standardMonthlyPrice;
 
-  const monthlyPrice  = isFounderAvailable ? founderMonthlyPrice : standardMonthlyPrice;
-  const annualPrice   = isFounderAvailable ? founderAnnualPrice  : standardAnnualPrice;
-  const annualMonthly = `£${(parseFloat((isFounderAvailable ? founderAnnualPrice : standardAnnualPrice).replace('£', '')) / 12).toFixed(2)}`;
-  const currentPrice  = billingPeriod === 'monthly' ? monthlyPrice : annualMonthly;
-
-  // ── CTA / copy based on verification + trial state ───────
   const ctaLabel = !isVerified
     ? 'Get verified to unlock Pro'
-    : hadFreeTrial
-      ? `Subscribe ${billingPeriod === 'annual' ? 'annually' : 'monthly'}`
-      : 'Start 14-day free trial';
+    : hadFreeTrial ? 'Subscribe now' : 'Start 14-day free trial';
 
   const ctaNote = !isVerified
     ? 'Complete Dukanoh Verify to start selling and unlock Pro.'
@@ -169,18 +138,29 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
       : 'Free for 14 days — no charge until your trial ends. Cancel anytime.';
 
   const handleCta = () => {
-    if (!isVerified) {
-      router.back();
-      router.push('/stripe-onboarding');
-      return;
-    }
+    if (!isVerified) { router.back(); router.push('/stripe-onboarding'); return; }
     // RevenueCat Purchases.purchasePackage() goes here
+  };
+
+  const handleSeeAll = () => {
+    scrollRef.current?.scrollTo({ y: allFeaturesY.current, animated: true });
+  };
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetY = e.nativeEvent.contentOffset.y;
+    // Fade the "See all" button out once the user scrolls past the fold
+    if (offsetY > allFeaturesY.current - 120) {
+      Animated.timing(seeAllOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    } else {
+      Animated.timing(seeAllOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    }
   };
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
+      {/* Close button — floats above scroll */}
       <TouchableOpacity
         style={[styles.closeBtn, { position: 'absolute', top: insets.top + Spacing.md, left: Spacing.xl, zIndex: 10 }]}
         onPress={() => router.back()}
@@ -190,107 +170,85 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
       </TouchableOpacity>
 
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing['3xl'] + Spacing.lg, paddingBottom: insets.bottom + Spacing['3xl'] }]}
+        ref={scrollRef}
+        contentContainerStyle={[styles.paywallScroll, { paddingTop: insets.top + 64, paddingBottom: insets.bottom + 120 }]}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
-        <Animated.View style={[styles.logoRow, { opacity: logoOpacity, transform: [{ translateY: logoY }] }]}>
-          <DukanohLogo width={90} height={16} color={HUB.accent} />
-        </Animated.View>
-
-        <Animated.View style={[styles.headingBlock, { opacity: headingOpacity, transform: [{ translateY: headingY }] }]}>
-          <View style={styles.proPill}>
-            <Text style={styles.proPillText}>Pro ✦</Text>
+        {/* ── Hero ── */}
+        <LinearGradient
+          colors={[proColors.gradientEnd, proColors.gradientStart]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.paywallHero}
+        >
+          <DukanohLogo width={110} height={19} color={HUB.accent} />
+          <Text style={styles.paywallSubheading}>Sell more. Know more. Earn more. On Pro.</Text>
+          <View style={styles.paywallPriceRow}>
+            <Text style={styles.paywallPrice}>{monthlyPrice}</Text>
+            <Text style={styles.paywallPricePer}>/month</Text>
           </View>
-          <Text style={styles.heading}>Dukanoh Pro</Text>
-          <Text style={styles.subheading}>Sell more. Know more. Earn more.</Text>
-        </Animated.View>
+          {isFounderAvailable && (
+            <View style={styles.founderBadge}>
+              <Text style={styles.founderBadgeText}>
+                Founder Plan · {founderSlotsLeft} of {founderLimit} spots left
+              </Text>
+            </View>
+          )}
+        </LinearGradient>
 
-        <LinearGradient colors={[proColors.gradientEnd, proColors.gradientStart]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.featureList}>
-          {HUB_FEATURES.map((feature: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string }, i: number) => (
-            <Animated.View
-              key={feature.label}
-              style={[styles.featureRow, { opacity: featureOpacities[i], transform: [{ translateY: featureYs[i] }] }]}
-            >
+        {/* ── First batch of features ── */}
+        <View style={styles.featureList}>
+          {HUB_FEATURES.slice(0, FIRST_BATCH).map(feature => (
+            <View key={feature.label} style={styles.featureRow}>
               <View style={styles.featureIconWrap}>
                 <Ionicons name={feature.icon} size={18} color={HUB.accent} />
               </View>
-              <Text style={styles.featureLabel}>{feature.label}</Text>
-            </Animated.View>
+              <View style={styles.featureTextWrap}>
+                <Text style={styles.featureLabel}>{feature.label}</Text>
+                <Text style={styles.featureDescription}>{feature.description}</Text>
+              </View>
+            </View>
           ))}
-        </LinearGradient>
+        </View>
 
-        <Animated.View style={[styles.ctaBlock, { opacity: ctaOpacity, transform: [{ translateY: ctaY }] }]}>
-
-          {/* Verification gate banner — shown inline, paywall still fully visible */}
-          {!isVerified && (
-            <View style={styles.gateBanner}>
-              <Ionicons name="shield-checkmark-outline" size={18} color={HUB.accent} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.gateBannerTitle}>Verification required</Text>
-                <Text style={styles.gateBannerBody}>Complete Dukanoh Verify to start selling and unlock Pro.</Text>
+        {/* ── Remaining features (revealed on scroll) ── */}
+        <View
+          ref={allFeaturesRef}
+          onLayout={e => { allFeaturesY.current = e.nativeEvent.layout.y; }}
+          style={styles.featureList}
+        >
+          {HUB_FEATURES.slice(FIRST_BATCH).map(feature => (
+            <View key={feature.label} style={styles.featureRow}>
+              <View style={styles.featureIconWrap}>
+                <Ionicons name={feature.icon} size={18} color={HUB.accent} />
+              </View>
+              <View style={styles.featureTextWrap}>
+                <Text style={styles.featureLabel}>{feature.label}</Text>
+                <Text style={styles.featureDescription}>{feature.description}</Text>
               </View>
             </View>
-          )}
+          ))}
+        </View>
+      </ScrollView>
 
-          {/* Billing toggle — only shown to verified users */}
-          {isVerified && (
-            <View style={styles.billingToggle}>
-              <TouchableOpacity
-                style={[styles.toggleOption, billingPeriod === 'monthly' && styles.toggleOptionActive]}
-                onPress={() => setBillingPeriod('monthly')}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.toggleText, billingPeriod === 'monthly' && styles.toggleTextActive]}>Monthly</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.toggleOption, billingPeriod === 'annual' && styles.toggleOptionActive]}
-                onPress={() => setBillingPeriod('annual')}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.toggleText, billingPeriod === 'annual' && styles.toggleTextActive]}>Annual</Text>
-                <View style={styles.savePill}>
-                  <Text style={styles.savePillText}>Save 29%</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Pricing card — only shown to verified users */}
-          {isVerified && (
-            <LinearGradient colors={[proColors.gradientEnd, proColors.gradientStart]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.pricingCard}>
-              {isFounderAvailable && (
-                <View style={styles.founderBadge}>
-                  <Text style={styles.founderBadgeText}>
-                    Founder Plan · {founderSlotsLeft} of {founderLimit} spots left
-                  </Text>
-                </View>
-              )}
-              <View style={styles.priceRow}>
-                <Text style={styles.priceAmount}>{currentPrice}</Text>
-                <Text style={styles.pricePer}>/mo</Text>
-              </View>
-              {billingPeriod === 'annual' && (
-                <Text style={styles.annualTotal}>Billed as {annualPrice}/year</Text>
-              )}
-              <Text style={styles.pricingNote}>
-                {isFounderAvailable
-                  ? 'Lock in your price forever — it will never increase for you.'
-                  : 'Price will increase as Dukanoh grows.'}
-              </Text>
-            </LinearGradient>
-          )}
-
-          <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.85} onPress={handleCta}>
-            <Text style={styles.ctaBtnText}>{ctaLabel}</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.trialNote}>{ctaNote}</Text>
-
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12} activeOpacity={0.6}>
-            <Text style={styles.maybeLater}>Maybe later</Text>
+      {/* ── Sticky bottom CTAs ── */}
+      <View style={[styles.paywallFooter, { paddingBottom: insets.bottom + Spacing.lg }]}>
+        <Animated.View style={[{ width: '100%' }, { opacity: seeAllOpacity }]}>
+          <TouchableOpacity
+            style={styles.seeAllBtn}
+            onPress={handleSeeAll}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.seeAllBtnText}>See all {HUB_FEATURES.length} benefits</Text>
           </TouchableOpacity>
         </Animated.View>
-      </ScrollView>
+        <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.85} onPress={handleCta}>
+          <Text style={styles.ctaBtnText}>{ctaLabel}</Text>
+        </TouchableOpacity>
+        <Text style={styles.trialNote}>{ctaNote}</Text>
+      </View>
     </View>
   );
 }
@@ -757,69 +715,108 @@ const styles = StyleSheet.create({
   },
 
   // ── Paywall ──
-  scroll: {
+  paywallScroll: {
     paddingHorizontal: Spacing.xl,
     gap: Spacing.xl,
   },
-  logoRow: {
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  headingBlock: {
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  proPill: {
-    backgroundColor: HUB.accent,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 4,
-  },
-  proPillText: {
-    fontSize: 12,
-    fontFamily: FontFamily.semibold,
-    color: HUB.background,
-    letterSpacing: 0.5,
-  },
-  heading: {
-    fontSize: 36,
-    fontFamily: FontFamily.black,
-    color: HUB.textPrimary,
-    letterSpacing: -0.5,
-  },
-  subheading: {
-    ...Typography.body,
-    color: HUB.textSecondary,
-    textAlign: 'center',
-  },
-  featureList: {
-    gap: Spacing.md,
+  paywallHero: {
     borderRadius: BorderRadius.large,
     borderWidth: 1,
     borderColor: HUB.border,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  paywallSubheading: {
+    fontSize: 15,
+    fontFamily: FontFamily.regular,
+    color: HUB.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  paywallPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 4,
+    marginTop: Spacing.sm,
+  },
+  paywallPrice: {
+    fontSize: 44,
+    fontFamily: FontFamily.black,
+    color: HUB.textPrimary,
+    lineHeight: 48,
+    letterSpacing: -1,
+  },
+  paywallPricePer: {
+    fontSize: 16,
+    fontFamily: FontFamily.regular,
+    color: HUB.textSecondary,
+    marginBottom: 8,
+  },
+  featureList: {
+    gap: Spacing.lg,
+    borderRadius: BorderRadius.large,
+    borderWidth: 1,
+    borderColor: HUB.border,
+    backgroundColor: HUB.surface,
     padding: Spacing.lg,
   },
   featureRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: Spacing.md,
   },
   featureIconWrap: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: BorderRadius.medium,
     backgroundColor: HUB.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  featureTextWrap: {
+    flex: 1,
+    gap: 3,
   },
   featureLabel: {
-    ...Typography.body,
+    fontSize: 15,
+    fontFamily: FontFamily.semibold,
     color: HUB.textPrimary,
-    flex: 1,
   },
-  ctaBlock: {
-    gap: Spacing.md,
+  featureDescription: {
+    fontSize: 13,
+    fontFamily: FontFamily.regular,
+    color: HUB.textSecondary,
+    lineHeight: 18,
+  },
+  paywallFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+    gap: Spacing.sm,
+    backgroundColor: HUB.background,
+    borderTopWidth: 1,
+    borderTopColor: HUB.border,
     alignItems: 'center',
+  },
+  seeAllBtn: {
+    borderRadius: BorderRadius.full,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: HUB.border,
+    backgroundColor: HUB.surface,
+  },
+  seeAllBtnText: {
+    fontSize: 15,
+    fontFamily: FontFamily.semibold,
+    color: HUB.textPrimary,
   },
   ctaBtn: {
     backgroundColor: HUB.accent,
@@ -840,62 +837,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-  maybeLater: {
-    ...Typography.caption,
-    color: HUB.textSecondary,
-    textDecorationLine: 'underline',
-  },
 
-  // ── Paywall: billing toggle ──
-  billingToggle: {
-    flexDirection: 'row',
-    backgroundColor: HUB.surface,
-    borderRadius: BorderRadius.full,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: HUB.border,
-  },
-  toggleOption: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    gap: Spacing.xs,
-  },
-  toggleOptionActive: {
-    backgroundColor: HUB.accent,
-  },
-  toggleText: {
-    fontSize: 13,
-    fontFamily: FontFamily.semibold,
-    color: HUB.textSecondary,
-  },
-  toggleTextActive: {
-    color: HUB.background,
-  },
-  savePill: {
-    backgroundColor: HUB.surfaceElevated,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-  },
-  savePillText: {
-    fontSize: 10,
-    fontFamily: FontFamily.semibold,
-    color: HUB.accent,
-  },
-
-  // ── Paywall: pricing card ──
-  pricingCard: {
-    borderRadius: BorderRadius.large,
-    borderWidth: 1,
-    borderColor: HUB.border,
-    padding: Spacing.lg,
-    gap: Spacing.sm,
-    width: '100%',
-  },
   founderBadge: {
     backgroundColor: HUB.accent + '22',
     borderRadius: BorderRadius.full,
@@ -909,77 +851,6 @@ const styles = StyleSheet.create({
     color: HUB.accent,
     letterSpacing: 0.3,
   },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 3,
-  },
-  priceAmount: {
-    fontSize: 40,
-    fontFamily: FontFamily.black,
-    color: HUB.textPrimary,
-    lineHeight: 44,
-  },
-  pricePer: {
-    fontSize: 16,
-    fontFamily: FontFamily.regular,
-    color: HUB.textSecondary,
-    marginBottom: 6,
-  },
-  annualTotal: {
-    fontSize: 13,
-    fontFamily: FontFamily.regular,
-    color: HUB.textSecondary,
-  },
-  pricingNote: {
-    fontSize: 13,
-    fontFamily: FontFamily.regular,
-    color: HUB.textSecondary,
-    lineHeight: 18,
-    marginTop: Spacing.xs,
-  },
-
-  // ── Prerequisite gate ──
-  gateCard: {
-    backgroundColor: HUB.surface,
-    borderRadius: BorderRadius.large,
-    borderWidth: 1,
-    borderColor: HUB.border,
-    padding: Spacing.lg,
-    gap: Spacing.lg,
-  },
-  gateRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.md,
-  },
-  gateIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.medium,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  gateIconIncomplete: {
-    backgroundColor: HUB.surfaceElevated,
-  },
-  gateText: {
-    flex: 1,
-    gap: 4,
-  },
-  gateTitle: {
-    fontSize: 14,
-    fontFamily: FontFamily.semibold,
-    color: HUB.textPrimary,
-  },
-  gateBody: {
-    fontSize: 13,
-    fontFamily: FontFamily.regular,
-    color: HUB.textSecondary,
-    lineHeight: 18,
-  },
-
   // ── Dashboard ──
   dashHeader: {
     flexDirection: 'row',

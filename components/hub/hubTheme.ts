@@ -15,17 +15,57 @@ export const HUB = {
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
-export const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
-  { icon: 'flash-outline',             label: '3 free boosts every month' },
-  { icon: 'bar-chart-outline',         label: 'Analytics & earnings dashboard' },
-  { icon: 'trending-up-outline',       label: 'Pro ranking boost' },
-  { icon: 'pricetag-outline',          label: 'Sale Mode' },
-  { icon: 'create-outline',            label: 'Bulk price editing' },
-  { icon: 'arrow-down-outline',        label: 'Price Drop label' },
-  { icon: 'folder-outline',            label: 'Collections' },
-  { icon: 'share-social-outline',      label: 'Share kit for Instagram & WhatsApp' },
-  { icon: 'diamond-outline',           label: 'Pro badge ◆' },
-  { icon: 'flash-outline',             label: 'Fast Responder badge ⚡' },
+export const HUB_FEATURES: { icon: IoniconsName; label: string; description: string }[] = [
+  {
+    icon: 'flash-outline',
+    label: '3 free boosts every month',
+    description: 'Push your listings to the top of search results, three times a month. Automatically.',
+  },
+  {
+    icon: 'bar-chart-outline',
+    label: 'Analytics & earnings',
+    description: "See your views, saves, and earnings all in one place. Know exactly what's working.",
+  },
+  {
+    icon: 'trending-up-outline',
+    label: 'Pro ranking',
+    description: 'Your listings rank higher across search and browse. More eyes, more sales.',
+  },
+  {
+    icon: 'pricetag-outline',
+    label: 'Sale Mode',
+    description: 'Mark your whole shop as on sale. A sale banner shows on every listing automatically.',
+  },
+  {
+    icon: 'create-outline',
+    label: 'Bulk price editing',
+    description: 'Update prices across all your listings at once. No more editing one by one.',
+  },
+  {
+    icon: 'arrow-down-outline',
+    label: 'Price Drop label',
+    description: 'When you lower a price, buyers see a Price Drop badge. Creates urgency to buy.',
+  },
+  {
+    icon: 'folder-outline',
+    label: 'Collections',
+    description: 'Group your listings into themed collections. Great for curated drops and gifting edits.',
+  },
+  {
+    icon: 'share-social-outline',
+    label: 'Share kit',
+    description: 'Generate polished share cards for your listings. Ready for Instagram and WhatsApp in one tap.',
+  },
+  {
+    icon: 'diamond-outline',
+    label: 'Pro badge ◆',
+    description: 'A Pro ◆ mark on your profile and listings. Signals trust and serious selling.',
+  },
+  {
+    icon: 'flash-outline',
+    label: 'Fast Responder badge ⚡',
+    description: 'Earn a ⚡ badge when you reply quickly. Buyers prioritise fast sellers.',
+  },
 ];
 
 export interface HubListing {
