@@ -37,6 +37,7 @@ export interface HubListing {
   view_count: number;
   save_count: number;
   occasion: string | null;
+  collection_id: string | null;
 }
 
 export interface HubCollection {

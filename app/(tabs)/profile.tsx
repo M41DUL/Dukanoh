@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, ComponentProps } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { HUB, HUB_FEATURES } from '@/components/hub/hubTheme';
 
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+
 interface QuickAction {
   icon: IoniconsName;
   label: string;
@@ -20,7 +22,7 @@ interface QuickAction {
 const STALE_MS = 30_000;
 
 const quickActions: QuickAction[] = [
-  { icon: 'bag-outline', label: 'My Listings', onPress: () => router.push('/orders') },
+  { icon: 'bag-outline', label: 'My Listings', onPress: () => router.push('/listings') },
   { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/wallet') },
   { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
   { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
@@ -149,14 +151,14 @@ export default function ProfileScreen() {
             <Text style={styles.name}>{profileName}</Text>
           ) : null}
           <Text style={styles.username}>@{username}</Text>
-          {(isVerified || sellerTier === 'pro') && (
+          {(isVerified || sellerTier === 'pro' || sellerTier === 'founder') && (
             <View style={styles.badgeRow}>
               {isVerified && (
                 <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
                   <Text style={[styles.badgePillText, { color: colors.primaryText }]}>✓ Verified</Text>
                 </View>
               )}
-              {sellerTier === 'pro' && (
+              {(sellerTier === 'pro' || sellerTier === 'founder') && (
                 <View style={[styles.badgePill, { backgroundColor: proColors.primaryLight }]}>
                   <Text style={[styles.badgePillText, { color: proColors.primaryText }]}>◆ Pro</Text>
                 </View>

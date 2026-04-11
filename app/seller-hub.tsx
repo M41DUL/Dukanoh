@@ -327,7 +327,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
         supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', thisMonthStart),
         supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
         supabase.from('transactions').select('amount, created_at').eq('seller_id', user.id).gte('created_at', last30Days),
-        supabase.from('listings').select('id, title, price, images, status, view_count, save_count, occasion').eq('seller_id', user.id).in('status', ['available', 'sold']).order('created_at', { ascending: false }),
+        supabase.from('listings').select('id, title, price, images, status, view_count, save_count, occasion, collection_id').eq('seller_id', user.id).in('status', ['available', 'sold']).order('created_at', { ascending: false }),
         supabase.from('profile_views').select('id', { count: 'exact', head: true }).eq('profile_user_id', user.id).gte('viewed_at', last30Days),
         supabase.from('collections').select('id, name').eq('seller_id', user.id).order('created_at', { ascending: false }),
       ]);
@@ -437,7 +437,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
     setData(prev => {
       if (!prev) return prev;
       const oldListing = prev.listings.find(l => l.id === listingId);
-      const oldCollectionId = (oldListing as HubListing & { collection_id?: string | null })?.collection_id ?? null;
+      const oldCollectionId = oldListing?.collection_id ?? null;
       const collections = prev.collections.map(c => {
         if (c.id === collectionId) return { ...c, listingCount: c.listingCount + 1 };
         if (c.id === oldCollectionId) return { ...c, listingCount: Math.max(0, c.listingCount - 1) };
