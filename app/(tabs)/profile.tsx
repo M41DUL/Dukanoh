@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useRef, ComponentProps } from 'r
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
 import { StarRating } from '@/components/StarRating';
@@ -208,67 +209,75 @@ export default function ProfileScreen() {
             onPress={() => router.push('/seller-hub')}
             activeOpacity={0.85}
           >
-            <View style={styles.hubCardHeader}>
-              <Text style={styles.hubCardTitle}>Dukanoh Pro</Text>
-              {(sellerTier === 'pro' || sellerTier === 'founder') ? (
-                <View style={styles.proBadge}>
-                  <Text style={styles.proBadgeText}>Pro ✦</Text>
-                </View>
-              ) : (
-                <Ionicons name="chevron-forward" size={16} color={HUB.textSecondary} />
-              )}
-            </View>
+            <LinearGradient
+              colors={[proColors.gradientEnd, proColors.gradientStart]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.hubCardGradient}
+            >
+              <View style={styles.hubCardHeader}>
+                <Text style={styles.hubCardTitle}>Dukanoh Pro</Text>
+                {(sellerTier === 'pro' || sellerTier === 'founder') ? (
+                  <View style={styles.proBadge}>
+                    <Text style={styles.proBadgeText}>Pro ✦</Text>
+                  </View>
+                ) : (
+                  <Ionicons name="chevron-forward" size={16} color={HUB.textSecondary} />
+                )}
+              </View>
 
-            {/* Free user — teaser feature list */}
-            {sellerTier !== 'pro' && sellerTier !== 'founder' && (
-              <>
-                <View style={styles.hubFeatureList}>
-                  {HUB_FEATURES.slice(0, 3).map(f => (
-                    <View key={f.label} style={styles.hubFeatureRow}>
-                      <View style={styles.hubFeatureIconWrap}>
-                        <Ionicons name={f.icon} size={14} color={HUB.accent} />
+              {/* Free user — headline + teaser feature list */}
+              {sellerTier !== 'pro' && sellerTier !== 'founder' && (
+                <>
+                  <Text style={styles.hubHeadline}>Sell more. Earn more.</Text>
+                  <View style={styles.hubFeatureList}>
+                    {HUB_FEATURES.slice(0, 3).map(f => (
+                      <View key={f.label} style={styles.hubFeatureRow}>
+                        <View style={styles.hubFeatureIconWrap}>
+                          <Ionicons name={f.icon} size={14} color={HUB.accent} />
+                        </View>
+                        <Text style={styles.hubFeatureLabel}>{f.label}</Text>
                       </View>
-                      <Text style={styles.hubFeatureLabel}>{f.label}</Text>
-                    </View>
-                  ))}
-                </View>
-                <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - 3} more features</Text>
-                <View style={styles.hubUpgradeBtn}>
-                  <Text style={styles.hubUpgradeBtnText}>
-                    {hadFreeTrial ? 'Subscribe' : 'Start free trial'}
-                  </Text>
-                </View>
-              </>
-            )}
+                    ))}
+                  </View>
+                  <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - 3} more features</Text>
+                  <View style={styles.hubUpgradeBtn}>
+                    <Text style={styles.hubUpgradeBtnText}>
+                      {hadFreeTrial ? 'Subscribe' : 'Start free trial'}
+                    </Text>
+                  </View>
+                </>
+              )}
 
-            {/* Pro/founder user — live metrics */}
-            {(sellerTier === 'pro' || sellerTier === 'founder') && hubSummaryLoading && (
-              <ActivityIndicator color={HUB.accent} style={{ marginVertical: Spacing.sm }} />
-            )}
-            {(sellerTier === 'pro' || sellerTier === 'founder') && !hubSummaryLoading && hubSummary && (
-              <>
-                <View style={styles.hubMetrics}>
-                  <View style={styles.hubMetric}>
-                    <Text style={styles.hubMetricValue}>£{hubSummary.thisMonthEarned.toFixed(0)}</Text>
-                    <Text style={styles.hubMetricLabel}>This month</Text>
+              {/* Pro/founder user — live metrics */}
+              {(sellerTier === 'pro' || sellerTier === 'founder') && hubSummaryLoading && (
+                <ActivityIndicator color={HUB.accent} style={{ marginVertical: Spacing.sm }} />
+              )}
+              {(sellerTier === 'pro' || sellerTier === 'founder') && !hubSummaryLoading && hubSummary && (
+                <>
+                  <View style={styles.hubMetrics}>
+                    <View style={styles.hubMetric}>
+                      <Text style={styles.hubMetricValue}>£{hubSummary.thisMonthEarned.toFixed(0)}</Text>
+                      <Text style={styles.hubMetricLabel}>This month</Text>
+                    </View>
+                    <View style={styles.hubMetricDivider} />
+                    <View style={styles.hubMetric}>
+                      <Text style={styles.hubMetricValue}>{hubSummary.totalViews}</Text>
+                      <Text style={styles.hubMetricLabel}>Views</Text>
+                    </View>
+                    <View style={styles.hubMetricDivider} />
+                    <View style={styles.hubMetric}>
+                      <Text style={styles.hubMetricValue}>{hubSummary.totalSaves}</Text>
+                      <Text style={styles.hubMetricLabel}>Saves</Text>
+                    </View>
                   </View>
-                  <View style={styles.hubMetricDivider} />
-                  <View style={styles.hubMetric}>
-                    <Text style={styles.hubMetricValue}>{hubSummary.totalViews}</Text>
-                    <Text style={styles.hubMetricLabel}>Views</Text>
+                  <View style={styles.hubCardFooter}>
+                    <Text style={styles.hubCardFooterText}>Open Dukanoh Pro</Text>
+                    <Ionicons name="chevron-forward" size={14} color={HUB.accent} />
                   </View>
-                  <View style={styles.hubMetricDivider} />
-                  <View style={styles.hubMetric}>
-                    <Text style={styles.hubMetricValue}>{hubSummary.totalSaves}</Text>
-                    <Text style={styles.hubMetricLabel}>Saves</Text>
-                  </View>
-                </View>
-                <View style={styles.hubCardFooter}>
-                  <Text style={styles.hubCardFooterText}>Open Dukanoh Pro</Text>
-                  <Ionicons name="chevron-forward" size={14} color={HUB.accent} />
-                </View>
-              </>
-            )}
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         )}
 
@@ -377,10 +386,12 @@ function getStyles(colors: ColorTokens) {
     hubCard: {
       marginHorizontal: Spacing.base,
       marginBottom: Spacing.xl,
-      backgroundColor: HUB.background,
       borderRadius: BorderRadius.large,
+      overflow: 'hidden',
       borderWidth: 1,
-      borderColor: HUB.border,
+      borderColor: proColors.border,
+    },
+    hubCardGradient: {
       padding: Spacing.lg,
       gap: Spacing.md,
     },
@@ -439,6 +450,12 @@ function getStyles(colors: ColorTokens) {
       color: HUB.accent,
       fontFamily: FontFamily.medium,
     },
+    hubHeadline: {
+      fontSize: 20,
+      fontFamily: FontFamily.bold,
+      color: HUB.textPrimary,
+      letterSpacing: -0.3,
+    },
     hubFeatureList: {
       gap: Spacing.sm,
     },
@@ -456,7 +473,8 @@ function getStyles(colors: ColorTokens) {
       justifyContent: 'center',
     },
     hubFeatureLabel: {
-      ...Typography.caption,
+      fontSize: 14,
+      fontFamily: FontFamily.semibold,
       color: HUB.textPrimary,
       flex: 1,
     },

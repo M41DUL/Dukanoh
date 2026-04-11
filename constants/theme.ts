@@ -43,16 +43,16 @@ export const darkColors = {
 // ── Dukanoh Pro theme (always dark, gold accent) ─────────────
 // Used only in Pro areas (seller-hub, pro card). Not app-wide.
 // Accessibility: all pairings tested against WCAG AA (4.5:1 min).
-// Gold (#C7A84F) on navy (#0A0A1A) = ~9:1 ✓
-// Gold on surface (#13132E)        = ~8.5:1 ✓
-// Gold on surfaceAlt (#1C1C40)     = ~7.1:1 ✓
-// textPrimary on background        = ~18:1 ✓
-// textSecondary (#8888AA) on bg    = ~5.9:1 ✓
+// Gold (#FBCD47) on navy (#0A0A1A)  = ~12:1 ✓
+// Gold on surface (#13132E)         = ~11:1 ✓
+// Gold on surfaceAlt (#1C1C40)      = ~9.5:1 ✓
+// textPrimary on background         = ~18:1 ✓
+// textSecondary (#8888AA) on bg     = ~5.9:1 ✓
 export const proColors = {
-  primary: '#C7A84F',         // gold — main interactive colour, CTAs, icons
-  primaryDim: '#A8863A',      // deeper gold — pressed/active states
-  primaryLight: '#201A04',    // dark gold tint — pill/badge backgrounds
-  primaryText: '#C7A84F',     // gold text on dark surfaces
+  primary: '#FBCD47',         // gold — main interactive colour, CTAs, icons
+  primaryDim: '#D4A820',      // deeper gold — pressed/active states
+  primaryLight: '#1C1500',    // dark gold tint — pill/badge backgrounds
+  primaryText: '#FBCD47',     // gold text on dark surfaces
   secondary: '#8888AA',       // muted lilac-grey — secondary actions, labels
   secondaryDim: '#6B6B88',    // deeper muted — pressed secondary
   secondaryLight: '#1A1A30',  // subtle secondary background
@@ -67,6 +67,9 @@ export const proColors = {
   amber: '#F59E0B',           // warnings
   like: '#FF4D6A',            // heart / save
   overlay: 'rgba(0,0,0,0.4)',
+  // Gradient tokens — angled cool surface gradients (Pro only)
+  gradientStart: '#0A0A1A' as const,  // base background (deep navy)
+  gradientEnd:   '#0D0A2A' as const,  // cool deep indigo
 };
 
 export type ColorTokens = typeof lightColors;

@@ -13,6 +13,7 @@ import {
   TextInput,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,7 +21,7 @@ import { LineChart } from 'react-native-gifted-charts';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { BottomSheet } from '@/components/BottomSheet';
-import { Spacing, BorderRadius, FontFamily, Typography } from '@/constants/theme';
+import { Spacing, BorderRadius, FontFamily, Typography, proColors } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { HUB, HUB_FEATURES, HubListing, HubCollection, HubData } from '@/components/hub/hubTheme';
@@ -204,7 +205,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
           <Text style={styles.subheading}>Sell more. Know more. Earn more.</Text>
         </Animated.View>
 
-        <View style={styles.featureList}>
+        <LinearGradient colors={[proColors.gradientEnd, proColors.gradientStart]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.featureList}>
           {HUB_FEATURES.map((feature: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string }, i: number) => (
             <Animated.View
               key={feature.label}
@@ -216,7 +217,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
               <Text style={styles.featureLabel}>{feature.label}</Text>
             </Animated.View>
           ))}
-        </View>
+        </LinearGradient>
 
         <Animated.View style={[styles.ctaBlock, { opacity: ctaOpacity, transform: [{ translateY: ctaY }] }]}>
 
@@ -256,7 +257,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
 
           {/* Pricing card — only shown to verified users */}
           {isVerified && (
-            <View style={styles.pricingCard}>
+            <LinearGradient colors={[proColors.gradientEnd, proColors.gradientStart]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.pricingCard}>
               {isFounderAvailable && (
                 <View style={styles.founderBadge}>
                   <Text style={styles.founderBadgeText}>
@@ -276,7 +277,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
                   ? 'Lock in your price forever — it will never increase for you.'
                   : 'Price will increase as Dukanoh grows.'}
               </Text>
-            </View>
+            </LinearGradient>
           )}
 
           <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.85} onPress={handleCta}>
@@ -529,7 +530,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
           )}
 
           {/* ── Earnings card ── */}
-          <View style={styles.earningsCard}>
+          <LinearGradient colors={[proColors.gradientEnd, proColors.gradientStart]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.earningsCard}>
             <Text style={styles.earningsLabel}>Total Earned</Text>
             <Text style={styles.earningsAmount}>£{data.totalEarned.toFixed(2)}</Text>
 
@@ -581,7 +582,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
                 />
               </View>
             )}
-          </View>
+          </LinearGradient>
 
           {/* ── Performance metrics ── */}
           <View style={styles.metricsRow}>
@@ -793,7 +794,6 @@ const styles = StyleSheet.create({
   },
   featureList: {
     gap: Spacing.md,
-    backgroundColor: HUB.surface,
     borderRadius: BorderRadius.large,
     borderWidth: 1,
     borderColor: HUB.border,
@@ -889,7 +889,6 @@ const styles = StyleSheet.create({
 
   // ── Paywall: pricing card ──
   pricingCard: {
-    backgroundColor: HUB.surface,
     borderRadius: BorderRadius.large,
     borderWidth: 1,
     borderColor: HUB.border,
@@ -1063,7 +1062,6 @@ const styles = StyleSheet.create({
 
   // Earnings card
   earningsCard: {
-    backgroundColor: HUB.surface,
     borderRadius: BorderRadius.large,
     borderWidth: 1,
     borderColor: HUB.border,
