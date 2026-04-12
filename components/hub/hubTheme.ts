@@ -25,7 +25,6 @@ export const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
   { icon: 'flash-outline',        label: '3 free boosts into Stories every month' },
   { icon: 'bar-chart-outline',    label: 'Analytics and earnings. See what\'s working.' },
   { icon: 'trending-up-outline',  label: 'Pro ranking. Your listings shown higher in search.' },
-  { icon: 'pricetag-outline',     label: 'Sale Mode. Put your whole shop on sale at once.' },
   { icon: 'create-outline',       label: 'Bulk price editing across all listings' },
   { icon: 'arrow-down-outline',   label: 'Price Drop badge when you lower a price' },
   { icon: 'folder-outline',       label: 'Collections. Organise your listings into themed groups.' },
