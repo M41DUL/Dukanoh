@@ -201,7 +201,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Dukanoh Pro entry card ── */}
-        {listingCount > 0 && (
+        {(listingCount > 0 || sellerTier === 'free') && (
           <TouchableOpacity
             style={styles.hubCard}
             onPress={() => router.push('/seller-hub')}
@@ -238,7 +238,7 @@ export default function ProfileScreen() {
                       </View>
                     ))}
                   </View>
-                  <Text style={styles.hubMoreText}>+7 more features</Text>
+                  <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - CORE_FEATURE_LABELS.length} more features</Text>
                 </>
               )}
 

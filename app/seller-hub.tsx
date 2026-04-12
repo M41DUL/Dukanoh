@@ -43,6 +43,7 @@ export default function SellerHubScreen() {
   const [hadFreeTrial, setHadFreeTrial] = useState(false);
   const [accountStatus, setAccountStatus] = useState<'active' | 'warned' | 'suspended'>('active');
   const [strikeCount, setStrikeCount] = useState(0);
+  const [proExpired, setProExpired] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
@@ -51,11 +52,17 @@ export default function SellerHubScreen() {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('seller_tier, is_verified, had_free_trial, account_status, cancellation_strike_count')
+          .select('seller_tier, is_verified, had_free_trial, account_status, cancellation_strike_count, pro_expires_at')
           .eq('id', user.id)
           .maybeSingle();
         if (error) { setLoadError(true); return; }
-        setSellerTier(data?.seller_tier ?? 'free');
+        const tier = data?.seller_tier ?? 'free';
+        // Treat as expired if pro/founder but pro_expires_at is in the past
+        const expired = (tier === 'pro' || tier === 'founder')
+          && !!data?.pro_expires_at
+          && new Date(data.pro_expires_at) < new Date();
+        setSellerTier(expired ? 'free' : tier);
+        setProExpired(expired);
         setIsVerified(data?.is_verified ?? false);
         setHadFreeTrial(data?.had_free_trial ?? false);
         setAccountStatus(data?.account_status ?? 'active');
@@ -90,12 +97,12 @@ export default function SellerHubScreen() {
   }
 
   if (sellerTier === 'pro' || sellerTier === 'founder') return <HubDashboard accountStatus={accountStatus} strikeCount={strikeCount} />;
-  return <HubPaywall isVerified={isVerified} hadFreeTrial={hadFreeTrial} />;
+  return <HubPaywall isVerified={isVerified} hadFreeTrial={hadFreeTrial} proExpired={proExpired} />;
 }
 
 // ── Paywall screen ───────────────────────────────────────────
 
-function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFreeTrial: boolean }) {
+function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: boolean; hadFreeTrial: boolean; proExpired: boolean }) {
   const insets = useSafeAreaInsets();
   const [founderCount, setFounderCount] = useState<number | null>(null);
   const [founderLimit, setFounderLimit] = useState(150);
@@ -104,6 +111,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
 
   // "See all benefits" secondary CTA fades out once the user scrolls past it
   const seeAllOpacity = useRef(new Animated.Value(1)).current;
+  const [seeAllVisible, setSeeAllVisible] = useState(true);
   const allFeaturesRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
   const allFeaturesY = useRef(0);
@@ -113,8 +121,12 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
       .from('platform_settings')
       .select('key, value')
       .in('key', ['founder_count', 'founder_limit', 'founder_monthly_price', 'pro_monthly_price'])
-      .then(({ data }) => {
-        if (!data) return;
+      .then(({ data, error }) => {
+        if (error || !data) {
+          // Fall back to defaults — paywall still usable, just shows standard pricing
+          setFounderCount(founderLimit); // treat as full so founder card is hidden on error
+          return;
+        }
         const row = (k: string) => data.find(r => r.key === k)?.value;
         setFounderCount(parseInt(row('founder_count') ?? '0', 10));
         setFounderLimit(parseInt(row('founder_limit') ?? '150', 10));
@@ -131,11 +143,11 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
     ? 'Get verified to unlock Pro'
     : hadFreeTrial ? 'Subscribe now' : 'Start 14-day free trial';
 
-  const ctaNote = hadFreeTrial
-    ? 'Cancel anytime. Billed via the App Store.'
-    : isVerified
-      ? 'Free for 14 days. No charge until your trial ends. Cancel anytime.'
-      : null;
+  const ctaNote = !isVerified
+    ? 'Verify your account first, then enjoy a 14-day free trial.'
+    : hadFreeTrial
+      ? 'Cancel anytime. Billed via the App Store.'
+      : 'Free for 14 days. No charge until your trial ends. Cancel anytime.';
 
   const handleCta = () => {
     if (!isVerified) { router.back(); router.push('/stripe-onboarding'); return; }
@@ -148,9 +160,9 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = e.nativeEvent.contentOffset.y;
-    // Fade "See all" immediately from first scroll — opacity goes 1→0 over first 80px
     const opacity = Math.max(0, 1 - offsetY / 80);
     seeAllOpacity.setValue(opacity);
+    setSeeAllVisible(opacity > 0);
   };
 
   const coreFeatures = HUB_FEATURES.filter(f => (CORE_FEATURE_LABELS as readonly string[]).includes(f.label));
@@ -176,6 +188,14 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
+        {/* ── Expired subscription notice ── */}
+        {proExpired && (
+          <View style={styles.expiredBanner}>
+            <Ionicons name="warning-outline" size={16} color={proColors.amber} />
+            <Text style={styles.expiredBannerText}>Your Pro subscription has expired. Resubscribe to restore access.</Text>
+          </View>
+        )}
+
         {/* ── Subheading above card ── */}
         <Text style={styles.paywallSubheading}>Sell more. Know more. Earn more. On Dukanoh Pro.</Text>
 
@@ -206,31 +226,47 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
           </View>
         </LinearGradient>
 
-        {/* ── Founder progress card ── */}
-        {isFounderAvailable && (
+        {/* ── Founder progress / closed card ── */}
+        {founderCount !== null && (
           <LinearGradient
             colors={[proColors.gradientEnd, proColors.gradientStart]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.founderCard}
           >
-            <View style={styles.founderCardHeader}>
-              <Text style={styles.founderCardTitle}>Founder pricing</Text>
-              <Text style={styles.founderCardCount}>
-                {founderLimit - founderSlotsLeft} of {founderLimit} spots taken
-              </Text>
-            </View>
-            <View style={styles.founderTrack}>
-              <View
-                style={[
-                  styles.founderFill,
-                  { width: `${((founderLimit - founderSlotsLeft) / founderLimit) * 100}%` as `${number}%` },
-                ]}
-              />
-            </View>
-            <Text style={styles.founderCardNote}>
-              Lock in {founderMonthlyPrice}/mo forever. Once these spots are gone, the price goes up to {standardMonthlyPrice} and stays there.
-            </Text>
+            {isFounderAvailable ? (
+              <>
+                <View style={styles.founderCardHeader}>
+                  <Text style={styles.founderCardTitle}>Founder pricing</Text>
+                  <Text style={styles.founderCardCount}>
+                    {founderLimit - founderSlotsLeft} of {founderLimit} spots taken
+                  </Text>
+                </View>
+                <View style={styles.founderTrack}>
+                  <View
+                    style={[
+                      styles.founderFill,
+                      { width: `${((founderLimit - founderSlotsLeft) / founderLimit) * 100}%` as `${number}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.founderCardNote}>
+                  Lock in {founderMonthlyPrice}/mo forever. Once these spots are gone, the price goes up to {standardMonthlyPrice} and stays there.
+                </Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.founderCardHeader}>
+                  <Text style={styles.founderCardTitle}>Founder pricing closed</Text>
+                </View>
+                <View style={styles.founderTrack}>
+                  <View style={[styles.founderFill, { width: '100%' }]} />
+                </View>
+                <Text style={styles.founderCardNote}>
+                  All {founderLimit} founder spots are taken. Standard pricing is {standardMonthlyPrice}/mo.
+                </Text>
+              </>
+            )}
           </LinearGradient>
         )}
 
@@ -261,9 +297,9 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
         style={[styles.paywallFooter, { paddingBottom: insets.bottom + Spacing.lg }]}
         pointerEvents="box-none"
       >
-        <Animated.View style={{ width: '100%', opacity: seeAllOpacity }} pointerEvents="box-none">
+        <Animated.View style={{ width: '100%', opacity: seeAllOpacity }} pointerEvents={seeAllVisible ? 'box-none' : 'none'}>
           <Button
-            label="See +7 benefits"
+            label={`See +${extraFeatures.length} benefits`}
             onPress={handleSeeAll}
             variant="outline"
             size="lg"
@@ -320,12 +356,12 @@ function HubDashboard({ accountStatus, strikeCount }: {
         supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', thisMonthStart),
         supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
         supabase.from('transactions').select('amount, created_at').eq('seller_id', user.id).gte('created_at', last30Days),
-        supabase.from('listings').select('id, title, price, images, status, view_count, save_count, occasion, collection_id').eq('seller_id', user.id).in('status', ['available', 'sold']).order('created_at', { ascending: false }),
+        supabase.from('listings').select('id, title, price, images, status, view_count, save_count, occasion, collection_id').eq('seller_id', user.id).in('status', ['available', 'sold']).order('created_at', { ascending: false }).range(0, 49),
         supabase.from('profile_views').select('id', { count: 'exact', head: true }).eq('profile_user_id', user.id).gte('viewed_at', last30Days),
         supabase.from('collections').select('id, name').eq('seller_id', user.id).order('created_at', { ascending: false }),
       ]);
 
-      if (txTotal.error || listingsRes.error || collectionsRes.error) {
+      if (txTotal.error || txThis.error || txLast.error || tx30d.error || listingsRes.error || profileViewsRes.error || collectionsRes.error) {
         setFetchError(true);
         setLoading(false);
         return;
@@ -881,6 +917,23 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
+  expiredBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: proColors.amber + '1A',
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: proColors.amber + '40',
+    padding: Spacing.md,
+  },
+  expiredBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: FontFamily.regular,
+    color: proColors.amber,
+    lineHeight: 18,
+  },
   founderCard: {
     borderRadius: BorderRadius.large,
     overflow: 'hidden',
