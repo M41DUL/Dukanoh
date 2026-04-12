@@ -1,12 +1,14 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   StyleSheet,
   Animated,
   ActivityIndicator,
+  Alert,
   Dimensions,
   Share,
   TextInput,
@@ -338,6 +340,7 @@ function HubDashboard({ accountStatus, strikeCount }: {
   const [savingCol, setSavingCol] = useState(false);
   const [assignSheetListing, setAssignSheetListing] = useState<HubListing | null>(null);
   const [sharingId, setSharingId] = useState<string | null>(null);
+  const [bulkEditVisible, setBulkEditVisible] = useState(false);
   const shareCardRefs = useRef<Record<string, ViewShot | null>>({});
 
   const fetchData = useCallback(async () => {
@@ -622,7 +625,17 @@ function HubDashboard({ accountStatus, strikeCount }: {
           {/* ── Listings ── */}
           {data.listings.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Your Listings</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Your Listings</Text>
+                <TouchableOpacity
+                  style={styles.sectionAction}
+                  onPress={() => setBulkEditVisible(true)}
+                  hitSlop={8}
+                >
+                  <Ionicons name="create-outline" size={18} color={HUB.accent} />
+                  <Text style={styles.sectionActionText}>Edit prices</Text>
+                </TouchableOpacity>
+              </View>
               {data.listings.map(listing => (
                 <View key={listing.id}>
                   {/* Hidden share card — captured by ViewShot */}
@@ -720,6 +733,16 @@ function HubDashboard({ accountStatus, strikeCount }: {
         </View>
       </BottomSheet>
 
+      {/* ── Bulk Edit Prices sheet ── */}
+      {data && (
+        <BulkEditSheet
+          visible={bulkEditVisible}
+          listings={data.listings.filter(l => l.status === 'available')}
+          onClose={() => setBulkEditVisible(false)}
+          onSaved={() => { setBulkEditVisible(false); fetchData(); }}
+        />
+      )}
+
       {/* ── Assign to Collection sheet ── */}
       <BottomSheet
         visible={assignSheetListing !== null}
@@ -757,6 +780,193 @@ function HubDashboard({ accountStatus, strikeCount }: {
         </View>
       </BottomSheet>
     </View>
+  );
+}
+
+
+// ── Bulk Edit Sheet ──────────────────────────────────────────
+const BULK_PRESETS = [
+  { label: '−5%', value: 0.05 },
+  { label: '−10%', value: 0.10 },
+  { label: '−15%', value: 0.15 },
+  { label: '−20%', value: 0.20 },
+];
+
+function BulkEditSheet({
+  visible,
+  listings,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  listings: HubListing[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [prices, setPrices] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  // Reset state when sheet opens
+  useEffect(() => {
+    if (visible) {
+      const initial: Record<string, string> = {};
+      listings.forEach(l => { initial[l.id] = String(l.price); });
+      setPrices(initial);
+    }
+  }, [visible, listings]);
+
+  const changedIds = useMemo(
+    () => listings.filter(l => {
+      const val = parseFloat(prices[l.id] ?? '');
+      return !isNaN(val) && val !== l.price;
+    }).map(l => l.id),
+    [listings, prices]
+  );
+
+  const applyPreset = useCallback((reduction: number) => {
+    setPrices(prev => {
+      const next = { ...prev };
+      listings.forEach(l => {
+        const reduced = Math.max(0.01, Math.round(l.price * (1 - reduction) * 100) / 100);
+        next[l.id] = String(reduced);
+      });
+      return next;
+    });
+  }, [listings]);
+
+  const handleClose = useCallback(() => {
+    if (changedIds.length > 0) {
+      Alert.alert(
+        'Discard changes?',
+        'You have unsaved price changes.',
+        [
+          { text: 'Keep editing', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: onClose },
+        ]
+      );
+    } else {
+      onClose();
+    }
+  }, [changedIds.length, onClose]);
+
+  const handleSave = useCallback(async () => {
+    if (changedIds.length === 0 || saving) return;
+    setSaving(true);
+    try {
+      const now = new Date().toISOString();
+      await Promise.all(
+        changedIds.map(id => {
+          const listing = listings.find(l => l.id === id)!;
+          const newPrice = parseFloat(prices[id]);
+          const isPriceDrop = newPrice < listing.price;
+          const update: Record<string, unknown> = { price: newPrice };
+          if (isPriceDrop) {
+            update.original_price = listing.price;
+            update.price_dropped_at = now;
+          } else {
+            update.original_price = null;
+            update.price_dropped_at = null;
+          }
+          return supabase.from('listings').update(update).eq('id', id);
+        })
+      );
+      onSaved();
+    } catch {
+      Alert.alert('Something went wrong', 'Could not save all price changes. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, [changedIds, listings, prices, saving, onSaved]);
+
+  return (
+    <BottomSheet
+      visible={visible}
+      onClose={handleClose}
+      backgroundColor={HUB.surface}
+      handleColor={HUB.border}
+      fullScreen
+    >
+      <View style={styles.bulkSheetContainer}>
+        {/* Header */}
+        <View style={styles.bulkSheetHeader}>
+          <TouchableOpacity onPress={handleClose} hitSlop={12} style={styles.closeBtn}>
+            <Ionicons name="close" size={20} color={HUB.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.sheetTitle}>Edit Prices</Text>
+          <View style={{ width: 36 }} />
+        </View>
+
+        {/* Percentage presets */}
+        <View style={styles.bulkPresetsRow}>
+          {BULK_PRESETS.map(p => (
+            <TouchableOpacity
+              key={p.label}
+              style={styles.bulkPreset}
+              onPress={() => applyPreset(p.value)}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.bulkPresetText}>{p.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {listings.length === 0 ? (
+          <View style={styles.bulkEmptyState}>
+            <Ionicons name="pricetag-outline" size={32} color={HUB.textSecondary} />
+            <Text style={styles.emptyStateText}>No active listings to edit.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={listings}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.bulkList}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => {
+              const currentVal = prices[item.id] ?? String(item.price);
+              const parsedVal = parseFloat(currentVal);
+              const changed = !isNaN(parsedVal) && parsedVal !== item.price;
+              return (
+                <View style={styles.bulkRow}>
+                  <View style={styles.bulkRowInfo}>
+                    <Text style={styles.bulkRowTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.bulkRowOriginal}>was £{item.price.toFixed(2)}</Text>
+                  </View>
+                  <View style={[styles.bulkInputWrap, changed && styles.bulkInputChanged]}>
+                    <Text style={styles.bulkInputPrefix}>£</Text>
+                    <TextInput
+                      style={styles.bulkInput}
+                      value={currentVal}
+                      onChangeText={text => setPrices(prev => ({ ...prev, [item.id]: text }))}
+                      keyboardType="decimal-pad"
+                      placeholderTextColor={HUB.textSecondary}
+                      underlineColorAndroid="transparent"
+                      selectTextOnFocus
+                    />
+                  </View>
+                </View>
+              );
+            }}
+          />
+        )}
+
+        {/* Save button */}
+        <View style={styles.bulkFooter}>
+          <TouchableOpacity
+            style={[styles.ctaBtn, changedIds.length === 0 && { opacity: 0.4 }]}
+            onPress={handleSave}
+            disabled={changedIds.length === 0 || saving}
+            activeOpacity={0.85}
+          >
+            {saving
+              ? <ActivityIndicator color={HUB.background} />
+              : <Text style={styles.ctaBtnText}>
+                  {changedIds.length === 0 ? 'No changes' : `Save ${changedIds.length} change${changedIds.length === 1 ? '' : 's'}`}
+                </Text>
+            }
+          </TouchableOpacity>
+        </View>
+      </View>
+    </BottomSheet>
   );
 }
 
@@ -1390,6 +1600,113 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: HUB.textPrimary,
     fontFamily: FontFamily.medium,
+  },
+
+  // Bulk edit sheet
+  bulkSheetContainer: {
+    flex: 1,
+    backgroundColor: HUB.surface,
+  },
+  bulkSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: HUB.border,
+  },
+  bulkPresetsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: HUB.border,
+  },
+  bulkPreset: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.medium,
+    backgroundColor: HUB.surfaceElevated,
+    borderWidth: 1,
+    borderColor: HUB.border,
+  },
+  bulkPresetText: {
+    fontSize: 14,
+    fontFamily: FontFamily.semibold,
+    color: HUB.accent,
+  },
+  bulkList: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    gap: Spacing.md,
+  },
+  bulkEmptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  bulkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: HUB.background,
+    borderRadius: BorderRadius.large,
+    borderWidth: 1,
+    borderColor: HUB.border,
+    padding: Spacing.md,
+  },
+  bulkRowInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  bulkRowTitle: {
+    fontSize: 14,
+    fontFamily: FontFamily.medium,
+    color: HUB.textPrimary,
+  },
+  bulkRowOriginal: {
+    fontSize: 12,
+    fontFamily: FontFamily.regular,
+    color: HUB.textSecondary,
+  },
+  bulkInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: HUB.surfaceElevated,
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1,
+    borderColor: HUB.border,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    minWidth: 90,
+  },
+  bulkInputChanged: {
+    borderColor: HUB.accent,
+    backgroundColor: HUB.accent + '15',
+  },
+  bulkInputPrefix: {
+    fontSize: 15,
+    fontFamily: FontFamily.semibold,
+    color: HUB.textSecondary,
+    marginRight: 2,
+  },
+  bulkInput: {
+    fontSize: 15,
+    fontFamily: FontFamily.semibold,
+    color: HUB.textPrimary,
+    minWidth: 60,
+    textAlign: 'right',
+    padding: 0,
+  },
+  bulkFooter: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: HUB.border,
   },
 
   // Hidden share card container
