@@ -96,8 +96,8 @@ export default function SellerHubScreen() {
 // ── Paywall screen ───────────────────────────────────────────
 // Core features shown in hero card — Pro ranking, Analytics, Boosts
 const CORE_FEATURE_LABELS = [
-  'Pro ranking — your listings shown higher',
-  "Analytics & earnings — see what's working",
+  'Pro ranking. Your listings shown higher in search.',
+  "Analytics and earnings. See what's working.",
   '3 free boosts to the top of search every month',
 ];
 
@@ -130,6 +130,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
   }, []);
 
   const isFounderAvailable = founderCount !== null && founderCount < founderLimit;
+  const founderSlotsLeft   = founderLimit - (founderCount ?? 0);
   const monthlyPrice       = isFounderAvailable ? founderMonthlyPrice : standardMonthlyPrice;
 
   const ctaLabel = !isVerified
@@ -139,7 +140,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
   const ctaNote = hadFreeTrial
     ? 'Cancel anytime. Billed via the App Store.'
     : isVerified
-      ? 'Free for 14 days — no charge until your trial ends. Cancel anytime.'
+      ? 'Free for 14 days. No charge until your trial ends. Cancel anytime.'
       : null;
 
   const handleCta = () => {
@@ -191,11 +192,6 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
           end={{ x: 1, y: 1 }}
           style={styles.paywallHero}
         >
-          {/* Watermark logo — top-right, faint, oversized, rotated */}
-          <View style={styles.paywallWatermark} pointerEvents="none">
-            <DukanohLogo width={200} height={34} color={HUB.textPrimary} />
-          </View>
-
           {/* Top section: plan name + price */}
           <View style={styles.paywallPlanLeft}>
             <Text style={styles.paywallPlanName}>Dukanoh Pro</Text>
@@ -203,14 +199,12 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
               <Text style={styles.paywallPrice}>{monthlyPrice}</Text>
               <Text style={styles.paywallPricePer}>/month</Text>
               {isFounderAvailable && (
-                <LinearGradient
-                  colors={[proColors.primary, proColors.primaryDim]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.founderBadge}
-                >
-                  <Text style={styles.founderBadgeText}>◆ Founder</Text>
-                </LinearGradient>
+                <View style={styles.founderBadge}>
+                  <Ionicons name="flash" size={10} color={HUB.accent} />
+                  <Text style={styles.founderBadgeText}>
+                    {founderSlotsLeft} spots left
+                  </Text>
+                </View>
               )}
             </View>
           </View>
@@ -226,20 +220,53 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
           </View>
         </LinearGradient>
 
+        {/* ── Founder progress card ── */}
+        {isFounderAvailable && (
+          <LinearGradient
+            colors={[proColors.gradientEnd, proColors.gradientStart]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.founderCard}
+          >
+            <View style={styles.founderCardHeader}>
+              <Ionicons name="flash" size={14} color={HUB.accent} />
+              <Text style={styles.founderCardTitle}>Founder pricing</Text>
+              <Text style={styles.founderCardCount}>
+                {founderLimit - founderSlotsLeft} of {founderLimit} spots taken
+              </Text>
+            </View>
+            <View style={styles.founderTrack}>
+              <View
+                style={[
+                  styles.founderFill,
+                  { width: `${((founderLimit - founderSlotsLeft) / founderLimit) * 100}%` as `${number}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.founderCardNote}>
+              {founderSlotsLeft} spots remaining at {founderMonthlyPrice}/mo. Price rises to {standardMonthlyPrice} when full.
+            </Text>
+          </LinearGradient>
+        )}
+
         {/* ── All other benefits (revealed on scroll) ── */}
         <View
           ref={allFeaturesRef}
           onLayout={e => { allFeaturesY.current = e.nativeEvent.layout.y; }}
-          style={styles.featureList}
         >
-          {extraFeatures.map(feature => (
-            <View key={feature.label} style={styles.featureRow}>
-              <View style={styles.featureIconWrap}>
-                <Ionicons name={feature.icon} size={18} color={HUB.accent} />
+          <LinearGradient
+            colors={[proColors.gradientEnd, proColors.gradientStart]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.featureList}
+          >
+            {extraFeatures.map(feature => (
+              <View key={feature.label} style={styles.featureRow}>
+                <Ionicons name={feature.icon} size={20} color={HUB.textSecondary} />
+                <Text style={styles.featureLabel}>{feature.label}</Text>
               </View>
-              <Text style={styles.featureLabel}>{feature.label}</Text>
-            </View>
-          ))}
+            ))}
+          </LinearGradient>
         </View>
       </ScrollView>
 
@@ -251,7 +278,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
       >
         <Animated.View style={{ width: '100%', opacity: seeAllOpacity }} pointerEvents="box-none">
           <Button
-            label={`See all ${HUB_FEATURES.length} benefits`}
+            label="See +7 benefits"
             onPress={handleSeeAll}
             variant="outline"
             size="lg"
@@ -769,22 +796,15 @@ const styles = StyleSheet.create({
     gap: Spacing['2xl'],
     justifyContent: 'space-between',
   },
-  paywallWatermark: {
-    position: 'absolute',
-    top: -10,
-    right: -40,
-    opacity: 0.06,
-    transform: [{ rotate: '-15deg' }],
-  },
   paywallPlanLeft: {
     gap: Spacing.xs,
   },
   paywallPlanName: {
-    fontSize: 40,
+    fontSize: 26,
     fontFamily: FontFamily.black,
     color: HUB.textPrimary,
-    letterSpacing: -1,
-    lineHeight: 44,
+    letterSpacing: -0.5,
+    lineHeight: 32,
   },
   paywallPriceRow: {
     flexDirection: 'row',
@@ -803,14 +823,12 @@ const styles = StyleSheet.create({
     color: HUB.textSecondary,
   },
   heroFeatureList: {
-    gap: Spacing.lg,
+    gap: Spacing.xl,
   },
   featureList: {
-    gap: Spacing.xl,
+    gap: Spacing['2xl'],
     borderRadius: BorderRadius.large,
-    borderWidth: 1,
-    borderColor: HUB.border,
-    backgroundColor: HUB.surface,
+    overflow: 'hidden',
     padding: Spacing.xl,
   },
   featureRow: {
@@ -878,18 +896,60 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  founderBadge: {
-    backgroundColor: HUB.accent + '22',
+  founderCard: {
+    borderRadius: BorderRadius.large,
+    overflow: 'hidden',
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  founderCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  founderCardTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: FontFamily.semibold,
+    color: HUB.accent,
+  },
+  founderCardCount: {
+    fontSize: 13,
+    fontFamily: FontFamily.regular,
+    color: HUB.textSecondary,
+  },
+  founderTrack: {
+    height: 6,
     borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
+    backgroundColor: HUB.border,
+    overflow: 'hidden',
+  },
+  founderFill: {
+    height: '100%',
+    borderRadius: BorderRadius.full,
+    backgroundColor: HUB.accent,
+  },
+  founderCardNote: {
+    fontSize: 12,
+    fontFamily: FontFamily.regular,
+    color: HUB.textSecondary,
+    lineHeight: 17,
+  },
+  founderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: HUB.accent,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
   },
   founderBadgeText: {
     fontSize: 11,
-    fontFamily: FontFamily.semibold,
+    fontFamily: FontFamily.bold,
     color: HUB.accent,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   // ── Dashboard ──
   dashHeader: {

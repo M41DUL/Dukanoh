@@ -17,15 +17,15 @@ type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
 export const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
   { icon: 'flash-outline',        label: '3 free boosts to the top of search every month' },
-  { icon: 'bar-chart-outline',    label: 'Analytics & earnings — see what\'s working' },
-  { icon: 'trending-up-outline',  label: 'Pro ranking — your listings shown higher' },
-  { icon: 'pricetag-outline',     label: 'Sale Mode — mark your whole shop at once' },
+  { icon: 'bar-chart-outline',    label: 'Analytics and earnings. See what\'s working.' },
+  { icon: 'trending-up-outline',  label: 'Pro ranking. Your listings shown higher in search.' },
+  { icon: 'pricetag-outline',     label: 'Sale Mode. Put your whole shop on sale at once.' },
   { icon: 'create-outline',       label: 'Bulk price editing across all listings' },
   { icon: 'arrow-down-outline',   label: 'Price Drop badge when you lower a price' },
-  { icon: 'folder-outline',       label: 'Collections — group listings into themed edits' },
-  { icon: 'share-social-outline', label: 'Share kit for Instagram & WhatsApp' },
-  { icon: 'diamond-outline',      label: 'Pro badge ◆ on your profile and listings' },
-  { icon: 'flash-outline',        label: 'Fast Responder badge ⚡ for quick replies' },
+  { icon: 'folder-outline',       label: 'Collections. Group your listings into themed edits.' },
+  { icon: 'share-social-outline', label: 'Share kit for Instagram and WhatsApp' },
+  { icon: 'diamond-outline',      label: 'Pro badge on your profile and listings' },
+  { icon: 'flash-outline',        label: 'Fast Responder badge for quick replies' },
 ];
 
 export interface HubListing {
