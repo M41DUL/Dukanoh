@@ -6,6 +6,10 @@
 -- Enable UUID generation
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Enable pg_cron (scheduled jobs)
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
+GRANT USAGE ON SCHEMA cron TO postgres;
+
 -- =============================================================
 -- TABLES
 -- =============================================================
@@ -1035,6 +1039,32 @@ CREATE INDEX IF NOT EXISTS idx_story_views_user_id                  ON public.st
 CREATE INDEX IF NOT EXISTS idx_transactions_buyer_id                ON public.transactions (buyer_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_seller_id               ON public.transactions (seller_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_listing_id              ON public.transactions (listing_id);
+
+-- =============================================================
+-- SCHEDULED JOBS
+-- =============================================================
+
+-- Downgrade users whose Pro/Founder subscription has expired
+CREATE OR REPLACE FUNCTION expire_pro_subscriptions()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE users
+  SET seller_tier = 'free'
+  WHERE seller_tier IN ('pro', 'founder')
+    AND pro_expires_at IS NOT NULL
+    AND pro_expires_at < NOW();
+END;
+$$;
+
+-- Runs daily at 02:00 UTC
+SELECT cron.schedule(
+  'expire-pro-subscriptions',
+  '0 2 * * *',
+  'SELECT expire_pro_subscriptions()'
+);
 
 
 -- ─── Seasonal Weights ────────────────────────────────────────────────────────
