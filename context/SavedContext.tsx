@@ -25,7 +25,8 @@ export function SavedProvider({ children }: { children: React.ReactNode }) {
     const { data } = await supabase
       .from('saved_items')
       .select('listing_id')
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .limit(1000);
     if (data) {
       setSavedIds(new Set(data.map(d => d.listing_id as string)));
     }

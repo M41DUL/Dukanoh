@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
+import { getImageUrl } from '@/lib/imageUtils';
 import { router, useFocusEffect } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
@@ -178,7 +179,7 @@ export default function OrdersScreen() {
                 {/* Thumbnail */}
                 {item.listing?.images?.[0] ? (
                   <Image
-                    source={{ uri: item.listing.images[0] }}
+                    source={{ uri: getImageUrl(item.listing.images[0], 'thumbnail') }}
                     style={[styles.orderThumb]}
                     contentFit="cover"
                   />

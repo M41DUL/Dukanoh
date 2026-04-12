@@ -36,7 +36,6 @@ CREATE TABLE public.users (
   stripe_account_id           TEXT,
   stripe_onboarding_complete  BOOLEAN DEFAULT FALSE,
   -- Seller profile perks
-  banner_url                  TEXT,
   avg_response_time_mins      INT,
   -- Boosts
   boosts_used                 INT DEFAULT 0,

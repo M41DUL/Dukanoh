@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { recordView } from '@/hooks/useRecentlyViewed';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import { getImageUrl } from '@/lib/imageUtils';
 import { calcOrderTotal, calcProtectionFee } from '@/lib/paymentHelpers';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -526,7 +527,7 @@ export default function ListingDetailScreen() {
             >
               {listing.images.map((uri, i) => (
                 <TouchableOpacity key={i} activeOpacity={0.95} onPress={() => { setViewerIndex(i); setViewerVisible(true); }}>
-                  <Image source={{ uri }} style={styles.image} contentFit="cover" transition={200} />
+                  <Image source={{ uri: getImageUrl(uri, 'detail') }} style={styles.image} contentFit="cover" transition={200} />
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -870,7 +871,7 @@ export default function ListingDetailScreen() {
         {/* Item card */}
         <View style={[styles.offerItemCard, { backgroundColor: colors.surface }]}>
           {listing.images?.[0] ? (
-            <Image source={{ uri: listing.images[0] }} style={styles.offerThumb} contentFit="cover" transition={200} />
+            <Image source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }} style={styles.offerThumb} contentFit="cover" transition={200} />
           ) : (
             <View style={[styles.offerThumb, { backgroundColor: colors.border }]} />
           )}

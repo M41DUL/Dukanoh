@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { getImageUrl } from '@/lib/imageUtils';
 
 type AvatarSize = 'small' | 'medium' | 'large' | 'xlarge';
 
@@ -27,7 +28,7 @@ export function Avatar({ uri, initials = '?', size = 'medium' }: AvatarProps) {
       ]}
     >
       {uri ? (
-        <Image source={{ uri }} style={styles.image} contentFit="cover" transition={150} cachePolicy="none" />
+        <Image source={{ uri: getImageUrl(uri, 'avatar') }} style={styles.image} contentFit="cover" transition={150} />
       ) : (
         <Text style={[styles.initials, { fontSize, color: '#FFFFFF' }]}>{initials}</Text>
       )}

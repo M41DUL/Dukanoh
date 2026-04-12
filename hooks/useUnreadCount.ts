@@ -28,16 +28,26 @@ export function useUnreadCount() {
     fetchCount();
 
     // Re-check when conversations are updated (trigger fires on new message)
+    // Debounce to avoid multiple rapid refetches when several messages arrive at once
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchCount(), 500);
+    };
+
     const channel = supabase
       .channel(`unread-count:${user.id}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'conversations' },
-        () => fetchCount()
+        debouncedFetch
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   return count;

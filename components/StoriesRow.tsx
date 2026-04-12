@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { getImageUrl } from '@/lib/imageUtils';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
@@ -71,7 +72,7 @@ function ListingStoryViewer({
     <>
       {story.images?.[0] ? (
         <Image
-          source={{ uri: story.images[0] }}
+          source={{ uri: getImageUrl(story.images[0], 'detail') }}
           style={viewerStyles.fullImage}
           contentFit="cover"
           transition={200}
@@ -281,7 +282,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                       />
                     ) : listing?.images?.[0] ? (
                       <Image
-                        source={{ uri: listing.images[0] }}
+                        source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
                         style={viewerStyles.bubbleImage}
                         contentFit="cover"
                         transition={200}

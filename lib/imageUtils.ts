@@ -1,5 +1,36 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 
+// ── Supabase image transformation ────────────────────────────
+//
+// Supabase Storage supports on-the-fly image resizing via query params.
+// Use these presets to serve the right size for each context — full-res
+// is only loaded when the user explicitly zooms in on the detail screen.
+
+export type ImageSize = 'thumbnail' | 'card' | 'detail' | 'avatar' | 'full';
+
+const SIZE_PARAMS: Record<ImageSize, string> = {
+  thumbnail: 'width=200&quality=70', // Stories bubbles, small previews
+  card:      'width=400&quality=75', // ListingCard grid + featured
+  detail:    'width=900&quality=80', // Listing detail carousel
+  avatar:    'width=100&quality=75', // Avatars everywhere
+  full:      '',                     // Zoom view — no transform, original file
+};
+
+/**
+ * Append Supabase image transform params to a storage URL.
+ * Non-Supabase URLs (local assets, external) are returned unchanged.
+ */
+export function getImageUrl(url: string | null | undefined, size: ImageSize): string {
+  if (!url) return '';
+  // Only transform Supabase storage URLs
+  if (!url.includes('/storage/v1/object/public/')) return url;
+  const params = SIZE_PARAMS[size];
+  if (!params) return url;
+  // Preserve any existing query string (shouldn't happen, but be safe)
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}${params}`;
+}
+
 const MAX_DIMENSION = 1080;
 
 /**

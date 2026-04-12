@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { getImageUrl } from '@/lib/imageUtils';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -190,7 +191,7 @@ export default function CheckoutScreen() {
             <View style={styles.itemRow}>
               {listing.images?.[0] ? (
                 <Image
-                  source={{ uri: listing.images[0] }}
+                  source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
                   style={styles.itemImage}
                   contentFit="cover"
                 />

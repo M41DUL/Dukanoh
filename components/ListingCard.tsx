@@ -1,5 +1,6 @@
 import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 import { calcOrderTotal } from '@/lib/paymentHelpers';
+import { getImageUrl } from '@/lib/imageUtils';
 import { useSaved } from '@/context/SavedContext';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
@@ -90,7 +91,7 @@ export function ListingCard({
       <View style={[styles.imageContainer, isGrid ? styles.imageContainerGrid : styles.imageContainerFeatured]}>
         {listing.images?.[0] ? (
           <Image
-            source={{ uri: listing.images[0] }}
+            source={{ uri: getImageUrl(listing.images[0], 'card') }}
             style={styles.image}
             contentFit="cover"
             transition={200}

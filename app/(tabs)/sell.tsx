@@ -99,7 +99,7 @@ export default function SellScreen() {
     setCoverWarnings([]);
 
     let cancelled = false;
-    (async () => {
+    const debounce = setTimeout(async () => {
       try {
         const imageBase64 = await compressImageForAnalysis(coverImage);
         if (cancelled) return;
@@ -115,8 +115,8 @@ export default function SellScreen() {
       } catch {
         // fail open — no warnings shown
       }
-    })();
-    return () => { cancelled = true; };
+    }, 1000);
+    return () => { cancelled = true; clearTimeout(debounce); };
   }, [coverImage]);
 
   const formDirtyRef = useRef(isFormDirty);

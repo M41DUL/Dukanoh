@@ -139,7 +139,7 @@ async function fetchTrendingCategories(
     .from('saved_items')
     .select('listings(category, status)')
     .gte('created_at', since)
-    .limit(500);
+    .limit(100);
 
   if (!data || data.length === 0) return [];
 
