@@ -119,12 +119,15 @@ export default function ListingsScreen() {
     categories: categoriesParam,
     occasion: occasionParam,
     query: queryParam,
+    myListings: myListingsParam,
   } = useLocalSearchParams<{
     title: string;
     categories?: string;
     occasion?: string;
     query?: string;
+    myListings?: string;
   }>();
+  const myListings = myListingsParam === 'true';
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
   const colors = useThemeColors();
@@ -228,11 +231,16 @@ export default function ListingsScreen() {
     let q = supabase
       .from('listings')
       .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
-      .eq('status', 'available')
       .order(orderCol, { ascending });
 
-    if (user) q = q.neq('seller_id', user.id);
-    if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
+    if (!myListings) q = q.eq('status', 'available');
+
+    if (myListings) {
+      if (user) q = q.eq('seller_id', user.id);
+    } else {
+      if (user) q = q.neq('seller_id', user.id);
+      if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
+    }
     if (categories.length > 0) q = q.in('category', categories);
 
     // Sub-tab filter
@@ -266,7 +274,7 @@ export default function ListingsScreen() {
 
     return { q, trimmedQuery };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, blockedIds, categoriesStr, occasionPreset, searchQuery, activeSubTab, sort, activeSizes, activeOccasions, activeConditions, activeColours, activeFabrics, activePriceRange]); // categories is derived from categoriesStr which is already a dep
+  }, [user, blockedIds, categoriesStr, occasionPreset, searchQuery, activeSubTab, sort, activeSizes, activeOccasions, activeConditions, activeColours, activeFabrics, activePriceRange, myListings]); // categories is derived from categoriesStr which is already a dep
 
   const applyClientFilters = useCallback((data: Listing[], trimmedQuery: string) => {
     let results = data;

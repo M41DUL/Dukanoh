@@ -23,7 +23,7 @@ interface QuickAction {
 const STALE_MS = 30_000;
 
 const quickActions: QuickAction[] = [
-  { icon: 'bag-outline', label: 'My Listings', onPress: () => router.push('/listings') },
+  { icon: 'bag-outline', label: 'My Listings', onPress: () => router.push('/listings?title=My+Listings&myListings=true') },
   { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/wallet') },
   { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
   { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
