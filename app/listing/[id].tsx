@@ -56,7 +56,7 @@ function timeAgo(dateStr: string): string {
 
 export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, sellerTier: authSellerTier } = useAuth();
   const { blockedIds, blockUser } = useBlocked();
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,7 +113,7 @@ export default function ListingDetailScreen() {
       // Primary fetch — must complete first so we have seller_id + category for secondary queries
       const { data } = await supabase
         .from('listings')
-        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier)')
+        .select('id, title, description, price, original_price, price_dropped_at, images, status, category, gender, condition, occasion, size, colour, fabric, worn_at, measurements, created_at, seller_id, save_count, view_count, collection_id, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier)')
         .eq('id', id)
         .single();
 
@@ -133,7 +133,7 @@ export default function ListingDetailScreen() {
       // Build similar listings query — fetch 20, then prioritise by occasion match + save_count
       let simQ = supabase
         .from('listings')
-        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)')
+        .select('id, title, price, original_price, price_dropped_at, images, status, category, save_count, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)')
         .eq('category', data.category)
         .eq('status', 'available')
         .neq('id', id)
@@ -163,7 +163,7 @@ export default function ListingDetailScreen() {
         // Only fetch seller boost data if current user owns this listing
         isSeller
           ? Promise.all([
-              supabase.from('users').select('seller_tier, boosts_used, boosts_reset_at').eq('id', user?.id ?? '').single(),
+              supabase.from('users').select('boosts_used, boosts_reset_at').eq('id', user?.id ?? '').single(),
               supabase.from('boosts').select('id', { count: 'exact', head: true }).eq('seller_id', user?.id ?? '').gte('expires_at', new Date().toISOString()),
             ])
           : Promise.resolve(null),
@@ -184,7 +184,7 @@ export default function ListingDetailScreen() {
       if (boost) setBoostExpiry(new Date(boost.expires_at));
       if (sellerBoostData) {
         const [{ data: profile }, { count: boostCount }] = sellerBoostData;
-        setSellerTier((profile?.seller_tier ?? 'free') as 'pro' | 'free');
+        setSellerTier((authSellerTier === 'pro' || authSellerTier === 'founder' ? authSellerTier : 'free') as 'pro' | 'free');
         setBoostsUsed(profile?.boosts_used ?? 0);
         setBoostsResetAt(profile?.boosts_reset_at ?? null);
         setActiveBoostCount(boostCount ?? 0);

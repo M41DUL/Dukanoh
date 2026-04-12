@@ -74,10 +74,10 @@ export default function SellerProfileScreen() {
     if (!id) return;
 
     Promise.all([
-      supabase.from('users').select('*').eq('id', id).single(),
+      supabase.from('users').select('id, username, avatar_url, bio, rating_avg, rating_count, created_at, is_verified, seller_tier, avg_response_time_mins').eq('id', id).single(),
       supabase
         .from('listings')
-        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
+        .select('id, title, price, original_price, price_dropped_at, images, status, category, size, condition, save_count, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
         .eq('seller_id', id)
         .eq('status', 'available')
         .order('created_at', { ascending: false })

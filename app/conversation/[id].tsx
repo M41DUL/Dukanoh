@@ -79,7 +79,7 @@ export default function ConversationScreen() {
         .single(),
       supabase
         .from('messages')
-        .select('*')
+        .select('id, content, sender_id, created_at')
         .eq('conversation_id', id)
         .order('created_at', { ascending: false })
         .range(0, PAGE_SIZE - 1),

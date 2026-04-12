@@ -73,21 +73,15 @@ export default function InviteFriendsScreen() {
       if (code) {
         const { data: invites } = await supabase
           .from('invites')
-          .select('used_by, used_at')
+          .select('used_at, user:users!invites_used_by_fkey(id, username, avatar_url, created_at)')
           .eq('code', code)
           .eq('is_used', true)
           .order('used_at', { ascending: false });
 
-        if (invites && invites.length > 0) {
-          const userIds = invites.map(i => i.used_by).filter(Boolean);
-          const { data: users } = await supabase
-            .from('users')
-            .select('id, username, avatar_url, created_at')
-            .in('id', userIds);
-          setInvitedUsers((users ?? []) as InvitedUser[]);
-        } else {
-          setInvitedUsers([]);
-        }
+        const joined = (invites ?? [])
+          .map(i => Array.isArray(i.user) ? i.user[0] : i.user)
+          .filter((u): u is NonNullable<typeof u> => !!u) as InvitedUser[];
+        setInvitedUsers(joined);
       }
 
       setLoading(false);

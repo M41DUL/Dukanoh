@@ -59,7 +59,7 @@ export default function EditListingScreen() {
 
   useEffect(() => {
     if (!id) return;
-    supabase.from('listings').select('*').eq('id', id).single().then(({ data }) => {
+    supabase.from('listings').select('id, status, title, description, price, gender, category, condition, occasion, size, colour, fabric, worn_at, measurements, images').eq('id', id).single().then(({ data }) => {
       if (!data) { router.back(); return; }
       setStatus(data.status);
       setForm({

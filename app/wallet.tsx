@@ -65,7 +65,7 @@ export default function WalletScreen() {
         const [{ data: walletData }, { data: ordersData }] = await Promise.all([
           supabase
             .from('seller_wallet')
-            .select('*')
+            .select('pending_balance, available_balance, lifetime_earned, updated_at')
             .eq('seller_id', user.id)
             .maybeSingle(),
           supabase

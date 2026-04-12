@@ -43,16 +43,8 @@ const FN_KEY = { 'x-dukanoh-key': process.env.EXPO_PUBLIC_INTERNAL_API_KEY ?? ''
 const ALL_CATEGORIES = Categories.filter(c => c !== 'All') as string[];
 
 export default function SellScreen() {
-  const { user } = useAuth();
+  const { user, isSeller, loading: authLoading, refreshProfile } = useAuth();
   const isFocused = useIsFocused();
-  const [sellerStatus, setSellerStatus] = useState<'loading' | 'not_seller' | 'seller'>('loading');
-
-  useFocusEffect(useCallback(() => {
-    if (!user) return;
-    supabase.from('users').select('is_seller').eq('id', user.id).single().then(({ data }) => {
-      setSellerStatus(data?.is_seller ? 'seller' : 'not_seller');
-    });
-  }, [user]));
   const emptyForm: ListingForm = {
     title: '', description: '', price: '', gender: '', category: '',
     condition: '', occasion: '', size: '', colour: '', fabric: '', worn_at: '',
@@ -429,7 +421,7 @@ export default function SellScreen() {
 
   const handleSubmit = () => submitListing('available');
 
-  if (sellerStatus === 'loading') {
+  if (authLoading) {
     return (
       <ScreenWrapper>
         <LoadingSpinner />
@@ -437,14 +429,14 @@ export default function SellScreen() {
     );
   }
 
-  if (sellerStatus === 'not_seller') {
+  if (!isSeller) {
     if (!user) return null;
     return (
       <>
         {isFocused && <StatusBar style="light" />}
         <SellerOnboarding
           userId={user.id}
-          onActivated={() => setSellerStatus('seller')}
+          onActivated={refreshProfile}
         />
       </>
     );

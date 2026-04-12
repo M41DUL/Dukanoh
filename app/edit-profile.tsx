@@ -34,7 +34,7 @@ export default function EditProfileScreen() {
     Promise.resolve(
       supabase
         .from('users')
-        .select('full_name, username, bio, avatar_url, location')
+        .select('full_name, bio, avatar_url, location')
         .eq('id', user.id)
         .maybeSingle()
     ).then(({ data }) => {

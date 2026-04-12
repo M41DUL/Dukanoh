@@ -81,19 +81,19 @@ export default function OrdersScreen() {
     const [sellingRes, draftsRes, boughtRes, ordersRes] = await Promise.all([
       supabase
         .from('listings')
-        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
+        .select('id, title, images, status, price, seller_id, created_at, sold_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
         .eq('seller_id', user.id)
         .in('status', ['available', 'sold'])
         .order('created_at', { ascending: false }),
       supabase
         .from('listings')
-        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
+        .select('id, title, images, status, price, seller_id, created_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
         .eq('seller_id', user.id)
         .eq('status', 'draft')
         .order('created_at', { ascending: false }),
       supabase
         .from('listings')
-        .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
+        .select('id, title, images, status, price, seller_id, created_at, sold_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
         .eq('buyer_id', user.id)
         .order('sold_at', { ascending: false }),
       supabase
