@@ -17,26 +17,33 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Select } from '@/components/Select';
-import { Typography, Spacing, BorderRadius, BorderWidth, Genders, CategoriesByGender, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
+import {
+  Typography,
+  Spacing,
+  BorderRadius,
+  BorderWidth,
+  Genders,
+  Categories,
+  Conditions,
+  Occasions,
+  Sizes,
+  Colours,
+  Fabrics,
+  ColorTokens,
+} from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/imageUtils';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  ListingForm,
+  validateListing,
+  buildMeasurements,
+  CATEGORY_TO_GENDER,
+} from '@/lib/sellHelpers';
 
-interface ListingForm {
-  title: string;
-  description: string;
-  price: string;
-  gender: string;
-  category: string;
-  condition: string;
-  occasion: string;
-  size: string;
-  colour: string;
-  fabric: string;
-  worn_at: string;
-}
+const ALL_CATEGORIES = (Categories as unknown as string[]).filter(c => c !== 'All');
 
 export default function EditListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -52,39 +59,47 @@ export default function EditListingScreen() {
     title: '', description: '', price: '', gender: '', category: '',
     condition: '', occasion: '', size: '', colour: '', fabric: '', worn_at: '',
   });
-  const [measurements, setMeasurements] = useState({ chest: '', waist: '', length: '' });
-  const [showMeasurements, setShowMeasurements] = useState(false);
+  const [measurementsNote, setMeasurementsNote] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [errors, setErrors] = useState<Partial<ListingForm & { images: string }>>({});
 
   useEffect(() => {
     if (!id) return;
-    supabase.from('listings').select('id, status, title, description, price, gender, category, condition, occasion, size, colour, fabric, worn_at, measurements, images').eq('id', id).single().then(({ data }) => {
-      if (!data) { router.back(); return; }
-      setStatus(data.status);
-      setForm({
-        title: data.title ?? '',
-        description: data.description ?? '',
-        price: data.price?.toString() ?? '',
-        gender: data.gender ?? '',
-        category: data.category ?? '',
-        condition: data.condition ?? '',
-        occasion: data.occasion ?? '',
-        size: data.size ?? '',
-        colour: data.colour ?? '',
-        fabric: data.fabric ?? '',
-        worn_at: data.worn_at ?? '',
+    supabase
+      .from('listings')
+      .select('id, status, title, description, price, gender, category, condition, occasion, size, colour, fabric, worn_at, measurements, images')
+      .eq('id', id)
+      .single()
+      .then(({ data }) => {
+        if (!data) { router.back(); return; }
+        setStatus(data.status);
+        setForm({
+          title: data.title ?? '',
+          description: data.description ?? '',
+          price: data.price?.toString() ?? '',
+          gender: data.gender ?? '',
+          category: data.category ?? '',
+          condition: data.condition ?? '',
+          occasion: data.occasion ?? '',
+          size: data.size ?? '',
+          colour: data.colour ?? '',
+          fabric: data.fabric ?? '',
+          worn_at: data.worn_at ?? '',
+        });
+        // Handle both old structured measurements {chest, waist, length} and new note format
+        const m = data.measurements as any;
+        if (m?.note) {
+          setMeasurementsNote(m.note);
+        } else if (m?.chest || m?.waist || m?.length) {
+          const parts: string[] = [];
+          if (m.chest) parts.push(`Chest ${m.chest}"`);
+          if (m.waist) parts.push(`Waist ${m.waist}"`);
+          if (m.length) parts.push(`Length ${m.length}"`);
+          setMeasurementsNote(parts.join(', '));
+        }
+        setImages(data.images ?? []);
+        setLoading(false);
       });
-      const m = data.measurements;
-      setMeasurements({
-        chest: m?.chest?.toString() ?? '',
-        waist: m?.waist?.toString() ?? '',
-        length: m?.length?.toString() ?? '',
-      });
-      if (m?.chest || m?.waist || m?.length) setShowMeasurements(true);
-      setImages(data.images ?? []);
-      setLoading(false);
-    });
   }, [id]);
 
   const update = (key: keyof ListingForm) => (value: string) => {
@@ -99,7 +114,7 @@ export default function EditListingScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 0.8,
       selectionLimit: 8 - images.length,
@@ -117,7 +132,7 @@ export default function EditListingScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.8,
     });
     if (!result.canceled) {
@@ -139,19 +154,7 @@ export default function EditListingScreen() {
   };
 
   const validate = (): boolean => {
-    const newErrors: typeof errors = {};
-    if (!form.title.trim()) newErrors.title = 'Title is required';
-    else if (form.title.trim().length < 3) newErrors.title = 'Title must be at least 3 characters';
-    if (!form.description.trim()) newErrors.description = 'Description is required';
-    else if (form.description.trim().length < 10) newErrors.description = 'Description must be at least 10 characters';
-    const price = parseFloat(form.price);
-    if (!form.price.trim() || isNaN(price) || price < 1) newErrors.price = 'Enter a price of at least £1';
-    else if (price > 2000) newErrors.price = 'Maximum price is £2,000';
-    if (!form.gender) newErrors.gender = 'Select a gender';
-    if (!form.category) newErrors.category = 'Select a category';
-    if (!form.condition) newErrors.condition = 'Select a condition';
-    if (!form.size) newErrors.size = 'Select a size';
-    if (images.length === 0) newErrors.images = 'Add at least one photo';
+    const newErrors = validateListing(form, images.length, false);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -181,38 +184,30 @@ export default function EditListingScreen() {
     return result;
   };
 
-  const buildMeasurements = () => {
-    const chest = parseFloat(measurements.chest);
-    const waist = parseFloat(measurements.waist);
-    const length = parseFloat(measurements.length);
-    const obj: Record<string, number> = {};
-    if (!isNaN(chest) && chest > 0) obj.chest = chest;
-    if (!isNaN(waist) && waist > 0) obj.waist = waist;
-    if (!isNaN(length) && length > 0) obj.length = length;
-    return Object.keys(obj).length > 0 ? obj : null;
-  };
-
   const save = async (newStatus: 'draft' | 'available') => {
     if (!validate() || !id) return;
     setSaving(true);
     try {
       const imageUrls = await uploadNewImages();
-      const { error } = await supabase.from('listings').update({
-        title: form.title.trim(),
-        description: form.description.trim() || null,
-        price: parseFloat(form.price),
-        gender: form.gender,
-        category: form.category,
-        condition: form.condition,
-        size: form.size || null,
-        occasion: form.occasion || null,
-        colour: form.colour || null,
-        fabric: form.fabric || null,
-        measurements: buildMeasurements(),
-        worn_at: form.worn_at.trim() || null,
-        images: imageUrls,
-        status: newStatus,
-      }).eq('id', id);
+      const { error } = await supabase
+        .from('listings')
+        .update({
+          title: form.title.trim(),
+          description: form.description.trim() || null,
+          price: parseFloat(form.price),
+          gender: form.gender || null,
+          category: form.category,
+          condition: form.condition,
+          size: form.size || null,
+          occasion: form.occasion || null,
+          colour: form.colour || null,
+          fabric: form.fabric || null,
+          measurements: buildMeasurements(measurementsNote),
+          worn_at: form.worn_at.trim() || null,
+          images: imageUrls,
+          status: newStatus,
+        })
+        .eq('id', id);
       if (error) throw error;
       router.back();
     } catch (err: unknown) {
@@ -232,7 +227,7 @@ export default function EditListingScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Image picker */}
+        {/* Photos */}
         <View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageRow}>
             {images.map((uri, i) => (
@@ -245,7 +240,11 @@ export default function EditListingScreen() {
                 >
                   <Ionicons name="close-circle" size={20} color="#fff" />
                 </TouchableOpacity>
-                {i === 0 && <View style={styles.coverBadge}><Text style={styles.coverText}>Cover</Text></View>}
+                {i === 0 && (
+                  <View style={styles.coverBadge}>
+                    <Text style={styles.coverText}>Cover</Text>
+                  </View>
+                )}
               </View>
             ))}
             {images.length < 8 && (
@@ -263,14 +262,32 @@ export default function EditListingScreen() {
 
         <Input
           label="Title"
+          required
           placeholder="e.g. Embroidered silk kurta set"
           value={form.title}
           onChangeText={update('title')}
           error={errors.title}
           maxLength={80}
+          hint={`${form.title.length}/80`}
         />
+
+        <Select
+          label="Category"
+          required
+          placeholder="Select a category"
+          value={form.category}
+          options={ALL_CATEGORIES}
+          onSelect={val => {
+            const inferredGender = CATEGORY_TO_GENDER[val];
+            setForm(f => ({ ...f, category: val, gender: inferredGender ?? f.gender }));
+            setErrors(e => ({ ...e, category: undefined }));
+          }}
+          error={errors.category}
+        />
+
         <Input
           label="Description"
+          required
           placeholder="Describe your item — fit, flaws, styling tips…"
           value={form.description}
           onChangeText={update('description')}
@@ -279,52 +296,12 @@ export default function EditListingScreen() {
           numberOfLines={4}
           style={styles.multiline}
           maxLength={500}
-        />
-        <Input
-          label="My story (optional)"
-          placeholder="e.g. Worn once at Eid 2023 in Birmingham"
-          value={form.worn_at}
-          onChangeText={update('worn_at')}
-          maxLength={100}
-        />
-        <Input
-          label="Price (£)"
-          placeholder="1.00 – 2,000.00"
-          value={form.price}
-          onChangeText={update('price')}
-          keyboardType="decimal-pad"
-          error={errors.price}
-        />
-
-        <Select
-          label="Gender"
-          placeholder="Select gender"
-          value={form.gender}
-          options={Genders}
-          onSelect={val => {
-            setForm(f => {
-              const categoryValid = CategoriesByGender[val as keyof typeof CategoriesByGender]?.includes(f.category);
-              return { ...f, gender: val, category: categoryValid ? f.category : '' };
-            });
-            setErrors(e => ({ ...e, gender: undefined }));
-          }}
-          error={errors.gender}
-        />
-
-        <Select
-          label="Category"
-          placeholder={form.gender ? 'Select a category' : 'Select gender first'}
-          value={form.category}
-          options={form.gender ? CategoriesByGender[form.gender as keyof typeof CategoriesByGender] : []}
-          onSelect={val => {
-            setForm(f => ({ ...f, category: val }));
-            setErrors(e => ({ ...e, category: undefined }));
-          }}
-          error={errors.category}
+          hint={`${form.description.length}/500`}
         />
 
         <Select
           label="Condition"
+          required
           placeholder="Select condition"
           value={form.condition}
           options={Conditions}
@@ -336,45 +313,39 @@ export default function EditListingScreen() {
         />
 
         <Select
-          label="Occasion (optional)"
-          placeholder="Select an occasion"
-          value={form.occasion}
-          options={Occasions}
-          onSelect={val => setForm(f => ({ ...f, occasion: f.occasion === val ? '' : val }))}
+          label="Size"
+          required
+          placeholder="Select a size"
+          value={form.size}
+          options={Sizes}
+          onSelect={val => {
+            setForm(f => ({ ...f, size: val }));
+            setErrors(e => ({ ...e, size: undefined }));
+          }}
+          error={errors.size}
         />
 
-        {/* Sizing section */}
-        <View style={styles.sizingSection}>
-          <Text style={styles.sectionLabel}>Sizing</Text>
-          <Select
-            label="Size"
-            placeholder="Select a size"
-            value={form.size}
-            options={Sizes}
-            onSelect={val => {
-              setForm(f => ({ ...f, size: val }));
-              setErrors(e => ({ ...e, size: undefined }));
-              if (val === 'Custom') setShowMeasurements(true);
-            }}
-            error={errors.size}
-          />
-          {!showMeasurements && (
-            <TouchableOpacity onPress={() => setShowMeasurements(true)}>
-              <Text style={styles.addMeasurementsLink}>+ Add measurements (optional)</Text>
-            </TouchableOpacity>
-          )}
-          {showMeasurements && (
-            <>
-              <Text style={styles.optionalLabel}>Measurements (in inches)</Text>
-              <Input label="Chest" placeholder="e.g. 38" value={measurements.chest} onChangeText={v => setMeasurements(m => ({ ...m, chest: v }))} keyboardType="decimal-pad" />
-              <Input label="Waist" placeholder="e.g. 32" value={measurements.waist} onChangeText={v => setMeasurements(m => ({ ...m, waist: v }))} keyboardType="decimal-pad" />
-              <Input label="Length" placeholder="e.g. 44" value={measurements.length} onChangeText={v => setMeasurements(m => ({ ...m, length: v }))} keyboardType="decimal-pad" />
-            </>
-          )}
-        </View>
+        <Input
+          label="Price (£)"
+          required
+          placeholder="1.00 – 2,000.00"
+          value={form.price}
+          onChangeText={update('price')}
+          keyboardType="decimal-pad"
+          error={errors.price}
+        />
+
+        {/* Optional details */}
+        <Select
+          label="Gender"
+          placeholder="Select gender"
+          value={form.gender}
+          options={Genders as unknown as string[]}
+          onSelect={val => setForm(f => ({ ...f, gender: val }))}
+        />
 
         <Select
-          label="Colour (optional)"
+          label="Colour"
           placeholder="Select a colour"
           value={form.colour}
           options={Colours}
@@ -382,11 +353,36 @@ export default function EditListingScreen() {
         />
 
         <Select
-          label="Fabric (optional)"
+          label="Fabric"
           placeholder="Select a fabric"
           value={form.fabric}
           options={Fabrics}
           onSelect={val => setForm(f => ({ ...f, fabric: f.fabric === val ? '' : val }))}
+        />
+
+        <Select
+          label="Occasion"
+          placeholder="Select an occasion"
+          value={form.occasion}
+          options={Occasions}
+          onSelect={val => setForm(f => ({ ...f, occasion: f.occasion === val ? '' : val }))}
+        />
+
+        <Input
+          label="Measurements"
+          placeholder='e.g. Waist 28", length 42", blouse 36"'
+          value={measurementsNote}
+          onChangeText={setMeasurementsNote}
+          maxLength={150}
+        />
+
+        <Input
+          label="My story"
+          placeholder="e.g. Worn once at Eid 2023 in Birmingham"
+          value={form.worn_at}
+          onChangeText={update('worn_at')}
+          maxLength={100}
+          hint={`${form.worn_at.length}/100`}
         />
 
         <View style={styles.submitRow}>
@@ -471,14 +467,6 @@ function getStyles(colors: ColorTokens) {
     addPhotoLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
     addPhotoSub: { ...Typography.caption, color: colors.textSecondary },
     multiline: { height: 100, textAlignVertical: 'top' },
-    sectionLabel: {
-      ...Typography.label,
-      color: colors.textPrimary,
-      marginBottom: Spacing.sm,
-    },
-    sizingSection: { gap: Spacing.base },
-    addMeasurementsLink: { ...Typography.caption, color: colors.primary, fontFamily: 'Inter_600SemiBold' },
-    optionalLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_400Regular' },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
     submitRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
     draftBtn: { flex: 1 },
