@@ -10,7 +10,7 @@ import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { HUB, HUB_FEATURES } from '@/components/hub/hubTheme';
+import { HUB, HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
@@ -44,7 +44,6 @@ export default function ProfileScreen() {
   const [profileAvatar, setProfileAvatar] = useState<string | undefined>();
   const [sellerTier, setSellerTier] = useState<string>('free');
   const [isVerified, setIsVerified] = useState(false);
-  const [hadFreeTrial, setHadFreeTrial] = useState(false);
   const [listingCount, setListingCount] = useState(0);
   const [hubSummary, setHubSummary] = useState<HubSummary | null>(null);
   const [hubSummaryLoading, setHubSummaryLoading] = useState(false);
@@ -58,7 +57,7 @@ export default function ProfileScreen() {
     const [{ data, error }, { count }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier, is_verified, had_free_trial')
+        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier, is_verified')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -79,7 +78,6 @@ export default function ProfileScreen() {
       setRatingCount(data.rating_count ?? 0);
       setSellerTier(data.seller_tier ?? 'free');
       setIsVerified(data.is_verified ?? false);
-      setHadFreeTrial(data.had_free_trial ?? false);
     }
     setListingCount(count ?? 0);
     lastFetchedRef.current = Date.now();
@@ -215,37 +213,32 @@ export default function ProfileScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.hubCardGradient}
             >
-              <View style={styles.hubCardHeader}>
-                <Text style={styles.hubCardTitle}>Dukanoh Pro</Text>
-                {(sellerTier === 'pro' || sellerTier === 'founder') ? (
+              {/* Pro/founder header */}
+              {(sellerTier === 'pro' || sellerTier === 'founder') && (
+                <View style={styles.hubCardHeader}>
+                  <Text style={styles.hubCardTitle}>Dukanoh Pro</Text>
                   <View style={styles.proBadge}>
                     <Text style={styles.proBadgeText}>Pro ✦</Text>
                   </View>
-                ) : (
-                  <Ionicons name="chevron-forward" size={16} color={HUB.textSecondary} />
-                )}
-              </View>
+                </View>
+              )}
 
-              {/* Free user — headline + teaser feature list */}
+              {/* Free user — matches hero card layout */}
               {sellerTier !== 'pro' && sellerTier !== 'founder' && (
                 <>
-                  <Text style={styles.hubHeadline}>Sell more. Earn more.</Text>
+                  <View style={styles.hubCardHeader}>
+                    <Text style={styles.hubPlanName}>Dukanoh Pro</Text>
+                    <Ionicons name="chevron-forward" size={18} color={HUB.textSecondary} />
+                  </View>
                   <View style={styles.hubFeatureList}>
-                    {HUB_FEATURES.slice(0, 3).map(f => (
+                    {HUB_FEATURES.filter(f => (CORE_FEATURE_LABELS as readonly string[]).includes(f.label)).map(f => (
                       <View key={f.label} style={styles.hubFeatureRow}>
-                        <View style={styles.hubFeatureIconWrap}>
-                          <Ionicons name={f.icon} size={14} color={HUB.accent} />
-                        </View>
+                        <Ionicons name={f.icon} size={20} color={HUB.textSecondary} />
                         <Text style={styles.hubFeatureLabel}>{f.label}</Text>
                       </View>
                     ))}
                   </View>
-                  <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - 3} more features</Text>
-                  <View style={styles.hubUpgradeBtn}>
-                    <Text style={styles.hubUpgradeBtnText}>
-                      {hadFreeTrial ? 'Subscribe' : 'Start free trial'}
-                    </Text>
-                  </View>
+                  <Text style={styles.hubMoreText}>+7 more features</Text>
                 </>
               )}
 
@@ -358,7 +351,7 @@ function getStyles(colors: ColorTokens) {
     quickActions: {
       flexDirection: 'row',
       justifyContent: 'space-evenly',
-      paddingTop: Spacing.lg,
+      paddingTop: Spacing.sm,
       paddingBottom: Spacing['2xl'],
       paddingHorizontal: Spacing.base,
     },
@@ -392,8 +385,8 @@ function getStyles(colors: ColorTokens) {
       borderColor: proColors.border,
     },
     hubCardGradient: {
-      padding: Spacing.lg,
-      gap: Spacing.md,
+      padding: Spacing.xl,
+      gap: Spacing.lg,
     },
     hubCardHeader: {
       flexDirection: 'row',
@@ -450,48 +443,32 @@ function getStyles(colors: ColorTokens) {
       color: HUB.accent,
       fontFamily: FontFamily.medium,
     },
-    hubHeadline: {
+    hubPlanName: {
       fontSize: 20,
-      fontFamily: FontFamily.bold,
+      fontFamily: FontFamily.black,
       color: HUB.textPrimary,
       letterSpacing: -0.3,
+      lineHeight: 26,
     },
     hubFeatureList: {
-      gap: Spacing.sm,
+      gap: Spacing.xl,
     },
     hubFeatureRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: Spacing.sm,
-    },
-    hubFeatureIconWrap: {
-      width: 26,
-      height: 26,
-      borderRadius: BorderRadius.small,
-      backgroundColor: HUB.surfaceElevated,
-      alignItems: 'center',
-      justifyContent: 'center',
+      gap: Spacing.md,
     },
     hubFeatureLabel: {
-      fontSize: 14,
+      fontSize: 15,
       fontFamily: FontFamily.semibold,
       color: HUB.textPrimary,
       flex: 1,
+      lineHeight: 21,
     },
     hubMoreText: {
-      ...Typography.caption,
-      color: HUB.textSecondary,
-    },
-    hubUpgradeBtn: {
-      backgroundColor: HUB.accent,
-      borderRadius: BorderRadius.full,
-      paddingVertical: Spacing.sm,
-      alignItems: 'center',
-    },
-    hubUpgradeBtnText: {
-      ...Typography.label,
-      color: HUB.background,
+      fontSize: 13,
       fontFamily: FontFamily.semibold,
+      color: HUB.accent,
     },
   });
 }

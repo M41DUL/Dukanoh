@@ -15,16 +15,22 @@ export const HUB = {
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
+export const CORE_FEATURE_LABELS = [
+  'Pro ranking. Your listings shown higher in search.',
+  "Analytics and earnings. See what's working.",
+  '3 free boosts into Stories every month',
+] as const;
+
 export const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
-  { icon: 'flash-outline',        label: '3 free boosts to the top of search every month' },
+  { icon: 'flash-outline',        label: '3 free boosts into Stories every month' },
   { icon: 'bar-chart-outline',    label: 'Analytics and earnings. See what\'s working.' },
   { icon: 'trending-up-outline',  label: 'Pro ranking. Your listings shown higher in search.' },
   { icon: 'pricetag-outline',     label: 'Sale Mode. Put your whole shop on sale at once.' },
   { icon: 'create-outline',       label: 'Bulk price editing across all listings' },
   { icon: 'arrow-down-outline',   label: 'Price Drop badge when you lower a price' },
-  { icon: 'folder-outline',       label: 'Collections. Group your listings into themed edits.' },
+  { icon: 'folder-outline',       label: 'Collections. Organise your listings into themed groups.' },
   { icon: 'share-social-outline', label: 'Share kit for Instagram and WhatsApp' },
-  { icon: 'diamond-outline',      label: 'Pro badge on your profile and listings' },
+  { icon: 'diamond-outline',      label: 'Pro badge ◆ on your profile and listings' },
   { icon: 'flash-outline',        label: 'Fast Responder badge for quick replies' },
 ];
 

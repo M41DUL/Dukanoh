@@ -26,7 +26,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Spacing, BorderRadius, FontFamily, Typography, proColors } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { HUB, HUB_FEATURES, HubListing, HubCollection, HubData } from '@/components/hub/hubTheme';
+import { HUB, HUB_FEATURES, CORE_FEATURE_LABELS, HubListing, HubCollection, HubData } from '@/components/hub/hubTheme';
 import { HubMetricTile } from '@/components/hub/HubMetricTile';
 import { HubListingRow } from '@/components/hub/HubListingRow';
 import { HubShareCard } from '@/components/hub/HubShareCard';
@@ -94,12 +94,6 @@ export default function SellerHubScreen() {
 }
 
 // ── Paywall screen ───────────────────────────────────────────
-// Core features shown in hero card — Pro ranking, Analytics, Boosts
-const CORE_FEATURE_LABELS = [
-  'Pro ranking. Your listings shown higher in search.',
-  "Analytics and earnings. See what's working.",
-  '3 free boosts to the top of search every month',
-];
 
 function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFreeTrial: boolean }) {
   const insets = useSafeAreaInsets();
@@ -159,8 +153,8 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
     seeAllOpacity.setValue(opacity);
   };
 
-  const coreFeatures = HUB_FEATURES.filter(f => CORE_FEATURE_LABELS.includes(f.label));
-  const extraFeatures = HUB_FEATURES.filter(f => !CORE_FEATURE_LABELS.includes(f.label));
+  const coreFeatures = HUB_FEATURES.filter(f => (CORE_FEATURE_LABELS as readonly string[]).includes(f.label));
+  const extraFeatures = HUB_FEATURES.filter(f => !(CORE_FEATURE_LABELS as readonly string[]).includes(f.label));
 
   return (
     <View style={styles.container}>
@@ -183,7 +177,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
         scrollEventThrottle={16}
       >
         {/* ── Subheading above card ── */}
-        <Text style={styles.paywallSubheading}>Sell more. Know more. Earn more. On Pro.</Text>
+        <Text style={styles.paywallSubheading}>Sell more. Know more. Earn more. On Dukanoh Pro.</Text>
 
         {/* ── Hero card ── */}
         <LinearGradient
@@ -198,14 +192,6 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
             <View style={styles.paywallPriceRow}>
               <Text style={styles.paywallPrice}>{monthlyPrice}</Text>
               <Text style={styles.paywallPricePer}>/month</Text>
-              {isFounderAvailable && (
-                <View style={styles.founderBadge}>
-                  <Ionicons name="flash" size={10} color={HUB.accent} />
-                  <Text style={styles.founderBadgeText}>
-                    {founderSlotsLeft} spots left
-                  </Text>
-                </View>
-              )}
             </View>
           </View>
 
@@ -229,7 +215,6 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
             style={styles.founderCard}
           >
             <View style={styles.founderCardHeader}>
-              <Ionicons name="flash" size={14} color={HUB.accent} />
               <Text style={styles.founderCardTitle}>Founder pricing</Text>
               <Text style={styles.founderCardCount}>
                 {founderLimit - founderSlotsLeft} of {founderLimit} spots taken
@@ -244,7 +229,7 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
               />
             </View>
             <Text style={styles.founderCardNote}>
-              {founderSlotsLeft} spots remaining at {founderMonthlyPrice}/mo. Price rises to {standardMonthlyPrice} when full.
+              Lock in {founderMonthlyPrice}/mo forever. Once these spots are gone, the price goes up to {standardMonthlyPrice} and stays there.
             </Text>
           </LinearGradient>
         )}
@@ -901,6 +886,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: Spacing.xl,
     gap: Spacing.md,
+    borderWidth: 1,
+    borderColor: proColors.primary + '40',
   },
   founderCardHeader: {
     flexDirection: 'row',
@@ -932,7 +919,7 @@ const styles = StyleSheet.create({
   founderCardNote: {
     fontSize: 12,
     fontFamily: FontFamily.regular,
-    color: HUB.textSecondary,
+    color: HUB.textPrimary,
     lineHeight: 17,
   },
   founderBadge: {
