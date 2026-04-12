@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
-import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Spacing, BorderRadius, ColorTokens, FontFamily, Typography } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -32,19 +33,79 @@ const BENEFITS = [
   },
 ];
 
+const UNLOCKED = [
+  { icon: 'checkmark-circle-outline' as const, label: '✓ Verified badge on your profile and listings' },
+  { icon: 'wallet-outline' as const, label: 'Payments enabled — earnings go to your wallet' },
+  { icon: 'diamond-outline' as const, label: 'Dukanoh Pro access unlocked' },
+];
+
 export default function StripeOnboardingScreen() {
-  const { user } = useAuth();
+  const { isVerified } = useAuth();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const isAlreadyVerified = (user as any)?.is_verified === true;
-
   const handleStartOnboarding = () => {
-    // Dukanoh Verify onboarding redirect goes here when payment provider is wired.
-    // For now: show a placeholder.
     alert('Dukanoh Verify will be available soon. Come back shortly!');
   };
+
+  if (isVerified) {
+    return (
+      <ScreenWrapper>
+        <Header title="Verification" showBack />
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Status */}
+          <View style={[styles.statusCard, { backgroundColor: colors.success + '12', borderColor: colors.success + '30' }]}>
+            <View style={[styles.statusIconWrap, { backgroundColor: colors.success + '20' }]}>
+              <Ionicons name="checkmark-circle" size={36} color={colors.success} />
+            </View>
+            <Text style={[styles.statusTitle, { color: colors.textPrimary }]}>You're verified</Text>
+            <Text style={[styles.statusBody, { color: colors.textSecondary }]}>
+              Your identity and account have been confirmed. You're all set to sell on Dukanoh.
+            </Text>
+          </View>
+
+          {/* What's unlocked */}
+          <View style={[styles.unlockedBox, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>What's unlocked</Text>
+            {UNLOCKED.map(item => (
+              <View key={item.label} style={styles.unlockedRow}>
+                <Ionicons name={item.icon} size={18} color={colors.success} />
+                <Text style={[styles.unlockedText, { color: colors.textSecondary }]}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Wallet CTA */}
+          <Button
+            label="View your wallet"
+            onPress={() => router.push('/wallet')}
+          />
+
+          {/* Manage payout account */}
+          <TouchableOpacity
+            style={[styles.manageRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            activeOpacity={0.7}
+            disabled
+          >
+            <View style={styles.manageLeft}>
+              <Ionicons name="card-outline" size={20} color={colors.textSecondary} />
+              <View style={styles.manageText}>
+                <Text style={[styles.manageTitle, { color: colors.textPrimary }]}>Payout account</Text>
+                <Text style={[styles.manageSub, { color: colors.textSecondary }]}>Manage your bank details</Text>
+              </View>
+            </View>
+            <View style={[styles.comingSoonPill, { backgroundColor: colors.border }]}>
+              <Text style={[styles.comingSoonText, { color: colors.textSecondary }]}>Coming soon</Text>
+            </View>
+          </TouchableOpacity>
+        </ScrollView>
+      </ScreenWrapper>
+    );
+  }
 
   return (
     <ScreenWrapper>
@@ -94,19 +155,10 @@ export default function StripeOnboardingScreen() {
           </View>
         </View>
 
-        {isAlreadyVerified ? (
-          <View style={[styles.verifiedBanner, { backgroundColor: colors.success + '18' }]}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-            <Text style={[styles.verifiedText, { color: colors.success }]}>
-              Your account is already verified
-            </Text>
-          </View>
-        ) : (
-          <Button
-            label="Start Dukanoh Verify"
-            onPress={handleStartOnboarding}
-          />
-        )}
+        <Button
+          label="Start Dukanoh Verify"
+          onPress={handleStartOnboarding}
+        />
 
         <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>
           Your data is encrypted and handled securely. Dukanoh does not store your ID or bank details.
@@ -123,6 +175,87 @@ function getStyles(_colors: ColorTokens) {
       paddingBottom: Spacing['3xl'],
       gap: Spacing.base,
     },
+
+    // ── Verified state ──
+    statusCard: {
+      borderRadius: BorderRadius.large,
+      borderWidth: 1,
+      padding: Spacing.xl,
+      alignItems: 'center',
+      gap: Spacing.md,
+    },
+    statusIconWrap: {
+      width: 72,
+      height: 72,
+      borderRadius: BorderRadius.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    statusTitle: {
+      fontSize: 22,
+      fontFamily: FontFamily.bold,
+      textAlign: 'center',
+    },
+    statusBody: {
+      fontSize: 14,
+      fontFamily: FontFamily.regular,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    unlockedBox: {
+      borderRadius: BorderRadius.large,
+      padding: Spacing.base,
+      gap: Spacing.md,
+    },
+    sectionLabel: {
+      fontSize: 14,
+      fontFamily: FontFamily.semibold,
+    },
+    unlockedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    unlockedText: {
+      ...Typography.body,
+      flex: 1,
+    },
+    manageRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderRadius: BorderRadius.large,
+      borderWidth: 1,
+      padding: Spacing.base,
+    },
+    manageLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      flex: 1,
+    },
+    manageText: {
+      gap: 2,
+    },
+    manageTitle: {
+      fontSize: 14,
+      fontFamily: FontFamily.semibold,
+    },
+    manageSub: {
+      fontSize: 12,
+      fontFamily: FontFamily.regular,
+    },
+    comingSoonPill: {
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 3,
+    },
+    comingSoonText: {
+      fontSize: 11,
+      fontFamily: FontFamily.medium,
+    },
+
+    // ── Unverified state ──
     hero: {
       borderRadius: BorderRadius.large,
       padding: Spacing.xl,
@@ -138,12 +271,12 @@ function getStyles(_colors: ColorTokens) {
     },
     heroTitle: {
       fontSize: 20,
-      fontFamily: 'Inter_700Bold',
+      fontFamily: FontFamily.bold,
       textAlign: 'center',
     },
     heroBody: {
       fontSize: 14,
-      fontFamily: 'Inter_400Regular',
+      fontFamily: FontFamily.regular,
       textAlign: 'center',
       lineHeight: 20,
     },
@@ -171,11 +304,11 @@ function getStyles(_colors: ColorTokens) {
     },
     benefitTitle: {
       fontSize: 14,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: FontFamily.semibold,
     },
     benefitBody: {
       fontSize: 13,
-      fontFamily: 'Inter_400Regular',
+      fontFamily: FontFamily.regular,
       lineHeight: 18,
     },
     needsBox: {
@@ -185,7 +318,7 @@ function getStyles(_colors: ColorTokens) {
     },
     needsTitle: {
       fontSize: 14,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: FontFamily.semibold,
     },
     needsList: {
       gap: Spacing.sm,
@@ -198,23 +331,12 @@ function getStyles(_colors: ColorTokens) {
     needsText: {
       flex: 1,
       fontSize: 13,
-      fontFamily: 'Inter_400Regular',
+      fontFamily: FontFamily.regular,
       lineHeight: 18,
-    },
-    verifiedBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      borderRadius: BorderRadius.medium,
-      padding: Spacing.md,
-    },
-    verifiedText: {
-      fontSize: 14,
-      fontFamily: 'Inter_600SemiBold',
     },
     disclaimer: {
       fontSize: 12,
-      fontFamily: 'Inter_400Regular',
+      fontFamily: FontFamily.regular,
       textAlign: 'center',
       lineHeight: 17,
     },

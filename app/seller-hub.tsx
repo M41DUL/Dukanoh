@@ -39,9 +39,8 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // ── Root screen: fetch tier and branch ──────────────────────
 export default function SellerHubScreen() {
-  const { user } = useAuth();
+  const { user, isVerified } = useAuth();
   const [sellerTier, setSellerTier] = useState<string | null>(null);
-  const [isVerified, setIsVerified] = useState(false);
   const [hadFreeTrial, setHadFreeTrial] = useState(false);
   const [accountStatus, setAccountStatus] = useState<'active' | 'warned' | 'suspended'>('active');
   const [strikeCount, setStrikeCount] = useState(0);
@@ -54,7 +53,7 @@ export default function SellerHubScreen() {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('seller_tier, is_verified, had_free_trial, account_status, cancellation_strike_count, pro_expires_at')
+          .select('seller_tier, had_free_trial, account_status, cancellation_strike_count, pro_expires_at')
           .eq('id', user.id)
           .maybeSingle();
         if (error) { setLoadError(true); return; }
@@ -65,7 +64,6 @@ export default function SellerHubScreen() {
           && new Date(data.pro_expires_at) < new Date();
         setSellerTier(expired ? 'free' : tier);
         setProExpired(expired);
-        setIsVerified(data?.is_verified ?? false);
         setHadFreeTrial(data?.had_free_trial ?? false);
         setAccountStatus(data?.account_status ?? 'active');
         setStrikeCount(data?.cancellation_strike_count ?? 0);

@@ -36,14 +36,12 @@ interface HubSummary {
 }
 
 export default function ProfileScreen() {
-  const { user, username } = useAuth();
+  const { user, username, isVerified, sellerTier } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
   const [profileName, setProfileName] = useState('');
   const [profileAvatar, setProfileAvatar] = useState<string | undefined>();
-  const [sellerTier, setSellerTier] = useState<string>('free');
-  const [isVerified, setIsVerified] = useState(false);
   const [listingCount, setListingCount] = useState(0);
   const [hubSummary, setHubSummary] = useState<HubSummary | null>(null);
   const [hubSummaryLoading, setHubSummaryLoading] = useState(false);
@@ -57,7 +55,7 @@ export default function ProfileScreen() {
     const [{ data, error }, { count }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, avatar_url, rating_avg, rating_count, seller_tier, is_verified')
+        .select('full_name, avatar_url, rating_avg, rating_count')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -76,8 +74,6 @@ export default function ProfileScreen() {
       setProfileAvatar(data.avatar_url ?? undefined);
       setRatingAvg(data.rating_avg ?? 0);
       setRatingCount(data.rating_count ?? 0);
-      setSellerTier(data.seller_tier ?? 'free');
-      setIsVerified(data.is_verified ?? false);
     }
     setListingCount(count ?? 0);
     lastFetchedRef.current = Date.now();
@@ -149,21 +145,19 @@ export default function ProfileScreen() {
           {profileName ? (
             <Text style={styles.name}>{profileName}</Text>
           ) : null}
-          <Text style={styles.username}>@{username}</Text>
-          {(isVerified || sellerTier === 'pro' || sellerTier === 'founder') && (
-            <View style={styles.badgeRow}>
-              {isVerified && (
-                <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
-                  <Text style={[styles.badgePillText, { color: colors.primaryText }]}>✓ Verified</Text>
-                </View>
-              )}
-              {(sellerTier === 'pro' || sellerTier === 'founder') && (
-                <View style={[styles.badgePill, { backgroundColor: proColors.primaryLight }]}>
-                  <Text style={[styles.badgePillText, { color: proColors.primaryText }]}>◆ Pro</Text>
-                </View>
-              )}
-            </View>
-          )}
+          <View style={styles.usernameRow}>
+            <Text style={styles.username}>@{username}</Text>
+            {isVerified && (
+              <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
+                <Text style={[styles.badgePillText, { color: colors.primaryText }]}>✓ Verified</Text>
+              </View>
+            )}
+            {(sellerTier === 'pro' || sellerTier === 'founder') && (
+              <View style={[styles.badgePill, { backgroundColor: proColors.primaryLight }]}>
+                <Text style={[styles.badgePillText, { color: proColors.primaryText }]}>◆ Pro</Text>
+              </View>
+            )}
+          </View>
           {ratingCount > 0 ? (
             <View style={styles.ratingRow}>
               <StarRating rating={ratingAvg} size={14} />
@@ -301,6 +295,11 @@ function getStyles(colors: ColorTokens) {
       color: colors.textPrimary,
       marginTop: Spacing.lg,
     },
+    usernameRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: Spacing.xs,
+    },
     username: {
       ...Typography.body,
       color: colors.textSecondary,
@@ -320,7 +319,7 @@ function getStyles(colors: ColorTokens) {
       color: colors.textSecondary,
     },
     badgeRow: {
-      flexDirection: 'row',
+      flexDirection: 'row' as const,
       gap: Spacing.xs,
       marginTop: 4,
     },

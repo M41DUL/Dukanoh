@@ -9,6 +9,8 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [isSeller, setIsSeller] = useState<boolean>(false);
+  const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [sellerTier, setSellerTier] = useState<string>('free');
 
   const [needsUsername, setNeedsUsername] = useState<boolean>(false);
   const [username, setUsername] = useState<string>('');
@@ -16,13 +18,15 @@ export function useAuth() {
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('users')
-      .select('onboarding_completed, is_seller, username_confirmed, username')
+      .select('onboarding_completed, is_seller, username_confirmed, username, is_verified, seller_tier')
       .eq('id', userId)
       .maybeSingle();
     setOnboardingCompleted(data?.onboarding_completed ?? false);
     setIsSeller(data?.is_seller ?? false);
     setNeedsUsername(!(data?.username_confirmed ?? true));
     setUsername(data?.username ?? '');
+    setIsVerified(data?.is_verified ?? false);
+    setSellerTier(data?.seller_tier ?? 'free');
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -94,5 +98,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { session, user, loading, signOut, onboardingCompleted, isSeller, needsUsername, username, refreshProfile };
+  return { session, user, loading, signOut, onboardingCompleted, isSeller, isVerified, sellerTier, needsUsername, username, refreshProfile };
 }
