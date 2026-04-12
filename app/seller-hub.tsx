@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-gifted-charts';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import { DukanohLogo } from '@/components/DukanohLogo';
+import { Button } from '@/components/Button';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Spacing, BorderRadius, FontFamily, Typography, proColors } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
@@ -93,7 +94,12 @@ export default function SellerHubScreen() {
 }
 
 // ── Paywall screen ───────────────────────────────────────────
-const FIRST_BATCH = 4; // features visible above the fold before "See all"
+// Core features shown in hero card — Pro ranking, Analytics, Boosts
+const CORE_FEATURE_LABELS = [
+  'Pro ranking — your listings shown higher',
+  "Analytics & earnings — see what's working",
+  '3 free boosts to the top of search every month',
+];
 
 function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFreeTrial: boolean }) {
   const insets = useSafeAreaInsets();
@@ -124,18 +130,17 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
   }, []);
 
   const isFounderAvailable = founderCount !== null && founderCount < founderLimit;
-  const founderSlotsLeft   = founderLimit - (founderCount ?? 0);
   const monthlyPrice       = isFounderAvailable ? founderMonthlyPrice : standardMonthlyPrice;
 
   const ctaLabel = !isVerified
     ? 'Get verified to unlock Pro'
     : hadFreeTrial ? 'Subscribe now' : 'Start 14-day free trial';
 
-  const ctaNote = !isVerified
-    ? 'Complete Dukanoh Verify to start selling and unlock Pro.'
-    : hadFreeTrial
-      ? 'Cancel anytime. Billed via the App Store.'
-      : 'Free for 14 days — no charge until your trial ends. Cancel anytime.';
+  const ctaNote = hadFreeTrial
+    ? 'Cancel anytime. Billed via the App Store.'
+    : isVerified
+      ? 'Free for 14 days — no charge until your trial ends. Cancel anytime.'
+      : null;
 
   const handleCta = () => {
     if (!isVerified) { router.back(); router.push('/stripe-onboarding'); return; }
@@ -148,107 +153,124 @@ function HubPaywall({ isVerified, hadFreeTrial }: { isVerified: boolean; hadFree
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = e.nativeEvent.contentOffset.y;
-    // Fade the "See all" button out once the user scrolls past the fold
-    if (offsetY > allFeaturesY.current - 120) {
-      Animated.timing(seeAllOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    } else {
-      Animated.timing(seeAllOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    }
+    // Fade "See all" immediately from first scroll — opacity goes 1→0 over first 80px
+    const opacity = Math.max(0, 1 - offsetY / 80);
+    seeAllOpacity.setValue(opacity);
   };
+
+  const coreFeatures = HUB_FEATURES.filter(f => CORE_FEATURE_LABELS.includes(f.label));
+  const extraFeatures = HUB_FEATURES.filter(f => !CORE_FEATURE_LABELS.includes(f.label));
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Close button — floats above scroll */}
-      <TouchableOpacity
-        style={[styles.closeBtn, { position: 'absolute', top: insets.top + Spacing.md, left: Spacing.xl, zIndex: 10 }]}
-        onPress={() => router.back()}
-        hitSlop={16}
-      >
-        <Ionicons name="close" size={22} color={HUB.textSecondary} />
-      </TouchableOpacity>
+      {/* Fixed header: close left, logo centred via flex trick */}
+      <View style={[styles.paywallHeader, { paddingTop: insets.top + Spacing.sm }]}>
+        <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()} hitSlop={16}>
+          <Ionicons name="close" size={22} color={HUB.textSecondary} />
+        </TouchableOpacity>
+        <DukanohLogo width={80} height={14} color={HUB.accent} />
+        <View style={styles.closeBtnPlaceholder} />
+      </View>
 
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={[styles.paywallScroll, { paddingTop: insets.top + 64, paddingBottom: insets.bottom + 120 }]}
+        contentContainerStyle={[styles.paywallScroll, { paddingBottom: insets.bottom + 160 }]}
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        {/* ── Hero ── */}
+        {/* ── Subheading above card ── */}
+        <Text style={styles.paywallSubheading}>Sell more. Know more. Earn more. On Pro.</Text>
+
+        {/* ── Hero card ── */}
         <LinearGradient
           colors={[proColors.gradientEnd, proColors.gradientStart]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.paywallHero}
         >
-          <DukanohLogo width={110} height={19} color={HUB.accent} />
-          <Text style={styles.paywallSubheading}>Sell more. Know more. Earn more. On Pro.</Text>
-          <View style={styles.paywallPriceRow}>
-            <Text style={styles.paywallPrice}>{monthlyPrice}</Text>
-            <Text style={styles.paywallPricePer}>/month</Text>
+          {/* Watermark logo — top-right, faint, oversized, rotated */}
+          <View style={styles.paywallWatermark} pointerEvents="none">
+            <DukanohLogo width={200} height={34} color={HUB.textPrimary} />
           </View>
-          {isFounderAvailable && (
-            <View style={styles.founderBadge}>
-              <Text style={styles.founderBadgeText}>
-                Founder Plan · {founderSlotsLeft} of {founderLimit} spots left
-              </Text>
+
+          {/* Top section: plan name + price */}
+          <View style={styles.paywallPlanLeft}>
+            <Text style={styles.paywallPlanName}>Dukanoh Pro</Text>
+            <View style={styles.paywallPriceRow}>
+              <Text style={styles.paywallPrice}>{monthlyPrice}</Text>
+              <Text style={styles.paywallPricePer}>/month</Text>
+              {isFounderAvailable && (
+                <LinearGradient
+                  colors={[proColors.primary, proColors.primaryDim]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.founderBadge}
+                >
+                  <Text style={styles.founderBadgeText}>◆ Founder</Text>
+                </LinearGradient>
+              )}
             </View>
-          )}
+          </View>
+
+          {/* Core features */}
+          <View style={styles.heroFeatureList}>
+            {coreFeatures.map(feature => (
+              <View key={feature.label} style={styles.featureRow}>
+                <Ionicons name={feature.icon} size={20} color={HUB.textSecondary} />
+                <Text style={styles.featureLabel}>{feature.label}</Text>
+              </View>
+            ))}
+          </View>
         </LinearGradient>
 
-        {/* ── First batch of features ── */}
-        <View style={styles.featureList}>
-          {HUB_FEATURES.slice(0, FIRST_BATCH).map(feature => (
-            <View key={feature.label} style={styles.featureRow}>
-              <View style={styles.featureIconWrap}>
-                <Ionicons name={feature.icon} size={18} color={HUB.accent} />
-              </View>
-              <View style={styles.featureTextWrap}>
-                <Text style={styles.featureLabel}>{feature.label}</Text>
-                <Text style={styles.featureDescription}>{feature.description}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* ── Remaining features (revealed on scroll) ── */}
+        {/* ── All other benefits (revealed on scroll) ── */}
         <View
           ref={allFeaturesRef}
           onLayout={e => { allFeaturesY.current = e.nativeEvent.layout.y; }}
           style={styles.featureList}
         >
-          {HUB_FEATURES.slice(FIRST_BATCH).map(feature => (
+          {extraFeatures.map(feature => (
             <View key={feature.label} style={styles.featureRow}>
               <View style={styles.featureIconWrap}>
                 <Ionicons name={feature.icon} size={18} color={HUB.accent} />
               </View>
-              <View style={styles.featureTextWrap}>
-                <Text style={styles.featureLabel}>{feature.label}</Text>
-                <Text style={styles.featureDescription}>{feature.description}</Text>
-              </View>
+              <Text style={styles.featureLabel}>{feature.label}</Text>
             </View>
           ))}
         </View>
       </ScrollView>
 
-      {/* ── Sticky bottom CTAs ── */}
-      <View style={[styles.paywallFooter, { paddingBottom: insets.bottom + Spacing.lg }]}>
-        <Animated.View style={[{ width: '100%' }, { opacity: seeAllOpacity }]}>
-          <TouchableOpacity
-            style={styles.seeAllBtn}
+      {/* ── Sticky footer with fade gradient ── */}
+      <LinearGradient
+        colors={['transparent', HUB.background]}
+        style={[styles.paywallFooter, { paddingBottom: insets.bottom + Spacing.lg }]}
+        pointerEvents="box-none"
+      >
+        <Animated.View style={{ width: '100%', opacity: seeAllOpacity }} pointerEvents="box-none">
+          <Button
+            label={`See all ${HUB_FEATURES.length} benefits`}
             onPress={handleSeeAll}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.seeAllBtnText}>See all {HUB_FEATURES.length} benefits</Text>
-          </TouchableOpacity>
+            variant="outline"
+            size="lg"
+            style={{ width: '100%' }}
+            backgroundColor={HUB.surface}
+            textColor={HUB.textPrimary}
+            borderColor={HUB.border}
+          />
         </Animated.View>
-        <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.85} onPress={handleCta}>
-          <Text style={styles.ctaBtnText}>{ctaLabel}</Text>
-        </TouchableOpacity>
-        <Text style={styles.trialNote}>{ctaNote}</Text>
-      </View>
+        <Button
+          label={ctaLabel}
+          onPress={handleCta}
+          size="lg"
+          style={{ width: '100%' }}
+          backgroundColor={HUB.accent}
+          textColor={HUB.background}
+        />
+        {ctaNote && <Text style={styles.trialNote}>{ctaNote}</Text>}
+      </LinearGradient>
     </View>
   );
 }
@@ -715,55 +737,85 @@ const styles = StyleSheet.create({
   },
 
   // ── Paywall ──
+  paywallHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.md,
+    backgroundColor: HUB.background,
+  },
+  closeBtnPlaceholder: {
+    width: 36,
+    height: 36,
+  },
   paywallScroll: {
     paddingHorizontal: Spacing.xl,
     gap: Spacing.xl,
   },
+  paywallSubheading: {
+    fontSize: 22,
+    fontFamily: FontFamily.bold,
+    color: HUB.textPrimary,
+    textAlign: 'center',
+    lineHeight: 30,
+    letterSpacing: -0.3,
+    paddingVertical: Spacing.sm,
+  },
   paywallHero: {
     borderRadius: BorderRadius.large,
-    borderWidth: 1,
-    borderColor: HUB.border,
+    overflow: 'hidden',
     padding: Spacing.xl,
-    alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing['2xl'],
+    justifyContent: 'space-between',
   },
-  paywallSubheading: {
-    fontSize: 15,
-    fontFamily: FontFamily.regular,
-    color: HUB.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
+  paywallWatermark: {
+    position: 'absolute',
+    top: -10,
+    right: -40,
+    opacity: 0.06,
+    transform: [{ rotate: '-15deg' }],
+  },
+  paywallPlanLeft: {
+    gap: Spacing.xs,
+  },
+  paywallPlanName: {
+    fontSize: 40,
+    fontFamily: FontFamily.black,
+    color: HUB.textPrimary,
+    letterSpacing: -1,
+    lineHeight: 44,
   },
   paywallPriceRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
-    marginTop: Spacing.sm,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: 2,
   },
   paywallPrice: {
-    fontSize: 44,
-    fontFamily: FontFamily.black,
-    color: HUB.textPrimary,
-    lineHeight: 48,
-    letterSpacing: -1,
-  },
-  paywallPricePer: {
-    fontSize: 16,
+    fontSize: 18,
     fontFamily: FontFamily.regular,
     color: HUB.textSecondary,
-    marginBottom: 8,
+  },
+  paywallPricePer: {
+    fontSize: 14,
+    fontFamily: FontFamily.regular,
+    color: HUB.textSecondary,
+  },
+  heroFeatureList: {
+    gap: Spacing.lg,
   },
   featureList: {
-    gap: Spacing.lg,
+    gap: Spacing.xl,
     borderRadius: BorderRadius.large,
     borderWidth: 1,
     borderColor: HUB.border,
     backgroundColor: HUB.surface,
-    padding: Spacing.lg,
+    padding: Spacing.xl,
   },
   featureRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: Spacing.md,
   },
   featureIconWrap: {
@@ -774,22 +826,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    marginTop: 1,
-  },
-  featureTextWrap: {
-    flex: 1,
-    gap: 3,
   },
   featureLabel: {
     fontSize: 15,
     fontFamily: FontFamily.semibold,
     color: HUB.textPrimary,
-  },
-  featureDescription: {
-    fontSize: 13,
-    fontFamily: FontFamily.regular,
-    color: HUB.textSecondary,
-    lineHeight: 18,
+    flex: 1,
+    lineHeight: 21,
   },
   paywallFooter: {
     position: 'absolute',
@@ -797,11 +840,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.lg,
+    paddingTop: Spacing['3xl'],
     gap: Spacing.sm,
-    backgroundColor: HUB.background,
-    borderTopWidth: 1,
-    borderTopColor: HUB.border,
     alignItems: 'center',
   },
   seeAllBtn: {

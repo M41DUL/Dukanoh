@@ -156,7 +156,7 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="seller-hub"
-          options={{ animation: 'slide_from_bottom', presentation: 'modal' }}
+          options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
         />
         <Stack.Screen
           name="settings/address"
