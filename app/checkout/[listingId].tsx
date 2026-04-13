@@ -198,6 +198,7 @@ export default function CheckoutScreen() {
       <Header title="Checkout" showBack />
 
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
@@ -386,12 +387,14 @@ export default function CheckoutScreen() {
 
 function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
+    scrollView: {
+      flex: 1,
+    },
     scroll: {
       paddingTop: Spacing.base,
       paddingBottom: Spacing['2xl'],
     },
     section: {
-      paddingHorizontal: Spacing.base,
       paddingVertical: Spacing.base,
       gap: Spacing.sm,
     },
@@ -424,7 +427,7 @@ function getStyles(_colors: ColorTokens) {
     },
     divider: {
       height: StyleSheet.hairlineWidth,
-      marginHorizontal: Spacing.base,
+      marginHorizontal: -Spacing.base,
     },
     paymentOptions: {
       gap: Spacing.sm,
@@ -529,7 +532,6 @@ function getStyles(_colors: ColorTokens) {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: Spacing.base,
       paddingVertical: Spacing.base,
     },
     totalLabel: {
