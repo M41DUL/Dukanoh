@@ -40,7 +40,7 @@ const STALE_MS = 30_000;
 export function ProProfileTab() {
   const P = useProColors();
   const insets = useSafeAreaInsets();
-  const { user, username, isVerified, sellerTier } = useAuth();
+  const { user, username } = useAuth();
 
   const [refreshing, setRefreshing] = useState(false);
   const [profileName, setProfileName] = useState('');
@@ -181,7 +181,7 @@ export function ProProfileTab() {
       icon: 'receipt-outline',
       label: 'Orders',
       badge: analytics?.pendingOrders || undefined,
-      onPress: () => router.push('/orders?tab=orders'),
+      onPress: () => router.push('/seller-orders'),
     },
     {
       icon: 'settings-outline',
@@ -206,9 +206,9 @@ export function ProProfileTab() {
       >
         {/* ── Header: avatar left · name centre · rating right ── */}
         <View style={styles.headerRow}>
-          {/* Left: avatar — 32px */}
+          {/* Left: avatar — 40px with gold Pro checkmark badge */}
           <View style={styles.headerSide}>
-            <TouchableOpacity onPress={() => router.push('/edit-profile')} hitSlop={8}>
+            <TouchableOpacity onPress={() => router.push('/edit-profile')} hitSlop={8} style={styles.avatarWrap}>
               {profileAvatar ? (
                 <Image
                   source={{ uri: getImageUrl(profileAvatar, 'avatar') }}
@@ -219,6 +219,10 @@ export function ProProfileTab() {
                   <Text style={[styles.avatarInitials, { color: P.gradientBottom }]}>{initials}</Text>
                 </View>
               )}
+              {/* Gold Pro checkmark badge */}
+              <View style={[styles.proBadgeNotif, { backgroundColor: P.primary }]}>
+                <Ionicons name="checkmark" size={9} color={P.gradientBottom} />
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -245,18 +249,6 @@ export function ProProfileTab() {
             )}
           </View>
         </View>
-
-        {/* ── Verified / Founder pill — centred ── */}
-        {isVerified && (
-          <View style={styles.verifiedRow}>
-            <View style={[styles.verifiedPill, { backgroundColor: P.surface, borderColor: P.border }]}>
-              <Ionicons name="checkmark-circle" size={12} color={P.primary} />
-              <Text style={[styles.verifiedText, { color: P.textSecondary }]}>
-                {sellerTier === 'founder' ? 'Founder · Verified Seller' : 'Dukanoh Pro · Verified Seller'}
-              </Text>
-            </View>
-          </View>
-        )}
 
         {/* ── Balance carousel ── */}
         <View style={styles.carouselWrap}>
@@ -295,21 +287,18 @@ export function ProProfileTab() {
           <AnalyticCard
             label="Earned"
             value={analytics ? `£${analytics.thisMonthEarned.toFixed(0)}` : '—'}
-            icon="trending-up-outline"
             loading={analyticsLoading}
             P={P}
           />
           <AnalyticCard
             label="Views"
             value={analytics ? String(analytics.totalViews) : '—'}
-            icon="eye-outline"
             loading={analyticsLoading}
             P={P}
           />
           <AnalyticCard
             label="Saves"
             value={analytics ? String(analytics.totalSaves) : '—'}
-            icon="heart-outline"
             loading={analyticsLoading}
             P={P}
           />
@@ -335,15 +324,13 @@ export function ProProfileTab() {
 interface AnalyticCardProps {
   label: string;
   value: string;
-  icon: React.ComponentProps<typeof Ionicons>['name'];
   loading: boolean;
   P: ProColorTokens;
 }
 
-function AnalyticCard({ label, value, icon, loading, P }: AnalyticCardProps) {
+function AnalyticCard({ label, value, loading, P }: AnalyticCardProps) {
   return (
     <View style={[acStyles.card, { backgroundColor: P.surface }]}>
-      <Ionicons name={icon} size={18} color={P.textSecondary} />
       {loading ? (
         <ActivityIndicator size="small" color={P.primary} />
       ) : (
@@ -390,17 +377,33 @@ function getStyles(_P: ProColorTokens) {
     },
     // Left and right sides are equal width — ensures centre column is centred
     headerSide: {
-      width: 60,
+      width: 68,
+    },
+    avatarWrap: {
+      position: 'relative',
+      width: 40,
+      height: 40,
     },
     avatarCircle: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       overflow: 'hidden',
     },
     avatarInitials: {
-      fontSize: 12,
+      fontSize: 14,
       fontFamily: FontFamily.semibold,
+    },
+    // Gold Pro checkmark — notification badge style (bottom-right of avatar)
+    proBadgeNotif: {
+      position: 'absolute',
+      bottom: -1,
+      right: -1,
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     headerCenter: {
       flex: 1,
@@ -417,33 +420,15 @@ function getStyles(_P: ProColorTokens) {
       fontFamily: FontFamily.regular,
     },
     badgeCircle: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       alignItems: 'center',
       justifyContent: 'center',
     },
     badgeCircleRating: {
-      fontSize: 11,
+      fontSize: 12,
       fontFamily: FontFamily.semibold,
-    },
-
-    // Verified/founder pill — centred
-    verifiedRow: {
-      alignItems: 'center',
-    },
-    verifiedPill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.xs,
-      borderRadius: BorderRadius.full,
-      borderWidth: 1,
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 4,
-    },
-    verifiedText: {
-      fontSize: 11,
-      fontFamily: FontFamily.medium,
     },
 
     // Balance carousel wrapper — edge to edge within padding

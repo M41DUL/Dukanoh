@@ -9,14 +9,14 @@ import { Avatar } from '@/components/Avatar';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { LocationPicker } from '@/components/LocationPicker';
-import { Spacing, ColorTokens } from '@/constants/theme';
+import { Spacing, ColorTokens , proColorsDark } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
 export default function EditProfileScreen() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, sellerTier } = useAuth();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -161,6 +161,16 @@ export default function EditProfileScreen() {
           <Text style={styles.changePhoto}>Change photo</Text>
         </TouchableOpacity>
 
+        {/* Founder / Pro tier pill */}
+        {(sellerTier === 'founder' || sellerTier === 'pro') && (
+          <View style={[styles.tierPill, { backgroundColor: proColorsDark.primaryLight, borderColor: proColorsDark.primary + '40' }]}>
+            <Ionicons name="checkmark-circle" size={14} color={proColorsDark.primary} />
+            <Text style={[styles.tierPillText, { color: proColorsDark.primary }]}>
+              {sellerTier === 'founder' ? 'Founder' : 'Dukanoh Pro'}
+            </Text>
+          </View>
+        )}
+
         <Input
           label="Name"
           value={name}
@@ -228,6 +238,20 @@ function getStyles(colors: ColorTokens) {
     changePhoto: {
       fontSize: 14,
       color: colors.primaryText,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    tierPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      borderWidth: 1,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      alignSelf: 'center',
+    },
+    tierPillText: {
+      fontSize: 13,
       fontFamily: 'Inter_600SemiBold',
     },
     bioInput: {

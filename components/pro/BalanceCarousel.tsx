@@ -83,9 +83,11 @@ export function BalanceCarousel({ data, loading, P }: Props) {
         {pages.map(page => (
           <View
             key={page.key}
-            style={[styles.slide, { width: SCREEN_WIDTH - Spacing.xl * 2 }]}
+            style={[styles.slide, { width: SCREEN_WIDTH - Spacing.base * 2 }]}
           >
-            {/* Amount — centred, no card */}
+            {/* Label above amount */}
+            <Text style={[styles.label, { color: P.textSecondary }]}>{page.label}</Text>
+
             {loading ? (
               <ActivityIndicator color={P.primary} style={styles.loader} />
             ) : (
@@ -93,7 +95,6 @@ export function BalanceCarousel({ data, loading, P }: Props) {
                 £{page.value.toFixed(2)}
               </Text>
             )}
-            <Text style={[styles.label, { color: P.textSecondary }]}>{page.label}</Text>
             <Text style={[styles.subtitle, { color: P.textSecondary }]}>{page.subtitle}</Text>
 
             {/* Withdraw CTA — pill button, available page only */}
