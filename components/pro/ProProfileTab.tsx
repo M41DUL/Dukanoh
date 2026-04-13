@@ -170,7 +170,7 @@ export function ProProfileTab() {
       icon: 'bag-outline',
       label: 'Listings',
       badge: analytics?.activeListings ?? undefined,
-      onPress: () => router.push('/orders'),
+      onPress: () => router.push('/listings?title=My+Listings&myListings=true'),
     },
     {
       icon: 'flash-outline',
@@ -394,10 +394,10 @@ function getStyles(_P: ProColorTokens) {
       fontSize: 14,
       fontFamily: FontFamily.semibold,
     },
-    // Gold Pro checkmark — notification badge style (bottom-right of avatar)
+    // Gold Pro checkmark — notification badge style (top-right of avatar)
     proBadgeNotif: {
       position: 'absolute',
-      bottom: -1,
+      top: -1,
       right: -1,
       width: 16,
       height: 16,
@@ -441,6 +441,7 @@ function getStyles(_P: ProColorTokens) {
     quickLinks: {
       flexDirection: 'row',
       justifyContent: 'space-between',
+      paddingVertical: Spacing.sm,
     },
     quickLink: {
       alignItems: 'center',
