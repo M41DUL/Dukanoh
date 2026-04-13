@@ -33,6 +33,9 @@ interface ListingSummary {
   images: string[];
   seller_id: string;
   status: string;
+  size: string | null;
+  condition: string | null;
+  seller: { username: string } | null;
 }
 
 interface AddressState {
@@ -74,7 +77,7 @@ export default function CheckoutScreen() {
         const [{ data: listingData }, { data: userData }] = await Promise.all([
           supabase
             .from('listings')
-            .select('id, title, price, images, seller_id, status')
+            .select('id, title, price, images, seller_id, status, size, condition, seller:users!listings_seller_id_fkey(username)')
             .eq('id', listingId)
             .single(),
           supabase
@@ -95,7 +98,7 @@ export default function CheckoutScreen() {
           return;
         }
 
-        setListing(listingData);
+        setListing(listingData as unknown as ListingSummary);
         if (userData?.address_line1) setAddress(userData);
         setLoading(false);
       })();
@@ -207,7 +210,7 @@ export default function CheckoutScreen() {
         {/* ── Order summary ─────────────────────────────────────── */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Order summary</Text>
-          <View style={styles.itemRow}>
+          <View style={[styles.itemCard, { backgroundColor: colors.surface }]}>
             {listing.images?.[0] ? (
               <Image
                 source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
@@ -215,12 +218,22 @@ export default function CheckoutScreen() {
                 contentFit="cover"
               />
             ) : (
-              <View style={[styles.itemImage, { backgroundColor: colors.surface }]} />
+              <View style={[styles.itemImage, { backgroundColor: colors.surfaceAlt }]} />
             )}
             <View style={styles.itemInfo}>
               <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
                 {listing.title}
               </Text>
+              {(listing.size || listing.condition) && (
+                <Text style={[styles.itemMeta, { color: colors.textSecondary }]}>
+                  {[listing.size, listing.condition].filter(Boolean).join(' · ')}
+                </Text>
+              )}
+              {listing.seller?.username && (
+                <Text style={[styles.itemSeller, { color: colors.textSecondary }]}>
+                  @{listing.seller.username}
+                </Text>
+              )}
             </View>
           </View>
         </View>
@@ -497,28 +510,35 @@ function getStyles(colors: ColorTokens) {
       fontSize: 13,
       fontFamily: 'Inter_400Regular',
     },
-    itemRow: {
+    itemCard: {
       flexDirection: 'row',
       gap: Spacing.md,
-      alignItems: 'center',
+      borderRadius: BorderRadius.large,
+      padding: Spacing.md,
     },
     itemImage: {
-      width: 64,
-      height: 80,
-      borderRadius: BorderRadius.small,
+      width: 72,
+      height: 90,
+      borderRadius: BorderRadius.medium,
+      flexShrink: 0,
     },
     itemInfo: {
       flex: 1,
-      gap: Spacing.xs,
+      gap: 4,
+      justifyContent: 'center',
     },
     itemTitle: {
       fontSize: 14,
       fontFamily: 'Inter_500Medium',
       lineHeight: 20,
     },
-    itemPrice: {
-      fontSize: 15,
-      fontFamily: 'Inter_700Bold',
+    itemMeta: {
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+    },
+    itemSeller: {
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
     },
     inlineDivider: {
       height: StyleSheet.hairlineWidth,
