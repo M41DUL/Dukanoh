@@ -35,7 +35,6 @@ interface ListingSummary {
   status: string;
   size: string | null;
   condition: string | null;
-  seller: { username: string } | null;
 }
 
 interface AddressState {
@@ -77,7 +76,7 @@ export default function CheckoutScreen() {
         const [{ data: listingData }, { data: userData }] = await Promise.all([
           supabase
             .from('listings')
-            .select('id, title, price, images, seller_id, status, size, condition, seller:users!listings_seller_id_fkey(username)')
+            .select('id, title, price, images, seller_id, status, size, condition')
             .eq('id', listingId)
             .single(),
           supabase
@@ -209,7 +208,6 @@ export default function CheckoutScreen() {
       >
         {/* ── Order summary ─────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Order summary</Text>
           <View style={[styles.itemCard, { backgroundColor: colors.surface }]}>
             {listing.images?.[0] ? (
               <Image
@@ -227,11 +225,6 @@ export default function CheckoutScreen() {
               {(listing.size || listing.condition) && (
                 <Text style={[styles.itemMeta, { color: colors.textSecondary }]}>
                   {[listing.size, listing.condition].filter(Boolean).join(' · ')}
-                </Text>
-              )}
-              {listing.seller?.username && (
-                <Text style={[styles.itemSeller, { color: colors.textSecondary }]}>
-                  @{listing.seller.username}
                 </Text>
               )}
             </View>
@@ -517,15 +510,16 @@ function getStyles(colors: ColorTokens) {
       padding: Spacing.md,
     },
     itemImage: {
-      width: 72,
-      height: 90,
-      borderRadius: BorderRadius.medium,
+      width: 100,
+      height: 125,
+      borderRadius: BorderRadius.large,
       flexShrink: 0,
     },
     itemInfo: {
       flex: 1,
       gap: 4,
-      justifyContent: 'center',
+      justifyContent: 'flex-start',
+      paddingTop: 2,
     },
     itemTitle: {
       fontSize: 14,
@@ -533,10 +527,6 @@ function getStyles(colors: ColorTokens) {
       lineHeight: 20,
     },
     itemMeta: {
-      fontSize: 12,
-      fontFamily: 'Inter_400Regular',
-    },
-    itemSeller: {
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
     },
