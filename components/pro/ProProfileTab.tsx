@@ -170,7 +170,7 @@ export function ProProfileTab() {
       icon: 'bag-outline',
       label: 'Listings',
       badge: analytics?.activeListings ?? undefined,
-      onPress: () => router.push('/listings?title=My+Listings&myListings=true'),
+      onPress: () => router.push('/orders'),
     },
     {
       icon: 'flash-outline',
@@ -181,7 +181,7 @@ export function ProProfileTab() {
       icon: 'receipt-outline',
       label: 'Orders',
       badge: analytics?.pendingOrders || undefined,
-      onPress: () => router.push('/orders'),
+      onPress: () => router.push('/orders?tab=orders'),
     },
     {
       icon: 'settings-outline',
@@ -191,7 +191,6 @@ export function ProProfileTab() {
   ];
 
   const initials = (profileName || username)[0]?.toUpperCase() ?? '?';
-  const isFounder = sellerTier === 'founder';
 
   return (
     <LinearGradient
@@ -205,33 +204,40 @@ export function ProProfileTab() {
         }
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing.md, paddingBottom: insets.bottom + Spacing['3xl'] }]}
       >
-        {/* ── Row 1: avatar left · badges right ── */}
+        {/* ── Header: avatar left · name centre · rating right ── */}
         <View style={styles.headerRow}>
-          {/* Avatar — 32px to match badge circles */}
-          <TouchableOpacity onPress={() => router.push('/edit-profile')} hitSlop={8}>
-            {profileAvatar ? (
-              <Image
-                source={{ uri: getImageUrl(profileAvatar, 'avatar') }}
-                style={styles.avatarCircle}
-              />
-            ) : (
-              <View style={[styles.avatarCircle, { backgroundColor: P.primary, alignItems: 'center', justifyContent: 'center' }]}>
-                <Text style={[styles.avatarInitials, { color: P.gradientBottom }]}>{initials}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {/* Left: avatar — 32px */}
+          <View style={styles.headerSide}>
+            <TouchableOpacity onPress={() => router.push('/edit-profile')} hitSlop={8}>
+              {profileAvatar ? (
+                <Image
+                  source={{ uri: getImageUrl(profileAvatar, 'avatar') }}
+                  style={styles.avatarCircle}
+                />
+              ) : (
+                <View style={[styles.avatarCircle, { backgroundColor: P.primary, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Text style={[styles.avatarInitials, { color: P.gradientBottom }]}>{initials}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
 
-          <View style={styles.spacer} />
-
-          {/* Badge circles */}
-          <View style={styles.badgeRow}>
-            <View style={[styles.badgeCircle, { backgroundColor: P.primary }]}>
-              <Text style={[styles.badgeCircleText, { color: P.gradientBottom }]}>
-                {isFounder ? 'F' : '◆'}
+          {/* Centre: name + username */}
+          <View style={styles.headerCenter}>
+            {profileName ? (
+              <Text style={[styles.headerName, { color: P.textPrimary }]} numberOfLines={1}>
+                {profileName}
               </Text>
-            </View>
+            ) : null}
+            <Text style={[styles.headerUsername, { color: P.textSecondary }]} numberOfLines={1}>
+              @{username}
+            </Text>
+          </View>
+
+          {/* Right: rating circle (or empty space to keep name centred) */}
+          <View style={styles.headerSide}>
             {ratingCount > 0 && (
-              <View style={[styles.badgeCircle, { backgroundColor: P.surface, borderColor: P.border, borderWidth: 1 }]}>
+              <View style={[styles.badgeCircle, { backgroundColor: P.surface, borderColor: P.border, borderWidth: 1, alignSelf: 'flex-end' }]}>
                 <Text style={[styles.badgeCircleRating, { color: P.primary }]}>
                   {ratingAvg.toFixed(1)}
                 </Text>
@@ -240,25 +246,13 @@ export function ProProfileTab() {
           </View>
         </View>
 
-        {/* ── Row 2: name + username centred ── */}
-        <View style={styles.nameBlock}>
-          {profileName ? (
-            <Text style={[styles.headerName, { color: P.textPrimary }]} numberOfLines={1}>
-              {profileName}
-            </Text>
-          ) : null}
-          <Text style={[styles.headerUsername, { color: P.textSecondary }]} numberOfLines={1}>
-            @{username}
-          </Text>
-        </View>
-
         {/* ── Verified / Founder pill — centred ── */}
         {isVerified && (
           <View style={styles.verifiedRow}>
             <View style={[styles.verifiedPill, { backgroundColor: P.surface, borderColor: P.border }]}>
               <Ionicons name="checkmark-circle" size={12} color={P.primary} />
               <Text style={[styles.verifiedText, { color: P.textSecondary }]}>
-                {isFounder ? 'Founder · Verified Seller' : 'Dukanoh Pro · Verified Seller'}
+                {sellerTier === 'founder' ? 'Founder · Verified Seller' : 'Dukanoh Pro · Verified Seller'}
               </Text>
             </View>
           </View>
@@ -348,7 +342,7 @@ interface AnalyticCardProps {
 
 function AnalyticCard({ label, value, icon, loading, P }: AnalyticCardProps) {
   return (
-    <View style={[acStyles.card, { backgroundColor: P.surface, borderColor: P.border }]}>
+    <View style={[acStyles.card, { backgroundColor: P.surface }]}>
       <Ionicons name={icon} size={18} color={P.textSecondary} />
       {loading ? (
         <ActivityIndicator size="small" color={P.primary} />
@@ -364,7 +358,6 @@ const acStyles = StyleSheet.create({
   card: {
     flex: 1,
     borderRadius: BorderRadius.large,
-    borderWidth: 1,
     padding: Spacing.lg,
     alignItems: 'center',
     gap: Spacing.xs,
@@ -390,10 +383,14 @@ function getStyles(_P: ProColorTokens) {
       gap: Spacing.lg,
     },
 
-    // Row 1: avatar (left) + badges (right)
+    // Header: 3-column layout keeps name truly centred
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
+    },
+    // Left and right sides are equal width — ensures centre column is centred
+    headerSide: {
+      width: 60,
     },
     avatarCircle: {
       width: 32,
@@ -405,31 +402,8 @@ function getStyles(_P: ProColorTokens) {
       fontSize: 12,
       fontFamily: FontFamily.semibold,
     },
-    spacer: {
+    headerCenter: {
       flex: 1,
-    },
-    badgeRow: {
-      flexDirection: 'row',
-      gap: Spacing.xs,
-    },
-    badgeCircle: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    badgeCircleText: {
-      fontSize: 13,
-      fontFamily: FontFamily.semibold,
-    },
-    badgeCircleRating: {
-      fontSize: 11,
-      fontFamily: FontFamily.semibold,
-    },
-
-    // Row 2: name + username centred
-    nameBlock: {
       alignItems: 'center',
       gap: 2,
     },
@@ -441,6 +415,17 @@ function getStyles(_P: ProColorTokens) {
     headerUsername: {
       fontSize: 13,
       fontFamily: FontFamily.regular,
+    },
+    badgeCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    badgeCircleRating: {
+      fontSize: 11,
+      fontFamily: FontFamily.semibold,
     },
 
     // Verified/founder pill — centred

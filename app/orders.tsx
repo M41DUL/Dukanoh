@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { TabBar } from '@/components/TabBar';
@@ -66,9 +66,17 @@ const ACTION_REQUIRED: OrderStatus[] = ['paid', 'shipped', 'disputed'];
 
 export default function OrdersScreen() {
   const { user } = useAuth();
+  const { tab } = useLocalSearchParams<{ tab?: Tab }>();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const [activeTab, setActiveTab] = useState<Tab>('selling');
+
+  // Honour ?tab= param from deep links (e.g. from Pro profile quick links)
+  useEffect(() => {
+    if (tab && ['selling', 'drafts', 'bought', 'orders'].includes(tab)) {
+      setActiveTab(tab as Tab);
+    }
+  }, [tab]);
   const [selling, setSelling] = useState<Listing[]>([]);
   const [drafts, setDrafts] = useState<Listing[]>([]);
   const [bought, setBought] = useState<Listing[]>([]);
@@ -162,6 +170,7 @@ export default function OrdersScreen() {
         <LoadingSpinner />
       ) : activeTab === 'orders' ? (
         <FlatList
+          key="orders"
           data={orders}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
@@ -218,6 +227,7 @@ export default function OrdersScreen() {
         />
       ) : (
         <FlatList
+          key={`grid-${activeTab}`}
           data={listingData}
           keyExtractor={item => item.id}
           numColumns={2}
