@@ -6,7 +6,6 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
-  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -16,10 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
-import { BottomBar } from '@/components/BottomBar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { calcProtectionFee, calcOrderTotal, formatGBP } from '@/lib/paymentHelpers';
@@ -56,6 +55,7 @@ export default function CheckoutScreen() {
   const { listingId } = useLocalSearchParams<{ listingId: string }>();
   const { user } = useAuth();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [listing, setListing] = useState<ListingSummary | null>(null);
@@ -198,9 +198,8 @@ export default function CheckoutScreen() {
     <ScreenWrapper>
       <Header title="Checkout" showBack />
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <View style={styles.inner}>
       <ScrollView
-        style={styles.scrollView}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
@@ -367,31 +366,31 @@ export default function CheckoutScreen() {
       </ScrollView>
 
       {/* ── Sticky CTA ────────────────────────────────────────── */}
-      <BottomBar>
-
-        <View style={styles.ctaContainer}>
-          <Button
-            label={`Submit Payment · ${formatGBP(total)}`}
-            onPress={handlePlaceOrder}
-            loading={placing}
-            disabled={!hasAddress}
-            style={{ flex: 1 }}
-          />
-          {!hasAddress && (
-            <Text style={[styles.disabledNote, { color: colors.textSecondary }]}>
-              Add a delivery address to continue
-            </Text>
-          )}
-        </View>
-      </BottomBar>
-      </KeyboardAvoidingView>
+      <View style={[styles.stickyBar, {
+        borderTopColor: colors.border,
+        backgroundColor: colors.background,
+        paddingBottom: insets.bottom + Spacing.sm,
+      }]}>
+        <Button
+          label={`Submit Payment · ${formatGBP(total)}`}
+          onPress={handlePlaceOrder}
+          loading={placing}
+          disabled={!hasAddress}
+        />
+        {!hasAddress && (
+          <Text style={[styles.disabledNote, { color: colors.textSecondary }]}>
+            Add a delivery address to continue
+          </Text>
+        )}
+      </View>
+      </View>
     </ScreenWrapper>
   );
 }
 
 function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
-    scrollView: {
+    inner: {
       flex: 1,
     },
     scroll: {
@@ -546,8 +545,9 @@ function getStyles(_colors: ColorTokens) {
       fontSize: 17,
       fontFamily: 'Inter_700Bold',
     },
-    ctaContainer: {
-      flex: 1,
+    stickyBar: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingTop: Spacing.base,
       gap: Spacing.sm,
     },
     disabledNote: {
