@@ -379,7 +379,7 @@ function getStyles(_P: ProColorTokens) {
       flex: 1,
     },
     scroll: {
-      paddingHorizontal: Spacing.xl,
+      paddingHorizontal: Spacing.base,
       gap: Spacing.lg,
     },
 
@@ -448,8 +448,8 @@ function getStyles(_P: ProColorTokens) {
 
     // Balance carousel wrapper — edge to edge within padding
     carouselWrap: {
-      marginHorizontal: -Spacing.xl,
-      paddingHorizontal: Spacing.xl,
+      marginHorizontal: -Spacing.base,
+      paddingHorizontal: Spacing.base,
     },
 
     // Quick links — no card, just the row
