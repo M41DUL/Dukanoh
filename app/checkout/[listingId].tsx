@@ -5,9 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
@@ -17,12 +16,13 @@ import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Spacing, BorderRadius } from '@/constants/theme';
+import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { BottomBar } from '@/components/BottomBar';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { calcProtectionFee, calcOrderTotal, formatGBP } from '@/lib/paymentHelpers';
+
+type PaymentMethod = 'apple_pay' | 'google_pay' | 'card';
 
 interface ListingSummary {
   id: string;
@@ -41,17 +41,27 @@ interface AddressState {
   country: string;
 }
 
+const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string }[] = [
+  { key: 'apple_pay',  label: 'Apple Pay',  icon: Platform.OS === 'ios' ? 'logo-apple' : 'logo-google' },
+  { key: 'google_pay', label: 'Google Pay', icon: 'logo-google' },
+  { key: 'card',       label: 'Credit / Debit card', icon: 'card-outline' },
+];
+
+// On iOS default to Apple Pay, on Android default to Google Pay
+const DEFAULT_METHOD: PaymentMethod = Platform.OS === 'ios' ? 'apple_pay' : 'google_pay';
 
 export default function CheckoutScreen() {
   const { listingId } = useLocalSearchParams<{ listingId: string }>();
   const { user } = useAuth();
   const colors = useThemeColors();
-  const styles = useMemo(() => getStyles(), []);
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [listing, setListing] = useState<ListingSummary | null>(null);
   const [address, setAddress] = useState<AddressState | null>(null);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(DEFAULT_METHOD);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -83,9 +93,7 @@ export default function CheckoutScreen() {
         }
 
         setListing(listingData);
-        if (userData?.address_line1) {
-          setAddress(userData);
-        }
+        if (userData?.address_line1) setAddress(userData);
         setLoading(false);
       })();
     }, [user, listingId])
@@ -112,8 +120,20 @@ export default function CheckoutScreen() {
 
     setPlacing(true);
 
-    // Create order (status: 'paid' — mock until payment provider is wired)
-    // Snapshot the delivery address so it's fixed even if the buyer updates their profile later.
+    // Re-check listing is still available (race condition guard)
+    const { data: freshListing } = await supabase
+      .from('listings')
+      .select('status')
+      .eq('id', listing.id)
+      .single();
+
+    if (freshListing?.status !== 'available') {
+      setPlacing(false);
+      Alert.alert('No longer available', 'This listing was just sold. Please browse other items.');
+      router.back();
+      return;
+    }
+
     const { data: order, error } = await supabase
       .from('orders')
       .insert({
@@ -139,14 +159,12 @@ export default function CheckoutScreen() {
       return;
     }
 
-    // Mark listing as sold
     const { error: listingError } = await supabase
       .from('listings')
       .update({ status: 'sold', buyer_id: user.id, sold_at: new Date().toISOString() })
       .eq('id', listing.id);
 
     if (listingError) {
-      // Rollback: cancel the order so the listing doesn't get orphaned
       await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.id);
       setPlacing(false);
       Alert.alert('Error', 'Could not complete order. Please try again.');
@@ -169,154 +187,302 @@ export default function CheckoutScreen() {
   if (!listing) return null;
 
   const hasAddress = !!address?.address_line1;
-  const addressLine2 = address?.address_line2 ? `\n${address.address_line2}` : '';
-  const addressDisplay = hasAddress
-    ? `${address?.address_line1}${addressLine2}\n${address?.city}  ${address?.postcode}\n${address?.country}`
+  const addressLine2 = address?.address_line2 ? `, ${address.address_line2}` : '';
+  const addressOneLine = hasAddress
+    ? `${address?.address_line1}${addressLine2}, ${address?.city}, ${address?.postcode}`
     : null;
 
   return (
     <ScreenWrapper>
       <Header title="Checkout" showBack />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Item summary */}
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Item</Text>
-            <View style={styles.itemRow}>
-              {listing.images?.[0] ? (
-                <Image
-                  source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
-                  style={styles.itemImage}
-                  contentFit="cover"
-                />
-              ) : (
-                <View style={[styles.itemImage, styles.itemImagePlaceholder, { backgroundColor: colors.surfaceAlt }]} />
-              )}
-              <View style={styles.itemInfo}>
-                <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
-                  {listing.title}
-                </Text>
-                <Text style={[styles.itemPrice, { color: colors.textPrimary }]}>
+
+        {/* ── Delivery ──────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Delivery</Text>
+            <TouchableOpacity onPress={() => router.push('/settings/address')} hitSlop={8}>
+              <Text style={[styles.sectionAction, { color: colors.primary }]}>
+                {hasAddress ? 'Change' : 'Add address'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {hasAddress ? (
+            <Text style={[styles.sectionBody, { color: colors.textSecondary }]}>
+              {addressOneLine}
+            </Text>
+          ) : (
+            <View style={styles.inlineAlert}>
+              <Ionicons name="location-outline" size={15} color={colors.error} />
+              <Text style={[styles.inlineAlertText, { color: colors.error }]}>
+                No delivery address saved
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+        {/* ── Payment method ────────────────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Payment</Text>
+          </View>
+
+          <View style={styles.paymentOptions}>
+            {PAYMENT_OPTIONS.map(option => {
+              const active = selectedMethod === option.key;
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[
+                    styles.paymentOption,
+                    {
+                      borderColor: active ? colors.primary : colors.border,
+                      backgroundColor: active ? `${colors.primary}08` : 'transparent',
+                    },
+                  ]}
+                  onPress={() => setSelectedMethod(option.key)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.paymentOptionLeft}>
+                    <Ionicons
+                      name={option.icon as any}
+                      size={18}
+                      color={active ? colors.primary : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.paymentOptionLabel,
+                        { color: active ? colors.textPrimary : colors.textSecondary },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.radioOuter,
+                    { borderColor: active ? colors.primary : colors.border },
+                  ]}>
+                    {active && <View style={[styles.radioInner, { backgroundColor: colors.primary }]} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {selectedMethod === 'card' && (
+            <View style={[styles.cardPlaceholder, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+              <Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.cardPlaceholderText, { color: colors.textSecondary }]}>
+                Card details — available when payments go live
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+        {/* ── Order summary ─────────────────────────────────────── */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => setSummaryExpanded(e => !e)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Order summary</Text>
+            <Ionicons
+              name={summaryExpanded ? 'remove-outline' : 'add-outline'}
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {/* Item row — always visible */}
+          <View style={styles.itemRow}>
+            {listing.images?.[0] ? (
+              <Image
+                source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
+                style={styles.itemImage}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.itemImage, { backgroundColor: colors.surface }]} />
+            )}
+            <View style={styles.itemInfo}>
+              <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
+                {listing.title}
+              </Text>
+              <Text style={[styles.itemPrice, { color: colors.textPrimary }]}>
+                {formatGBP(listing.price)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Expanded breakdown */}
+          {summaryExpanded && (
+            <View style={styles.breakdown}>
+              <View style={[styles.breakdownDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.feeRow}>
+                <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Item price</Text>
+                <Text style={[styles.feeValue, { color: colors.textSecondary }]}>
                   {formatGBP(listing.price)}
                 </Text>
               </View>
-            </View>
-          </View>
-
-          {/* Delivery address */}
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Deliver to</Text>
-              <TouchableOpacity onPress={() => router.push('/settings/address')} hitSlop={8}>
-                <Text style={[styles.editLink, { color: colors.primaryText }]}>
-                  {hasAddress ? 'Edit' : 'Add address'}
+              <View style={styles.feeRow}>
+                <View style={styles.feeLabelRow}>
+                  <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Buyer protection</Text>
+                  <Ionicons name="shield-checkmark-outline" size={13} color={colors.success} style={{ marginLeft: 4 }} />
+                </View>
+                <Text style={[styles.feeValue, { color: colors.textSecondary }]}>
+                  {formatGBP(protectionFee)}
                 </Text>
-              </TouchableOpacity>
-            </View>
-            {hasAddress ? (
-              <Text style={[styles.addressText, { color: colors.textPrimary }]}>
-                {addressDisplay}
+              </View>
+              <Text style={[styles.protectionNote, { color: colors.textSecondary }]}>
+                Buyer protection covers you if the item doesn't arrive or isn't as described.
               </Text>
-            ) : (
-              <View style={styles.noAddressRow}>
-                <Ionicons name="location-outline" size={18} color={colors.textSecondary} />
-                <Text style={[styles.noAddressText, { color: colors.textSecondary }]}>
-                  No delivery address saved
-                </Text>
-              </View>
-            )}
-          </View>
+            </View>
+          )}
+        </View>
 
-          {/* Fee breakdown */}
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Order summary</Text>
-            <View style={styles.feeRow}>
-              <Text style={[styles.feeLabel, { color: colors.textPrimary }]}>Item price</Text>
-              <Text style={[styles.feeValue, { color: colors.textPrimary }]}>{formatGBP(listing.price)}</Text>
-            </View>
-            <View style={styles.feeRow}>
-              <View style={styles.feeLabelRow}>
-                <Text style={[styles.feeLabel, { color: colors.textPrimary }]}>Buyer protection</Text>
-                <Ionicons name="shield-checkmark-outline" size={14} color={colors.success} style={{ marginLeft: 4 }} />
-              </View>
-              <Text style={[styles.feeValue, { color: colors.textPrimary }]}>{formatGBP(protectionFee)}</Text>
-            </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <View style={styles.feeRow}>
-              <Text style={[styles.totalLabel, { color: colors.textPrimary }]}>Total</Text>
-              <Text style={[styles.totalValue, { color: colors.textPrimary }]}>{formatGBP(total)}</Text>
-            </View>
-            <Text style={[styles.protectionNote, { color: colors.textSecondary }]}>
-              Buyer protection covers you if the item doesn't arrive or isn't as described.
-            </Text>
-          </View>
-        </ScrollView>
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        {/* Place order CTA */}
-        <BottomBar>
-          <Button
-            label={`Pay ${formatGBP(total)}`}
-            onPress={handlePlaceOrder}
-            loading={placing}
-            disabled={!hasAddress}
-            style={{ flex: 1 }}
-          />
-        </BottomBar>
-      </KeyboardAvoidingView>
+        {/* ── Total ─────────────────────────────────────────────── */}
+        <View style={styles.totalRow}>
+          <Text style={[styles.totalLabel, { color: colors.textPrimary }]}>
+            Total (tax included)
+          </Text>
+          <Text style={[styles.totalValue, { color: colors.textPrimary }]}>
+            {formatGBP(total)}
+          </Text>
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+        <Button
+          label={`Submit Payment · ${formatGBP(total)}`}
+          onPress={handlePlaceOrder}
+          loading={placing}
+          disabled={!hasAddress}
+          style={styles.submitBtn}
+        />
+
+        {!hasAddress && (
+          <Text style={[styles.disabledNote, { color: colors.textSecondary }]}>
+            Add a delivery address to continue
+          </Text>
+        )}
+      </ScrollView>
     </ScreenWrapper>
   );
 }
 
-function getStyles() {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
-    content: {
-      paddingTop: Spacing.base,
-      paddingBottom: Spacing['3xl'],
-      gap: Spacing.md,
+    scroll: {
+      paddingTop: Spacing.xl,
+      paddingBottom: Spacing['4xl'],
     },
-    card: {
-      borderRadius: BorderRadius.large,
-      padding: Spacing.base,
-      gap: Spacing.md,
+    section: {
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.base,
+      gap: Spacing.sm,
     },
-    sectionLabel: {
-      fontSize: 11,
-      fontFamily: 'Inter_600SemiBold',
-      letterSpacing: 0.6,
-      textTransform: 'uppercase',
-    },
-    sectionHeaderRow: {
+    sectionHeader: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
+      justifyContent: 'space-between',
     },
-    editLink: {
+    sectionTitle: {
+      fontSize: 15,
+      fontFamily: 'Inter_600SemiBold',
+    },
+    sectionAction: {
       fontSize: 13,
       fontFamily: 'Inter_600SemiBold',
+    },
+    sectionBody: {
+      fontSize: 14,
+      fontFamily: 'Inter_400Regular',
+      lineHeight: 20,
+    },
+    inlineAlert: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+    },
+    inlineAlertText: {
+      fontSize: 13,
+      fontFamily: 'Inter_400Regular',
+    },
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      marginHorizontal: Spacing.base,
+    },
+    paymentOptions: {
+      gap: Spacing.sm,
+    },
+    paymentOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderWidth: 1,
+      borderRadius: BorderRadius.medium,
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.md,
+    },
+    paymentOptionLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+    },
+    paymentOptionLabel: {
+      fontSize: 14,
+      fontFamily: 'Inter_500Medium',
+    },
+    radioOuter: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 1.5,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioInner: {
+      width: 9,
+      height: 9,
+      borderRadius: 5,
+    },
+    cardPlaceholder: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.sm,
+      borderWidth: 1,
+      borderRadius: BorderRadius.medium,
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.md,
+      borderStyle: 'dashed',
+    },
+    cardPlaceholderText: {
+      fontSize: 13,
+      fontFamily: 'Inter_400Regular',
     },
     itemRow: {
       flexDirection: 'row',
       gap: Spacing.md,
+      alignItems: 'center',
     },
     itemImage: {
-      width: 72,
-      height: 90,
-      borderRadius: BorderRadius.medium,
-    },
-    itemImagePlaceholder: {
-      width: 72,
-      height: 90,
-      borderRadius: BorderRadius.medium,
+      width: 64,
+      height: 80,
+      borderRadius: BorderRadius.small,
     },
     itemInfo: {
       flex: 1,
-      justifyContent: 'center',
       gap: Spacing.xs,
     },
     itemTitle: {
@@ -325,22 +491,14 @@ function getStyles() {
       lineHeight: 20,
     },
     itemPrice: {
-      fontSize: 18,
+      fontSize: 15,
       fontFamily: 'Inter_700Bold',
     },
-    addressText: {
-      fontSize: 14,
-      fontFamily: 'Inter_400Regular',
-      lineHeight: 22,
-    },
-    noAddressRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+    breakdown: {
       gap: Spacing.sm,
     },
-    noAddressText: {
-      fontSize: 14,
-      fontFamily: 'Inter_400Regular',
+    breakdownDivider: {
+      height: StyleSheet.hairlineWidth,
     },
     feeRow: {
       flexDirection: 'row',
@@ -352,29 +510,42 @@ function getStyles() {
       alignItems: 'center',
     },
     feeLabel: {
-      fontSize: 14,
+      fontSize: 13,
       fontFamily: 'Inter_400Regular',
     },
     feeValue: {
-      fontSize: 14,
+      fontSize: 13,
       fontFamily: 'Inter_500Medium',
-    },
-    divider: {
-      height: 1,
-      marginVertical: Spacing.xs,
-    },
-    totalLabel: {
-      fontSize: 15,
-      fontFamily: 'Inter_700Bold',
-    },
-    totalValue: {
-      fontSize: 18,
-      fontFamily: 'Inter_700Bold',
     },
     protectionNote: {
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
       lineHeight: 17,
+    },
+    totalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.base,
+    },
+    totalLabel: {
+      fontSize: 14,
+      fontFamily: 'Inter_500Medium',
+    },
+    totalValue: {
+      fontSize: 17,
+      fontFamily: 'Inter_700Bold',
+    },
+    submitBtn: {
+      marginHorizontal: Spacing.base,
+      marginTop: Spacing.base,
+    },
+    disabledNote: {
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+      textAlign: 'center',
+      marginTop: Spacing.sm,
     },
   });
 }
