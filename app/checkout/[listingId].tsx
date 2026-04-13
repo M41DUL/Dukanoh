@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
+import { BottomBar } from '@/components/BottomBar';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -195,10 +196,74 @@ export default function CheckoutScreen() {
   return (
     <ScreenWrapper>
       <Header title="Checkout" showBack />
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
+        {/* ── Order summary ─────────────────────────────────────── */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => setSummaryExpanded(e => !e)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Order summary</Text>
+            <Ionicons
+              name={summaryExpanded ? 'remove-outline' : 'add-outline'}
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {/* Item row — always visible */}
+          <View style={styles.itemRow}>
+            {listing.images?.[0] ? (
+              <Image
+                source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
+                style={styles.itemImage}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.itemImage, { backgroundColor: colors.surface }]} />
+            )}
+            <View style={styles.itemInfo}>
+              <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
+                {listing.title}
+              </Text>
+              <Text style={[styles.itemPrice, { color: colors.textPrimary }]}>
+                {formatGBP(listing.price)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Expanded breakdown */}
+          {summaryExpanded && (
+            <View style={styles.breakdown}>
+              <View style={[styles.breakdownDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.feeRow}>
+                <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Item price</Text>
+                <Text style={[styles.feeValue, { color: colors.textSecondary }]}>
+                  {formatGBP(listing.price)}
+                </Text>
+              </View>
+              <View style={styles.feeRow}>
+                <View style={styles.feeLabelRow}>
+                  <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Buyer protection</Text>
+                  <Ionicons name="shield-checkmark-outline" size={13} color={colors.success} style={{ marginLeft: 4 }} />
+                </View>
+                <Text style={[styles.feeValue, { color: colors.textSecondary }]}>
+                  {formatGBP(protectionFee)}
+                </Text>
+              </View>
+              <Text style={[styles.protectionNote, { color: colors.textSecondary }]}>
+                Buyer protection covers you if the item doesn't arrive or isn't as described.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
         {/* ── Delivery ──────────────────────────────────────────── */}
         <View style={styles.section}>
@@ -287,70 +352,6 @@ export default function CheckoutScreen() {
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        {/* ── Order summary ─────────────────────────────────────── */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => setSummaryExpanded(e => !e)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Order summary</Text>
-            <Ionicons
-              name={summaryExpanded ? 'remove-outline' : 'add-outline'}
-              size={20}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
-
-          {/* Item row — always visible */}
-          <View style={styles.itemRow}>
-            {listing.images?.[0] ? (
-              <Image
-                source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
-                style={styles.itemImage}
-                contentFit="cover"
-              />
-            ) : (
-              <View style={[styles.itemImage, { backgroundColor: colors.surface }]} />
-            )}
-            <View style={styles.itemInfo}>
-              <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
-                {listing.title}
-              </Text>
-              <Text style={[styles.itemPrice, { color: colors.textPrimary }]}>
-                {formatGBP(listing.price)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Expanded breakdown */}
-          {summaryExpanded && (
-            <View style={styles.breakdown}>
-              <View style={[styles.breakdownDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.feeRow}>
-                <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Item price</Text>
-                <Text style={[styles.feeValue, { color: colors.textSecondary }]}>
-                  {formatGBP(listing.price)}
-                </Text>
-              </View>
-              <View style={styles.feeRow}>
-                <View style={styles.feeLabelRow}>
-                  <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Buyer protection</Text>
-                  <Ionicons name="shield-checkmark-outline" size={13} color={colors.success} style={{ marginLeft: 4 }} />
-                </View>
-                <Text style={[styles.feeValue, { color: colors.textSecondary }]}>
-                  {formatGBP(protectionFee)}
-                </Text>
-              </View>
-              <Text style={[styles.protectionNote, { color: colors.textSecondary }]}>
-                Buyer protection covers you if the item doesn't arrive or isn't as described.
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
         {/* ── Total ─────────────────────────────────────────────── */}
         <View style={styles.totalRow}>
           <Text style={[styles.totalLabel, { color: colors.textPrimary }]}>
@@ -360,23 +361,25 @@ export default function CheckoutScreen() {
             {formatGBP(total)}
           </Text>
         </View>
-
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-        <Button
-          label={`Submit Payment · ${formatGBP(total)}`}
-          onPress={handlePlaceOrder}
-          loading={placing}
-          disabled={!hasAddress}
-          style={styles.submitBtn}
-        />
-
-        {!hasAddress && (
-          <Text style={[styles.disabledNote, { color: colors.textSecondary }]}>
-            Add a delivery address to continue
-          </Text>
-        )}
       </ScrollView>
+
+      {/* ── Sticky CTA ────────────────────────────────────────── */}
+      <BottomBar>
+        <View style={styles.ctaContainer}>
+          <Button
+            label={`Submit Payment · ${formatGBP(total)}`}
+            onPress={handlePlaceOrder}
+            loading={placing}
+            disabled={!hasAddress}
+            style={{ flex: 1 }}
+          />
+          {!hasAddress && (
+            <Text style={[styles.disabledNote, { color: colors.textSecondary }]}>
+              Add a delivery address to continue
+            </Text>
+          )}
+        </View>
+      </BottomBar>
     </ScreenWrapper>
   );
 }
@@ -384,8 +387,8 @@ export default function CheckoutScreen() {
 function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     scroll: {
-      paddingTop: Spacing.xl,
-      paddingBottom: Spacing['4xl'],
+      paddingTop: Spacing.base,
+      paddingBottom: Spacing['2xl'],
     },
     section: {
       paddingHorizontal: Spacing.base,
@@ -537,15 +540,14 @@ function getStyles(_colors: ColorTokens) {
       fontSize: 17,
       fontFamily: 'Inter_700Bold',
     },
-    submitBtn: {
-      marginHorizontal: Spacing.base,
-      marginTop: Spacing.base,
+    ctaContainer: {
+      flex: 1,
+      gap: Spacing.sm,
     },
     disabledNote: {
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
       textAlign: 'center',
-      marginTop: Spacing.sm,
     },
   });
 }
