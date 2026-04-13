@@ -170,6 +170,8 @@ async function handleOrderEmail(
 
     case 'completed': {
       // Seller: funds released (wallet credits full item_price — no platform fee at this stage)
+      // Distinguish auto-release (delivered_at IS NULL) from buyer confirmation (delivered_at IS NOT NULL)
+      const buyerConfirmed = !!record.delivered_at;
       if (sellerEmail) {
         sends.push(sendEmail({
           to: sellerEmail,
@@ -183,6 +185,7 @@ async function handleOrderEmail(
               itemRow({ title: itemTitle, image: itemImage, meta: `Sold for £${parseFloat(record.item_price).toFixed(2)}` }),
               summaryTable('Payout summary', [
                 ['Amount', `£${parseFloat(record.item_price).toFixed(2)}`],
+                ['Released by', buyerConfirmed ? 'Buyer confirmed receipt' : 'Auto-released after 2 days'],
                 ['Timeline', '2–5 business days'],
               ]),
             ],
@@ -289,25 +292,44 @@ async function handleOrderEmail(
   return new Response(JSON.stringify({ sent: sends.length }), { status: 200 });
 }
 
+// ─── Retry helper ─────────────────────────────────────────────
+
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+      }
+    }
+  }
+  throw lastError;
+}
+
 // ─── Resend ───────────────────────────────────────────────────
 
 async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
   const apiKey = Deno.env.get('RESEND_API_KEY');
   if (!apiKey) throw new Error('RESEND_API_KEY not set');
 
-  const res = await fetch(RESEND_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ from: FROM, to, subject, html }),
-  });
+  await withRetry(async () => {
+    const res = await fetch(RESEND_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: FROM, to, subject, html }),
+    });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Resend error ${res.status}: ${text}`);
-  }
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Resend error ${res.status}: ${text}`);
+    }
+  });
 }
 
 // ─── Template ─────────────────────────────────────────────────

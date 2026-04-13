@@ -334,6 +334,13 @@ export default function OrderDetailScreen() {
           <MetaRow label="Buyer protection" value={formatGBP(order.protection_fee)} colors={colors} />
           <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
           <MetaRow label="Total paid" value={formatGBP(order.total_paid)} bold colors={colors} />
+          {order.status === 'completed' && (
+            <MetaRow
+              label="Released by"
+              value={order.delivered_at ? 'Buyer confirmed receipt' : 'Auto-released after 2 days'}
+              colors={colors}
+            />
+          )}
         </View>
 
         {/* Tracking info (shown once shipped) */}

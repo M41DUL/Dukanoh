@@ -136,11 +136,14 @@ async function handleOrder(
     case 'shipped': {
       // Notify buyer
       const tokens = await getTokens(supabase, record.buyer_id);
+      const shippedBody = record.tracking_number
+        ? `${itemTitle} is on its way. Tracking: ${record.tracking_number}`
+        : `${itemTitle} is on its way to you.`;
       tokens.forEach(t => messages.push({
         to: t,
         sound: 'default',
         title: 'Order shipped!',
-        body: `${itemTitle} is on its way to you.`,
+        body: shippedBody,
         data: { order_id: record.id },
       }));
       break;

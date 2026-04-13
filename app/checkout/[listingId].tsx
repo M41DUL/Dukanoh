@@ -160,7 +160,12 @@ export default function CheckoutScreen() {
 
     if (error || !order) {
       setPlacing(false);
-      Alert.alert('Error', 'Could not place order. Please try again.');
+      if ((error as { code?: string })?.code === '23505') {
+        Alert.alert('Just missed it', 'Someone just bought this item. Browse to find something else.');
+        router.back();
+      } else {
+        Alert.alert('Error', 'Could not place order. Please try again.');
+      }
       return;
     }
 
