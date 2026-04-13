@@ -207,7 +207,7 @@ export default function CheckoutScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Order summary ─────────────────────────────────────── */}
-        <View style={styles.section}>
+        <View style={[styles.section, { paddingTop: 0 }]}>
           <View style={[styles.itemCard, { backgroundColor: colors.surface }]}>
             {listing.images?.[0] ? (
               <Image
@@ -512,7 +512,7 @@ function getStyles(colors: ColorTokens) {
     itemImage: {
       width: 100,
       height: 125,
-      borderRadius: BorderRadius.large,
+      borderRadius: BorderRadius.medium,
       flexShrink: 0,
     },
     itemInfo: {
