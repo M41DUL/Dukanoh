@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
 import { StarRating } from '@/components/StarRating';
+import { ProPaywallSheet } from '@/components/pro/ProPaywallSheet';
 import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -45,6 +46,9 @@ export default function ProfileScreen() {
   const [listingCount, setListingCount] = useState(0);
   const [hubSummary, setHubSummary] = useState<HubSummary | null>(null);
   const [hubSummaryLoading, setHubSummaryLoading] = useState(false);
+  const [paywallVisible, setPaywallVisible] = useState(false);
+  const [hadFreeTrial, setHadFreeTrial] = useState(false);
+  const [proExpired, setProExpired] = useState(false);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -55,7 +59,7 @@ export default function ProfileScreen() {
     const [{ data, error }, { count }] = await Promise.all([
       supabase
         .from('users')
-        .select('full_name, avatar_url, rating_avg, rating_count')
+        .select('full_name, avatar_url, rating_avg, rating_count, had_free_trial, pro_expires_at')
         .eq('id', user.id)
         .maybeSingle(),
       supabase
@@ -74,6 +78,9 @@ export default function ProfileScreen() {
       setProfileAvatar(data.avatar_url ?? undefined);
       setRatingAvg(data.rating_avg ?? 0);
       setRatingCount(data.rating_count ?? 0);
+      setHadFreeTrial(data.had_free_trial ?? false);
+      const expiresAt = data.pro_expires_at ? new Date(data.pro_expires_at) : null;
+      setProExpired(expiresAt !== null && expiresAt < new Date());
     }
     setListingCount(count ?? 0);
     lastFetchedRef.current = Date.now();
@@ -198,7 +205,11 @@ export default function ProfileScreen() {
         {(listingCount > 0 || sellerTier === 'free') && (
           <TouchableOpacity
             style={styles.hubCard}
-            onPress={() => router.push('/seller-hub')}
+            onPress={() =>
+              sellerTier === 'pro' || sellerTier === 'founder'
+                ? router.push('/seller-hub')
+                : setPaywallVisible(true)
+            }
             activeOpacity={0.85}
           >
             <LinearGradient
@@ -269,6 +280,14 @@ export default function ProfileScreen() {
         )}
 
       </ScrollView>
+
+      <ProPaywallSheet
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        isVerified={isVerified}
+        hadFreeTrial={hadFreeTrial}
+        proExpired={proExpired}
+      />
     </ScreenWrapper>
   );
 }
