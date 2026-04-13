@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
+import { BottomSheet } from '@/components/BottomSheet';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -63,6 +64,7 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(DEFAULT_METHOD);
+  const [protectionSheetVisible, setProtectionSheetVisible] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -318,21 +320,23 @@ export default function CheckoutScreen() {
             <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Item price</Text>
             <Text style={[styles.feeValue, { color: colors.textSecondary }]}>{formatGBP(listing.price)}</Text>
           </View>
-          <View style={styles.feeRow}>
+          <TouchableOpacity
+            style={styles.feeRow}
+            onPress={() => setProtectionSheetVisible(true)}
+            activeOpacity={0.7}
+          >
             <View style={styles.feeLabelRow}>
               <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Buyer protection</Text>
               <Ionicons name="shield-checkmark-outline" size={13} color={colors.success} style={{ marginLeft: 4 }} />
+              <Ionicons name="information-circle-outline" size={13} color={colors.textSecondary} style={{ marginLeft: 3 }} />
             </View>
             <Text style={[styles.feeValue, { color: colors.textSecondary }]}>{formatGBP(protectionFee)}</Text>
-          </View>
+          </TouchableOpacity>
           <View style={[styles.breakdownDivider, { backgroundColor: colors.border }]} />
           <View style={styles.feeRow}>
             <Text style={[styles.totalLabel, { color: colors.textPrimary }]}>Total (tax included)</Text>
             <Text style={[styles.totalValue, { color: colors.textPrimary }]}>{formatGBP(total)}</Text>
           </View>
-          <Text style={[styles.protectionNote, { color: colors.textSecondary }]}>
-            Buyer protection covers you if the item doesn't arrive or isn't as described.
-          </Text>
         </View>
       </ScrollView>
 
@@ -355,6 +359,41 @@ export default function CheckoutScreen() {
         )}
       </View>
       </View>
+
+      {/* ── Buyer protection sheet ────────────────────────────── */}
+      <BottomSheet
+        visible={protectionSheetVisible}
+        onClose={() => setProtectionSheetVisible(false)}
+        useModal
+      >
+        <View style={styles.sheetContent}>
+          <View style={styles.sheetIconRow}>
+            <Ionicons name="shield-checkmark" size={32} color={colors.success} />
+          </View>
+          <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Buyer protection</Text>
+          <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
+            Every order on Dukanoh is covered automatically.
+          </Text>
+
+          <View style={styles.sheetDivider} />
+
+          {[
+            { icon: 'cube-outline',       text: 'Item not received — full refund if your order never arrives.' },
+            { icon: 'alert-circle-outline', text: 'Not as described — refund if the item differs significantly from the listing.' },
+            { icon: 'lock-closed-outline', text: 'Secure checkout — your payment is held until you confirm the order is correct.' },
+          ].map(({ icon, text }) => (
+            <View key={icon} style={styles.sheetRow}>
+              <Ionicons name={icon as any} size={18} color={colors.success} style={styles.sheetRowIcon} />
+              <Text style={[styles.sheetRowText, { color: colors.textSecondary }]}>{text}</Text>
+            </View>
+          ))}
+
+          <View style={[styles.sheetFeeRow, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sheetFeeLabel, { color: colors.textSecondary }]}>Protection fee</Text>
+            <Text style={[styles.sheetFeeValue, { color: colors.textPrimary }]}>{formatGBP(protectionFee)}</Text>
+          </View>
+        </View>
+      </BottomSheet>
     </ScreenWrapper>
   );
 }
@@ -497,10 +536,59 @@ function getStyles(_colors: ColorTokens) {
       fontSize: 13,
       fontFamily: 'Inter_500Medium',
     },
-    protectionNote: {
-      fontSize: 12,
+    sheetContent: {
+      gap: Spacing.base,
+      paddingBottom: Spacing.base,
+    },
+    sheetIconRow: {
+      alignItems: 'center',
+      marginBottom: Spacing.xs,
+    },
+    sheetTitle: {
+      fontSize: 18,
+      fontFamily: 'Inter_700Bold',
+      textAlign: 'center',
+    },
+    sheetSubtitle: {
+      fontSize: 14,
       fontFamily: 'Inter_400Regular',
-      lineHeight: 17,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    sheetDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: 'transparent',
+    },
+    sheetRow: {
+      flexDirection: 'row',
+      gap: Spacing.md,
+      alignItems: 'flex-start',
+    },
+    sheetRowIcon: {
+      marginTop: 1,
+    },
+    sheetRowText: {
+      flex: 1,
+      fontSize: 14,
+      fontFamily: 'Inter_400Regular',
+      lineHeight: 20,
+    },
+    sheetFeeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      borderRadius: BorderRadius.medium,
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.md,
+      marginTop: Spacing.xs,
+    },
+    sheetFeeLabel: {
+      fontSize: 14,
+      fontFamily: 'Inter_400Regular',
+    },
+    sheetFeeValue: {
+      fontSize: 15,
+      fontFamily: 'Inter_700Bold',
     },
     totalLabel: {
       fontSize: 14,
