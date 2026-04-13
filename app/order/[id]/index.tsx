@@ -25,7 +25,7 @@ import { supabase } from '@/lib/supabase';
 import { formatGBP } from '@/lib/paymentHelpers';
 import { getOrderActions } from '@/lib/orderHelpers';
 
-type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'resolved' | 'cancelled';
+type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
 
 interface Order {
   id: string;
@@ -52,6 +52,7 @@ interface Order {
   delivery_postcode: string | null;
   delivery_country: string | null;
   disputed_at: string | null;
+  auto_release_at: string | null;
   listing: {
     title: string;
     images: string[];
@@ -75,7 +76,6 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   delivered: 'Delivered',
   completed: 'Completed',
   disputed: 'Disputed',
-  resolved: 'Resolved',
   cancelled: 'Cancelled',
 };
 
@@ -86,7 +86,6 @@ const STATUS_COLOR: Record<OrderStatus, string> = {
   delivered: '#22C55E',
   completed: '#22C55E',
   disputed: '#FF4444',
-  resolved: '#22C55E',
   cancelled: '#9B9B9B',
 };
 
@@ -145,11 +144,12 @@ export default function OrderDetailScreen() {
       p_tracking:  trackingNumber.trim(),
       p_courier:   courier.trim() || null,
     });
-    setSubmitting(false);
     if (error) {
+      setSubmitting(false);
       Alert.alert('Error', 'Could not update order. Please try again.');
     } else {
-      fetchOrder();
+      await fetchOrder();
+      setSubmitting(false);
     }
   };
 
@@ -175,8 +175,8 @@ export default function OrderDetailScreen() {
               })
               .eq('id', order.id)
               .eq('buyer_id', user.id);
+            await fetchOrder();
             setSubmitting(false);
-            fetchOrder();
           },
         },
       ]
@@ -218,8 +218,8 @@ export default function OrderDetailScreen() {
                 .from('cancellation_strikes')
                 .insert({ seller_id: user.id, order_id: order.id });
             }
+            await fetchOrder();
             setSubmitting(false);
-            fetchOrder();
           },
         },
       ]
@@ -247,8 +247,8 @@ export default function OrderDetailScreen() {
               })
               .eq('id', order.id)
               .eq('buyer_id', user.id);
+            await fetchOrder();
             setSubmitting(false);
-            fetchOrder();
           },
         },
       ]
@@ -333,6 +333,13 @@ export default function OrderDetailScreen() {
           <MetaRow label="Buyer protection" value={formatGBP(order.protection_fee)} colors={colors} />
           <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
           <MetaRow label="Total paid" value={formatGBP(order.total_paid)} bold colors={colors} />
+          {order.status === 'completed' && (
+            <MetaRow
+              label="Released by"
+              value={order.delivered_at ? 'Buyer confirmed receipt' : 'Auto-released after 2 days'}
+              colors={colors}
+            />
+          )}
         </View>
 
         {/* Tracking info (shown once shipped) */}
@@ -435,6 +442,14 @@ export default function OrderDetailScreen() {
             <Text style={[styles.hint, { color: colors.textSecondary }]}>
               Confirming receipt releases payment to the seller. If there's a problem, raise a dispute instead.
             </Text>
+            {order.auto_release_at && (
+              <View style={[styles.autoReleaseNotice, { backgroundColor: colors.amber + '18', borderColor: colors.amber + '40' }]}>
+                <Ionicons name="time-outline" size={14} color={colors.amber} />
+                <Text style={[styles.autoReleaseText, { color: colors.amber }]}>
+                  Funds release automatically on {formatDate(order.auto_release_at)} if you don't confirm
+                </Text>
+              </View>
+            )}
             <View style={styles.actionRow}>
               {canDispute && (
                 <Button
@@ -634,6 +649,21 @@ function getStyles(_colors: ColorTokens) {
     textInput: {
       fontSize: 14,
       fontFamily: 'Inter_400Regular',
+    },
+    autoReleaseNotice: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: Spacing.xs,
+      borderWidth: 1,
+      borderRadius: BorderRadius.medium,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+    },
+    autoReleaseText: {
+      flex: 1,
+      fontSize: 12,
+      fontFamily: 'Inter_400Regular',
+      lineHeight: 17,
     },
     actionRow: {
       flexDirection: 'row',
