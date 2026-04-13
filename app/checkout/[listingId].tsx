@@ -6,6 +6,7 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -197,6 +198,7 @@ export default function CheckoutScreen() {
     <ScreenWrapper>
       <Header title="Checkout" showBack />
 
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scroll}
@@ -366,6 +368,7 @@ export default function CheckoutScreen() {
 
       {/* ── Sticky CTA ────────────────────────────────────────── */}
       <BottomBar>
+
         <View style={styles.ctaContainer}>
           <Button
             label={`Submit Payment · ${formatGBP(total)}`}
@@ -381,6 +384,7 @@ export default function CheckoutScreen() {
           )}
         </View>
       </BottomBar>
+      </KeyboardAvoidingView>
     </ScreenWrapper>
   );
 }
