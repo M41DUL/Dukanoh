@@ -10,7 +10,7 @@ import {
 
 const ALL_STATUSES: OrderStatus[] = [
   'created', 'paid', 'shipped', 'delivered',
-  'completed', 'disputed', 'resolved', 'cancelled',
+  'completed', 'disputed', 'cancelled',
 ];
 
 // ─── getOrderActions — seller perspective ──────────────────────
@@ -162,10 +162,6 @@ describe('isTerminalStatus', () => {
     expect(isTerminalStatus('completed')).toBe(true);
   });
 
-  test('resolved is terminal', () => {
-    expect(isTerminalStatus('resolved')).toBe(true);
-  });
-
   test('cancelled is terminal', () => {
     expect(isTerminalStatus('cancelled')).toBe(true);
   });
@@ -205,7 +201,7 @@ describe('triggersWalletCredit', () => {
       ['created', 'paid'],
       ['paid', 'shipped'],
       ['paid', 'cancelled'],
-      ['disputed', 'resolved'],
+      ['disputed', 'completed'],
     ];
     nonCreditTransitions.forEach(([from, to]) => {
       expect(triggersWalletCredit(from, to)).toBe(false);

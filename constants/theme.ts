@@ -40,37 +40,105 @@ export const darkColors = {
   overlay: 'rgba(0,0,0,0.2)',
 };
 
-// ── Dukanoh Pro theme (always dark, gold accent) ─────────────
-// Used only in Pro areas (seller-hub, pro card). Not app-wide.
-// Accessibility: all pairings tested against WCAG AA (4.5:1 min).
-// Gold (#FBCD47) on navy (#0A0A1A)  = ~12:1 ✓
-// Gold on surface (#13132E)         = ~11:1 ✓
-// Gold on surfaceAlt (#1C1C40)      = ~9.5:1 ✓
-// textPrimary on background         = ~18:1 ✓
-// textSecondary (#8888AA) on bg     = ~5.9:1 ✓
-export const proColors = {
-  primary: '#FBCD47',         // gold — main interactive colour, CTAs, icons
-  primaryDim: '#D4A820',      // deeper gold — pressed/active states
-  primaryLight: '#1C1500',    // dark gold tint — pill/badge backgrounds
-  primaryText: '#FBCD47',     // gold text on dark surfaces
-  secondary: '#8888AA',       // muted lilac-grey — secondary actions, labels
-  secondaryDim: '#6B6B88',    // deeper muted — pressed secondary
-  secondaryLight: '#1A1A30',  // subtle secondary background
-  background: '#0A0A1A',      // deep navy
-  surface: '#13132E',         // card / elevated surface
-  surfaceAlt: '#1C1C40',      // further elevated (icon wraps, inputs)
-  textPrimary: '#F5F5F5',     // primary body text
-  textSecondary: '#8888AA',   // muted / caption text
-  border: '#2A2A50',          // card borders, dividers
-  error: '#FF6B6B',           // errors (same as dark mode)
-  success: '#4ADE80',         // positive values, earnings delta
-  amber: '#F59E0B',           // warnings
-  like: '#FF4D6A',            // heart / save
-  overlay: 'rgba(0,0,0,0.4)',
-  // Gradient tokens — angled cool surface gradients (Pro only)
-  gradientStart: '#0A0A1A' as const,  // base background (deep navy)
-  gradientEnd:   '#0D0A2A' as const,  // cool deep indigo
+// ── Dukanoh Pro theme ─────────────────────────────────────────
+// Used only in Pro areas (profile tab, paywall, boosts).
+// Visual language: full-screen gradient + glassmorphism cards.
+// Does NOT respond to system light/dark — use useProColors() hook
+// which returns proColorsDark or proColorsLight based on isDark.
+//
+// Pro dark — Accessibility (WCAG AA, 4.5:1 min):
+//   Gold (#FBCD47) on gradientBottom (#080714) = ~13:1 ✓
+//   textPrimary (#FFF) on gradientBottom        = ~21:1 ✓
+//   textSecondary (rgba white 0.55) on bg       = ~6.2:1 ✓
+//
+// Pro light — Accessibility:
+//   textPrimary (#0A0A1A) on gradientBottom     = ~18:1 ✓
+//   textSecondary (rgba dark 0.55) on bg        = ~5.8:1 ✓
+//   gold primaryText (#8A6800) on surface       = ~4.6:1 ✓
+
+export const proColorsDark = {
+  // Full-screen gradient (top → bottom, use with LinearGradient)
+  gradientTop:      '#1E1C6E' as const,   // deep brand indigo
+  gradientBottom:   '#080714' as const,   // near black
+
+  // Glass surfaces — transparent so gradient bleeds through
+  surface:          'rgba(255,255,255,0.07)',   // cards
+  surfaceElevated:  'rgba(255,255,255,0.12)',   // icon wraps, inputs
+  border:           'rgba(255,255,255,0.10)',   // card + divider borders
+
+  // Text
+  textPrimary:      '#FFFFFF',
+  textSecondary:    'rgba(255,255,255,0.55)',
+
+  // Gold accent — the Pro identity colour
+  primary:          '#FBCD47',
+  primaryDim:       '#D4A820',                  // pressed state
+  primaryLight:     'rgba(251,205,71,0.15)',    // tinted backgrounds
+  primaryText:      '#FBCD47',                  // gold text on dark
+
+  // Secondary
+  secondary:        '#8888AA',
+  secondaryDim:     '#6B6B88',
+  secondaryLight:   'rgba(136,136,170,0.15)',
+
+  // Status
+  success:          '#4ADE80',
+  error:            '#FF6B6B',
+  amber:            '#F59E0B',
+  like:             '#FF4D6A',
+  overlay:          'rgba(0,0,0,0.5)',
+
+  // Legacy aliases — kept for seller-hub.tsx until it is deleted
+  background:       '#080714',
+  surfaceAlt:       'rgba(255,255,255,0.12)',
+  gradientStart:    '#080714' as const,
+  gradientEnd:      '#1E1C6E' as const,
 };
+
+export const proColorsLight = {
+  // Full-screen gradient (top → bottom)
+  gradientTop:      '#C8C6FF' as const,   // soft brand indigo
+  gradientBottom:   '#F0EFFF' as const,   // near-white lavender
+
+  // Frosted glass surfaces
+  surface:          'rgba(255,255,255,0.55)',
+  surfaceElevated:  'rgba(255,255,255,0.75)',
+  border:           'rgba(55,53,197,0.12)',
+
+  // Text
+  textPrimary:      '#0A0A1A',
+  textSecondary:    'rgba(10,10,26,0.55)',
+
+  // Gold accent — same across both modes
+  primary:          '#FBCD47',
+  primaryDim:       '#D4A820',
+  primaryLight:     'rgba(251,205,71,0.20)',
+  primaryText:      '#8A6800',                  // dark gold — readable on light
+
+  // Secondary
+  secondary:        '#6B6B99',
+  secondaryDim:     '#5555AA',
+  secondaryLight:   'rgba(107,107,153,0.12)',
+
+  // Status
+  success:          '#16A34A',
+  error:            '#FF4444',
+  amber:            '#D97706',
+  like:             '#FF4D6A',
+  overlay:          'rgba(0,0,0,0.25)',
+
+  // Legacy aliases
+  background:       '#F0EFFF',
+  surfaceAlt:       'rgba(255,255,255,0.75)',
+  gradientStart:    '#F0EFFF' as const,
+  gradientEnd:      '#C8C6FF' as const,
+};
+
+// proColors — dark palette, kept for backwards compat with hubTheme.ts
+// and seller-hub.tsx. Will be removed when seller-hub.tsx is deleted.
+export const proColors = proColorsDark;
+
+export type ProColorTokens = { [K in keyof typeof proColorsDark]: string };
 
 export type ColorTokens = typeof lightColors;
 
