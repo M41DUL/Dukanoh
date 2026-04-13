@@ -7,6 +7,7 @@ import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
 import { StarRating } from '@/components/StarRating';
 import { ProPaywallSheet } from '@/components/pro/ProPaywallSheet';
+import { ProProfileTab } from '@/components/pro/ProProfileTab';
 import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -132,6 +133,11 @@ export default function ProfileScreen() {
     await Promise.all([fetchProfile(), (sellerTier === 'pro' || sellerTier === 'founder') ? fetchHubSummary() : Promise.resolve()]);
     setRefreshing(false);
   }, [fetchProfile, fetchHubSummary, sellerTier]);
+
+  // Pro users get a dedicated business dashboard UI
+  if (sellerTier === 'pro' || sellerTier === 'founder') {
+    return <ProProfileTab />;
+  }
 
   return (
     <ScreenWrapper contentStyle={{ paddingHorizontal: 0 }}>
