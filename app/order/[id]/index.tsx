@@ -145,11 +145,12 @@ export default function OrderDetailScreen() {
       p_tracking:  trackingNumber.trim(),
       p_courier:   courier.trim() || null,
     });
-    setSubmitting(false);
     if (error) {
+      setSubmitting(false);
       Alert.alert('Error', 'Could not update order. Please try again.');
     } else {
-      fetchOrder();
+      await fetchOrder();
+      setSubmitting(false);
     }
   };
 
@@ -175,8 +176,8 @@ export default function OrderDetailScreen() {
               })
               .eq('id', order.id)
               .eq('buyer_id', user.id);
+            await fetchOrder();
             setSubmitting(false);
-            fetchOrder();
           },
         },
       ]
@@ -218,8 +219,8 @@ export default function OrderDetailScreen() {
                 .from('cancellation_strikes')
                 .insert({ seller_id: user.id, order_id: order.id });
             }
+            await fetchOrder();
             setSubmitting(false);
-            fetchOrder();
           },
         },
       ]
@@ -247,8 +248,8 @@ export default function OrderDetailScreen() {
               })
               .eq('id', order.id)
               .eq('buyer_id', user.id);
+            await fetchOrder();
             setSubmitting(false);
-            fetchOrder();
           },
         },
       ]

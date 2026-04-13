@@ -735,12 +735,28 @@ CREATE POLICY "Buyers and sellers can read their own orders"
 
 CREATE POLICY "Buyers can create orders"
   ON public.orders FOR INSERT TO authenticated
-  WITH CHECK ((select auth.uid()) = buyer_id);
+  WITH CHECK (
+    (select auth.uid()) = buyer_id
+    AND buyer_id != seller_id
+  );
 
-CREATE POLICY "Buyers and sellers can update their own orders"
+-- Buyers: cancel (paid/created), confirm receipt (completed), raise dispute (disputed), withdraw dispute (completed)
+CREATE POLICY "Buyers can update their own orders"
   ON public.orders FOR UPDATE TO authenticated
-  USING ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id)
-  WITH CHECK ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id);
+  USING ((select auth.uid()) = buyer_id)
+  WITH CHECK (
+    (select auth.uid()) = buyer_id
+    AND status IN ('cancelled', 'completed', 'disputed')
+  );
+
+-- Sellers: cancel only — mark_order_shipped uses SECURITY DEFINER RPC and bypasses RLS
+CREATE POLICY "Sellers can update their own orders"
+  ON public.orders FOR UPDATE TO authenticated
+  USING ((select auth.uid()) = seller_id)
+  WITH CHECK (
+    (select auth.uid()) = seller_id
+    AND status = 'cancelled'
+  );
 
 CREATE INDEX idx_orders_buyer   ON public.orders (buyer_id);
 CREATE INDEX idx_orders_seller  ON public.orders (seller_id);
@@ -1063,6 +1079,13 @@ SELECT cron.schedule(
   'expire-pro-subscriptions',
   '0 2 * * *',
   'SELECT expire_pro_subscriptions()'
+);
+
+-- Runs every hour — auto-releases funds for shipped orders where buyer hasn't confirmed after 2 days
+SELECT cron.schedule(
+  'auto-release-orders',
+  '0 * * * *',
+  'SELECT public.auto_release_orders()'
 );
 
 

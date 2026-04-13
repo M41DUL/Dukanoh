@@ -169,9 +169,8 @@ async function handleOrderEmail(
     }
 
     case 'completed': {
+      // Seller: funds released (wallet credits full item_price — no platform fee at this stage)
       if (sellerEmail) {
-        const payout = parseFloat(record.item_price) - (parseFloat(record.item_price) * 0.05);
-
         sends.push(sendEmail({
           to: sellerEmail,
           subject: `Your payment is on the way — ${itemTitle}`,
@@ -183,8 +182,54 @@ async function handleOrderEmail(
             sections: [
               itemRow({ title: itemTitle, image: itemImage, meta: `Sold for £${parseFloat(record.item_price).toFixed(2)}` }),
               summaryTable('Payout summary', [
-                ['Amount', `£${payout.toFixed(2)}`],
+                ['Amount', `£${parseFloat(record.item_price).toFixed(2)}`],
                 ['Timeline', '2–5 business days'],
+              ]),
+            ],
+          }),
+        }));
+      }
+      break;
+    }
+
+    case 'disputed': {
+      // Seller: dispute opened
+      if (sellerEmail) {
+        sends.push(sendEmail({
+          to: sellerEmail,
+          subject: `A dispute has been opened — ${itemTitle}`,
+          html: layout({
+            heading: `A dispute has been opened,\n${sellerName}.`,
+            subheading: `Order number: ${orderRef}`,
+            ctaLabel: 'View order',
+            ctaUrl: orderUrl,
+            sections: [
+              itemRow({ title: itemTitle, image: itemImage }),
+              summaryTable('Dispute details', [
+                ['Reason', record.dispute_reason ?? 'Not specified'],
+                ['Funds', 'On hold until resolved'],
+                ['Review timeline', '7 days'],
+              ]),
+            ],
+          }),
+        }));
+      }
+      // Buyer: dispute confirmation
+      if (buyerEmail) {
+        sends.push(sendEmail({
+          to: buyerEmail,
+          subject: `Dispute received — ${itemTitle}`,
+          html: layout({
+            heading: `We've received your dispute,\n${buyerName}.`,
+            subheading: `Order number: ${orderRef}`,
+            ctaLabel: 'View order',
+            ctaUrl: orderUrl,
+            sections: [
+              itemRow({ title: itemTitle, image: itemImage }),
+              summaryTable('What happens next', [
+                ['Review', 'Our team will review your dispute'],
+                ['Timeline', 'We aim to resolve within 7 days'],
+                ['Funds', 'Held securely until resolved'],
               ]),
             ],
           }),
