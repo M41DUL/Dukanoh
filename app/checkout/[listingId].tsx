@@ -17,7 +17,7 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { BottomSheet } from '@/components/BottomSheet';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Spacing, BorderRadius, FontFamily, Typography, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
@@ -328,11 +328,10 @@ export default function CheckoutScreen() {
             <View style={styles.feeLabelRow}>
               <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Buyer protection</Text>
               <Ionicons name="shield-checkmark-outline" size={13} color={colors.success} style={{ marginLeft: 4 }} />
-              <Ionicons name="information-circle-outline" size={13} color={colors.textSecondary} style={{ marginLeft: 3 }} />
             </View>
             <Text style={[styles.feeValue, { color: colors.textSecondary }]}>{formatGBP(protectionFee)}</Text>
           </TouchableOpacity>
-          <View style={[styles.breakdownDivider, { backgroundColor: colors.border }]} />
+          <View style={[styles.inlineDivider, { backgroundColor: colors.border }]} />
           <View style={styles.feeRow}>
             <Text style={[styles.totalLabel, { color: colors.textPrimary }]}>Total (tax included)</Text>
             <Text style={[styles.totalValue, { color: colors.textPrimary }]}>{formatGBP(total)}</Text>
@@ -364,41 +363,49 @@ export default function CheckoutScreen() {
       <BottomSheet
         visible={protectionSheetVisible}
         onClose={() => setProtectionSheetVisible(false)}
-        useModal
       >
-        <View style={styles.sheetContent}>
-          <View style={styles.sheetIconRow}>
-            <Ionicons name="shield-checkmark" size={32} color={colors.success} />
+        <Text style={styles.modalTitle}>Price breakdown</Text>
+
+        <View style={styles.breakdownRow}>
+          <View style={styles.breakdownIconWrap}>
+            <Ionicons name="pricetag-outline" size={18} color={colors.textPrimary} />
           </View>
-          <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Buyer protection</Text>
-          <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>
-            Every order on Dukanoh is covered automatically.
-          </Text>
-
-          <View style={styles.sheetDivider} />
-
-          {[
-            { icon: 'cube-outline',       text: 'Item not received — full refund if your order never arrives.' },
-            { icon: 'alert-circle-outline', text: 'Not as described — refund if the item differs significantly from the listing.' },
-            { icon: 'lock-closed-outline', text: 'Secure checkout — your payment is held until you confirm the order is correct.' },
-          ].map(({ icon, text }) => (
-            <View key={icon} style={styles.sheetRow}>
-              <Ionicons name={icon as any} size={18} color={colors.success} style={styles.sheetRowIcon} />
-              <Text style={[styles.sheetRowText, { color: colors.textSecondary }]}>{text}</Text>
-            </View>
-          ))}
-
-          <View style={[styles.sheetFeeRow, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sheetFeeLabel, { color: colors.textSecondary }]}>Protection fee</Text>
-            <Text style={[styles.sheetFeeValue, { color: colors.textPrimary }]}>{formatGBP(protectionFee)}</Text>
+          <View style={styles.breakdownInfo}>
+            <Text style={styles.breakdownLabel} numberOfLines={1}>{listing.title}</Text>
+            <Text style={styles.breakdownValue}>£{listing.price.toFixed(2)}</Text>
           </View>
         </View>
+
+        <View style={styles.breakdownDivider} />
+
+        <View style={styles.breakdownRow}>
+          <View style={styles.breakdownIconWrap}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.textPrimary} />
+          </View>
+          <View style={styles.breakdownInfo}>
+            <Text style={styles.breakdownLabel}>Buyer Protect fee</Text>
+            <Text style={styles.breakdownValue}>£{protectionFee.toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.breakdownDivider} />
+
+        <View style={[styles.breakdownRow, { marginTop: Spacing.md }]}>
+          <View style={styles.breakdownInfo}>
+            <Text style={[styles.breakdownLabel, { fontFamily: FontFamily.semibold }]}>Total Including Buyer Protect</Text>
+            <Text style={[styles.breakdownValue, { fontFamily: FontFamily.semibold }]}>£{total.toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.breakdownNote}>
+          Every purchase on Dukanoh comes with Buyer Protect included. If your item doesn't arrive or doesn't match the listing, we've got you covered.
+        </Text>
       </BottomSheet>
     </ScreenWrapper>
   );
 }
 
-function getStyles(_colors: ColorTokens) {
+function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     inner: {
       flex: 1,
@@ -513,10 +520,7 @@ function getStyles(_colors: ColorTokens) {
       fontSize: 15,
       fontFamily: 'Inter_700Bold',
     },
-    breakdown: {
-      gap: Spacing.sm,
-    },
-    breakdownDivider: {
+    inlineDivider: {
       height: StyleSheet.hairlineWidth,
     },
     feeRow: {
@@ -536,59 +540,45 @@ function getStyles(_colors: ColorTokens) {
       fontSize: 13,
       fontFamily: 'Inter_500Medium',
     },
-    sheetContent: {
-      gap: Spacing.base,
-      paddingBottom: Spacing.base,
-    },
-    sheetIconRow: {
-      alignItems: 'center',
-      marginBottom: Spacing.xs,
-    },
-    sheetTitle: {
-      fontSize: 18,
-      fontFamily: 'Inter_700Bold',
-      textAlign: 'center',
-    },
-    sheetSubtitle: {
-      fontSize: 14,
-      fontFamily: 'Inter_400Regular',
-      textAlign: 'center',
-      lineHeight: 20,
-    },
-    sheetDivider: {
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: 'transparent',
-    },
-    sheetRow: {
+    modalTitle: { ...Typography.subheading, color: colors.textPrimary, marginBottom: Spacing.base, textAlign: 'center' },
+    breakdownRow: {
       flexDirection: 'row',
-      gap: Spacing.md,
-      alignItems: 'flex-start',
+      alignItems: 'center',
+      gap: Spacing.base,
+      paddingVertical: Spacing.md,
     },
-    sheetRowIcon: {
-      marginTop: 1,
+    breakdownIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: BorderRadius.medium,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    sheetRowText: {
+    breakdownInfo: {
       flex: 1,
-      fontSize: 14,
-      fontFamily: 'Inter_400Regular',
-      lineHeight: 20,
-    },
-    sheetFeeRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      borderRadius: BorderRadius.medium,
-      paddingHorizontal: Spacing.base,
-      paddingVertical: Spacing.md,
-      marginTop: Spacing.xs,
     },
-    sheetFeeLabel: {
-      fontSize: 14,
-      fontFamily: 'Inter_400Regular',
+    breakdownLabel: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      flex: 1,
     },
-    sheetFeeValue: {
-      fontSize: 15,
-      fontFamily: 'Inter_700Bold',
+    breakdownValue: {
+      ...Typography.body,
+      color: colors.textPrimary,
+    },
+    breakdownDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+    },
+    breakdownNote: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      marginTop: Spacing.xl,
+      lineHeight: 18,
     },
     totalLabel: {
       fontSize: 14,
