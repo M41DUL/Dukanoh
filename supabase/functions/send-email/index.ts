@@ -6,6 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const FROM = 'Dukanoh <orders@mail.dukanoh.com>';
 const BASE_URL = 'https://dukanoh.com';
+const ADMIN_EMAIL = 'support@mail.dukanoh.com';
 
 // Constant-time string comparison to prevent timing attacks
 function timingSafeEqual(a: string, b: string): boolean {
@@ -217,6 +218,27 @@ async function handleOrderEmail(
           }),
         }));
       }
+      // Admin: internal alert
+      sends.push(sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `[Dispute] ${orderRef} — ${itemTitle}`,
+        html: layout({
+          heading: `New dispute raised,\naction required.`,
+          subheading: `Order number: ${orderRef}`,
+          ctaLabel: 'Review dispute',
+          ctaUrl: `${BASE_URL}/admin/disputes`,
+          sections: [
+            itemRow({ title: itemTitle, image: itemImage }),
+            summaryTable('Dispute details', [
+              ['Reason', record.dispute_reason ?? 'Not specified'],
+              ['Buyer', buyerEmail ?? 'unknown'],
+              ['Seller', sellerEmail ?? 'unknown'],
+              ['Amount held', `£${parseFloat(record.item_price).toFixed(2)}`],
+            ]),
+          ],
+        }),
+      }));
+
       // Buyer: dispute confirmation
       if (buyerEmail) {
         sends.push(sendEmail({

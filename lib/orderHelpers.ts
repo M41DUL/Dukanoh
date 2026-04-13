@@ -10,7 +10,6 @@ export type OrderStatus =
   | 'delivered'
   | 'completed'
   | 'disputed'
-  | 'resolved'
   | 'cancelled';
 
 export interface OrderActions {
@@ -46,7 +45,7 @@ export function getOrderActions(
  * from the user side).
  */
 export function isTerminalStatus(status: OrderStatus): boolean {
-  return ['completed', 'resolved', 'cancelled'].includes(status);
+  return ['completed', 'cancelled'].includes(status);
 }
 
 /**
