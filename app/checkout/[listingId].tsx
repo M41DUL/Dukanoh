@@ -63,7 +63,6 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(DEFAULT_METHOD);
-  const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -205,20 +204,7 @@ export default function CheckoutScreen() {
       >
         {/* ── Order summary ─────────────────────────────────────── */}
         <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => setSummaryExpanded(e => !e)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Order summary</Text>
-            <Ionicons
-              name={summaryExpanded ? 'remove-outline' : 'add-outline'}
-              size={20}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
-
-          {/* Item row — always visible */}
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Order summary</Text>
           <View style={styles.itemRow}>
             {listing.images?.[0] ? (
               <Image
@@ -233,36 +219,8 @@ export default function CheckoutScreen() {
               <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
                 {listing.title}
               </Text>
-              <Text style={[styles.itemPrice, { color: colors.textPrimary }]}>
-                {formatGBP(listing.price)}
-              </Text>
             </View>
           </View>
-
-          {/* Expanded breakdown */}
-          {summaryExpanded && (
-            <View style={styles.breakdown}>
-              <View style={[styles.breakdownDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.feeRow}>
-                <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Item price</Text>
-                <Text style={[styles.feeValue, { color: colors.textSecondary }]}>
-                  {formatGBP(listing.price)}
-                </Text>
-              </View>
-              <View style={styles.feeRow}>
-                <View style={styles.feeLabelRow}>
-                  <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Buyer protection</Text>
-                  <Ionicons name="shield-checkmark-outline" size={13} color={colors.success} style={{ marginLeft: 4 }} />
-                </View>
-                <Text style={[styles.feeValue, { color: colors.textSecondary }]}>
-                  {formatGBP(protectionFee)}
-                </Text>
-              </View>
-              <Text style={[styles.protectionNote, { color: colors.textSecondary }]}>
-                Buyer protection covers you if the item doesn't arrive or isn't as described.
-              </Text>
-            </View>
-          )}
         </View>
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -354,13 +312,26 @@ export default function CheckoutScreen() {
 
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-        {/* ── Total ─────────────────────────────────────────────── */}
-        <View style={styles.totalRow}>
-          <Text style={[styles.totalLabel, { color: colors.textPrimary }]}>
-            Total (tax included)
-          </Text>
-          <Text style={[styles.totalValue, { color: colors.textPrimary }]}>
-            {formatGBP(total)}
+        {/* ── Price breakdown + total ───────────────────────────── */}
+        <View style={styles.section}>
+          <View style={styles.feeRow}>
+            <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Item price</Text>
+            <Text style={[styles.feeValue, { color: colors.textSecondary }]}>{formatGBP(listing.price)}</Text>
+          </View>
+          <View style={styles.feeRow}>
+            <View style={styles.feeLabelRow}>
+              <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Buyer protection</Text>
+              <Ionicons name="shield-checkmark-outline" size={13} color={colors.success} style={{ marginLeft: 4 }} />
+            </View>
+            <Text style={[styles.feeValue, { color: colors.textSecondary }]}>{formatGBP(protectionFee)}</Text>
+          </View>
+          <View style={[styles.breakdownDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.feeRow}>
+            <Text style={[styles.totalLabel, { color: colors.textPrimary }]}>Total (tax included)</Text>
+            <Text style={[styles.totalValue, { color: colors.textPrimary }]}>{formatGBP(total)}</Text>
+          </View>
+          <Text style={[styles.protectionNote, { color: colors.textSecondary }]}>
+            Buyer protection covers you if the item doesn't arrive or isn't as described.
           </Text>
         </View>
       </ScrollView>
@@ -530,12 +501,6 @@ function getStyles(_colors: ColorTokens) {
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
       lineHeight: 17,
-    },
-    totalRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: Spacing.base,
     },
     totalLabel: {
       fontSize: 14,
