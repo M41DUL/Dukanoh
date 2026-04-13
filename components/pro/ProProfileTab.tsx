@@ -7,16 +7,17 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Avatar } from '@/components/Avatar';
 import { BalanceCarousel, type BalanceData } from '@/components/pro/BalanceCarousel';
 import { useProColors } from '@/hooks/useProColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { getImageUrl } from '@/lib/imageUtils';
 import { FontFamily, Spacing, BorderRadius, Typography, type ProColorTokens } from '@/constants/theme';
 
 interface Analytics {
@@ -189,7 +190,7 @@ export function ProProfileTab() {
     },
   ];
 
-  const displayName = profileName || `@${username}`;
+  const initials = (profileName || username)[0]?.toUpperCase() ?? '?';
   const isFounder = sellerTier === 'founder';
 
   return (
@@ -204,35 +205,31 @@ export function ProProfileTab() {
         }
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + Spacing.md, paddingBottom: insets.bottom + Spacing['3xl'] }]}
       >
-        {/* ── Business header: avatar left · name center · badges right ── */}
-        <View style={styles.header}>
-          {/* Avatar */}
+        {/* ── Row 1: avatar left · badges right ── */}
+        <View style={styles.headerRow}>
+          {/* Avatar — 32px to match badge circles */}
           <TouchableOpacity onPress={() => router.push('/edit-profile')} hitSlop={8}>
-            <Avatar uri={profileAvatar} initials={(displayName)[0]?.toUpperCase()} size="small" />
+            {profileAvatar ? (
+              <Image
+                source={{ uri: getImageUrl(profileAvatar, 'avatar') }}
+                style={styles.avatarCircle}
+              />
+            ) : (
+              <View style={[styles.avatarCircle, { backgroundColor: P.primary, alignItems: 'center', justifyContent: 'center' }]}>
+                <Text style={[styles.avatarInitials, { color: P.gradientBottom }]}>{initials}</Text>
+              </View>
+            )}
           </TouchableOpacity>
 
-          {/* Name + username */}
-          <View style={styles.headerCenter}>
-            {profileName ? (
-              <Text style={[styles.headerName, { color: P.textPrimary }]} numberOfLines={1}>
-                {profileName}
-              </Text>
-            ) : null}
-            <Text style={[styles.headerUsername, { color: P.textSecondary }]} numberOfLines={1}>
-              @{username}
-            </Text>
-          </View>
+          <View style={styles.spacer} />
 
           {/* Badge circles */}
-          <View style={styles.headerRight}>
-            {/* Pro / Founder badge */}
+          <View style={styles.badgeRow}>
             <View style={[styles.badgeCircle, { backgroundColor: P.primary }]}>
               <Text style={[styles.badgeCircleText, { color: P.gradientBottom }]}>
                 {isFounder ? 'F' : '◆'}
               </Text>
             </View>
-
-            {/* Rating circle */}
             {ratingCount > 0 && (
               <View style={[styles.badgeCircle, { backgroundColor: P.surface, borderColor: P.border, borderWidth: 1 }]}>
                 <Text style={[styles.badgeCircleRating, { color: P.primary }]}>
@@ -243,7 +240,19 @@ export function ProProfileTab() {
           </View>
         </View>
 
-        {/* Verified badge */}
+        {/* ── Row 2: name + username centred ── */}
+        <View style={styles.nameBlock}>
+          {profileName ? (
+            <Text style={[styles.headerName, { color: P.textPrimary }]} numberOfLines={1}>
+              {profileName}
+            </Text>
+          ) : null}
+          <Text style={[styles.headerUsername, { color: P.textSecondary }]} numberOfLines={1}>
+            @{username}
+          </Text>
+        </View>
+
+        {/* ── Verified / Founder pill — centred ── */}
         {isVerified && (
           <View style={styles.verifiedRow}>
             <View style={[styles.verifiedPill, { backgroundColor: P.surface, borderColor: P.border }]}>
@@ -260,32 +269,30 @@ export function ProProfileTab() {
           <BalanceCarousel data={balance} loading={balanceLoading} P={P} />
         </View>
 
-        {/* ── Quick links ── */}
-        <View style={[styles.card, { backgroundColor: P.surface, borderColor: P.border }]}>
-          <View style={styles.quickLinks}>
-            {quickLinks.map(link => (
-              <TouchableOpacity
-                key={link.label}
-                style={styles.quickLink}
-                onPress={link.onPress}
-                activeOpacity={0.7}
-              >
-                <View style={styles.quickLinkIconWrap}>
-                  <View style={[styles.quickLinkIcon, { backgroundColor: P.surfaceElevated }]}>
-                    <Ionicons name={link.icon} size={22} color={P.primary} />
-                  </View>
-                  {!!link.badge && link.badge > 0 && (
-                    <View style={[styles.badge, { backgroundColor: P.primary }]}>
-                      <Text style={[styles.badgeText, { color: P.gradientBottom }]}>
-                        {link.badge > 99 ? '99+' : link.badge}
-                      </Text>
-                    </View>
-                  )}
+        {/* ── Quick links — no card wrapper ── */}
+        <View style={styles.quickLinks}>
+          {quickLinks.map(link => (
+            <TouchableOpacity
+              key={link.label}
+              style={styles.quickLink}
+              onPress={link.onPress}
+              activeOpacity={0.7}
+            >
+              <View style={styles.quickLinkIconWrap}>
+                <View style={[styles.quickLinkIcon, { backgroundColor: P.surfaceElevated }]}>
+                  <Ionicons name={link.icon} size={22} color={P.primary} />
                 </View>
-                <Text style={[styles.quickLinkLabel, { color: P.textPrimary }]}>{link.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                {!!link.badge && link.badge > 0 && (
+                  <View style={[styles.notifBadge, { backgroundColor: P.primary }]}>
+                    <Text style={[styles.notifBadgeText, { color: P.gradientBottom }]}>
+                      {link.badge > 99 ? '99+' : link.badge}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.quickLinkLabel, { color: P.textPrimary }]}>{link.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* ── Analytics cards ── */}
@@ -313,16 +320,6 @@ export function ProProfileTab() {
             P={P}
           />
         </View>
-
-        {/* ── Edit profile ── */}
-        <TouchableOpacity
-          style={[styles.editBtn, { borderColor: P.border }]}
-          onPress={() => router.push('/edit-profile')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="pencil-outline" size={16} color={P.textSecondary} />
-          <Text style={[styles.editBtnText, { color: P.textSecondary }]}>Edit profile</Text>
-        </TouchableOpacity>
 
         {/* ── Seller hub link (full analytics) ── */}
         <TouchableOpacity
@@ -393,26 +390,25 @@ function getStyles(_P: ProColorTokens) {
       gap: Spacing.lg,
     },
 
-    // Header
-    header: {
+    // Row 1: avatar (left) + badges (right)
+    headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: Spacing.md,
     },
-    headerCenter: {
-      flex: 1,
-      alignItems: 'center',
+    avatarCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      overflow: 'hidden',
     },
-    headerName: {
-      fontSize: 15,
+    avatarInitials: {
+      fontSize: 12,
       fontFamily: FontFamily.semibold,
-      lineHeight: 20,
     },
-    headerUsername: {
-      fontSize: 13,
-      fontFamily: FontFamily.regular,
+    spacer: {
+      flex: 1,
     },
-    headerRight: {
+    badgeRow: {
       flexDirection: 'row',
       gap: Spacing.xs,
     },
@@ -432,9 +428,24 @@ function getStyles(_P: ProColorTokens) {
       fontFamily: FontFamily.semibold,
     },
 
-    // Verified pill
+    // Row 2: name + username centred
+    nameBlock: {
+      alignItems: 'center',
+      gap: 2,
+    },
+    headerName: {
+      fontSize: 17,
+      fontFamily: FontFamily.semibold,
+      lineHeight: 22,
+    },
+    headerUsername: {
+      fontSize: 13,
+      fontFamily: FontFamily.regular,
+    },
+
+    // Verified/founder pill — centred
     verifiedRow: {
-      alignItems: 'flex-start',
+      alignItems: 'center',
     },
     verifiedPill: {
       flexDirection: 'row',
@@ -450,18 +461,13 @@ function getStyles(_P: ProColorTokens) {
       fontFamily: FontFamily.medium,
     },
 
-    // Balance carousel wrapper
+    // Balance carousel wrapper — edge to edge within padding
     carouselWrap: {
       marginHorizontal: -Spacing.xl,
       paddingHorizontal: Spacing.xl,
     },
 
-    // Quick links card
-    card: {
-      borderRadius: BorderRadius.large,
-      borderWidth: 1,
-      padding: Spacing.xl,
-    },
+    // Quick links — no card, just the row
     quickLinks: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -481,7 +487,7 @@ function getStyles(_P: ProColorTokens) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    badge: {
+    notifBadge: {
       position: 'absolute',
       top: -2,
       right: -4,
@@ -492,7 +498,7 @@ function getStyles(_P: ProColorTokens) {
       justifyContent: 'center',
       paddingHorizontal: 4,
     },
-    badgeText: {
+    notifBadgeText: {
       fontSize: 10,
       fontFamily: FontFamily.semibold,
     },
@@ -511,21 +517,6 @@ function getStyles(_P: ProColorTokens) {
     analyticsGrid: {
       flexDirection: 'row',
       gap: Spacing.sm,
-    },
-
-    // Edit profile button
-    editBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      borderWidth: 1,
-      borderRadius: BorderRadius.full,
-      paddingVertical: Spacing.sm,
-    },
-    editBtnText: {
-      ...Typography.label,
-      fontFamily: FontFamily.medium,
     },
 
     // Seller hub link

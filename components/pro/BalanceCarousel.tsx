@@ -11,8 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { FontFamily, Spacing, BorderRadius, type ProColorTokens } from '@/constants/theme';
+import { FontFamily, Spacing, type ProColorTokens } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -27,8 +26,7 @@ interface BalancePage {
   label: string;
   value: number;
   subtitle: string;
-  icon: 'checkmark-circle-outline' | 'time-outline' | 'trophy-outline';
-  onPress?: () => void;
+  showWithdraw: boolean;
 }
 
 interface Props {
@@ -44,26 +42,24 @@ export function BalanceCarousel({ data, loading, P }: Props) {
   const pages: BalancePage[] = [
     {
       key: 'available',
-      label: 'Available',
+      label: 'Available balance',
       value: data?.available ?? 0,
       subtitle: 'Ready to withdraw',
-      icon: 'checkmark-circle-outline',
-      onPress: () => router.push('/wallet'),
+      showWithdraw: true,
     },
     {
       key: 'pending',
       label: 'Pending',
       value: data?.pending ?? 0,
       subtitle: 'Held until orders complete',
-      icon: 'time-outline',
-      onPress: () => router.push('/wallet'),
+      showWithdraw: false,
     },
     {
       key: 'lifetime',
       label: 'Lifetime earnings',
       value: data?.lifetime ?? 0,
       subtitle: 'Total earned on Dukanoh',
-      icon: 'trophy-outline',
+      showWithdraw: false,
     },
   ];
 
@@ -85,37 +81,32 @@ export function BalanceCarousel({ data, loading, P }: Props) {
         decelerationRate="fast"
       >
         {pages.map(page => (
-          <TouchableOpacity
+          <View
             key={page.key}
             style={[styles.slide, { width: SCREEN_WIDTH - Spacing.xl * 2 }]}
-            activeOpacity={page.onPress ? 0.8 : 1}
-            onPress={page.onPress}
-            disabled={!page.onPress}
           >
-            <View style={[styles.card, { backgroundColor: P.surface, borderColor: P.border }]}>
-              <View style={styles.cardTop}>
-                <View style={[styles.iconWrap, { backgroundColor: P.primaryLight }]}>
-                  <Ionicons name={page.icon} size={20} color={P.primary} />
-                </View>
-                <Text style={[styles.label, { color: P.textSecondary }]}>{page.label}</Text>
-              </View>
+            {/* Amount — centred, no card */}
+            {loading ? (
+              <ActivityIndicator color={P.primary} style={styles.loader} />
+            ) : (
+              <Text style={[styles.amount, { color: P.textPrimary }]}>
+                £{page.value.toFixed(2)}
+              </Text>
+            )}
+            <Text style={[styles.label, { color: P.textSecondary }]}>{page.label}</Text>
+            <Text style={[styles.subtitle, { color: P.textSecondary }]}>{page.subtitle}</Text>
 
-              {loading ? (
-                <ActivityIndicator color={P.primary} style={styles.loader} />
-              ) : (
-                <Text style={[styles.amount, { color: P.textPrimary }]}>
-                  £{(page.value).toFixed(2)}
-                </Text>
-              )}
-
-              <View style={styles.cardBottom}>
-                <Text style={[styles.subtitle, { color: P.textSecondary }]}>{page.subtitle}</Text>
-                {page.onPress && (
-                  <Ionicons name="chevron-forward" size={14} color={P.primary} />
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
+            {/* Withdraw CTA — pill button, available page only */}
+            {page.showWithdraw && (
+              <TouchableOpacity
+                style={[styles.withdrawBtn, { borderColor: P.border }]}
+                onPress={() => router.push('/wallet')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.withdrawBtnText, { color: P.textSecondary }]}>Withdraw</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         ))}
       </ScrollView>
 
@@ -138,53 +129,44 @@ export function BalanceCarousel({ data, loading, P }: Props) {
 
 const styles = StyleSheet.create({
   slide: {
-    // Width set dynamically above; horizontal padding creates the card appearance
-  },
-  card: {
-    borderRadius: BorderRadius.large,
-    borderWidth: 1,
-    padding: Spacing.xl,
-    gap: Spacing.sm,
-  },
-  cardTop: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.lg,
   },
-  iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+  loader: {
+    marginVertical: Spacing.lg,
+  },
+  amount: {
+    fontSize: 40,
+    fontFamily: FontFamily.black,
+    letterSpacing: -1,
+    lineHeight: 48,
   },
   label: {
     fontSize: 13,
     fontFamily: FontFamily.medium,
-  },
-  loader: {
-    marginVertical: Spacing.sm,
-  },
-  amount: {
-    fontSize: 32,
-    fontFamily: FontFamily.black,
-    letterSpacing: -0.5,
-    lineHeight: 40,
-  },
-  cardBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    marginTop: 2,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: FontFamily.regular,
+  },
+  withdrawBtn: {
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  withdrawBtnText: {
+    fontSize: 14,
+    fontFamily: FontFamily.semibold,
   },
   dots: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: Spacing.xs,
-    marginTop: Spacing.md,
+    marginTop: Spacing.sm,
   },
   dot: {
     width: 6,
