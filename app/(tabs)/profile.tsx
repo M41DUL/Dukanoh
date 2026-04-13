@@ -25,10 +25,10 @@ interface QuickAction {
 const STALE_MS = 30_000;
 
 const quickActions: QuickAction[] = [
-  { icon: 'bag-outline', label: 'My Listings', onPress: () => router.push('/listings?title=My+Listings&myListings=true') },
+  { icon: 'bag-outline', label: 'My Items', onPress: () => router.push('/my-items') },
+  { icon: 'receipt-outline', label: 'Orders', onPress: () => router.push('/orders') },
   { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/wallet') },
   { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
-  { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
 ];
 
 interface HubSummary {
@@ -285,6 +285,16 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
+        {/* ── Settings — secondary footer CTA ── */}
+        <TouchableOpacity
+          style={styles.settingsFooter}
+          onPress={() => router.push('/settings')}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="settings-outline" size={16} color={colors.textSecondary} />
+          <Text style={[styles.settingsFooterText, { color: colors.textSecondary }]}>Settings</Text>
+        </TouchableOpacity>
+
       </ScrollView>
 
       <ProPaywallSheet
@@ -493,6 +503,17 @@ function getStyles(colors: ColorTokens) {
       fontSize: 13,
       fontFamily: FontFamily.semibold,
       color: HUB.accent,
+    },
+    settingsFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      paddingVertical: Spacing.xl,
+    },
+    settingsFooterText: {
+      fontSize: 14,
+      fontFamily: FontFamily.medium,
     },
   });
 }

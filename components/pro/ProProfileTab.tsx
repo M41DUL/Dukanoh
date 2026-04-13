@@ -168,9 +168,8 @@ export function ProProfileTab() {
   const quickLinks: QuickLink[] = [
     {
       icon: 'bag-outline',
-      label: 'Listings',
-      badge: analytics?.activeListings ?? undefined,
-      onPress: () => router.push('/listings?title=My+Listings&myListings=true'),
+      label: 'My Items',
+      onPress: () => router.push('/my-items'),
     },
     {
       icon: 'flash-outline',
@@ -181,12 +180,12 @@ export function ProProfileTab() {
       icon: 'receipt-outline',
       label: 'Orders',
       badge: analytics?.pendingOrders || undefined,
-      onPress: () => router.push('/seller-orders'),
+      onPress: () => router.push('/orders'),
     },
     {
-      icon: 'settings-outline',
-      label: 'Settings',
-      onPress: () => router.push('/settings'),
+      icon: 'heart-outline',
+      label: 'Saved',
+      onPress: () => router.push('/saved'),
     },
   ];
 
@@ -313,6 +312,16 @@ export function ProProfileTab() {
           <Ionicons name="bar-chart-outline" size={18} color={P.primary} />
           <Text style={[styles.hubLinkText, { color: P.primary }]}>Full analytics dashboard</Text>
           <Ionicons name="chevron-forward" size={16} color={P.primary} />
+        </TouchableOpacity>
+
+        {/* ── Settings — secondary footer CTA ── */}
+        <TouchableOpacity
+          style={styles.settingsFooter}
+          onPress={() => router.push('/settings')}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="settings-outline" size={16} color={P.textSecondary} />
+          <Text style={[styles.settingsFooterText, { color: P.textSecondary }]}>Settings</Text>
         </TouchableOpacity>
       </ScrollView>
     </LinearGradient>
@@ -502,6 +511,19 @@ function getStyles(_P: ProColorTokens) {
     hubLinkText: {
       flex: 1,
       fontSize: 15,
+      fontFamily: FontFamily.medium,
+    },
+
+    // Settings footer
+    settingsFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: Spacing.xs,
+      paddingVertical: Spacing.xl,
+    },
+    settingsFooterText: {
+      fontSize: 14,
       fontFamily: FontFamily.medium,
     },
   });

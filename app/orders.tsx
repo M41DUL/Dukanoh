@@ -1,43 +1,73 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+} from 'react-native';
 import { Image } from 'expo-image';
-import { getImageUrl } from '@/lib/imageUtils';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { TabBar } from '@/components/TabBar';
-import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { getImageUrl } from '@/lib/imageUtils';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import {
+  Typography,
+  Spacing,
+  BorderRadius,
+  FontFamily,
+  type ColorTokens,
+} from '@/constants/theme';
 
-type Tab = 'selling' | 'drafts' | 'bought' | 'orders';
+// ─── Types ────────────────────────────────────────────────────
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'selling', label: 'Selling' },
-  { key: 'drafts', label: 'Drafts' },
-  { key: 'bought', label: 'Bought' },
-  { key: 'orders', label: 'Orders' },
-];
+type OrderTab = 'sold' | 'bought';
+type FilterKey = 'all' | 'in_progress' | 'completed' | 'cancelled';
 
-type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'resolved' | 'cancelled';
+type OrderStatus =
+  | 'created' | 'paid' | 'shipped' | 'delivered'
+  | 'completed' | 'disputed' | 'cancelled';
 
 interface Order {
   id: string;
   buyer_id: string;
   seller_id: string;
-  listing_id: string | null;
   status: OrderStatus;
   item_price: number;
-  total_paid: number;
   created_at: string;
   listing: { title: string; images: string[] } | null;
   buyer: { username: string } | null;
   seller: { username: string } | null;
 }
+
+// ─── Constants ────────────────────────────────────────────────
+
+const ORDER_TABS: { key: OrderTab; label: string }[] = [
+  { key: 'sold', label: 'Sold' },
+  { key: 'bought', label: 'Bought' },
+];
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'in_progress', label: 'In Progress' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'cancelled', label: 'Cancelled' },
+];
+
+const FILTER_STATUSES: Record<FilterKey, OrderStatus[] | null> = {
+  all: null,
+  in_progress: ['created', 'paid', 'shipped', 'delivered', 'disputed'],
+  completed: ['completed'],
+  cancelled: ['cancelled'],
+};
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
   created: 'Placed',
@@ -46,7 +76,6 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   delivered: 'Delivered',
   completed: 'Completed',
   disputed: 'Disputed',
-  resolved: 'Resolved',
   cancelled: 'Cancelled',
 };
 
@@ -57,217 +86,161 @@ const STATUS_COLOR: Record<OrderStatus, string> = {
   delivered: '#22C55E',
   completed: '#22C55E',
   disputed: '#FF4444',
-  resolved: '#22C55E',
   cancelled: '#9B9B9B',
 };
 
-// Statuses that need user action
-const ACTION_REQUIRED: OrderStatus[] = ['paid', 'shipped', 'disputed'];
+// Statuses where the user needs to take action
+const SELLER_ACTION: OrderStatus[] = ['paid', 'disputed'];
+const BUYER_ACTION: OrderStatus[] = ['shipped', 'disputed'];
+
+const EMPTY: Record<OrderTab, { heading: string; subtext: string; ctaLabel?: string; onCta?: () => void }> = {
+  sold: {
+    heading: 'No orders received yet',
+    subtext: 'When a buyer purchases one of your listings, the order will appear here.',
+    ctaLabel: 'Start selling',
+    onCta: () => router.push('/(tabs)/sell'),
+  },
+  bought: {
+    heading: 'No purchases yet',
+    subtext: 'When you buy something, your order will appear here.',
+    ctaLabel: 'Discover pieces',
+    onCta: () => router.push('/(tabs)'),
+  },
+};
+
+// ─── Screen ───────────────────────────────────────────────────
 
 export default function OrdersScreen() {
   const { user } = useAuth();
-  const { tab } = useLocalSearchParams<{ tab?: Tab }>();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
-  const [activeTab, setActiveTab] = useState<Tab>('selling');
 
-  // Honour ?tab= param from deep links (e.g. from Pro profile quick links)
-  useEffect(() => {
-    if (tab && ['selling', 'drafts', 'bought', 'orders'].includes(tab)) {
-      setActiveTab(tab as Tab);
-    }
-  }, [tab]);
-  const [selling, setSelling] = useState<Listing[]>([]);
-  const [drafts, setDrafts] = useState<Listing[]>([]);
-  const [bought, setBought] = useState<Listing[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [activeTab, setActiveTab] = useState<OrderTab>('sold');
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [sold, setSold] = useState<Order[]>([]);
+  const [bought, setBought] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchAll = useCallback(async () => {
+  const fetchOrders = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-
-    const [sellingRes, draftsRes, boughtRes, ordersRes] = await Promise.all([
-      supabase
-        .from('listings')
-        .select('id, title, images, status, price, seller_id, created_at, sold_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
-        .eq('seller_id', user.id)
-        .in('status', ['available', 'sold'])
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('listings')
-        .select('id, title, images, status, price, seller_id, created_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
-        .eq('seller_id', user.id)
-        .eq('status', 'draft')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('listings')
-        .select('id, title, images, status, price, seller_id, created_at, sold_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
-        .eq('buyer_id', user.id)
-        .order('sold_at', { ascending: false }),
+    const [soldRes, boughtRes] = await Promise.all([
       supabase
         .from('orders')
         .select(`
-          id, buyer_id, seller_id, listing_id, status, item_price, total_paid, created_at,
+          id, buyer_id, seller_id, status, item_price, created_at,
           listing:listings(title, images),
           buyer:users!orders_buyer_id_fkey(username),
           seller:users!orders_seller_id_fkey(username)
         `)
-        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        .eq('seller_id', user.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('orders')
+        .select(`
+          id, buyer_id, seller_id, status, item_price, created_at,
+          listing:listings(title, images),
+          buyer:users!orders_buyer_id_fkey(username),
+          seller:users!orders_seller_id_fkey(username)
+        `)
+        .eq('buyer_id', user.id)
         .order('created_at', { ascending: false }),
     ]);
-
-    setSelling((sellingRes.data ?? []) as unknown as Listing[]);
-    setDrafts((draftsRes.data ?? []) as unknown as Listing[]);
-    setBought((boughtRes.data ?? []) as unknown as Listing[]);
-    setOrders((ordersRes.data ?? []) as unknown as Order[]);
+    setSold((soldRes.data ?? []) as unknown as Order[]);
+    setBought((boughtRes.data ?? []) as unknown as Order[]);
     setLoading(false);
   }, [user]);
 
-  useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
+  useFocusEffect(useCallback(() => { fetchOrders(); }, [fetchOrders]));
 
-  // Map listing_id → order_id so sold listings can navigate to their order
-  const listingOrderMap = useMemo<Record<string, string>>(() => {
-    const map: Record<string, string> = {};
-    for (const o of orders) {
-      if (o.listing_id) map[o.listing_id] = o.id;
-    }
-    return map;
-  }, [orders]);
+  // Reset filter when switching tabs
+  const handleTabChange = useCallback((key: string) => {
+    setActiveTab(key as OrderTab);
+    setActiveFilter('all');
+  }, []);
 
-  const listingData = activeTab === 'selling' ? selling : activeTab === 'drafts' ? drafts : bought;
+  const handleFilterChange = useCallback((key: FilterKey) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveFilter(key);
+  }, []);
 
-  const emptyProps = {
-    selling: {
-      heading: 'No listings yet',
-      subtext: 'List your first piece to start selling.',
-      ctaLabel: 'Start selling',
-      onCta: () => router.push('/(tabs)/sell'),
-    },
-    drafts: {
-      heading: 'No drafts',
-      subtext: 'Drafts will appear here when you save a listing.',
-    },
-    bought: {
-      heading: 'No purchases yet',
-      subtext: 'Pieces you buy will appear here.',
-      ctaLabel: 'Discover pieces',
-      onCta: () => router.push('/(tabs)'),
-    },
-    orders: {
-      heading: 'No orders yet',
-      subtext: 'Your buying and selling orders will appear here.',
-    },
-  };
+  // Apply status filter to current tab's data
+  const data = useMemo(() => {
+    const all = activeTab === 'sold' ? sold : bought;
+    const statuses = FILTER_STATUSES[activeFilter];
+    if (!statuses) return all;
+    return all.filter(o => statuses.includes(o.status));
+  }, [activeTab, activeFilter, sold, bought]);
+
+  const actionRequired = activeTab === 'sold' ? SELLER_ACTION : BUYER_ACTION;
+  const empty = EMPTY[activeTab];
 
   return (
     <ScreenWrapper>
-      <Header title="My Listings" showBack />
+      <Header title="My orders" showBack />
 
-      <TabBar tabs={TABS} activeTab={activeTab} onTabChange={(key) => setActiveTab(key as Tab)} />
+      <TabBar
+        tabs={ORDER_TABS}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+      />
+
+      {/* Filter pills */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filtersRow}
+        style={styles.filtersScroll}
+      >
+        {FILTERS.map(f => {
+          const isActive = activeFilter === f.key;
+          return (
+            <TouchableOpacity
+              key={f.key}
+              style={[
+                styles.filterPill,
+                { borderColor: isActive ? colors.primary : colors.border },
+                isActive && { backgroundColor: colors.primary },
+              ]}
+              onPress={() => handleFilterChange(f.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                styles.filterPillText,
+                { color: isActive ? '#FFFFFF' : colors.textSecondary },
+              ]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
       {loading ? (
         <LoadingSpinner />
-      ) : activeTab === 'orders' ? (
-        <FlatList
-          key="orders"
-          data={orders}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => {
-            const statusColor = STATUS_COLOR[item.status] ?? colors.textSecondary;
-            const needsAction = ACTION_REQUIRED.includes(item.status);
-            const isSelling = item.seller_id === user?.id;
-            return (
-              <TouchableOpacity
-                style={[styles.orderRow, { backgroundColor: colors.surface }]}
-                onPress={() => router.push(`/order/${item.id}`)}
-                activeOpacity={0.75}
-              >
-                {/* Thumbnail */}
-                {item.listing?.images?.[0] ? (
-                  <Image
-                    source={{ uri: getImageUrl(item.listing.images[0], 'thumbnail') }}
-                    style={[styles.orderThumb]}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <View style={[styles.orderThumb, { backgroundColor: colors.surfaceAlt }]} />
-                )}
-
-                <View style={styles.orderInfo}>
-                  <Text style={[styles.orderTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-                    {item.listing?.title ?? 'Listing removed'}
-                  </Text>
-                  <Text style={[styles.orderMeta, { color: colors.textSecondary }]}>
-                    {isSelling ? 'Selling' : 'Buying'} · £{item.item_price.toFixed(2)} · {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                  </Text>
-                </View>
-
-                <View style={styles.orderRight}>
-                  <View style={[styles.statusPill, { backgroundColor: `${statusColor}18` }]}>
-                    <Text style={[styles.statusPillText, { color: statusColor }]}>
-                      {STATUS_LABEL[item.status]}
-                    </Text>
-                  </View>
-                  {needsAction && (
-                    <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-          ListEmptyComponent={
-            <EmptyState
-              heading={emptyProps.orders.heading}
-              subtext={emptyProps.orders.subtext}
-            />
-          }
-        />
       ) : (
         <FlatList
-          key={`grid-${activeTab}`}
-          data={listingData}
+          key={activeTab}
+          data={data}
           keyExtractor={item => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          contentContainerStyle={styles.gridContent}
+          contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
           renderItem={({ item }) => (
-            <View style={styles.cardWrapper}>
-              <ListingCard
-                listing={item}
-                variant="grid"
-                onPress={() => {
-                  if (activeTab === 'drafts') return router.push(`/listing/edit/${item.id}`);
-                  if (activeTab === 'selling' && item.status === 'sold' && listingOrderMap[item.id]) {
-                    return router.push(`/order/${listingOrderMap[item.id]}`);
-                  }
-                  router.push(`/listing/${item.id}`);
-                }}
-              />
-              {activeTab === 'selling' && (
-                <View style={[
-                  styles.statusBadge,
-                  { backgroundColor: item.status === 'sold' ? colors.secondary : colors.primary },
-                ]}>
-                  <Text style={[
-                    styles.statusBadgeText,
-                    { color: item.status === 'sold' ? '#0D0D0D' : '#FFFFFF' },
-                  ]}>
-                    {item.status === 'sold' ? 'Sold' : 'Active'}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <OrderRow
+              order={item}
+              tab={activeTab}
+              actionRequired={actionRequired}
+              colors={colors}
+              styles={styles}
+            />
           )}
           ListEmptyComponent={
             <EmptyState
-              heading={emptyProps[activeTab].heading}
-              subtext={emptyProps[activeTab].subtext}
-              ctaLabel={(emptyProps[activeTab] as any).ctaLabel}
-              onCta={(emptyProps[activeTab] as any).onCta}
+              heading={empty.heading}
+              subtext={empty.subtext}
+              ctaLabel={empty.ctaLabel}
+              onCta={empty.onCta}
             />
           }
         />
@@ -276,41 +249,135 @@ export default function OrdersScreen() {
   );
 }
 
-function getStyles(_colors: ColorTokens) {
+// ─── Order row ────────────────────────────────────────────────
+
+interface OrderRowProps {
+  order: Order;
+  tab: OrderTab;
+  actionRequired: OrderStatus[];
+  colors: ColorTokens;
+  styles: ReturnType<typeof getStyles>;
+}
+
+function OrderRow({ order, tab, actionRequired, colors, styles }: OrderRowProps) {
+  const statusColor = STATUS_COLOR[order.status] ?? colors.textSecondary;
+  const needsAction = actionRequired.includes(order.status);
+  const counterparty = tab === 'sold'
+    ? order.buyer?.username
+    : order.seller?.username;
+
+  return (
+    <TouchableOpacity
+      style={[styles.row, { backgroundColor: colors.surface }]}
+      onPress={() => router.push(`/order/${order.id}`)}
+      activeOpacity={0.75}
+    >
+      {order.listing?.images?.[0] ? (
+        <Image
+          source={{ uri: getImageUrl(order.listing.images[0], 'thumbnail') }}
+          style={styles.thumb}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={[styles.thumb, { backgroundColor: colors.surfaceAlt }]} />
+      )}
+
+      <View style={styles.info}>
+        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
+          {order.listing?.title ?? 'Listing removed'}
+        </Text>
+        {counterparty && (
+          <Text style={[styles.counterparty, { color: colors.textSecondary }]}>
+            {tab === 'sold' ? 'Buyer' : 'Seller'}: @{counterparty}
+          </Text>
+        )}
+        <Text style={[styles.meta, { color: colors.textSecondary }]}>
+          £{order.item_price.toFixed(2)} · {new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </Text>
+      </View>
+
+      <View style={styles.right}>
+        <View style={[styles.statusPill, { backgroundColor: `${statusColor}18` }]}>
+          <Text style={[styles.statusPillText, { color: statusColor }]}>
+            {STATUS_LABEL[order.status]}
+          </Text>
+        </View>
+        {needsAction && (
+          <View style={[styles.actionDot, { backgroundColor: colors.primary }]} />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────
+
+function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
-    listContent: {
-      flexGrow: 1,
-      paddingTop: Spacing.base,
-      paddingBottom: Spacing['3xl'],
-      gap: Spacing.sm,
+    // Filter pills
+    filtersScroll: {
+      flexGrow: 0,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
     },
-    orderRow: {
+    filtersRow: {
+      gap: Spacing.sm,
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.md,
+    },
+    filterPill: {
+      paddingHorizontal: Spacing.md,
+      paddingVertical: 6,
+      borderRadius: BorderRadius.full,
+      borderWidth: 1.5,
+    },
+    filterPillText: {
+      fontSize: 13,
+      fontFamily: FontFamily.medium,
+    },
+
+    // List
+    list: {
+      flexGrow: 1,
+      padding: Spacing.base,
+      paddingBottom: Spacing['3xl'],
+    },
+    separator: {
+      height: Spacing.xs,
+    },
+
+    // Order row
+    row: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.md,
       borderRadius: BorderRadius.large,
       padding: Spacing.md,
     },
-    orderThumb: {
-      width: 56,
-      height: 70,
+    thumb: {
+      width: 52,
+      height: 66,
       borderRadius: BorderRadius.medium,
+      flexShrink: 0,
     },
-    orderInfo: {
+    info: {
       flex: 1,
-      gap: 4,
+      gap: 3,
     },
-    orderTitle: {
-      fontSize: 13,
-      fontFamily: 'Inter_500Medium',
+    title: {
+      ...Typography.body,
+      fontFamily: FontFamily.medium,
     },
-    orderMeta: {
-      fontSize: 12,
-      fontFamily: 'Inter_400Regular',
+    counterparty: {
+      ...Typography.caption,
     },
-    orderRight: {
+    meta: {
+      ...Typography.caption,
+    },
+    right: {
       alignItems: 'flex-end',
-      gap: 6,
+      gap: Spacing.xs,
+      flexShrink: 0,
     },
     statusPill: {
       paddingHorizontal: Spacing.sm,
@@ -319,37 +386,12 @@ function getStyles(_colors: ColorTokens) {
     },
     statusPillText: {
       fontSize: 11,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: FontFamily.semibold,
     },
     actionDot: {
       width: 7,
       height: 7,
       borderRadius: 4,
-    },
-    gridContent: {
-      flexGrow: 1,
-      paddingTop: Spacing.base,
-      paddingBottom: Spacing['3xl'],
-    },
-    gridRow: {
-      gap: Spacing.sm,
-      marginBottom: Spacing.sm,
-    },
-    cardWrapper: {
-      flex: 1,
-      maxWidth: '50%',
-    },
-    statusBadge: {
-      position: 'absolute',
-      top: Spacing.sm,
-      left: Spacing.sm,
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 3,
-      borderRadius: BorderRadius.full,
-    },
-    statusBadgeText: {
-      fontSize: 11,
-      fontFamily: 'Inter_600SemiBold',
     },
   });
 }
