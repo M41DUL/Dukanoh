@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useRef, ComponentProps } from 'r
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Button } from '@/components/Button';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Avatar } from '@/components/Avatar';
@@ -25,7 +26,7 @@ interface QuickAction {
 const STALE_MS = 30_000;
 
 const quickActions: QuickAction[] = [
-  { icon: 'bag-outline', label: 'My Items', onPress: () => router.push('/my-items') },
+  { icon: 'bag-outline', label: 'My listings', onPress: () => router.push('/my-listings') },
   { icon: 'receipt-outline', label: 'Orders', onPress: () => router.push('/orders') },
   { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/wallet') },
   { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
@@ -286,14 +287,13 @@ export default function ProfileScreen() {
         )}
 
         {/* ── Settings — secondary footer CTA ── */}
-        <TouchableOpacity
-          style={styles.settingsFooter}
+        <Button
+          label="Settings"
+          variant="outline"
+          size="md"
           onPress={() => router.push('/settings')}
-          activeOpacity={0.6}
-        >
-          <Ionicons name="settings-outline" size={16} color={colors.textSecondary} />
-          <Text style={[styles.settingsFooterText, { color: colors.textSecondary }]}>Settings</Text>
-        </TouchableOpacity>
+          style={styles.settingsFooter}
+        />
 
       </ScrollView>
 
@@ -505,15 +505,8 @@ function getStyles(colors: ColorTokens) {
       color: HUB.accent,
     },
     settingsFooter: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      paddingVertical: Spacing.xl,
-    },
-    settingsFooterText: {
-      fontSize: 14,
-      fontFamily: FontFamily.medium,
+      marginHorizontal: Spacing.base,
+      marginBottom: Spacing.xl,
     },
   });
 }

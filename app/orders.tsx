@@ -3,7 +3,6 @@ import {
   View,
   Text,
   FlatList,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
@@ -186,12 +185,7 @@ export default function OrdersScreen() {
       />
 
       {/* Filter pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filtersRow}
-        style={styles.filtersScroll}
-      >
+      <View style={[styles.filtersRow, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
         {FILTERS.map(f => {
           const isActive = activeFilter === f.key;
           return (
@@ -214,7 +208,7 @@ export default function OrdersScreen() {
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
 
       {loading ? (
         <LoadingSpinner />
@@ -312,34 +306,31 @@ function OrderRow({ order, tab, actionRequired, colors, styles }: OrderRowProps)
 
 // ─── Styles ───────────────────────────────────────────────────
 
-function getStyles(colors: ColorTokens) {
+function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     // Filter pills
-    filtersScroll: {
-      flexGrow: 0,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
     filtersRow: {
-      gap: Spacing.sm,
+      flexDirection: 'row',
+      gap: Spacing.xs,
       paddingHorizontal: Spacing.base,
       paddingVertical: Spacing.md,
     },
     filterPill: {
-      paddingHorizontal: Spacing.md,
-      paddingVertical: 6,
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 7,
       borderRadius: BorderRadius.full,
       borderWidth: 1.5,
     },
     filterPillText: {
-      fontSize: 13,
+      fontSize: 12,
       fontFamily: FontFamily.medium,
     },
 
     // List
     list: {
       flexGrow: 1,
-      padding: Spacing.base,
+      paddingTop: Spacing.base,
       paddingBottom: Spacing['3xl'],
     },
     separator: {

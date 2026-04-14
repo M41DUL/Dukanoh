@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Button } from '@/components/Button';
 import { BalanceCarousel, type BalanceData } from '@/components/pro/BalanceCarousel';
 import { useProColors } from '@/hooks/useProColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -168,8 +169,8 @@ export function ProProfileTab() {
   const quickLinks: QuickLink[] = [
     {
       icon: 'bag-outline',
-      label: 'My Items',
-      onPress: () => router.push('/my-items'),
+      label: 'My listings',
+      onPress: () => router.push('/my-listings'),
     },
     {
       icon: 'flash-outline',
@@ -315,14 +316,15 @@ export function ProProfileTab() {
         </TouchableOpacity>
 
         {/* ── Settings — secondary footer CTA ── */}
-        <TouchableOpacity
-          style={styles.settingsFooter}
+        <Button
+          label="Settings"
+          variant="outline"
+          size="md"
           onPress={() => router.push('/settings')}
-          activeOpacity={0.6}
-        >
-          <Ionicons name="settings-outline" size={16} color={P.textSecondary} />
-          <Text style={[styles.settingsFooterText, { color: P.textSecondary }]}>Settings</Text>
-        </TouchableOpacity>
+          borderColor={P.border}
+          textColor={P.textSecondary}
+          style={styles.settingsFooter}
+        />
       </ScrollView>
     </LinearGradient>
   );
@@ -516,15 +518,7 @@ function getStyles(_P: ProColorTokens) {
 
     // Settings footer
     settingsFooter: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      paddingVertical: Spacing.xl,
-    },
-    settingsFooterText: {
-      fontSize: 14,
-      fontFamily: FontFamily.medium,
+      marginTop: Spacing.sm,
     },
   });
 }
