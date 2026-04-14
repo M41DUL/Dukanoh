@@ -215,13 +215,13 @@ export function ProProfileTab() {
                   style={styles.avatarCircle}
                 />
               ) : (
-                <View style={[styles.avatarCircle, { backgroundColor: P.primary, alignItems: 'center', justifyContent: 'center' }]}>
+                <View style={[styles.avatarCircle, { backgroundColor: P.proAccent, alignItems: 'center', justifyContent: 'center' }]}>
                   <Text style={[styles.avatarInitials, { color: P.gradientBottom }]}>{initials}</Text>
                 </View>
               )}
               {/* Gold Pro checkmark badge */}
-              <View style={[styles.proBadgeNotif, { backgroundColor: P.primary }]}>
-                <Ionicons name="checkmark" size={9} color={P.gradientBottom} />
+              <View style={[styles.proBadgeNotif, { backgroundColor: P.proAccent }]}>
+                <Ionicons name="checkmark" size={9} color="#0D0D0D" />
               </View>
             </TouchableOpacity>
           </View>

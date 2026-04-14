@@ -9,7 +9,7 @@ import { Avatar } from '@/components/Avatar';
 import { StarRating } from '@/components/StarRating';
 import { ProPaywallSheet } from '@/components/pro/ProPaywallSheet';
 import { ProProfileTab } from '@/components/pro/ProProfileTab';
-import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors, proColorsLight } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -167,8 +167,8 @@ export default function ProfileScreen() {
               </View>
             )}
             {(sellerTier === 'pro' || sellerTier === 'founder') && (
-              <View style={[styles.badgePill, { backgroundColor: proColors.primaryLight }]}>
-                <Text style={[styles.badgePillText, { color: proColors.primaryText }]}>◆ Pro</Text>
+              <View style={[styles.badgePill, { backgroundColor: proColors.proAccent + '22', borderColor: proColors.proAccent + '60' }]}>
+                <Text style={[styles.badgePillText, { color: proColorsLight.proAccentText }]}>◆ Pro</Text>
               </View>
             )}
           </View>

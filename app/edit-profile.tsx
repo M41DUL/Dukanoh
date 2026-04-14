@@ -9,7 +9,7 @@ import { Avatar } from '@/components/Avatar';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { LocationPicker } from '@/components/LocationPicker';
-import { Spacing, ColorTokens , proColorsDark } from '@/constants/theme';
+import { Spacing, ColorTokens, proColorsDark, proColorsLight } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -163,9 +163,9 @@ export default function EditProfileScreen() {
 
         {/* Founder / Pro tier pill */}
         {(sellerTier === 'founder' || sellerTier === 'pro') && (
-          <View style={[styles.tierPill, { backgroundColor: proColorsDark.primaryLight, borderColor: proColorsDark.primary + '40' }]}>
-            <Ionicons name="checkmark-circle" size={14} color={proColorsDark.primary} />
-            <Text style={[styles.tierPillText, { color: proColorsDark.primary }]}>
+          <View style={[styles.tierPill, { backgroundColor: proColorsDark.proAccent + '22', borderColor: proColorsDark.proAccent + '60' }]}>
+            <Ionicons name="checkmark-circle" size={14} color={proColorsLight.proAccentText} />
+            <Text style={[styles.tierPillText, { color: proColorsLight.proAccentText }]}>
               {sellerTier === 'founder' ? 'Founder' : 'Dukanoh Pro'}
             </Text>
           </View>

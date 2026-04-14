@@ -70,11 +70,15 @@ export const proColorsDark = {
   textPrimary:      '#FFFFFF',
   textSecondary:    'rgba(255,255,255,0.55)',
 
-  // Gold accent — the Pro identity colour
-  primary:          '#FBCD47',
-  primaryDim:       '#D4A820',                  // pressed state
-  primaryLight:     'rgba(251,205,71,0.15)',    // tinted backgrounds
-  primaryText:      '#FBCD47',                  // gold text on dark
+  // Functional accent — white on deep indigo (brand primary equivalent)
+  primary:          '#FFFFFF',
+  primaryDim:       'rgba(255,255,255,0.80)',
+  primaryLight:     'rgba(255,255,255,0.10)',
+  primaryText:      '#FFFFFF',
+
+  // Gold — Pro identity marker only (checkmark badge, Pro/Founder pills)
+  proAccent:        '#FBCD47',
+  proAccentText:    '#FBCD47',   // gold text is readable on dark backgrounds
 
   // Secondary
   secondary:        '#8888AA',
@@ -97,8 +101,8 @@ export const proColorsDark = {
 
 export const proColorsLight = {
   // Full-screen gradient (top → bottom)
-  gradientTop:      '#C8C6FF' as const,   // soft brand indigo
-  gradientBottom:   '#F0EFFF' as const,   // near-white lavender
+  gradientTop:      '#FFFFFF' as const,
+  gradientBottom:   '#DFE9F3' as const,
 
   // Frosted glass surfaces
   surface:          'rgba(255,255,255,0.55)',
@@ -109,11 +113,15 @@ export const proColorsLight = {
   textPrimary:      '#0A0A1A',
   textSecondary:    'rgba(10,10,26,0.55)',
 
-  // Gold accent — same across both modes
-  primary:          '#FBCD47',
-  primaryDim:       '#D4A820',
-  primaryLight:     'rgba(251,205,71,0.20)',
-  primaryText:      '#8A6800',                  // dark gold — readable on light
+  // Functional accent — near black on white (matches textPrimary)
+  primary:          '#0A0A1A',
+  primaryDim:       'rgba(10,10,26,0.75)',
+  primaryLight:     'rgba(10,10,26,0.06)',
+  primaryText:      '#0A0A1A',
+
+  // Gold — Pro identity marker only (checkmark badge, Pro/Founder pills)
+  proAccent:        '#FBCD47',
+  proAccentText:    '#8A6800',   // dark amber — WCAG AA on white (4.8:1)
 
   // Secondary
   secondary:        '#6B6B99',
@@ -128,10 +136,10 @@ export const proColorsLight = {
   overlay:          'rgba(0,0,0,0.25)',
 
   // Legacy aliases
-  background:       '#F0EFFF',
+  background:       '#DFE9F3',
   surfaceAlt:       'rgba(255,255,255,0.75)',
-  gradientStart:    '#F0EFFF' as const,
-  gradientEnd:      '#C8C6FF' as const,
+  gradientStart:    '#DFE9F3' as const,
+  gradientEnd:      '#FFFFFF' as const,
 };
 
 // proColors — dark palette, kept for backwards compat with hubTheme.ts
