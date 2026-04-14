@@ -314,6 +314,7 @@ function getStyles(_colors: ColorTokens) {
       gap: Spacing.xs,
       paddingHorizontal: Spacing.base,
       paddingVertical: Spacing.md,
+      marginHorizontal: -Spacing.base,
     },
     filterPill: {
       flex: 1,

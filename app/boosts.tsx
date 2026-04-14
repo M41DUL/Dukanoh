@@ -133,37 +133,49 @@ export default function BoostsScreen() {
       return;
     }
 
-    setTogglingId(listing.id);
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + BOOST_DURATION_DAYS);
+    Alert.alert(
+      'Boost this listing?',
+      `"${listing.title}" will be featured in Stories for ${BOOST_DURATION_DAYS} days. This uses 1 of your ${boostsRemaining} remaining boost${boostsRemaining === 1 ? '' : 's'}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Boost',
+          onPress: async () => {
+            setTogglingId(listing.id);
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + BOOST_DURATION_DAYS);
 
-    const { error } = await supabase.from('boosts').insert({
-      listing_id: listing.id,
-      seller_id: user.id,
-      expires_at: expiresAt.toISOString(),
-      amount_paid: 0,
-    });
+            const { error } = await supabase.from('boosts').insert({
+              listing_id: listing.id,
+              seller_id: user.id,
+              expires_at: expiresAt.toISOString(),
+              amount_paid: 0,
+            });
 
-    if (error) {
-      Alert.alert('Something went wrong', 'Please try again.');
-    } else {
-      await supabase
-        .from('listings')
-        .update({ is_boosted: true, boost_expires_at: expiresAt.toISOString() })
-        .eq('id', listing.id);
-      const nextReset = new Date();
-      nextReset.setMonth(nextReset.getMonth() + 1, 1);
-      nextReset.setHours(0, 0, 0, 0);
-      await supabase
-        .from('users')
-        .update({
-          boosts_used: meta.boosts_used + 1,
-          boosts_reset_at: meta.boosts_reset_at ?? nextReset.toISOString(),
-        })
-        .eq('id', user.id);
-      fetchData();
-    }
-    setTogglingId(null);
+            if (error) {
+              Alert.alert('Something went wrong', 'Please try again.');
+            } else {
+              await supabase
+                .from('listings')
+                .update({ is_boosted: true, boost_expires_at: expiresAt.toISOString() })
+                .eq('id', listing.id);
+              const nextReset = new Date();
+              nextReset.setMonth(nextReset.getMonth() + 1, 1);
+              nextReset.setHours(0, 0, 0, 0);
+              await supabase
+                .from('users')
+                .update({
+                  boosts_used: meta.boosts_used + 1,
+                  boosts_reset_at: meta.boosts_reset_at ?? nextReset.toISOString(),
+                })
+                .eq('id', user.id);
+              fetchData();
+            }
+            setTogglingId(null);
+          },
+        },
+      ]
+    );
   }, [user, meta, boostsRemaining, resetDate, fetchData]);
 
   const activeBoosted = listings.filter(l => l.is_boosted);
@@ -180,7 +192,7 @@ export default function BoostsScreen() {
           <Ionicons name="chevron-back" size={22} color={P.textPrimary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: P.textPrimary }]}>Story Boosts</Text>
-        <View style={styles.backBtn} />
+        <View style={styles.headerSpacer} />
       </View>
 
       {loading ? (
@@ -191,10 +203,10 @@ export default function BoostsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Quota card */}
-          <View style={[styles.card, { borderColor: P.primary + '30', borderWidth: 1 }]}>
+          <View style={[styles.card, { borderColor: P.border, borderWidth: 1 }]}>
             <View style={styles.quotaRow}>
-              <View style={styles.quotaCircle}>
-                <Text style={[styles.quotaNum, { color: P.primary }]}>{boostsRemaining}</Text>
+              <View style={[styles.quotaCircle, { backgroundColor: P.boostAccent + '25' }]}>
+                <Text style={[styles.quotaNum, { color: P.textPrimary }]}>{boostsRemaining}</Text>
                 <Text style={[styles.quotaOf, { color: P.textSecondary }]}>left</Text>
               </View>
               <View style={styles.quotaInfo}>
@@ -246,7 +258,7 @@ export default function BoostsScreen() {
 
           {listings.length === 0 && (
             <View style={styles.empty}>
-              <Ionicons name="flash-outline" size={32} color={P.textSecondary} />
+              <Ionicons name="bag-outline" size={32} color={P.textSecondary} />
               <Text style={[styles.emptyText, { color: P.textSecondary }]}>
                 You have no active listings to boost yet.
               </Text>
@@ -275,7 +287,7 @@ function BoostRow({ listing, onToggle, toggling, P, disabled }: BoostRowProps) {
     : null;
 
   return (
-    <View style={[rowStyles.row, { backgroundColor: P.surface, borderColor: listing.is_boosted ? P.primary + '40' : P.border }]}>
+    <View style={[rowStyles.row, { backgroundColor: P.surface, borderColor: listing.is_boosted ? P.border : P.border }]}>
       {imageUri ? (
         <Image source={{ uri: imageUri }} style={rowStyles.thumb} />
       ) : (
@@ -295,9 +307,8 @@ function BoostRow({ listing, onToggle, toggling, P, disabled }: BoostRowProps) {
       {toggling ? (
         <ActivityIndicator size="small" color={P.primary} />
       ) : listing.is_boosted ? (
-        <TouchableOpacity style={[rowStyles.badge, { backgroundColor: P.primary }]} onPress={onToggle} hitSlop={8}>
-          <Ionicons name="flash" size={12} color={P.gradientBottom} />
-          <Text style={[rowStyles.badgeText, { color: P.gradientBottom }]}>Boosted</Text>
+        <TouchableOpacity style={[rowStyles.badge, { backgroundColor: P.boostAccent }]} onPress={onToggle} hitSlop={8}>
+          <Text style={[rowStyles.badgeText, { color: P.boostAccentText }]}>Boosted</Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
@@ -306,7 +317,6 @@ function BoostRow({ listing, onToggle, toggling, P, disabled }: BoostRowProps) {
           disabled={disabled}
           hitSlop={8}
         >
-          <Ionicons name="flash-outline" size={12} color={P.primary} />
           <Text style={[rowStyles.boostBtnText, { color: P.primary }]}>Boost</Text>
         </TouchableOpacity>
       )}
@@ -345,9 +355,6 @@ const rowStyles = StyleSheet.create({
     marginTop: 1,
   },
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 5,
@@ -357,15 +364,12 @@ const rowStyles = StyleSheet.create({
     fontFamily: FontFamily.semibold,
   },
   boostBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
     borderWidth: 1,
     borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 5,
     minWidth: 64,
-    justifyContent: 'center',
+    alignItems: 'center',
   },
   boostBtnText: {
     fontSize: 11,
@@ -382,7 +386,7 @@ function getStyles(P: ReturnType<typeof useProColors>) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: Spacing.xl,
+      paddingHorizontal: Spacing.base,
       paddingBottom: Spacing.md,
     },
     backBtn: {
@@ -393,12 +397,15 @@ function getStyles(P: ReturnType<typeof useProColors>) {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    headerSpacer: {
+      width: 36,
+    },
     headerTitle: {
       fontSize: 17,
       fontFamily: FontFamily.semibold,
     },
     scroll: {
-      paddingHorizontal: Spacing.xl,
+      paddingHorizontal: Spacing.base,
       gap: Spacing.md,
     },
     card: {
@@ -415,7 +422,6 @@ function getStyles(P: ReturnType<typeof useProColors>) {
       width: 56,
       height: 56,
       borderRadius: 28,
-      backgroundColor: P.primaryLight,
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
