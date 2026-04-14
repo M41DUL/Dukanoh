@@ -267,7 +267,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.md,
   },
   closeBtn: {
@@ -283,7 +282,6 @@ const styles = StyleSheet.create({
     height: 36,
   },
   scroll: {
-    paddingHorizontal: Spacing.xl,
     gap: Spacing.xl,
   },
   subheading: {
