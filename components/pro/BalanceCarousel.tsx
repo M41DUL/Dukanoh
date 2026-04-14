@@ -10,7 +10,6 @@ import {
   NativeScrollEvent,
   ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
 import { FontFamily, Spacing, type ProColorTokens } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -33,9 +32,10 @@ interface Props {
   data: BalanceData | null;
   loading?: boolean;
   P: ProColorTokens;
+  onWithdraw: () => void;
 }
 
-export function BalanceCarousel({ data, loading, P }: Props) {
+export function BalanceCarousel({ data, loading, P, onWithdraw }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -101,7 +101,7 @@ export function BalanceCarousel({ data, loading, P }: Props) {
             {page.showWithdraw && (
               <TouchableOpacity
                 style={[styles.withdrawBtn, { borderColor: P.border }]}
-                onPress={() => router.push('/wallet')}
+                onPress={onWithdraw}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.withdrawBtnText, { color: P.textSecondary }]}>Withdraw</Text>

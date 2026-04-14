@@ -9,6 +9,7 @@ import { Avatar } from '@/components/Avatar';
 import { StarRating } from '@/components/StarRating';
 import { ProPaywallSheet } from '@/components/pro/ProPaywallSheet';
 import { ProProfileTab } from '@/components/pro/ProProfileTab';
+import { WalletSheet } from '@/components/WalletSheet';
 import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors, proColorsLight } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,13 +25,6 @@ interface QuickAction {
 }
 
 const STALE_MS = 30_000;
-
-const quickActions: QuickAction[] = [
-  { icon: 'bag-outline', label: 'My listings', onPress: () => router.push('/my-listings') },
-  { icon: 'receipt-outline', label: 'Orders', onPress: () => router.push('/orders') },
-  { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/wallet') },
-  { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
-];
 
 interface HubSummary {
   totalViews: number;
@@ -49,6 +43,14 @@ export default function ProfileScreen() {
   const [hubSummary, setHubSummary] = useState<HubSummary | null>(null);
   const [hubSummaryLoading, setHubSummaryLoading] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
+  const [walletVisible, setWalletVisible] = useState(false);
+
+  const quickActions: QuickAction[] = [
+    { icon: 'bag-outline', label: 'My listings', onPress: () => router.push('/my-listings') },
+    { icon: 'receipt-outline', label: 'Orders', onPress: () => router.push('/orders') },
+    { icon: 'wallet-outline', label: 'Wallet', onPress: () => setWalletVisible(true) },
+    { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
+  ];
   const [hadFreeTrial, setHadFreeTrial] = useState(false);
   const [proExpired, setProExpired] = useState(false);
   const colors = useThemeColors();
@@ -303,6 +305,10 @@ export default function ProfileScreen() {
         isVerified={isVerified}
         hadFreeTrial={hadFreeTrial}
         proExpired={proExpired}
+      />
+      <WalletSheet
+        visible={walletVisible}
+        onClose={() => setWalletVisible(false)}
       />
     </ScreenWrapper>
   );

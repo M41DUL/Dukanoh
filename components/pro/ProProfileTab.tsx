@@ -7,6 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
+  Alert,
   Image,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -252,7 +253,23 @@ export function ProProfileTab() {
 
         {/* ── Balance carousel ── */}
         <View style={styles.carouselWrap}>
-          <BalanceCarousel data={balance} loading={balanceLoading} P={P} />
+          <BalanceCarousel
+          data={balance}
+          loading={balanceLoading}
+          P={P}
+          onWithdraw={() => {
+            const available = balance?.available ?? 0;
+            if (available <= 0) return;
+            Alert.alert(
+              `Withdraw £${available.toFixed(2)}`,
+              'Funds will be sent to your connected bank account within 3–5 business days.',
+              [
+                { text: 'Confirm', onPress: () => {} },
+                { text: 'Cancel', style: 'cancel' },
+              ]
+            );
+          }}
+        />
         </View>
 
         {/* ── Quick links — no card wrapper ── */}
