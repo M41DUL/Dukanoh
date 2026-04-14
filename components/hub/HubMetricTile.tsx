@@ -1,46 +1,44 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme';
-import { HUB } from './hubTheme';
+import { FontFamily, Spacing, BorderRadius, Typography, type ProColorTokens } from '@/constants/theme';
 
 interface Props {
   label: string;
   value: number;
   icon: React.ComponentProps<typeof Ionicons>['name'];
   footnote?: string;
+  P: ProColorTokens;
 }
 
-export function HubMetricTile({ label, value, icon, footnote }: Props) {
+export function HubMetricTile({ label, value, icon, footnote, P }: Props) {
   return (
-    <View style={styles.metricTile}>
-      <Ionicons name={icon} size={18} color={HUB.accent} />
-      <Text style={styles.metricValue}>{value.toLocaleString()}</Text>
-      <Text style={styles.metricLabel}>{label}{footnote ? ` (${footnote})` : ''}</Text>
+    <View style={[styles.tile, { backgroundColor: P.surface, borderColor: P.border }]}>
+      <Ionicons name={icon} size={18} color={P.primary} />
+      <Text style={[styles.value, { color: P.textPrimary }]}>{value.toLocaleString()}</Text>
+      <Text style={[styles.label, { color: P.textSecondary }]}>
+        {label}{footnote ? ` (${footnote})` : ''}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  metricTile: {
+  tile: {
     flex: 1,
-    backgroundColor: HUB.surface,
     borderRadius: BorderRadius.large,
     borderWidth: 1,
-    borderColor: HUB.border,
     padding: Spacing.md,
     alignItems: 'center',
     gap: 4,
   },
-  metricValue: {
+  value: {
     fontSize: 22,
     fontFamily: FontFamily.bold,
-    color: HUB.textPrimary,
     letterSpacing: -0.5,
   },
-  metricLabel: {
+  label: {
     ...Typography.caption,
-    color: HUB.textSecondary,
     textAlign: 'center',
   },
 });

@@ -1,58 +1,54 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { FontFamily, Spacing, Typography } from '@/constants/theme';
-import { HUB } from './hubTheme';
+import { FontFamily, Spacing, Typography, type ProColorTokens } from '@/constants/theme';
 
 interface Props {
   occasion: string;
   saves: number;
   views: number;
   topSaves: number;
+  P: ProColorTokens;
 }
 
-export function HubOccasionRow({ occasion, saves, views, topSaves }: Props) {
+export function HubOccasionRow({ occasion, saves, views, topSaves, P }: Props) {
   const barWidth = topSaves > 0 ? (saves / topSaves) * 100 : 0;
   return (
-    <View style={styles.occasionRow}>
-      <View style={styles.occasionMeta}>
-        <Text style={styles.occasionName}>{occasion}</Text>
-        <Text style={styles.occasionStats}>{saves} saves · {views} views</Text>
+    <View style={styles.row}>
+      <View style={styles.meta}>
+        <Text style={[styles.name, { color: P.textPrimary }]}>{occasion}</Text>
+        <Text style={[styles.stats, { color: P.textSecondary }]}>{saves} saves · {views} views</Text>
       </View>
-      <View style={styles.occasionBarBg}>
-        <View style={[styles.occasionBarFill, { width: `${barWidth}%` }]} />
+      <View style={[styles.barBg, { backgroundColor: P.surfaceElevated }]}>
+        <View style={[styles.barFill, { width: `${barWidth}%` as `${number}%`, backgroundColor: P.primary }]} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  occasionRow: {
+  row: {
     gap: Spacing.xs,
   },
-  occasionMeta: {
+  meta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  occasionName: {
+  name: {
     ...Typography.body,
-    color: HUB.textPrimary,
     fontFamily: FontFamily.medium,
     textTransform: 'capitalize',
   },
-  occasionStats: {
+  stats: {
     ...Typography.caption,
-    color: HUB.textSecondary,
   },
-  occasionBarBg: {
+  barBg: {
     height: 4,
-    backgroundColor: HUB.surfaceElevated,
     borderRadius: 2,
     overflow: 'hidden',
   },
-  occasionBarFill: {
+  barFill: {
     height: '100%',
-    backgroundColor: HUB.accent,
     borderRadius: 2,
   },
 });

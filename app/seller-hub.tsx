@@ -1,17 +1,12 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   Animated,
   ActivityIndicator,
-  Alert,
-  Dimensions,
-  Share,
-  TextInput,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -20,21 +15,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LineChart } from 'react-native-gifted-charts';
-import ViewShot, { captureRef } from 'react-native-view-shot';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Button } from '@/components/Button';
-import { BottomSheet } from '@/components/BottomSheet';
 import { Spacing, BorderRadius, FontFamily, Typography, proColors } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { HUB, HUB_FEATURES, CORE_FEATURE_LABELS, HubListing, HubCollection, HubData } from '@/components/hub/hubTheme';
-import { HubMetricTile } from '@/components/hub/HubMetricTile';
-import { HubListingRow } from '@/components/hub/HubListingRow';
-import { HubShareCard } from '@/components/hub/HubShareCard';
-import { HubOccasionRow } from '@/components/hub/HubOccasionRow';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
+import { HUB, HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
 
 
 // ── Root screen: fetch tier and branch ──────────────────────
@@ -42,8 +28,6 @@ export default function SellerHubScreen() {
   const { user, isVerified } = useAuth();
   const [sellerTier, setSellerTier] = useState<string | null>(null);
   const [hadFreeTrial, setHadFreeTrial] = useState(false);
-  const [accountStatus, setAccountStatus] = useState<'active' | 'warned' | 'suspended'>('active');
-  const [strikeCount, setStrikeCount] = useState(0);
   const [proExpired, setProExpired] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
@@ -53,7 +37,7 @@ export default function SellerHubScreen() {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('seller_tier, had_free_trial, account_status, cancellation_strike_count, pro_expires_at')
+          .select('seller_tier, had_free_trial, pro_expires_at')
           .eq('id', user.id)
           .maybeSingle();
         if (error) { setLoadError(true); return; }
@@ -65,8 +49,6 @@ export default function SellerHubScreen() {
         setSellerTier(expired ? 'free' : tier);
         setProExpired(expired);
         setHadFreeTrial(data?.had_free_trial ?? false);
-        setAccountStatus(data?.account_status ?? 'active');
-        setStrikeCount(data?.cancellation_strike_count ?? 0);
       } catch {
         setLoadError(true);
       }
@@ -96,7 +78,12 @@ export default function SellerHubScreen() {
     );
   }
 
-  if (sellerTier === 'pro' || sellerTier === 'founder') return <HubDashboard accountStatus={accountStatus} strikeCount={strikeCount} />;
+  // Pro/Founder dashboard has moved to the profile tab — redirect away
+  if (sellerTier === 'pro' || sellerTier === 'founder') {
+    router.replace('/(tabs)/profile');
+    return null;
+  }
+
   return <HubPaywall isVerified={isVerified} hadFreeTrial={hadFreeTrial} proExpired={proExpired} />;
 }
 
@@ -133,7 +120,7 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
         if (row('founder_monthly_price')) setFounderMonthlyPrice(`£${row('founder_monthly_price')}`);
         if (row('pro_monthly_price'))     setStandardMonthlyPrice(`£${row('pro_monthly_price')}`);
       });
-  }, []);
+  }, [founderLimit]);
 
   const isFounderAvailable = founderCount !== null && founderCount < founderLimit;
   const founderSlotsLeft   = founderLimit - (founderCount ?? 0);
@@ -322,652 +309,6 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
     </View>
   );
 }
-
-// ── Pro dashboard ────────────────────────────────────────────
-function HubDashboard({ accountStatus, strikeCount }: {
-  accountStatus: 'active' | 'warned' | 'suspended';
-  strikeCount: number;
-}) {
-  const { user } = useAuth();
-  const insets = useSafeAreaInsets();
-  const [data, setData] = useState<HubData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
-  const [createColVisible, setCreateColVisible] = useState(false);
-  const [newColName, setNewColName] = useState('');
-  const [savingCol, setSavingCol] = useState(false);
-  const [assignSheetListing, setAssignSheetListing] = useState<HubListing | null>(null);
-  const [sharingId, setSharingId] = useState<string | null>(null);
-  const [bulkEditVisible, setBulkEditVisible] = useState(false);
-  const shareCardRefs = useRef<Record<string, ViewShot | null>>({});
-
-  const fetchData = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    setFetchError(false);
-
-    try {
-      const now = new Date();
-      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
-      const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-      const [txTotal, txThis, txLast, tx30d, listingsRes, profileViewsRes, collectionsRes] = await Promise.all([
-        supabase.from('transactions').select('amount').eq('seller_id', user.id),
-        supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', thisMonthStart),
-        supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
-        supabase.from('transactions').select('amount, created_at').eq('seller_id', user.id).gte('created_at', last30Days),
-        supabase.from('listings').select('id, title, price, images, status, view_count, save_count, occasion, collection_id').eq('seller_id', user.id).in('status', ['available', 'sold']).order('created_at', { ascending: false }).range(0, 49),
-        supabase.from('profile_views').select('id', { count: 'exact', head: true }).eq('profile_user_id', user.id).gte('viewed_at', last30Days),
-        supabase.from('collections').select('id, name').eq('seller_id', user.id).order('created_at', { ascending: false }),
-      ]);
-
-      if (txTotal.error || txThis.error || txLast.error || tx30d.error || listingsRes.error || profileViewsRes.error || collectionsRes.error) {
-        setFetchError(true);
-        setLoading(false);
-        return;
-      }
-
-      const totalEarned = (txTotal.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
-      const thisMonthEarned = (txThis.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
-      const lastMonthEarned = (txLast.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
-
-      // Build 30-day chart data
-      const buckets: Record<string, number> = {};
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-        buckets[d.toDateString()] = 0;
-      }
-      (tx30d.data ?? []).forEach(t => {
-        const key = new Date(t.created_at).toDateString();
-        if (key in buckets) buckets[key] += t.amount ?? 0;
-      });
-      const chartData = Object.values(buckets).map(v => ({ value: v }));
-
-      const listings = (listingsRes.data ?? []) as HubListing[];
-      const totalViews = listings.reduce((s, l) => s + (l.view_count ?? 0), 0);
-      const totalSaves = listings.reduce((s, l) => s + (l.save_count ?? 0), 0);
-
-      // Collection listing counts
-      const collectionIds = (collectionsRes.data ?? []).map(c => c.id);
-      const collectionCounts: Record<string, number> = {};
-      if (collectionIds.length > 0) {
-        const { data: clData } = await supabase
-          .from('listings')
-          .select('collection_id')
-          .eq('seller_id', user.id)
-          .in('collection_id', collectionIds);
-        (clData ?? []).forEach((r: { collection_id: string | null }) => {
-          if (r.collection_id) collectionCounts[r.collection_id] = (collectionCounts[r.collection_id] ?? 0) + 1;
-        });
-      }
-      const collections: HubCollection[] = (collectionsRes.data ?? []).map(c => ({
-        id: c.id,
-        name: c.name,
-        listingCount: collectionCounts[c.id] ?? 0,
-      }));
-
-      // Occasion performance
-      const tagMap: Record<string, { saves: number; views: number }> = {};
-      listings.forEach(l => {
-        if (!l.occasion) return;
-        if (!tagMap[l.occasion]) tagMap[l.occasion] = { saves: 0, views: 0 };
-        tagMap[l.occasion].saves += l.save_count ?? 0;
-        tagMap[l.occasion].views += l.view_count ?? 0;
-      });
-      const occasionPerformance = Object.entries(tagMap)
-        .map(([occasion, v]) => ({ occasion, ...v }))
-        .sort((a, b) => b.saves - a.saves)
-        .slice(0, 5);
-
-      setData({
-        totalEarned,
-        thisMonthEarned,
-        lastMonthEarned,
-        totalViews,
-        totalSaves,
-        profileViews30d: profileViewsRes.count ?? 0,
-        chartData,
-        listings,
-        collections,
-        occasionPerformance,
-      });
-    } catch {
-      setFetchError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-
-  const handleCreateCollection = useCallback(async () => {
-    if (!user || !newColName.trim()) return;
-    setSavingCol(true);
-    const { data: newCol } = await supabase
-      .from('collections')
-      .insert({ seller_id: user.id, name: newColName.trim() })
-      .select('id, name')
-      .single();
-    setNewColName('');
-    setCreateColVisible(false);
-    setSavingCol(false);
-    if (newCol) {
-      setData(prev => prev ? {
-        ...prev,
-        collections: [{ id: newCol.id, name: newCol.name, listingCount: 0 }, ...prev.collections],
-      } : prev);
-    }
-  }, [user, newColName]);
-
-  const handleAssignCollection = useCallback(async (listingId: string, collectionId: string | null) => {
-    await supabase.from('listings').update({ collection_id: collectionId }).eq('id', listingId);
-    setAssignSheetListing(null);
-    setData(prev => {
-      if (!prev) return prev;
-      const oldListing = prev.listings.find(l => l.id === listingId);
-      const oldCollectionId = oldListing?.collection_id ?? null;
-      const collections = prev.collections.map(c => {
-        if (c.id === collectionId) return { ...c, listingCount: c.listingCount + 1 };
-        if (c.id === oldCollectionId) return { ...c, listingCount: Math.max(0, c.listingCount - 1) };
-        return c;
-      });
-      return { ...prev, collections };
-    });
-  }, []);
-
-  const handleShare = async (listingId: string) => {
-    const ref = shareCardRefs.current[listingId];
-    if (!ref) return;
-    setSharingId(listingId);
-    try {
-      const uri = await captureRef(ref, { format: 'png', quality: 0.95 });
-      await Share.share({ url: uri, message: 'Check this out on Dukanoh!' });
-    } catch {
-      // user cancelled or capture failed — silent
-    } finally {
-      setSharingId(null);
-    }
-  };
-
-  const chartWidth = SCREEN_WIDTH - Spacing.xl * 2 - Spacing.lg * 2 - 2;
-
-  const earningsDelta = data
-    ? data.thisMonthEarned - data.lastMonthEarned
-    : 0;
-
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar style="light" />
-
-      {/* Header */}
-      <View style={[styles.dashHeader, { paddingTop: Spacing.md }]}>
-        <TouchableOpacity
-          style={styles.closeBtn}
-          onPress={() => router.back()}
-          hitSlop={16}
-        >
-          <Ionicons name="close" size={22} color={HUB.textSecondary} />
-        </TouchableOpacity>
-        <Text style={styles.dashTitle}>Dukanoh Pro</Text>
-        <View style={styles.proPillSmall}>
-          <Text style={styles.proPillSmallText}>Pro ✦</Text>
-        </View>
-      </View>
-
-      {fetchError ? (
-        <View style={styles.dashLoading}>
-          <Text style={{ color: HUB.textSecondary, fontFamily: FontFamily.regular, fontSize: 14 }}>
-            Something went wrong. Please try again.
-          </Text>
-          <TouchableOpacity onPress={fetchData} hitSlop={12} style={{ marginTop: 16 }}>
-            <Text style={{ color: HUB.accent, fontFamily: FontFamily.semibold, fontSize: 14 }}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : loading || !data ? (
-        <View style={styles.dashLoading}>
-          <ActivityIndicator color={HUB.accent} size="large" />
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={[styles.dashScroll, { paddingBottom: insets.bottom + Spacing['3xl'] }]}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ── Account status banner ── */}
-          {accountStatus === 'suspended' && (
-            <View style={[styles.strikeBanner, { backgroundColor: '#FF444420', borderColor: '#FF444440' }]}>
-              <Ionicons name="ban-outline" size={18} color="#FF4444" />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.strikeBannerTitle, { color: '#FF4444' }]}>Account suspended</Text>
-                <Text style={[styles.strikeBannerBody, { color: HUB.textSecondary }]}>
-                  Your account has been suspended after {strikeCount} cancelled orders. Contact support to appeal.
-                </Text>
-              </View>
-            </View>
-          )}
-          {accountStatus === 'warned' && (
-            <View style={[styles.strikeBanner, { backgroundColor: '#F59E0B20', borderColor: '#F59E0B40' }]}>
-              <Ionicons name="warning-outline" size={18} color="#F59E0B" />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.strikeBannerTitle, { color: '#F59E0B' }]}>Account warning</Text>
-                <Text style={[styles.strikeBannerBody, { color: HUB.textSecondary }]}>
-                  You have {strikeCount} cancellation strikes. Reaching 5 will suspend your account.
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {/* ── Earnings card ── */}
-          <LinearGradient colors={[proColors.gradientEnd, proColors.gradientStart]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.earningsCard}>
-            <Text style={styles.earningsLabel}>Total Earned</Text>
-            <Text style={styles.earningsAmount}>£{data.totalEarned.toFixed(2)}</Text>
-
-            <View style={styles.earningsRow}>
-              <View style={styles.earningsPeriod}>
-                <Text style={styles.earningsPeriodLabel}>This month</Text>
-                <Text style={styles.earningsPeriodValue}>£{data.thisMonthEarned.toFixed(2)}</Text>
-              </View>
-              <View style={styles.earningsDivider} />
-              <View style={styles.earningsPeriod}>
-                <Text style={styles.earningsPeriodLabel}>Last month</Text>
-                <Text style={styles.earningsPeriodValue}>£{data.lastMonthEarned.toFixed(2)}</Text>
-              </View>
-              {earningsDelta !== 0 && (
-                <>
-                  <View style={styles.earningsDivider} />
-                  <View style={styles.earningsPeriod}>
-                    <Text style={styles.earningsPeriodLabel}>vs last month</Text>
-                    <Text style={[styles.earningsDelta, earningsDelta > 0 ? styles.deltaPositive : styles.deltaNegative]}>
-                      {earningsDelta > 0 ? '+' : ''}£{earningsDelta.toFixed(2)}
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
-
-            {/* 30-day sparkline */}
-            {data.chartData.some(d => d.value > 0) && (
-              <View style={styles.chartWrap}>
-                <LineChart
-                  data={data.chartData}
-                  width={chartWidth}
-                  height={72}
-                  color={HUB.accent}
-                  thickness={2}
-                  hideDataPoints
-                  curved
-                  areaChart
-                  startFillColor={HUB.accent}
-                  endFillColor={HUB.background}
-                  startOpacity={0.25}
-                  endOpacity={0}
-                  hideAxesAndRules
-                  hideYAxisText
-                  xAxisLabelsHeight={0}
-                  disableScroll
-                  noOfSections={3}
-                  yAxisLabelWidth={0}
-                />
-              </View>
-            )}
-          </LinearGradient>
-
-          {/* ── Performance metrics ── */}
-          <View style={styles.metricsRow}>
-            <HubMetricTile label="Listing Views" value={data.totalViews} icon="eye-outline" />
-            <HubMetricTile label="Saves" value={data.totalSaves} icon="heart-outline" />
-            <HubMetricTile label="Profile Views" value={data.profileViews30d} icon="person-outline" footnote="30d" />
-          </View>
-
-          {/* ── Listings ── */}
-          {data.listings.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Your Listings</Text>
-                <TouchableOpacity
-                  style={styles.sectionAction}
-                  onPress={() => setBulkEditVisible(true)}
-                  hitSlop={8}
-                >
-                  <Ionicons name="create-outline" size={18} color={HUB.accent} />
-                  <Text style={styles.sectionActionText}>Edit prices</Text>
-                </TouchableOpacity>
-              </View>
-              {data.listings.map(listing => (
-                <View key={listing.id}>
-                  {/* Hidden share card — captured by ViewShot */}
-                  <ViewShot
-                    ref={r => { shareCardRefs.current[listing.id] = r; }}
-                    options={{ format: 'png', quality: 0.95 }}
-                    style={styles.shareCardHidden}
-                  >
-                    <HubShareCard listing={listing} />
-                  </ViewShot>
-                  <HubListingRow
-                    listing={listing}
-                    onShare={handleShare}
-                    sharing={sharingId === listing.id}
-                    onAssign={() => setAssignSheetListing(listing)}
-                  />
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* ── Collections ── */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Collections</Text>
-              <TouchableOpacity
-                style={styles.sectionAction}
-                onPress={() => setCreateColVisible(true)}
-                hitSlop={8}
-              >
-                <Ionicons name="add" size={18} color={HUB.accent} />
-                <Text style={styles.sectionActionText}>New</Text>
-              </TouchableOpacity>
-            </View>
-
-            {data.collections.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="folder-outline" size={28} color={HUB.textSecondary} />
-                <Text style={styles.emptyStateText}>Group your listings into collections</Text>
-              </View>
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.collectionsRow}>
-                {data.collections.map(col => (
-                  <TouchableOpacity key={col.id} style={styles.collectionPill} activeOpacity={0.75}>
-                    <Text style={styles.collectionName}>{col.name}</Text>
-                    <Text style={styles.collectionCount}>{col.listingCount}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </View>
-
-          {/* ── Occasion performance ── */}
-          {data.occasionPerformance.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Occasion Performance</Text>
-              {data.occasionPerformance.map(({ occasion, saves, views }) => (
-                <HubOccasionRow key={occasion} occasion={occasion} saves={saves} views={views} topSaves={data.occasionPerformance[0].saves} />
-              ))}
-            </View>
-          )}
-        </ScrollView>
-      )}
-
-      {/* ── Create Collection sheet ── */}
-      <BottomSheet
-        visible={createColVisible}
-        onClose={() => { setCreateColVisible(false); setNewColName(''); }}
-        backgroundColor={HUB.surface}
-        handleColor={HUB.border}
-      >
-        <View style={styles.sheetContent}>
-          <Text style={styles.sheetTitle}>New Collection</Text>
-          <TextInput
-            style={styles.sheetInput}
-            placeholder="e.g. Partywear, Festive Edits…"
-            placeholderTextColor={HUB.textSecondary}
-            value={newColName}
-            onChangeText={setNewColName}
-            underlineColorAndroid="transparent"
-            autoFocus
-            maxLength={40}
-          />
-          <TouchableOpacity
-            style={[styles.ctaBtn, !newColName.trim() && { opacity: 0.4 }]}
-            onPress={handleCreateCollection}
-            disabled={!newColName.trim() || savingCol}
-            activeOpacity={0.85}
-          >
-            {savingCol
-              ? <ActivityIndicator color={HUB.background} />
-              : <Text style={styles.ctaBtnText}>Create</Text>
-            }
-          </TouchableOpacity>
-        </View>
-      </BottomSheet>
-
-      {/* ── Bulk Edit Prices sheet ── */}
-      {data && (
-        <BulkEditSheet
-          visible={bulkEditVisible}
-          listings={data.listings.filter(l => l.status === 'available')}
-          onClose={() => setBulkEditVisible(false)}
-          onSaved={() => { setBulkEditVisible(false); fetchData(); }}
-        />
-      )}
-
-      {/* ── Assign to Collection sheet ── */}
-      <BottomSheet
-        visible={assignSheetListing !== null}
-        onClose={() => setAssignSheetListing(null)}
-        backgroundColor={HUB.surface}
-        handleColor={HUB.border}
-      >
-        <View style={styles.sheetContent}>
-          <Text style={styles.sheetTitle}>Add to Collection</Text>
-          {data && data.collections.length === 0 ? (
-            <Text style={styles.sheetEmptyText}>No collections yet — create one first.</Text>
-          ) : (
-            <>
-              {data?.collections.map(col => (
-                <TouchableOpacity
-                  key={col.id}
-                  style={styles.sheetOption}
-                  onPress={() => assignSheetListing && handleAssignCollection(assignSheetListing.id, col.id)}
-                  activeOpacity={0.75}
-                >
-                  <Ionicons name="folder-outline" size={18} color={HUB.accent} />
-                  <Text style={styles.sheetOptionText}>{col.name}</Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={[styles.sheetOption, { marginTop: Spacing.sm }]}
-                onPress={() => assignSheetListing && handleAssignCollection(assignSheetListing.id, null)}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="close-circle-outline" size={18} color={HUB.textSecondary} />
-                <Text style={[styles.sheetOptionText, { color: HUB.textSecondary }]}>Remove from collection</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-      </BottomSheet>
-    </View>
-  );
-}
-
-
-// ── Bulk Edit Sheet ──────────────────────────────────────────
-const BULK_PRESETS = [
-  { label: '−5%', value: 0.05 },
-  { label: '−10%', value: 0.10 },
-  { label: '−15%', value: 0.15 },
-  { label: '−20%', value: 0.20 },
-];
-
-function BulkEditSheet({
-  visible,
-  listings,
-  onClose,
-  onSaved,
-}: {
-  visible: boolean;
-  listings: HubListing[];
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [prices, setPrices] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-
-  // Reset state when sheet opens
-  useEffect(() => {
-    if (visible) {
-      const initial: Record<string, string> = {};
-      listings.forEach(l => { initial[l.id] = String(l.price); });
-      setPrices(initial);
-    }
-  }, [visible, listings]);
-
-  const changedIds = useMemo(
-    () => listings.filter(l => {
-      const val = parseFloat(prices[l.id] ?? '');
-      return !isNaN(val) && val !== l.price;
-    }).map(l => l.id),
-    [listings, prices]
-  );
-
-  const applyPreset = useCallback((reduction: number) => {
-    setPrices(prev => {
-      const next = { ...prev };
-      listings.forEach(l => {
-        const reduced = Math.max(0.01, Math.round(l.price * (1 - reduction) * 100) / 100);
-        next[l.id] = String(reduced);
-      });
-      return next;
-    });
-  }, [listings]);
-
-  const handleClose = useCallback(() => {
-    if (changedIds.length > 0) {
-      Alert.alert(
-        'Discard changes?',
-        'You have unsaved price changes.',
-        [
-          { text: 'Keep editing', style: 'cancel' },
-          { text: 'Discard', style: 'destructive', onPress: onClose },
-        ]
-      );
-    } else {
-      onClose();
-    }
-  }, [changedIds.length, onClose]);
-
-  const handleSave = useCallback(async () => {
-    if (changedIds.length === 0 || saving) return;
-    setSaving(true);
-    try {
-      const now = new Date().toISOString();
-      await Promise.all(
-        changedIds.map(id => {
-          const listing = listings.find(l => l.id === id)!;
-          const newPrice = parseFloat(prices[id]);
-          const isPriceDrop = newPrice < listing.price;
-          const update: Record<string, unknown> = { price: newPrice };
-          if (isPriceDrop) {
-            update.original_price = listing.price;
-            update.price_dropped_at = now;
-          } else {
-            update.original_price = null;
-            update.price_dropped_at = null;
-          }
-          return supabase.from('listings').update(update).eq('id', id);
-        })
-      );
-      onSaved();
-    } catch {
-      Alert.alert('Something went wrong', 'Could not save all price changes. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  }, [changedIds, listings, prices, saving, onSaved]);
-
-  return (
-    <BottomSheet
-      visible={visible}
-      onClose={handleClose}
-      backgroundColor={HUB.surface}
-      handleColor={HUB.border}
-      fullScreen
-    >
-      <View style={styles.bulkSheetContainer}>
-        {/* Header */}
-        <View style={styles.bulkSheetHeader}>
-          <TouchableOpacity onPress={handleClose} hitSlop={12} style={styles.closeBtn}>
-            <Ionicons name="close" size={20} color={HUB.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.sheetTitle}>Edit Prices</Text>
-          <View style={{ width: 36 }} />
-        </View>
-
-        {/* Percentage presets */}
-        <View style={styles.bulkPresetsRow}>
-          {BULK_PRESETS.map(p => (
-            <TouchableOpacity
-              key={p.label}
-              style={styles.bulkPreset}
-              onPress={() => applyPreset(p.value)}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.bulkPresetText}>{p.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {listings.length === 0 ? (
-          <View style={styles.bulkEmptyState}>
-            <Ionicons name="pricetag-outline" size={32} color={HUB.textSecondary} />
-            <Text style={styles.emptyStateText}>No active listings to edit.</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={listings}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.bulkList}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => {
-              const currentVal = prices[item.id] ?? String(item.price);
-              const parsedVal = parseFloat(currentVal);
-              const changed = !isNaN(parsedVal) && parsedVal !== item.price;
-              return (
-                <View style={styles.bulkRow}>
-                  <View style={styles.bulkRowInfo}>
-                    <Text style={styles.bulkRowTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.bulkRowOriginal}>was £{item.price.toFixed(2)}</Text>
-                  </View>
-                  <View style={[styles.bulkInputWrap, changed && styles.bulkInputChanged]}>
-                    <Text style={styles.bulkInputPrefix}>£</Text>
-                    <TextInput
-                      style={styles.bulkInput}
-                      value={currentVal}
-                      onChangeText={text => setPrices(prev => ({ ...prev, [item.id]: text }))}
-                      keyboardType="decimal-pad"
-                      placeholderTextColor={HUB.textSecondary}
-                      underlineColorAndroid="transparent"
-                      selectTextOnFocus
-                    />
-                  </View>
-                </View>
-              );
-            }}
-          />
-        )}
-
-        {/* Save button */}
-        <View style={styles.bulkFooter}>
-          <TouchableOpacity
-            style={[styles.ctaBtn, changedIds.length === 0 && { opacity: 0.4 }]}
-            onPress={handleSave}
-            disabled={changedIds.length === 0 || saving}
-            activeOpacity={0.85}
-          >
-            {saving
-              ? <ActivityIndicator color={HUB.background} />
-              : <Text style={styles.ctaBtnText}>
-                  {changedIds.length === 0 ? 'No changes' : `Save ${changedIds.length} change${changedIds.length === 1 ? '' : 's'}`}
-                </Text>
-            }
-          </TouchableOpacity>
-        </View>
-      </View>
-    </BottomSheet>
-  );
-}
-
 
 // ── Shared styles ────────────────────────────────────────────
 const styles = StyleSheet.create({

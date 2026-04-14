@@ -80,6 +80,9 @@ export const proColorsDark = {
   proAccent:        '#FBCD47',
   proAccentText:    '#FBCD47',   // gold text is readable on dark backgrounds
 
+  // CTA button text — dark text on white primary button
+  ctaBtnText:       '#080714' as const,
+
   // Boost — brand lime green used for boost UI
   boostAccent:      '#C7F75E',
   boostAccentText:  '#0D0D0D',   // dark text on lime green (always)
@@ -126,6 +129,9 @@ export const proColorsLight = {
   // Gold — Pro identity marker only (checkmark badge, Pro/Founder pills)
   proAccent:        '#FBCD47',
   proAccentText:    '#8A6800',   // dark amber — WCAG AA on white (4.8:1)
+
+  // CTA button text — white text on near-black primary button
+  ctaBtnText:       '#FFFFFF' as const,
 
   // Boost — brand lime green used for boost UI
   boostAccent:      '#C7F75E',
