@@ -42,7 +42,7 @@ function ColDetailRow({ listing, mode, collectionId, onAssign, P }: RowProps) {
     >
       {listing.images?.[0] ? (
         <Image
-          source={{ uri: getImageUrl(listing.images[0], 'thumb') }}
+          source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
           style={rowStyles.thumb}
         />
       ) : (

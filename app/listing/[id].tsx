@@ -193,7 +193,7 @@ export default function ListingDetailScreen() {
 
       setLoading(false);
     })();
-  }, [id, blockedIds, user]);
+  }, [id, blockedIds, user, authSellerTier]);
 
 
   useEffect(() => {
