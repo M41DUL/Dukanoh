@@ -76,9 +76,13 @@ export function ProProfileTab() {
   const [dashLoading, setDashLoading] = useState(true);
 
   // Sheet state
+  const [manageColVisible, setManageColVisible] = useState(false);
+  const [collectionDetailId, setCollectionDetailId] = useState<string | null>(null);
   const [createColVisible, setCreateColVisible] = useState(false);
   const [newColName, setNewColName] = useState('');
   const [savingCol, setSavingCol] = useState(false);
+  const [renamingColId, setRenamingColId] = useState<string | null>(null);
+  const [renameText, setRenameText] = useState('');
   const [assignSheetListing, setAssignSheetListing] = useState<HubListing | null>(null);
   const [bulkEditVisible, setBulkEditVisible] = useState(false);
 
@@ -293,6 +297,9 @@ export function ProProfileTab() {
       const oldCollectionId = prev.availableListings.find(l => l.id === listingId)?.collection_id ?? null;
       return {
         ...prev,
+        availableListings: prev.availableListings.map(l =>
+          l.id === listingId ? { ...l, collection_id: collectionId } : l
+        ),
         collections: prev.collections.map(c => {
           if (c.id === collectionId) return { ...c, listingCount: c.listingCount + 1 };
           if (c.id === oldCollectionId) return { ...c, listingCount: Math.max(0, c.listingCount - 1) };
@@ -300,6 +307,36 @@ export function ProProfileTab() {
         }),
       };
     });
+  }, []);
+
+  const handleRenameCollection = useCallback(async (id: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    await supabase.from('collections').update({ name: trimmed }).eq('id', id);
+    setRenamingColId(null);
+    setDash(prev => prev
+      ? { ...prev, collections: prev.collections.map(c => c.id === id ? { ...c, name: trimmed } : c) }
+      : prev
+    );
+  }, []);
+
+  const handleDeleteCollection = useCallback((id: string, name: string) => {
+    Alert.alert(
+      `Delete "${name}"?`,
+      'Listings in this collection will not be deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            await supabase.from('collections').delete().eq('id', id);
+            setDash(prev => prev
+              ? { ...prev, collections: prev.collections.filter(c => c.id !== id) }
+              : prev
+            );
+          },
+        },
+      ]
+    );
   }, []);
 
   // ── Derived values ─────────────────────────────────────────
@@ -509,7 +546,7 @@ export function ProProfileTab() {
             <View style={styles.inventoryRow}>
               <TouchableOpacity
                 style={[styles.squareCard, { backgroundColor: P.surface, borderColor: P.border }]}
-                onPress={() => setCreateColVisible(true)}
+                onPress={() => setManageColVisible(true)}
                 activeOpacity={0.75}
               >
                 <Text style={[styles.squareCardLabel, { color: P.textSecondary }]}>Collections</Text>
@@ -569,6 +606,185 @@ export function ProProfileTab() {
           style={styles.settingsFooter}
         />
       </ScrollView>
+
+      {/* ── Collection Detail sheet ── */}
+      {(() => {
+        const col = dash?.collections.find(c => c.id === collectionDetailId) ?? null;
+        const inCol = dash?.availableListings.filter(l => l.collection_id === collectionDetailId) ?? [];
+        const notInCol = dash?.availableListings.filter(l => l.collection_id !== collectionDetailId) ?? [];
+        return (
+          <BottomSheet
+            visible={collectionDetailId !== null}
+            onClose={() => { setCollectionDetailId(null); setTimeout(() => setManageColVisible(true), 250); }}
+            backgroundColor={P.gradientBottom}
+            handleColor={P.secondary}
+            fullScreen
+          >
+            <View style={styles.colDetailHeader}>
+              <TouchableOpacity
+                onPress={() => { setCollectionDetailId(null); setTimeout(() => setManageColVisible(true), 250); }}
+                hitSlop={12}
+                style={[styles.colDetailBack, { backgroundColor: P.surfaceElevated }]}
+              >
+                <Ionicons name="arrow-back" size={18} color={P.textPrimary} />
+              </TouchableOpacity>
+              <Text style={[styles.colDetailTitle, { color: P.textPrimary }]}>{col?.name ?? ''}</Text>
+              <View style={styles.colDetailBack} />
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {inCol.length === 0 && notInCol.length === 0 ? (
+                <View style={styles.colDetailEmpty}>
+                  <Text style={[styles.colDetailEmptyText, { color: P.textSecondary }]}>
+                    No active listings yet.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {inCol.length > 0 && (
+                    <>
+                      <Text style={[styles.colDetailSection, { color: P.textSecondary }]}>
+                        In this collection
+                      </Text>
+                      {inCol.map(l => (
+                        <TouchableOpacity
+                          key={l.id}
+                          style={[styles.colDetailRow, { borderBottomColor: P.border }]}
+                          onPress={() => handleAssignCollection(l.id, null)}
+                          activeOpacity={0.75}
+                        >
+                          {l.images?.[0] ? (
+                            <Image
+                              source={{ uri: getImageUrl(l.images[0], 'thumb') }}
+                              style={styles.colDetailThumb}
+                            />
+                          ) : (
+                            <View style={[styles.colDetailThumb, { backgroundColor: P.surfaceElevated }]} />
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.colDetailName, { color: P.textPrimary }]} numberOfLines={1}>
+                              {l.title}
+                            </Text>
+                            <Text style={[styles.colDetailPrice, { color: P.textSecondary }]}>
+                              £{l.price.toFixed(2)}
+                            </Text>
+                          </View>
+                          <Ionicons name="remove-circle-outline" size={22} color={P.error} />
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+
+                  {notInCol.length > 0 && (
+                    <>
+                      <Text style={[styles.colDetailSection, { color: P.textSecondary }]}>
+                        Add listings
+                      </Text>
+                      {notInCol.map(l => (
+                        <TouchableOpacity
+                          key={l.id}
+                          style={[styles.colDetailRow, { borderBottomColor: P.border }]}
+                          onPress={() => collectionDetailId && handleAssignCollection(l.id, collectionDetailId)}
+                          activeOpacity={0.75}
+                        >
+                          {l.images?.[0] ? (
+                            <Image
+                              source={{ uri: getImageUrl(l.images[0], 'thumb') }}
+                              style={styles.colDetailThumb}
+                            />
+                          ) : (
+                            <View style={[styles.colDetailThumb, { backgroundColor: P.surfaceElevated }]} />
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.colDetailName, { color: P.textPrimary }]} numberOfLines={1}>
+                              {l.title}
+                            </Text>
+                            <Text style={[styles.colDetailPrice, { color: P.textSecondary }]}>
+                              £{l.price.toFixed(2)}
+                            </Text>
+                          </View>
+                          <Ionicons name="add-circle-outline" size={22} color={P.primary} />
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
+            </ScrollView>
+          </BottomSheet>
+        );
+      })()}
+
+      {/* ── Manage Collections sheet ── */}
+      <BottomSheet
+        visible={manageColVisible}
+        onClose={() => { setManageColVisible(false); setRenamingColId(null); }}
+        backgroundColor={P.gradientBottom}
+        handleColor={P.secondary}
+        useModal
+      >
+        <View style={styles.sheetTitleRow}>
+          <Text style={[styles.sheetTitle, { color: P.textPrimary }]}>Collections</Text>
+          <TouchableOpacity
+            hitSlop={8}
+            onPress={() => { setManageColVisible(false); setCreateColVisible(true); }}
+          >
+            <Ionicons name="add" size={22} color={P.primary} />
+          </TouchableOpacity>
+        </View>
+
+        {!dash || dash.collections.length === 0 ? (
+          <Text style={[styles.sheetEmptyText, { color: P.textSecondary }]}>
+            No collections yet — tap + to create one.
+          </Text>
+        ) : (
+          dash.collections.map(col => (
+            <View key={col.id} style={[styles.manageColRow, { borderBottomColor: P.border }]}>
+              {renamingColId === col.id ? (
+                <>
+                  <TextInput
+                    style={[styles.manageColInput, { flex: 1, color: P.textPrimary, borderColor: P.primary, backgroundColor: P.surfaceElevated }]}
+                    value={renameText}
+                    onChangeText={setRenameText}
+                    autoFocus
+                    selectTextOnFocus
+                    maxLength={40}
+                    underlineColorAndroid="transparent"
+                  />
+                  <TouchableOpacity hitSlop={8} onPress={() => handleRenameCollection(col.id, renameText)}>
+                    <Ionicons name="checkmark" size={20} color={P.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity hitSlop={8} onPress={() => setRenamingColId(null)}>
+                    <Ionicons name="close" size={20} color={P.textSecondary} />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() => { setManageColVisible(false); setTimeout(() => setCollectionDetailId(col.id), 250); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.manageColName, { color: P.textPrimary }]}>{col.name}</Text>
+                    <Text style={[styles.manageColCount, { color: P.textSecondary }]}>
+                      {col.listingCount} listing{col.listingCount !== 1 ? 's' : ''}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    hitSlop={8}
+                    onPress={() => { setRenamingColId(col.id); setRenameText(col.name); }}
+                  >
+                    <Ionicons name="pencil-outline" size={17} color={P.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity hitSlop={8} onPress={() => handleDeleteCollection(col.id, col.name)}>
+                    <Ionicons name="trash-outline" size={17} color={P.error} />
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          ))
+        )}
+      </BottomSheet>
 
       {/* ── Create Collection sheet ── */}
       <BottomSheet
@@ -972,6 +1188,92 @@ const styles = StyleSheet.create({
   },
 
   // Sheets
+  sheetTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  manageColRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  manageColName: {
+    fontSize: 15,
+    fontFamily: FontFamily.medium,
+  },
+  manageColCount: {
+    fontSize: 12,
+    fontFamily: FontFamily.regular,
+    marginTop: 1,
+  },
+  // Collection detail sheet
+  colDetailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  colDetailBack: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colDetailTitle: {
+    fontSize: 17,
+    fontFamily: FontFamily.semibold,
+  },
+  colDetailSection: {
+    fontSize: 11,
+    fontFamily: FontFamily.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  colDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  colDetailThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.medium,
+    overflow: 'hidden',
+  },
+  colDetailName: {
+    fontSize: 14,
+    fontFamily: FontFamily.medium,
+  },
+  colDetailPrice: {
+    fontSize: 12,
+    fontFamily: FontFamily.regular,
+    marginTop: 2,
+  },
+  colDetailEmpty: {
+    paddingVertical: Spacing.xl,
+    alignItems: 'center',
+  },
+  colDetailEmptyText: {
+    fontSize: 14,
+    fontFamily: FontFamily.regular,
+  },
+  manageColInput: {
+    borderRadius: BorderRadius.medium,
+    borderWidth: 1.5,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    fontSize: 15,
+    fontFamily: FontFamily.regular,
+  },
   sheetTitle: {
     fontSize: 17,
     fontFamily: FontFamily.semibold,
