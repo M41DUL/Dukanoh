@@ -17,6 +17,8 @@ import { ListingGrid } from '@/components/ListingGrid';
 import { SectionHeader } from '@/components/SectionHeader';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Listing } from '@/components/ListingCard';
+import { SellerCollectionTile } from '@/components/profile/SellerCollectionTile';
+import { SellerCollectionSheet } from '@/components/profile/SellerCollectionSheet';
 import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
@@ -34,6 +36,13 @@ interface Seller {
   is_verified?: boolean;
   seller_tier?: string;
   avg_response_time_mins?: number | null;
+}
+
+interface SellerCollection {
+  id: string;
+  name: string;
+  listingCount: number;
+  previewImage: string | null;
 }
 
 interface Review {
@@ -62,6 +71,8 @@ export default function SellerProfileScreen() {
   const [canReview, setCanReview] = useState(false);
   const [firstConversationListingId, setFirstConversationListingId] = useState<string | null>(null);
   const [firstConversationId, setFirstConversationId] = useState<string | null>(null);
+  const [collections, setCollections] = useState<SellerCollection[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id && isBlocked(id)) {
@@ -93,18 +104,45 @@ export default function SellerProfileScreen() {
         .select('*, reviewer:users(username, avatar_url)')
         .eq('seller_id', id)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('collections')
+        .select('id, name')
+        .eq('seller_id', id)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('listings')
+        .select('id, images, collection_id')
+        .eq('seller_id', id)
+        .eq('status', 'available')
+        .not('collection_id', 'is', null),
     ]).then(([
       { data: sellerData },
       { data: listingsData },
       { count: sold },
       { data: rate },
       { data: reviewsData },
+      { data: collectionsRaw },
+      { data: collectionListings },
     ]) => {
       if (sellerData) setSeller(sellerData as Seller);
       setListings((listingsData ?? []) as unknown as Listing[]);
       setSoldCount(sold ?? 0);
       if (rate !== null) setResponseRate(rate as number);
       setReviews((reviewsData ?? []) as Review[]);
+
+      const builtCollections: SellerCollection[] = (collectionsRaw ?? [])
+        .map(col => {
+          const colListings = (collectionListings ?? []).filter(l => l.collection_id === col.id);
+          return {
+            id: col.id,
+            name: col.name,
+            listingCount: colListings.length,
+            previewImage: (colListings[0]?.images as string[] | undefined)?.[0] ?? null,
+          };
+        })
+        .filter(c => c.listingCount > 0);
+      setCollections(builtCollections);
+
       setLoading(false);
     });
   }, [id]);
@@ -301,6 +339,37 @@ export default function SellerProfileScreen() {
           )}
         </View>
 
+        {/* COLLECTIONS — Pro sellers only, only if they have collections */}
+        {seller.seller_tier === 'pro' && collections.length > 0 && (
+          <>
+            <View style={[styles.hairline, { backgroundColor: colors.border }]} />
+            <View style={styles.section}>
+              <SectionHeader title="Collections" />
+              <View style={styles.collectionsGrid}>
+                {collections.reduce<SellerCollection[][]>((rows, col, i) => {
+                  if (i % 2 === 0) rows.push([col]);
+                  else rows[rows.length - 1].push(col);
+                  return rows;
+                }, []).map((row, i) => (
+                  <View key={i} style={styles.collectionsRow}>
+                    {row.map(col => (
+                      <SellerCollectionTile
+                        key={col.id}
+                        name={col.name}
+                        listingCount={col.listingCount}
+                        previewImage={col.previewImage}
+                        onPress={() => setSelectedCollectionId(col.id)}
+                        colors={colors}
+                      />
+                    ))}
+                    {row.length === 1 && <View style={{ flex: 1 }} />}
+                  </View>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
+
         {/* HAIRLINE */}
         <View style={[styles.hairline, { backgroundColor: colors.border }]} />
 
@@ -387,6 +456,14 @@ export default function SellerProfileScreen() {
           )}
         </View>
       </ScrollView>
+
+      <SellerCollectionSheet
+        visible={selectedCollectionId !== null}
+        collectionId={selectedCollectionId}
+        collectionName={collections.find(c => c.id === selectedCollectionId)?.name ?? ''}
+        onClose={() => setSelectedCollectionId(null)}
+        colors={colors}
+      />
     </View>
   );
 }
@@ -511,6 +588,15 @@ function getStyles(colors: ColorTokens) {
     },
     emptyText: {
       ...Typography.body,
+    },
+
+    // Collections grid
+    collectionsGrid: {
+      gap: Spacing.sm,
+    },
+    collectionsRow: {
+      flexDirection: 'row',
+      gap: Spacing.sm,
     },
 
     // Rate button
