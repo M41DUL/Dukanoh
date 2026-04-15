@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   TextInput,
   Dimensions,
 } from 'react-native';
+
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +22,8 @@ import { Button } from '@/components/Button';
 import { BottomSheet } from '@/components/BottomSheet';
 import { BalanceCarousel, type BalanceData } from '@/components/pro/BalanceCarousel';
 import { BulkEditSheet } from '@/components/pro/BulkEditSheet';
+import { ManageCollectionsSheet } from '@/components/pro/ManageCollectionsSheet';
+import { CollectionDetailSheet } from '@/components/pro/CollectionDetailSheet';
 import { HubMetricTile } from '@/components/hub/HubMetricTile';
 import { HubOccasionRow } from '@/components/hub/HubOccasionRow';
 import { useProColors } from '@/hooks/useProColors';
@@ -346,6 +349,19 @@ export function ProProfileTab() {
   // Chart breaks out of card padding — full card width
   const chartWidth = SCREEN_WIDTH - Spacing.base * 2;
 
+  const selectedCollection = useMemo(
+    () => dash?.collections.find(c => c.id === collectionDetailId) ?? null,
+    [dash?.collections, collectionDetailId]
+  );
+  const inCollection = useMemo(
+    () => dash?.availableListings.filter(l => l.collection_id === collectionDetailId) ?? [],
+    [dash?.availableListings, collectionDetailId]
+  );
+  const notInCollection = useMemo(
+    () => dash?.availableListings.filter(l => l.collection_id !== collectionDetailId) ?? [],
+    [dash?.availableListings, collectionDetailId]
+  );
+
   const quickLinks: QuickLink[] = [
     { icon: 'bag-outline',     label: 'My listings', onPress: () => router.push('/my-listings') },
     { icon: 'flash-outline',   label: 'Boosts',      onPress: () => router.push('/boosts') },
@@ -549,14 +565,11 @@ export function ProProfileTab() {
                 onPress={() => setManageColVisible(true)}
                 activeOpacity={0.75}
               >
-                <Text style={[styles.squareCardLabel, { color: P.textSecondary }]}>Collections</Text>
+                <Text style={[styles.squareCardLabel, { color: P.textSecondary }]}>Edit collections</Text>
                 <Text style={[styles.squareCardValue, { color: P.textPrimary }]}>
                   {dash.collections.length}
                 </Text>
-                <View style={styles.squareCardFooter}>
-                  <Ionicons name="add" size={13} color={P.primary} />
-                  <Text style={[styles.squareCardAction, { color: P.primary }]}>New</Text>
-                </View>
+                <Text style={[styles.squareCardSubtitle, { color: P.textSecondary }]}>Active collections</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -608,183 +621,32 @@ export function ProProfileTab() {
       </ScrollView>
 
       {/* ── Collection Detail sheet ── */}
-      {(() => {
-        const col = dash?.collections.find(c => c.id === collectionDetailId) ?? null;
-        const inCol = dash?.availableListings.filter(l => l.collection_id === collectionDetailId) ?? [];
-        const notInCol = dash?.availableListings.filter(l => l.collection_id !== collectionDetailId) ?? [];
-        return (
-          <BottomSheet
-            visible={collectionDetailId !== null}
-            onClose={() => { setCollectionDetailId(null); setTimeout(() => setManageColVisible(true), 250); }}
-            backgroundColor={P.gradientBottom}
-            handleColor={P.secondary}
-            fullScreen
-          >
-            <View style={styles.colDetailHeader}>
-              <TouchableOpacity
-                onPress={() => { setCollectionDetailId(null); setTimeout(() => setManageColVisible(true), 250); }}
-                hitSlop={12}
-                style={[styles.colDetailBack, { backgroundColor: P.surfaceElevated }]}
-              >
-                <Ionicons name="arrow-back" size={18} color={P.textPrimary} />
-              </TouchableOpacity>
-              <Text style={[styles.colDetailTitle, { color: P.textPrimary }]}>{col?.name ?? ''}</Text>
-              <View style={styles.colDetailBack} />
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {inCol.length === 0 && notInCol.length === 0 ? (
-                <View style={styles.colDetailEmpty}>
-                  <Text style={[styles.colDetailEmptyText, { color: P.textSecondary }]}>
-                    No active listings yet.
-                  </Text>
-                </View>
-              ) : (
-                <>
-                  {inCol.length > 0 && (
-                    <>
-                      <Text style={[styles.colDetailSection, { color: P.textSecondary }]}>
-                        In this collection
-                      </Text>
-                      {inCol.map(l => (
-                        <TouchableOpacity
-                          key={l.id}
-                          style={[styles.colDetailRow, { borderBottomColor: P.border }]}
-                          onPress={() => handleAssignCollection(l.id, null)}
-                          activeOpacity={0.75}
-                        >
-                          {l.images?.[0] ? (
-                            <Image
-                              source={{ uri: getImageUrl(l.images[0], 'thumb') }}
-                              style={styles.colDetailThumb}
-                            />
-                          ) : (
-                            <View style={[styles.colDetailThumb, { backgroundColor: P.surfaceElevated }]} />
-                          )}
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.colDetailName, { color: P.textPrimary }]} numberOfLines={1}>
-                              {l.title}
-                            </Text>
-                            <Text style={[styles.colDetailPrice, { color: P.textSecondary }]}>
-                              £{l.price.toFixed(2)}
-                            </Text>
-                          </View>
-                          <Ionicons name="remove-circle-outline" size={22} color={P.error} />
-                        </TouchableOpacity>
-                      ))}
-                    </>
-                  )}
-
-                  {notInCol.length > 0 && (
-                    <>
-                      <Text style={[styles.colDetailSection, { color: P.textSecondary }]}>
-                        Add listings
-                      </Text>
-                      {notInCol.map(l => (
-                        <TouchableOpacity
-                          key={l.id}
-                          style={[styles.colDetailRow, { borderBottomColor: P.border }]}
-                          onPress={() => collectionDetailId && handleAssignCollection(l.id, collectionDetailId)}
-                          activeOpacity={0.75}
-                        >
-                          {l.images?.[0] ? (
-                            <Image
-                              source={{ uri: getImageUrl(l.images[0], 'thumb') }}
-                              style={styles.colDetailThumb}
-                            />
-                          ) : (
-                            <View style={[styles.colDetailThumb, { backgroundColor: P.surfaceElevated }]} />
-                          )}
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.colDetailName, { color: P.textPrimary }]} numberOfLines={1}>
-                              {l.title}
-                            </Text>
-                            <Text style={[styles.colDetailPrice, { color: P.textSecondary }]}>
-                              £{l.price.toFixed(2)}
-                            </Text>
-                          </View>
-                          <Ionicons name="add-circle-outline" size={22} color={P.primary} />
-                        </TouchableOpacity>
-                      ))}
-                    </>
-                  )}
-                </>
-              )}
-            </ScrollView>
-          </BottomSheet>
-        );
-      })()}
+      <CollectionDetailSheet
+        visible={collectionDetailId !== null}
+        collection={selectedCollection}
+        inCollection={inCollection}
+        notInCollection={notInCollection}
+        onClose={() => { setCollectionDetailId(null); setTimeout(() => setManageColVisible(true), 250); }}
+        onAssign={handleAssignCollection}
+        P={P}
+      />
 
       {/* ── Manage Collections sheet ── */}
-      <BottomSheet
+      <ManageCollectionsSheet
         visible={manageColVisible}
+        collections={dash?.collections ?? []}
+        renamingColId={renamingColId}
+        renameText={renameText}
+        onRenameTextChange={setRenameText}
+        onStartRename={(id, name) => { setRenamingColId(id); setRenameText(name); }}
+        onCancelRename={() => setRenamingColId(null)}
+        onConfirmRename={handleRenameCollection}
+        onDelete={handleDeleteCollection}
+        onSelectCollection={id => { setManageColVisible(false); setTimeout(() => setCollectionDetailId(id), 250); }}
+        onNewCollection={() => { setManageColVisible(false); setTimeout(() => setCreateColVisible(true), 250); }}
         onClose={() => { setManageColVisible(false); setRenamingColId(null); }}
-        backgroundColor={P.gradientBottom}
-        handleColor={P.secondary}
-        useModal
-      >
-        <View style={styles.sheetTitleRow}>
-          <Text style={[styles.sheetTitle, { color: P.textPrimary }]}>Collections</Text>
-          <TouchableOpacity
-            hitSlop={8}
-            onPress={() => { setManageColVisible(false); setCreateColVisible(true); }}
-          >
-            <Ionicons name="add" size={22} color={P.primary} />
-          </TouchableOpacity>
-        </View>
-
-        {!dash || dash.collections.length === 0 ? (
-          <Text style={[styles.sheetEmptyText, { color: P.textSecondary }]}>
-            No collections yet — tap + to create one.
-          </Text>
-        ) : (
-          dash.collections.map(col => (
-            <View key={col.id} style={[styles.manageColRow, { borderBottomColor: P.border }]}>
-              {renamingColId === col.id ? (
-                <>
-                  <TextInput
-                    style={[styles.manageColInput, { flex: 1, color: P.textPrimary, borderColor: P.primary, backgroundColor: P.surfaceElevated }]}
-                    value={renameText}
-                    onChangeText={setRenameText}
-                    autoFocus
-                    selectTextOnFocus
-                    maxLength={40}
-                    underlineColorAndroid="transparent"
-                  />
-                  <TouchableOpacity hitSlop={8} onPress={() => handleRenameCollection(col.id, renameText)}>
-                    <Ionicons name="checkmark" size={20} color={P.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity hitSlop={8} onPress={() => setRenamingColId(null)}>
-                    <Ionicons name="close" size={20} color={P.textSecondary} />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity
-                    style={{ flex: 1 }}
-                    onPress={() => { setManageColVisible(false); setTimeout(() => setCollectionDetailId(col.id), 250); }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.manageColName, { color: P.textPrimary }]}>{col.name}</Text>
-                    <Text style={[styles.manageColCount, { color: P.textSecondary }]}>
-                      {col.listingCount} listing{col.listingCount !== 1 ? 's' : ''}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    hitSlop={8}
-                    onPress={() => { setRenamingColId(col.id); setRenameText(col.name); }}
-                  >
-                    <Ionicons name="pencil-outline" size={17} color={P.textSecondary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity hitSlop={8} onPress={() => handleDeleteCollection(col.id, col.name)}>
-                    <Ionicons name="trash-outline" size={17} color={P.error} />
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          ))
-        )}
-      </BottomSheet>
+        P={P}
+      />
 
       {/* ── Create Collection sheet ── */}
       <BottomSheet
@@ -1188,92 +1050,6 @@ const styles = StyleSheet.create({
   },
 
   // Sheets
-  sheetTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
-  manageColRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  manageColName: {
-    fontSize: 15,
-    fontFamily: FontFamily.medium,
-  },
-  manageColCount: {
-    fontSize: 12,
-    fontFamily: FontFamily.regular,
-    marginTop: 1,
-  },
-  // Collection detail sheet
-  colDetailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
-  colDetailBack: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colDetailTitle: {
-    fontSize: 17,
-    fontFamily: FontFamily.semibold,
-  },
-  colDetailSection: {
-    fontSize: 11,
-    fontFamily: FontFamily.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
-  },
-  colDetailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  colDetailThumb: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.medium,
-    overflow: 'hidden',
-  },
-  colDetailName: {
-    fontSize: 14,
-    fontFamily: FontFamily.medium,
-  },
-  colDetailPrice: {
-    fontSize: 12,
-    fontFamily: FontFamily.regular,
-    marginTop: 2,
-  },
-  colDetailEmpty: {
-    paddingVertical: Spacing.xl,
-    alignItems: 'center',
-  },
-  colDetailEmptyText: {
-    fontSize: 14,
-    fontFamily: FontFamily.regular,
-  },
-  manageColInput: {
-    borderRadius: BorderRadius.medium,
-    borderWidth: 1.5,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    fontSize: 15,
-    fontFamily: FontFamily.regular,
-  },
   sheetTitle: {
     fontSize: 17,
     fontFamily: FontFamily.semibold,
