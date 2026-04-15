@@ -452,7 +452,7 @@ export function ProProfileTab() {
               activeOpacity={0.7}
             >
               <View style={styles.quickLinkIconWrap}>
-                <View style={[styles.quickLinkIcon, { backgroundColor: P.surfaceElevated }]}>
+                <View style={[styles.quickLinkIcon, { backgroundColor: P.surfaceElevated, borderColor: P.cardBorder, borderWidth: 1 }]}>
                   <Ionicons name={link.icon} size={22} color={P.primary} />
                 </View>
                 {!!link.badge && link.badge > 0 && (
@@ -498,7 +498,8 @@ export function ProProfileTab() {
         ) : dash ? (
           <>
             {/* Earnings card — consolidated */}
-            <View style={[styles.earningsCard, { backgroundColor: P.surface, borderColor: P.border }]}>
+            <View style={styles.earningsCardShell}>
+            <View style={[styles.earningsCard, { backgroundColor: P.surface, borderColor: P.cardBorder }]}>
               <View style={styles.earningsTop}>
                 <Text style={[styles.earningsStatLabel, { color: P.textSecondary }]}>This month</Text>
                 <Text style={[styles.earningsHero, { color: P.textPrimary }]}>
@@ -550,6 +551,7 @@ export function ProProfileTab() {
                 )}
               </View>
             </View>
+            </View>
 
             {/* Activity metrics — 3 individual cards */}
             <View style={styles.metricsRow}>
@@ -561,7 +563,7 @@ export function ProProfileTab() {
             {/* Collections + Edit prices — square pair */}
             <View style={styles.inventoryRow}>
               <TouchableOpacity
-                style={[styles.squareCard, { backgroundColor: P.surface, borderColor: P.border }]}
+                style={[styles.squareCard, { backgroundColor: P.surface, borderColor: P.cardBorder }]}
                 onPress={() => setManageColVisible(true)}
                 activeOpacity={0.75}
               >
@@ -573,7 +575,7 @@ export function ProProfileTab() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.squareCard, { backgroundColor: P.surface, borderColor: P.border }]}
+                style={[styles.squareCard, { backgroundColor: P.surface, borderColor: P.cardBorder }]}
                 onPress={() => setBulkEditVisible(true)}
                 activeOpacity={0.75}
               >
@@ -589,7 +591,7 @@ export function ProProfileTab() {
 
             {/* Occasion performance — only if data */}
             {dash.occasionPerformance.length > 0 && (
-              <View style={[styles.card, { backgroundColor: P.surface, borderColor: P.border }]}>
+              <View style={[styles.card, { backgroundColor: P.surface, borderColor: P.cardBorder }]}>
                 <Text style={[styles.cardTitle, { color: P.textPrimary }]}>Occasion performance</Text>
                 <View style={styles.occasionList}>
                   {dash.occasionPerformance.map(({ occasion, saves, views }) => (
@@ -874,6 +876,14 @@ const styles = StyleSheet.create({
   },
 
   // Earnings card
+  earningsCardShell: {
+    borderRadius: BorderRadius.large,
+    shadowColor: '#3735C5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.09,
+    shadowRadius: 14,
+    elevation: 3,
+  },
   earningsCard: {
     borderRadius: BorderRadius.large,
     borderWidth: 1,
@@ -937,6 +947,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: Spacing.lg,
     gap: Spacing.md,
+    shadowColor: '#3735C5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.09,
+    shadowRadius: 14,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -976,6 +991,11 @@ const styles = StyleSheet.create({
     flex: 1,
     aspectRatio: 1,
     borderRadius: BorderRadius.large,
+    shadowColor: '#3735C5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.09,
+    shadowRadius: 14,
+    elevation: 3,
     borderWidth: 1,
     padding: Spacing.md,
     alignItems: 'center',

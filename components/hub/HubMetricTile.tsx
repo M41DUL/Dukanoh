@@ -13,7 +13,7 @@ interface Props {
 
 export function HubMetricTile({ label, value, icon, footnote, P }: Props) {
   return (
-    <View style={[styles.tile, { backgroundColor: P.surface, borderColor: P.border }]}>
+    <View style={[styles.tile, { backgroundColor: P.surface, borderColor: P.cardBorder }]}>
       {icon ? <Ionicons name={icon} size={18} color={P.primary} /> : null}
       <Text style={[styles.value, { color: P.textPrimary }]}>{value.toLocaleString()}</Text>
       <Text style={[styles.label, { color: P.textSecondary }]}>
@@ -33,6 +33,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    shadowColor: '#3735C5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.09,
+    shadowRadius: 14,
+    elevation: 3,
   },
   value: {
     fontSize: 22,

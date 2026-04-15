@@ -79,6 +79,7 @@ export const proColorsDark = {
   // Gold — Pro identity marker only (checkmark badge, Pro/Founder pills)
   proAccent:        '#FBCD47',
   proAccentText:    '#FBCD47',   // gold text is readable on dark backgrounds
+  cardBorder:       'rgba(251,205,71,0.18)',  // subtle gold outline on dashboard cards
 
   // CTA button text — dark text on white primary button
   ctaBtnText:       '#080714' as const,
@@ -112,8 +113,8 @@ export const proColorsLight = {
   gradientBottom:   '#DFE9F3' as const,
 
   // Frosted glass surfaces
-  surface:          'rgba(255,255,255,0.55)',
-  surfaceElevated:  'rgba(255,255,255,0.75)',
+  surface:          'rgba(255,255,255,0.72)',
+  surfaceElevated:  'rgba(255,255,255,0.90)',
   border:           'rgba(55,53,197,0.12)',
 
   // Text
@@ -129,6 +130,7 @@ export const proColorsLight = {
   // Gold — Pro identity marker only (checkmark badge, Pro/Founder pills)
   proAccent:        '#FBCD47',
   proAccentText:    '#8A6800',   // dark amber — WCAG AA on white (4.8:1)
+  cardBorder:       'rgba(251,205,71,0.22)',  // subtle gold outline on dashboard cards
 
   // CTA button text — white text on near-black primary button
   ctaBtnText:       '#FFFFFF' as const,
