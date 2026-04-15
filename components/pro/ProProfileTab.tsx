@@ -27,7 +27,7 @@ import { useProColors } from '@/hooks/useProColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { getImageUrl } from '@/lib/imageUtils';
-import { FontFamily, Spacing, BorderRadius, Typography, type ProColorTokens } from '@/constants/theme';
+import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import type { HubListing, HubCollection } from '@/components/hub/hubTheme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -35,7 +35,6 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 // ── Types ────────────────────────────────────────────────────
 
 interface DashData {
-  totalEarned: number;
   thisMonthEarned: number;
   lastMonthEarned: number;
   totalViews: number;
@@ -134,7 +133,6 @@ export function ProProfileTab() {
 
       const [
         userRes,
-        txTotal,
         txThis,
         txLast,
         tx30d,
@@ -148,7 +146,6 @@ export function ProProfileTab() {
           .select('account_status, cancellation_strike_count')
           .eq('id', user.id)
           .maybeSingle(),
-        supabase.from('transactions').select('amount').eq('seller_id', user.id),
         supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', thisMonthStart),
         supabase.from('transactions').select('amount').eq('seller_id', user.id).gte('created_at', lastMonthStart).lt('created_at', thisMonthStart),
         supabase.from('transactions').select('amount, created_at').eq('seller_id', user.id).gte('created_at', last30Days),
@@ -176,7 +173,6 @@ export function ProProfileTab() {
           .in('status', ['paid', 'shipped']),
       ]);
 
-      const totalEarned = (txTotal.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
       const thisMonthEarned = (txThis.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
       const lastMonthEarned = (txLast.data ?? []).reduce((s, t) => s + (t.amount ?? 0), 0);
 
@@ -231,7 +227,6 @@ export function ProProfileTab() {
         .slice(0, 5);
 
       setDash({
-        totalEarned,
         thisMonthEarned,
         lastMonthEarned,
         totalViews,
@@ -311,8 +306,8 @@ export function ProProfileTab() {
 
   const initials = (profileName || username)[0]?.toUpperCase() ?? '?';
   const earningsDelta = dash ? dash.thisMonthEarned - dash.lastMonthEarned : 0;
-  // Chart width: screen - scroll padding - card padding (both sides)
-  const chartWidth = SCREEN_WIDTH - Spacing.base * 2 - Spacing.xl * 2;
+  // Chart breaks out of card padding — full card width
+  const chartWidth = SCREEN_WIDTH - Spacing.base * 2;
 
   const quickLinks: QuickLink[] = [
     { icon: 'bag-outline',     label: 'My listings', onPress: () => router.push('/my-listings') },
@@ -449,109 +444,97 @@ export function ProProfileTab() {
           <ActivityIndicator color={P.primary} style={styles.dashLoader} />
         ) : dash ? (
           <>
-            {/* Row 1: Total earned + This month */}
-            <View style={styles.statRow}>
-              <StatCard label="Total earned" value={`£${dash.totalEarned.toFixed(2)}`} P={P} />
-              <StatCard label="This month" value={`£${dash.thisMonthEarned.toFixed(2)}`} P={P} />
-            </View>
-
-            {/* Row 2: Last month + Delta (spacer if no delta) */}
-            <View style={styles.statRow}>
-              <StatCard label="Last month" value={`£${dash.lastMonthEarned.toFixed(2)}`} P={P} />
-              {earningsDelta !== 0 ? (
-                <StatCard
-                  label="vs last month"
-                  value={`${earningsDelta > 0 ? '+' : ''}£${Math.abs(earningsDelta).toFixed(2)}`}
-                  valueColor={earningsDelta > 0 ? P.success : P.error}
-                  P={P}
-                />
-              ) : (
-                <View style={{ flex: 1 }} />
-              )}
-            </View>
-
-            {/* 30-day sparkline — full-width card, only if there's data */}
-            {dash.chartData.some(d => d.value > 0) && (
-              <View style={[styles.chartCard, { backgroundColor: P.surface, borderColor: P.border }]}>
-                <Text style={[styles.chartLabel, { color: P.textSecondary }]}>30-day earnings</Text>
-                <LineChart
-                  data={dash.chartData}
-                  width={chartWidth}
-                  height={72}
-                  color={P.primary}
-                  thickness={2}
-                  hideDataPoints
-                  curved
-                  areaChart
-                  startFillColor={P.primary}
-                  endFillColor={P.primary}
-                  startOpacity={0.25}
-                  endOpacity={0}
-                  hideAxesAndRules
-                  hideYAxisText
-                  xAxisLabelsHeight={0}
-                  disableScroll
-                  noOfSections={3}
-                  yAxisLabelWidth={0}
-                />
+            {/* Earnings card — consolidated */}
+            <View style={[styles.earningsCard, { backgroundColor: P.surface, borderColor: P.border }]}>
+              <View style={styles.earningsTop}>
+                <Text style={[styles.earningsStatLabel, { color: P.textSecondary }]}>This month</Text>
+                <Text style={[styles.earningsHero, { color: P.textPrimary }]}>
+                  £{dash.thisMonthEarned.toFixed(2)}
+                </Text>
               </View>
-            )}
+
+              {dash.chartData.some(d => d.value > 0) && (
+                <View style={styles.earningsChartWrap}>
+                  <LineChart
+                    data={dash.chartData}
+                    width={chartWidth}
+                    height={64}
+                    color={P.primary}
+                    thickness={2}
+                    hideDataPoints
+                    curved
+                    areaChart
+                    startFillColor={P.primary}
+                    endFillColor={P.primary}
+                    startOpacity={0.25}
+                    endOpacity={0}
+                    hideAxesAndRules
+                    hideYAxisText
+                    xAxisLabelsHeight={0}
+                    disableScroll
+                    noOfSections={3}
+                    yAxisLabelWidth={0}
+                  />
+                </View>
+              )}
+
+              <View style={styles.earningsSecondary}>
+                <View style={styles.earningsStat}>
+                  <Text style={[styles.earningsStatLabel, { color: P.textSecondary }]}>Last month</Text>
+                  <Text style={[styles.earningsStatValue, { color: P.textPrimary }]}>
+                    £{dash.lastMonthEarned.toFixed(2)}
+                  </Text>
+                </View>
+                {earningsDelta !== 0 && (
+                  <>
+                    <View style={styles.earningsStat}>
+                      <Text style={[styles.earningsStatLabel, { color: P.textSecondary }]}>vs last month</Text>
+                      <Text style={[styles.earningsStatValue, { color: earningsDelta > 0 ? P.success : P.error }]}>
+                        {earningsDelta > 0 ? '+' : ''}£{Math.abs(earningsDelta).toFixed(2)}
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
 
             {/* Activity metrics — 3 individual cards */}
             <View style={styles.metricsRow}>
-              <HubMetricTile label="Listing Views" value={dash.totalViews} icon="eye-outline" P={P} />
-              <HubMetricTile label="Saves" value={dash.totalSaves} icon="heart-outline" P={P} />
-              <HubMetricTile label="Profile Views" value={dash.profileViews30d} icon="person-outline" footnote="30d" P={P} />
+              <HubMetricTile label="Listing Views" value={dash.totalViews} P={P} />
+              <HubMetricTile label="Saves" value={dash.totalSaves} P={P} />
+              <HubMetricTile label="Profile Views" value={dash.profileViews30d} footnote="30d" P={P} />
             </View>
 
-            {/* Collections card — with Edit prices action */}
-            <View style={[styles.card, { backgroundColor: P.surface, borderColor: P.border }]}>
-              <View style={styles.cardHeader}>
-                <Text style={[styles.cardTitle, { color: P.textPrimary }]}>Collections</Text>
-                <View style={styles.cardActions}>
-                  <TouchableOpacity
-                    style={styles.cardAction}
-                    onPress={() => setBulkEditVisible(true)}
-                    hitSlop={8}
-                  >
-                    <Text style={[styles.cardActionText, { color: P.textSecondary }]}>Edit prices</Text>
-                  </TouchableOpacity>
-                  <View style={[styles.cardActionDivider, { backgroundColor: P.border }]} />
-                  <TouchableOpacity
-                    style={styles.cardAction}
-                    onPress={() => setCreateColVisible(true)}
-                    hitSlop={8}
-                  >
-                    <Ionicons name="add" size={15} color={P.primary} />
-                    <Text style={[styles.cardActionText, { color: P.primary }]}>New</Text>
-                  </TouchableOpacity>
+            {/* Collections + Edit prices — square pair */}
+            <View style={styles.inventoryRow}>
+              <TouchableOpacity
+                style={[styles.squareCard, { backgroundColor: P.surface, borderColor: P.border }]}
+                onPress={() => setCreateColVisible(true)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.squareCardLabel, { color: P.textSecondary }]}>Collections</Text>
+                <Text style={[styles.squareCardValue, { color: P.textPrimary }]}>
+                  {dash.collections.length}
+                </Text>
+                <View style={styles.squareCardFooter}>
+                  <Ionicons name="add" size={13} color={P.primary} />
+                  <Text style={[styles.squareCardAction, { color: P.primary }]}>New</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
 
-              {dash.collections.length === 0 ? (
-                <View style={styles.emptyRow}>
-                  <Ionicons name="folder-outline" size={20} color={P.textSecondary} />
-                  <Text style={[styles.emptyText, { color: P.textSecondary }]}>
-                    Group your listings into collections
-                  </Text>
-                </View>
-              ) : (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.collectionsRow}
-                >
-                  {dash.collections.map(col => (
-                    <View
-                      key={col.id}
-                      style={[styles.collectionPill, { backgroundColor: P.surfaceElevated, borderColor: P.border }]}
-                    >
-                      <Text style={[styles.collectionName, { color: P.textPrimary }]}>{col.name}</Text>
-                      <Text style={[styles.collectionCount, { color: P.textSecondary }]}>{col.listingCount}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              )}
+              <TouchableOpacity
+                style={[styles.squareCard, { backgroundColor: P.surface, borderColor: P.border }]}
+                onPress={() => setBulkEditVisible(true)}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.squareCardLabel, { color: P.textSecondary }]}>Edit prices</Text>
+                <Text style={[styles.squareCardValue, { color: P.textPrimary }]}>
+                  {dash.availableListings.length}
+                </Text>
+                <Text style={[styles.squareCardSubtitle, { color: P.textSecondary }]}>
+                  active listing{dash.availableListings.length === 1 ? '' : 's'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* Occasion performance — only if data */}
@@ -591,12 +574,13 @@ export function ProProfileTab() {
       <BottomSheet
         visible={createColVisible}
         onClose={() => { setCreateColVisible(false); setNewColName(''); }}
-        backgroundColor={P.surfaceElevated}
-        handleColor={P.border}
+        backgroundColor={P.gradientBottom}
+        handleColor={P.secondary}
+        useModal
       >
         <Text style={[styles.sheetTitle, { color: P.textPrimary }]}>New Collection</Text>
         <TextInput
-          style={[styles.sheetInput, { backgroundColor: P.surface, color: P.textPrimary, borderColor: P.border }]}
+          style={[styles.sheetInput, { backgroundColor: P.surfaceElevated, color: P.textPrimary, borderColor: P.border }]}
           placeholder="e.g. Partywear, Festive Edits…"
           placeholderTextColor={P.textSecondary}
           value={newColName}
@@ -619,8 +603,8 @@ export function ProProfileTab() {
       <BottomSheet
         visible={assignSheetListing !== null}
         onClose={() => setAssignSheetListing(null)}
-        backgroundColor={P.surfaceElevated}
-        handleColor={P.border}
+        backgroundColor={P.gradientBottom}
+        handleColor={P.secondary}
       >
         <Text style={[styles.sheetTitle, { color: P.textPrimary }]}>Add to Collection</Text>
         {!dash || dash.collections.length === 0 ? (
@@ -666,43 +650,6 @@ export function ProProfileTab() {
   );
 }
 
-// ── StatCard sub-component ───────────────────────────────────
-
-interface StatCardProps {
-  label: string;
-  value: string;
-  valueColor?: string;
-  P: ProColorTokens;
-}
-
-function StatCard({ label, value, valueColor, P }: StatCardProps) {
-  return (
-    <View style={[statStyles.card, { backgroundColor: P.surface, borderColor: P.border }]}>
-      <Text style={[statStyles.value, { color: valueColor ?? P.textPrimary }]}>{value}</Text>
-      <Text style={[statStyles.label, { color: P.textSecondary }]}>{label}</Text>
-    </View>
-  );
-}
-
-const statStyles = StyleSheet.create({
-  card: {
-    flex: 1,
-    borderRadius: BorderRadius.large,
-    borderWidth: 1,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  value: {
-    fontSize: 20,
-    fontFamily: FontFamily.bold,
-    letterSpacing: -0.5,
-  },
-  label: {
-    ...Typography.caption,
-    textAlign: 'center',
-  },
-});
 
 // ── Styles ───────────────────────────────────────────────────
 
@@ -848,27 +795,56 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.xl,
   },
 
-  // Stat cards
-  statRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-
-  // Sparkline chart card
-  chartCard: {
+  // Earnings card
+  earningsCard: {
     borderRadius: BorderRadius.large,
     borderWidth: 1,
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.sm,
-    gap: Spacing.sm,
+    padding: Spacing.lg,
+    gap: Spacing.md,
     overflow: 'hidden',
   },
-  chartLabel: {
+  earningsTop: {
+    gap: 2,
+  },
+  earningsLabel: {
     fontSize: 11,
     fontFamily: FontFamily.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  earningsHero: {
+    fontSize: 26,
+    fontFamily: FontFamily.bold,
+    letterSpacing: -0.5,
+  },
+  earningsChartWrap: {
+    marginHorizontal: -Spacing.lg,
+    alignItems: 'center',
+  },
+  earningsDivider: {
+    height: StyleSheet.hairlineWidth,
+  },
+  earningsSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  earningsStat: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+  earningsStatLabel: {
+    fontSize: 11,
+    fontFamily: FontFamily.regular,
+  },
+  earningsStatValue: {
+    fontSize: 18,
+    fontFamily: FontFamily.semibold,
+    letterSpacing: -0.5,
+  },
+  earningsStatDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 28,
   },
 
   // Metrics row
@@ -910,6 +886,49 @@ const styles = StyleSheet.create({
   cardActionDivider: {
     width: 1,
     height: 12,
+  },
+
+  // Inventory row — Collections + Edit prices square cards
+  inventoryRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    alignItems: 'flex-start',
+  },
+  squareCard: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: BorderRadius.large,
+    borderWidth: 1,
+    padding: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  squareCardLabel: {
+    fontSize: 11,
+    fontFamily: FontFamily.regular,
+    textAlign: 'center',
+  },
+  squareCardValue: {
+    fontSize: 32,
+    fontFamily: FontFamily.bold,
+    letterSpacing: -1,
+    textAlign: 'center',
+  },
+  squareCardSubtitle: {
+    fontSize: 11,
+    fontFamily: FontFamily.regular,
+    textAlign: 'center',
+  },
+  squareCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  squareCardAction: {
+    fontSize: 12,
+    fontFamily: FontFamily.semibold,
   },
 
   // Collections

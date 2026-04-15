@@ -110,8 +110,8 @@ export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props)
     <BottomSheet
       visible={visible}
       onClose={handleClose}
-      backgroundColor={P.surfaceElevated}
-      handleColor={P.border}
+      backgroundColor={P.gradientBottom}
+      handleColor={P.secondary}
       fullScreen
     >
       <View style={styles.container}>
@@ -120,7 +120,7 @@ export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props)
           <TouchableOpacity
             onPress={handleClose}
             hitSlop={12}
-            style={[styles.closeBtn, { backgroundColor: P.surface }]}
+            style={[styles.closeBtn, { backgroundColor: P.surfaceElevated }]}
           >
             <Ionicons name="close" size={20} color={P.textPrimary} />
           </TouchableOpacity>
@@ -133,7 +133,7 @@ export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props)
           {BULK_PRESETS.map(p => (
             <TouchableOpacity
               key={p.label}
-              style={[styles.preset, { backgroundColor: P.surface, borderColor: P.border }]}
+              style={[styles.preset, { backgroundColor: P.surfaceElevated, borderColor: P.border }]}
               onPress={() => applyPreset(p.value)}
               activeOpacity={0.75}
             >
@@ -172,7 +172,7 @@ export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props)
                   </View>
                   <View style={[
                     styles.inputWrap,
-                    { backgroundColor: P.surface, borderColor: changed ? P.primary : P.border },
+                    { backgroundColor: P.surfaceElevated, borderColor: changed ? P.primary : P.border },
                   ]}>
                     <Text style={[styles.inputPrefix, { color: P.textPrimary }]}>£</Text>
                     <TextInput
