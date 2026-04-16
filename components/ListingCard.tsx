@@ -87,6 +87,8 @@ export function ListingCard({
       style={[isGrid ? styles.grid : styles.featured, style]}
       onPress={onPress}
       activeOpacity={0.9}
+      accessibilityRole="button"
+      accessibilityLabel={`View ${listing.title}, £${listing.price.toFixed(2)}${listing.status === 'sold' ? ', sold' : ''}`}
     >
       <View style={[styles.imageContainer, isGrid ? styles.imageContainerGrid : styles.imageContainerFeatured]}>
         {listing.images?.[0] ? (
@@ -95,6 +97,7 @@ export function ListingCard({
             style={styles.image}
             contentFit="cover"
             transition={200}
+            accessible={false}
           />
         ) : (
           <View style={styles.imagePlaceholder} />
@@ -115,6 +118,9 @@ export function ListingCard({
             onPress={() => toggleSave(listing.id, listing.price)}
             hitSlop={8}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={saved ? `Remove ${listing.title} from saved` : `Save ${listing.title}`}
+            accessibilityState={{ selected: saved }}
           >
             <Ionicons
               name={saved ? 'heart' : 'heart-outline'}
