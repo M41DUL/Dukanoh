@@ -233,7 +233,7 @@ CREATE POLICY "Anyone can check invite codes"
   ON public.invites FOR SELECT USING (true);
 
 CREATE POLICY "Authenticated users can update invites"
-  ON public.invites FOR UPDATE USING (auth.role() = 'authenticated');
+  ON public.invites FOR UPDATE USING ((select auth.role()) = 'authenticated');
 
 -- Listings
 CREATE POLICY "Listings are publicly viewable"
@@ -1006,7 +1006,7 @@ CREATE POLICY "Boosts are publicly readable"
   ON public.boosts FOR SELECT TO authenticated USING (true);
 
 -- Only the seller can create a boost for their own listing
-CREATE POLICY "Sellers can create boosts for their listings"
+CREATE POLICY "Sellers can create boosts"
   ON public.boosts FOR INSERT TO authenticated
   WITH CHECK ((select auth.uid()) = seller_id);
 
@@ -1064,6 +1064,7 @@ CREATE OR REPLACE FUNCTION expire_pro_subscriptions()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = 'public'
 AS $$
 BEGIN
   UPDATE users
@@ -1147,7 +1148,7 @@ ALTER TABLE public.fit_search_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "fit_search_logs_own"
   ON public.fit_search_logs FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Atomically checks and records a fit search for the calling user.
 -- Returns true if the search is allowed (under 10/day), false if limit reached.
@@ -1244,9 +1245,11 @@ CREATE TABLE public.app_errors (
 
 ALTER TABLE public.app_errors ENABLE ROW LEVEL SECURITY;
 
--- Authenticated users can insert their own errors
+-- Anonymous users may report errors too (unauthenticated crashes);
+-- authenticated users may only log errors for themselves.
 CREATE POLICY "Users can report errors"
-  ON public.app_errors FOR INSERT TO authenticated WITH CHECK (true);
+  ON public.app_errors FOR INSERT
+  WITH CHECK (((select auth.uid()) IS NULL) OR ((select auth.uid()) = user_id));
 
 -- No SELECT policy for authenticated users — errors are read via service role only
 
@@ -1281,6 +1284,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_abandoned_drafts()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = 'public'
 AS $$
 BEGIN
   -- Delete storage objects for images belonging to abandoned drafts (>30 days, not updated)
@@ -1333,6 +1337,7 @@ CREATE OR REPLACE FUNCTION public.cleanup_messages()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = 'public'
 AS $$
 BEGIN
   DELETE FROM public.messages
