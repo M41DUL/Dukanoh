@@ -73,12 +73,17 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [applePaySupported, setApplePaySupported] = useState(false);
+  const [googlePaySupported, setGooglePaySupported] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(DEFAULT_METHOD);
   const [protectionSheetVisible, setProtectionSheetVisible] = useState(false);
 
-  // Check Apple Pay support on mount
+  // Check platform pay support on mount
   React.useEffect(() => {
-    isPlatformPaySupported().then(setApplePaySupported);
+    if (Platform.OS === 'ios') {
+      isPlatformPaySupported().then(setApplePaySupported);
+    } else if (Platform.OS === 'android') {
+      isPlatformPaySupported({ googlePay: { testEnv: __DEV__ } }).then(setGooglePaySupported);
+    }
   }, []);
 
   useFocusEffect(
@@ -168,7 +173,7 @@ export default function CheckoutScreen() {
 
     const { client_secret, payment_intent_id, seller_verified } = await piRes.json();
 
-    // Step 2 — Pay: Apple Pay directly if supported, else card PaymentSheet
+    // Step 2 — Pay: native wallet if supported, else card PaymentSheet
     if (applePaySupported && Platform.OS === 'ios' && selectedMethod !== 'card') {
       const { error: applePayError } = await confirmPlatformPayPayment(client_secret, {
         applePay: {
@@ -198,6 +203,23 @@ export default function CheckoutScreen() {
         setPlacing(false);
         if (applePayError.code !== 'Canceled') {
           Alert.alert('Payment failed', applePayError.message);
+        }
+        return;
+      }
+    } else if (googlePaySupported && Platform.OS === 'android' && selectedMethod !== 'card') {
+      const { error: googlePayError } = await confirmPlatformPayPayment(client_secret, {
+        googlePay: {
+          testEnv: __DEV__,
+          merchantName: 'Dukanoh',
+          merchantCountryCode: 'GB',
+          currencyCode: 'GBP',
+        },
+      });
+
+      if (googlePayError) {
+        setPlacing(false);
+        if (googlePayError.code !== 'Canceled') {
+          Alert.alert('Payment failed', googlePayError.message);
         }
         return;
       }
