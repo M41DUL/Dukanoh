@@ -1252,3 +1252,57 @@ CREATE POLICY "Users can report errors"
 
 CREATE INDEX idx_app_errors_created_at ON public.app_errors (created_at DESC);
 CREATE INDEX idx_app_errors_user_id    ON public.app_errors (user_id);
+
+-- ─── listing_views: unique constraint + update policy (enables upsert) ────────
+-- IMPORTANT: Before running on a live database, deduplicate first:
+--   DELETE FROM public.listing_views lv
+--   WHERE id NOT IN (
+--     SELECT DISTINCT ON (user_id, listing_id) id
+--     FROM public.listing_views
+--     ORDER BY user_id, listing_id, viewed_at DESC
+--   );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_listing_views_user_listing
+  ON public.listing_views (user_id, listing_id);
+
+CREATE POLICY "Users can update their own listing views"
+  ON public.listing_views FOR UPDATE TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
+
+-- ─── Cleanup: expired boosts (runs weekly, Sunday 03:00 UTC) ──────────────────
+SELECT cron.schedule(
+  'cleanup-expired-boosts',
+  '0 3 * * 0',
+  'DELETE FROM public.boosts WHERE expires_at < now()'
+);
+
+-- ─── Cleanup: abandoned draft listings + storage (runs weekly, Sunday 04:00 UTC)
+CREATE OR REPLACE FUNCTION public.cleanup_abandoned_drafts()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Delete storage objects for images belonging to abandoned drafts (>30 days, not updated)
+  DELETE FROM storage.objects
+  WHERE bucket_id = 'listings'
+    AND name IN (
+      SELECT regexp_replace(image_url, '^.*/listings/', '')
+      FROM public.listings,
+           unnest(images) AS image_url
+      WHERE status = 'draft'
+        AND updated_at < now() - interval '30 days'
+    );
+
+  -- Delete the abandoned draft listing records
+  DELETE FROM public.listings
+  WHERE status = 'draft'
+    AND updated_at < now() - interval '30 days';
+END;
+$$;
+
+SELECT cron.schedule(
+  'cleanup-abandoned-drafts',
+  '0 4 * * 0',
+  'SELECT public.cleanup_abandoned_drafts()'
+);

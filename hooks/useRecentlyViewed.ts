@@ -5,8 +5,10 @@ import { Listing } from '@/components/ListingCard';
 const MAX = 10;
 
 export async function recordView(id: string, userId: string) {
-  // Insert into listing_views — duplicates are fine, we deduplicate on read
-  await supabase.from('listing_views').insert({ listing_id: id, user_id: userId });
+  await supabase.from('listing_views').upsert(
+    { listing_id: id, user_id: userId, viewed_at: new Date().toISOString() },
+    { onConflict: 'listing_id,user_id' }
+  );
 }
 
 export function useRecentlyViewed(currentUserId?: string) {
@@ -15,31 +17,20 @@ export function useRecentlyViewed(currentUserId?: string) {
   const load = useCallback(async () => {
     if (!currentUserId) { setItems([]); return; }
 
-    // Fetch recent views ordered newest first, then deduplicate client-side
     const { data: views, error } = await supabase
       .from('listing_views')
-      .select('listing_id, viewed_at')
+      .select('listing_id')
       .eq('user_id', currentUserId)
       .order('viewed_at', { ascending: false })
-      .limit(100);
+      .limit(MAX);
 
-    if (error || !views) { setItems([]); return; }
+    if (error || !views || views.length === 0) { setItems([]); return; }
 
-    // Deduplicate: keep first (most recent) occurrence of each listing_id
-    const seen = new Set<string>();
-    const ids: string[] = [];
-    for (const row of views) {
-      if (!seen.has(row.listing_id) && ids.length < MAX) {
-        seen.add(row.listing_id);
-        ids.push(row.listing_id);
-      }
-    }
-
-    if (ids.length === 0) { setItems([]); return; }
+    const ids = views.map(row => row.listing_id);
 
     const { data, error: listingError } = await supabase
       .from('listings')
-      .select('*, seller:users!listings_seller_id_fkey(username, avatar_url)')
+      .select('id, title, price, original_price, price_dropped_at, images, status, condition, size, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)')
       .in('id', ids)
       .eq('status', 'available')
       .neq('seller_id', currentUserId);

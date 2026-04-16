@@ -157,7 +157,7 @@ export default function ListingDetailScreen() {
       ] = await Promise.all([
         supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }),
         supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', data.seller_id).eq('status', 'sold'),
-        supabase.from('listings').select('*, seller:users!listings_seller_id_fkey(username, avatar_url)').eq('seller_id', data.seller_id).eq('status', 'available').neq('id', id).order('created_at', { ascending: false }).limit(4),
+        supabase.from('listings').select('id, title, price, original_price, price_dropped_at, images, status, condition, size, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)').eq('seller_id', data.seller_id).eq('status', 'available').neq('id', id).order('created_at', { ascending: false }).limit(4),
         simQ,
         supabase.from('messages').select('content').eq('listing_id', id),
         supabase.from('boosts').select('expires_at').eq('listing_id', id).gte('expires_at', new Date().toISOString()).maybeSingle(),

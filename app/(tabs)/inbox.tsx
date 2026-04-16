@@ -38,6 +38,8 @@ export default function InboxScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
   const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFetchedAt = useRef<number>(0);
+  const INBOX_STALE_MS = 30_000;
 
   const fetchConversations = useCallback(async () => {
     if (!user) return;
@@ -89,6 +91,7 @@ export default function InboxScreen() {
           };
         });
       setConversations(mapped);
+      lastFetchedAt.current = Date.now();
     }
 
     setLoading(false);
@@ -127,7 +130,9 @@ export default function InboxScreen() {
   }, [fetchConversations]);
 
   useFocusEffect(useCallback(() => {
-    fetchConversations();
+    if (Date.now() - lastFetchedAt.current > INBOX_STALE_MS) {
+      fetchConversations();
+    }
   }, [fetchConversations]));
 
   // Realtime: listen for conversation updates (new messages update last_message + updated_at)

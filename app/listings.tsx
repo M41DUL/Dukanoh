@@ -230,7 +230,7 @@ export default function ListingsScreen() {
 
     let q = supabase
       .from('listings')
-      .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
+      .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, fabric, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
       .order(orderCol, { ascending });
 
     if (!myListings) q = q.eq('status', 'available');

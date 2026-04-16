@@ -106,7 +106,7 @@ export default function DukanohFitScreen() {
 
     let q = supabase
       .from('listings')
-      .select('*, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
+      .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, fabric_weight, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
       .eq('status', 'available')
       .in('category', complementary)
       .neq('seller_id', user.id);

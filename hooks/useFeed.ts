@@ -12,7 +12,6 @@ const nudgeKey = (uid: string) => `@dukanoh/profile_nudge_dismissed/${uid}`;
 const sellNudgeKey = (uid: string) => `@dukanoh/sell_nudge_dismissed/${uid}`;
 const fitSeenKey = (uid: string) => `@dukanoh/fit_sheet_seen/${uid}`;
 const FEED_CACHE_KEY = (uid: string) => `@dukanoh/feed_cache/${uid}`;
-const RECENTLY_VIEWED_KEY = (uid: string) => `@dukanoh/recently_viewed/${uid}`;
 const TRENDING_CACHE_KEY = (gender: 'Men' | 'Women' | null) =>
   `@dukanoh/trending_categories/${gender ?? 'all'}`;
 const TRENDING_TTL_MS = 30 * 60 * 1000; // 30 min
@@ -49,19 +48,26 @@ interface FeedCache {
   timestamp: number;
 }
 
+// ── Profile cache — avoids re-fetching on every 30s feed refresh ────
+const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+type ProfileData = { preferred_categories: string[]; avatar_url: string | null; bio: string | null; full_name: string } | null;
+const profileCache: Record<string, { data: ProfileData; ts: number }> = {};
+
 // ── Private data helpers ────────────────────────────────────────────
 async function getViewedCategories(userId: string): Promise<string[]> {
   try {
-    const raw = await AsyncStorage.getItem(RECENTLY_VIEWED_KEY(userId));
-    if (!raw) return [];
-    const ids: string[] = JSON.parse(raw);
-    if (ids.length === 0) return [];
     const { data } = await supabase
-      .from('listings')
-      .select('category')
-      .in('id', ids);
+      .from('listing_views')
+      .select('listings(category)')
+      .eq('user_id', userId)
+      .order('viewed_at', { ascending: false })
+      .limit(50);
     if (!data) return [];
-    return [...new Set(data.map(d => d.category))];
+    return [...new Set(
+      data
+        .map(d => (d.listings as any)?.category)
+        .filter(Boolean) as string[]
+    )];
   } catch {
     return [];
   }
@@ -336,13 +342,23 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
     if (!userId) return;
 
     try {
+      const now = Date.now();
+      const cachedProfile = profileCache[userId];
+      const profilePromise: Promise<ProfileData> =
+        cachedProfile && now - cachedProfile.ts < PROFILE_CACHE_TTL
+          ? Promise.resolve(cachedProfile.data)
+          : supabase
+              .from('users')
+              .select('preferred_categories, avatar_url, bio, full_name')
+              .eq('id', userId)
+              .maybeSingle()
+              .then(r => {
+                profileCache[userId] = { data: r.data, ts: now };
+                return r.data;
+              });
+
       const [profile, viewedCats, savedCats, savedOccasions, activeSeason] = await Promise.all([
-        supabase
-          .from('users')
-          .select('preferred_categories, avatar_url, bio, full_name')
-          .eq('id', userId)
-          .maybeSingle()
-          .then(r => r.data),
+        profilePromise,
         getViewedCategories(userId),
         getSavedCategories(userId),
         getSavedOccasions(userId),

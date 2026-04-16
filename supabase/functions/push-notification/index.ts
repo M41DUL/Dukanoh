@@ -345,12 +345,11 @@ async function handlePriceDrop(
     return new Response(JSON.stringify({ skipped: 'no savers' }), { status: 200 });
   }
 
-  const messages: object[] = [];
   const notificationInserts: object[] = [];
+  const eligibleSavers: { user_id: string; body: string }[] = [];
 
   for (const saver of savers as { user_id: string; price_at_save: number }[]) {
-    const savedPrice = saver.price_at_save;
-    const pctDrop = (savedPrice - newPrice) / savedPrice;
+    const pctDrop = (saver.price_at_save - newPrice) / saver.price_at_save;
 
     // Only notify if drop is at least 10% relative to what this user saved it at
     if (pctDrop < THRESHOLD) continue;
@@ -358,16 +357,7 @@ async function handlePriceDrop(
     const savingPct = Math.round(pctDrop * 100);
     const body = `${listingTitle} dropped ${savingPct}% to £${newPrice.toFixed(2)}`;
 
-    const tokens = await getTokens(supabase, saver.user_id);
-    tokens.forEach(t => messages.push({
-      to: t,
-      sound: 'default',
-      title: 'Price drop on a saved item',
-      body,
-      data: { listing_id: record.id },
-    }));
-
-    // Queue in-app notification insert
+    eligibleSavers.push({ user_id: saver.user_id, body });
     notificationInserts.push({
       user_id: saver.user_id,
       type: 'price_drop',
@@ -382,8 +372,36 @@ async function handlePriceDrop(
     await supabase.from('notifications').insert(notificationInserts);
   }
 
-  if (messages.length === 0) {
+  if (eligibleSavers.length === 0) {
     return new Response(JSON.stringify({ skipped: 'no eligible savers after threshold' }), { status: 200 });
+  }
+
+  // Batch-fetch all push tokens in one query — avoids N+1 (one query per saver)
+  const { data: tokenRows } = await supabase
+    .from('push_tokens')
+    .select('user_id, token')
+    .in('user_id', eligibleSavers.map(s => s.user_id));
+
+  const tokensByUser = new Map<string, string[]>();
+  for (const row of (tokenRows ?? []) as { user_id: string; token: string }[]) {
+    const existing = tokensByUser.get(row.user_id) ?? [];
+    existing.push(row.token);
+    tokensByUser.set(row.user_id, existing);
+  }
+
+  const messages: object[] = [];
+  for (const saver of eligibleSavers) {
+    (tokensByUser.get(saver.user_id) ?? []).forEach(t => messages.push({
+      to: t,
+      sound: 'default',
+      title: 'Price drop on a saved item',
+      body: saver.body,
+      data: { listing_id: record.id },
+    }));
+  }
+
+  if (messages.length === 0) {
+    return new Response(JSON.stringify({ skipped: 'no push tokens for eligible savers' }), { status: 200 });
   }
 
   return sendPush(messages, supabase);
