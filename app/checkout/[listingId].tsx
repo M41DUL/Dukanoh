@@ -206,8 +206,40 @@ export default function CheckoutScreen() {
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: client_secret,
         merchantDisplayName: 'Dukanoh',
-        style: 'automatic',
         returnURL: 'dukanoh://checkout/complete',
+        paymentMethodOrder: ['card'],
+        appearance: {
+          colors: {
+            primary: colors.primary,
+            background: colors.background,
+            componentBackground: colors.surface,
+            componentBorder: colors.border,
+            componentDivider: colors.border,
+            primaryText: colors.textPrimary,
+            secondaryText: colors.textSecondary,
+            componentText: colors.textPrimary,
+            placeholderText: colors.textSecondary,
+            icon: colors.textSecondary,
+            error: colors.error,
+          },
+          shapes: {
+            borderRadius: 12,
+            borderWidth: 1,
+          },
+          primaryButton: {
+            colors: {
+              background: colors.primary,
+              text: '#FFFFFF',
+              border: colors.primary,
+            },
+            shapes: {
+              borderRadius: 24,
+            },
+          },
+          font: {
+            family: 'Inter',
+          },
+        },
       });
 
       if (initError) {

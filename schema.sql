@@ -708,7 +708,7 @@ CREATE TABLE public.orders (
   total_paid        NUMERIC(10,2) NOT NULL,
   tracking_number   TEXT,
   courier           TEXT,
-  stripe_payment_id TEXT,
+  stripe_payment_id TEXT UNIQUE,
   seller_verify_deadline TIMESTAMPTZ,
   dispute_reason      TEXT,
   dispute_description TEXT,
