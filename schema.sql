@@ -1224,3 +1224,31 @@ $$;
 
 REVOKE ALL ON FUNCTION public.delete_user_account() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;
+
+-- ─── App error reporting ──────────────────────────────────────────────────────
+-- Receives crash reports and unhandled errors from the mobile app.
+-- Written by lib/errorReporting.ts (production builds only).
+-- Readable only via the Supabase dashboard (service role) — no client SELECT.
+
+CREATE TABLE public.app_errors (
+  id            UUID        DEFAULT uuid_generate_v4() PRIMARY KEY,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  error_message TEXT        NOT NULL,
+  stack_trace   TEXT,
+  platform      TEXT,           -- 'ios' | 'android'
+  os_version    TEXT,
+  app_version   TEXT,
+  is_fatal      BOOLEAN     DEFAULT FALSE,
+  user_id       UUID        REFERENCES public.users (id) ON DELETE SET NULL
+);
+
+ALTER TABLE public.app_errors ENABLE ROW LEVEL SECURITY;
+
+-- Authenticated users can insert their own errors
+CREATE POLICY "Users can report errors"
+  ON public.app_errors FOR INSERT TO authenticated WITH CHECK (true);
+
+-- No SELECT policy for authenticated users — errors are read via service role only
+
+CREATE INDEX idx_app_errors_created_at ON public.app_errors (created_at DESC);
+CREATE INDEX idx_app_errors_user_id    ON public.app_errors (user_id);

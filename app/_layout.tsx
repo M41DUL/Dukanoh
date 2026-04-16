@@ -17,11 +17,14 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
 import { configureGoogleSignIn } from '@/lib/socialAuth';
+import { initErrorReporting } from '@/lib/errorReporting';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { SavedProvider } from '@/context/SavedContext';
 import { BlockedProvider } from '@/context/BlockedContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
+
+initErrorReporting();
 
 SplashScreen.preventAutoHideAsync();
 
