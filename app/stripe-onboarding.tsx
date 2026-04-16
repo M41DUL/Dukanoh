@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
@@ -40,13 +41,62 @@ const UNLOCKED = [
 ];
 
 export default function StripeOnboardingScreen() {
-  const { isVerified } = useAuth();
+  const { user, isVerified, refreshProfile } = useAuth();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
+  const [loading, setLoading] = useState(false);
 
-  const handleStartOnboarding = () => {
-    alert('Dukanoh Verify will be available soon. Come back shortly!');
+  const handleStartOnboarding = async () => {
+    if (!user) return;
+    setLoading(true);
+
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
+
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/stripe-connect-onboard`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-dukanoh-key': apiKey ?? '',
+        },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert('Something went wrong', err?.error ?? 'Could not start verification. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      const { url } = await res.json();
+
+      // Open Stripe's hosted onboarding in the system browser
+      await WebBrowser.openBrowserAsync(url);
+
+      // When the browser closes, check if onboarding is now complete
+      const statusRes = await fetch(`${supabaseUrl}/functions/v1/stripe-connect-status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-dukanoh-key': apiKey ?? '',
+        },
+        body: JSON.stringify({ user_id: user.id }),
+      });
+
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        if (status.complete) {
+          await refreshProfile();
+        }
+      }
+    } catch {
+      Alert.alert('Something went wrong', 'Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (isVerified) {
@@ -158,6 +208,7 @@ export default function StripeOnboardingScreen() {
         <Button
           label="Start Dukanoh Verify"
           onPress={handleStartOnboarding}
+          loading={loading}
         />
 
         <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>

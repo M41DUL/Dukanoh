@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
+import { useStripe } from '@stripe/stripe-react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -60,6 +61,7 @@ export default function CheckoutScreen() {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const [listing, setListing] = useState<ListingSummary | null>(null);
   const [address, setAddress] = useState<AddressState | null>(null);
@@ -125,21 +127,68 @@ export default function CheckoutScreen() {
 
     setPlacing(true);
 
-    // Re-check listing is still available (race condition guard)
-    const { data: freshListing } = await supabase
-      .from('listings')
-      .select('status')
-      .eq('id', listing.id)
-      .single();
+    // Step 1 — Create PaymentIntent via Edge Function
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
 
-    if (freshListing?.status !== 'available') {
+    const piRes = await fetch(`${supabaseUrl}/functions/v1/create-payment-intent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-dukanoh-key': apiKey ?? '',
+      },
+      body: JSON.stringify({ listing_id: listing.id, buyer_id: user.id }),
+    });
+
+    if (!piRes.ok) {
+      const err = await piRes.json().catch(() => ({}));
       setPlacing(false);
-      Alert.alert('No longer available', 'This listing was just sold. Please browse other items.');
-      router.back();
+      if (err?.error === 'Listing is no longer available') {
+        Alert.alert('No longer available', 'This listing was just sold. Please browse other items.');
+        router.back();
+      } else if (err?.error === 'Seller has not completed verification') {
+        Alert.alert('Seller not verified', 'This seller has not completed verification yet. Try messaging them.');
+        router.back();
+      } else {
+        Alert.alert('Payment error', err?.error ?? 'Could not start checkout. Please try again.');
+      }
       return;
     }
 
-    const { data: order, error } = await supabase
+    const { client_secret, payment_intent_id, seller_verified } = await piRes.json();
+
+    // Step 2 — Init the Stripe PaymentSheet
+    const { error: initError } = await initPaymentSheet({
+      paymentIntentClientSecret: client_secret,
+      merchantDisplayName: 'Dukanoh',
+      style: 'automatic',
+      returnURL: 'dukanoh://checkout/complete',
+    });
+
+    if (initError) {
+      setPlacing(false);
+      Alert.alert('Payment error', initError.message);
+      return;
+    }
+
+    // Step 3 — Present the PaymentSheet (card UI / Apple Pay / Google Pay)
+    const { error: presentError } = await presentPaymentSheet();
+
+    if (presentError) {
+      setPlacing(false);
+      if (presentError.code !== 'Canceled') {
+        Alert.alert('Payment failed', presentError.message);
+      }
+      return;
+    }
+
+    // Step 4 — Payment succeeded: insert the order record
+    // If seller isn't verified yet, set a 7-day deadline for them to complete onboarding
+    const sellerVerifyDeadline = seller_verified
+      ? null
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
         listing_id: listing.id,
@@ -149,6 +198,8 @@ export default function CheckoutScreen() {
         item_price: listing.price,
         protection_fee: protectionFee,
         total_paid: total,
+        stripe_payment_id: payment_intent_id,
+        seller_verify_deadline: sellerVerifyDeadline,
         delivery_address_line1: address?.address_line1,
         delivery_address_line2: address?.address_line2 ?? null,
         delivery_city: address?.city,
@@ -158,28 +209,22 @@ export default function CheckoutScreen() {
       .select('id')
       .single();
 
-    if (error || !order) {
+    if (orderError || !order) {
       setPlacing(false);
-      if ((error as { code?: string })?.code === '23505') {
+      if ((orderError as { code?: string })?.code === '23505') {
         Alert.alert('Just missed it', 'Someone just bought this item. Browse to find something else.');
         router.back();
       } else {
-        Alert.alert('Error', 'Could not place order. Please try again.');
+        Alert.alert('Error', 'Payment taken but order could not be saved. Please contact support.');
       }
       return;
     }
 
-    const { error: listingError } = await supabase
+    // Step 5 — Mark listing as sold
+    await supabase
       .from('listings')
       .update({ status: 'sold', buyer_id: user.id, sold_at: new Date().toISOString() })
       .eq('id', listing.id);
-
-    if (listingError) {
-      await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.id);
-      setPlacing(false);
-      Alert.alert('Error', 'Could not complete order. Please try again.');
-      return;
-    }
 
     setPlacing(false);
     router.replace(`/order/${order.id}`);
@@ -317,7 +362,7 @@ export default function CheckoutScreen() {
             <View style={[styles.cardPlaceholder, { borderColor: colors.border, backgroundColor: colors.surface }]}>
               <Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} />
               <Text style={[styles.cardPlaceholderText, { color: colors.textSecondary }]}>
-                Card details — available when payments go live
+                Enter card details at the next step
               </Text>
             </View>
           )}

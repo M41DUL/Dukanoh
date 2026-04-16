@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import {
   useFonts,
   Inter_100Thin,
@@ -205,13 +206,15 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <SavedProvider>
-          <BlockedProvider>
-            <RootNavigator />
-          </BlockedProvider>
-        </SavedProvider>
-      </ThemeProvider>
+      <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}>
+        <ThemeProvider>
+          <SavedProvider>
+            <BlockedProvider>
+              <RootNavigator />
+            </BlockedProvider>
+          </SavedProvider>
+        </ThemeProvider>
+      </StripeProvider>
     </GestureHandlerRootView>
   );
 }

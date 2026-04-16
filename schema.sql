@@ -709,6 +709,7 @@ CREATE TABLE public.orders (
   tracking_number   TEXT,
   courier           TEXT,
   stripe_payment_id TEXT,
+  seller_verify_deadline TIMESTAMPTZ,
   dispute_reason      TEXT,
   dispute_description TEXT,
   disputed_at         TIMESTAMPTZ,

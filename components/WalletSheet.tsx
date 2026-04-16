@@ -35,6 +35,7 @@ export function WalletSheet({ visible, onClose, hideBalances = false }: WalletSh
 
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -65,12 +66,43 @@ export function WalletSheet({ visible, onClose, hideBalances = false }: WalletSh
   const lifetime = wallet?.lifetime ?? 0;
 
   const handleWithdraw = () => {
-    // Stripe Connect payout — to be implemented
     Alert.alert(
       `Withdraw £${available.toFixed(2)}`,
       'Funds will be sent to your connected bank account within 3–5 business days.',
       [
-        { text: 'Confirm', onPress: () => {} },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            if (!user) return;
+            setWithdrawing(true);
+
+            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+            const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
+
+            try {
+              const res = await fetch(`${supabaseUrl}/functions/v1/stripe-payout`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-dukanoh-key': apiKey ?? '',
+                },
+                body: JSON.stringify({ user_id: user.id }),
+              });
+
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                Alert.alert('Withdrawal failed', err?.error ?? 'Please try again.');
+              } else {
+                await fetchData();
+                Alert.alert('Withdrawal requested', `£${available.toFixed(2)} is on its way to your bank.`);
+              }
+            } catch {
+              Alert.alert('Something went wrong', 'Please check your connection and try again.');
+            } finally {
+              setWithdrawing(false);
+            }
+          },
+        },
         { text: 'Cancel', style: 'cancel' },
       ]
     );
@@ -129,7 +161,8 @@ export function WalletSheet({ visible, onClose, hideBalances = false }: WalletSh
             <Button
               label={available > 0 ? `Withdraw £${available.toFixed(2)}` : 'Nothing to withdraw'}
               onPress={handleWithdraw}
-              disabled={available === 0}
+              disabled={available === 0 || withdrawing}
+              loading={withdrawing}
               size="lg"
             />
           ) : (
