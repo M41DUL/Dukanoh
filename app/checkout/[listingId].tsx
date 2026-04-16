@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
-import { useStripe } from '@stripe/stripe-react-native';
+import { useStripe, usePlatformPay, PlatformPay, isPlatformPaySupported } from '@stripe/stripe-react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -46,11 +46,15 @@ interface AddressState {
   country: string;
 }
 
-const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string }[] = [
-  { key: 'apple_pay',  label: 'Apple Pay',  icon: Platform.OS === 'ios' ? 'logo-apple' : 'logo-google' },
-  { key: 'google_pay', label: 'Google Pay', icon: 'logo-google' },
-  { key: 'card',       label: 'Credit / Debit card', icon: 'card-outline' },
-];
+const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string }[] = Platform.OS === 'ios'
+  ? [
+      { key: 'apple_pay', label: 'Apple Pay', icon: 'logo-apple' },
+      { key: 'card',      label: 'Credit / Debit card', icon: 'card-outline' },
+    ]
+  : [
+      { key: 'google_pay', label: 'Google Pay', icon: 'logo-google' },
+      { key: 'card',       label: 'Credit / Debit card', icon: 'card-outline' },
+    ];
 
 // On iOS default to Apple Pay, on Android default to Google Pay
 const DEFAULT_METHOD: PaymentMethod = Platform.OS === 'ios' ? 'apple_pay' : 'google_pay';
@@ -62,13 +66,20 @@ export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const { confirmPlatformPayPayment } = usePlatformPay();
 
   const [listing, setListing] = useState<ListingSummary | null>(null);
   const [address, setAddress] = useState<AddressState | null>(null);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
+  const [applePaySupported, setApplePaySupported] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(DEFAULT_METHOD);
   const [protectionSheetVisible, setProtectionSheetVisible] = useState(false);
+
+  // Check Apple Pay support on mount
+  React.useEffect(() => {
+    isPlatformPaySupported().then(setApplePaySupported);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -157,29 +168,63 @@ export default function CheckoutScreen() {
 
     const { client_secret, payment_intent_id, seller_verified } = await piRes.json();
 
-    // Step 2 — Init the Stripe PaymentSheet
-    const { error: initError } = await initPaymentSheet({
-      paymentIntentClientSecret: client_secret,
-      merchantDisplayName: 'Dukanoh',
-      style: 'automatic',
-      returnURL: 'dukanoh://checkout/complete',
-    });
+    // Step 2 — Pay: Apple Pay directly if supported, else card PaymentSheet
+    if (applePaySupported && Platform.OS === 'ios' && selectedMethod !== 'card') {
+      const { error: applePayError } = await confirmPlatformPayPayment(client_secret, {
+        applePay: {
+          cartItems: [
+            {
+              label: listing.title,
+              amount: listing.price.toFixed(2),
+              paymentType: PlatformPay.PaymentType.Immediate,
+            },
+            {
+              label: 'Buyer Protection',
+              amount: protectionFee.toFixed(2),
+              paymentType: PlatformPay.PaymentType.Immediate,
+            },
+            {
+              label: 'Dukanoh',
+              amount: total.toFixed(2),
+              paymentType: PlatformPay.PaymentType.Immediate,
+            },
+          ],
+          merchantCountryCode: 'GB',
+          currencyCode: 'GBP',
+        },
+      });
 
-    if (initError) {
-      setPlacing(false);
-      Alert.alert('Payment error', initError.message);
-      return;
-    }
-
-    // Step 3 — Present the PaymentSheet (card UI / Apple Pay / Google Pay)
-    const { error: presentError } = await presentPaymentSheet();
-
-    if (presentError) {
-      setPlacing(false);
-      if (presentError.code !== 'Canceled') {
-        Alert.alert('Payment failed', presentError.message);
+      if (applePayError) {
+        setPlacing(false);
+        if (applePayError.code !== 'Canceled') {
+          Alert.alert('Payment failed', applePayError.message);
+        }
+        return;
       }
-      return;
+    } else {
+      // Fallback: card PaymentSheet (Android / no Apple Pay)
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: client_secret,
+        merchantDisplayName: 'Dukanoh',
+        style: 'automatic',
+        returnURL: 'dukanoh://checkout/complete',
+      });
+
+      if (initError) {
+        setPlacing(false);
+        Alert.alert('Payment error', initError.message);
+        return;
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        setPlacing(false);
+        if (presentError.code !== 'Canceled') {
+          Alert.alert('Payment failed', presentError.message);
+        }
+        return;
+      }
     }
 
     // Step 4 — Payment succeeded: insert the order record
@@ -402,7 +447,7 @@ export default function CheckoutScreen() {
         paddingBottom: insets.bottom + Spacing.sm,
       }]}>
         <Button
-          label={`Submit Payment · ${formatGBP(total)}`}
+          label={applePaySupported && Platform.OS === 'ios' ? ` Pay · ${formatGBP(total)}` : `Pay · ${formatGBP(total)}`}
           onPress={handlePlaceOrder}
           loading={placing}
           disabled={!hasAddress}
