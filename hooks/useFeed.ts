@@ -73,39 +73,20 @@ async function getViewedCategories(userId: string): Promise<string[]> {
   }
 }
 
-async function getSavedCategories(userId: string): Promise<string[]> {
+async function getSavedSignals(userId: string): Promise<{ categories: string[]; occasions: string[] }> {
   try {
     const { data } = await supabase
       .from('saved_items')
-      .select('listings(category)')
+      .select('listings(category, occasion)')
       .eq('user_id', userId)
       .limit(20);
-    if (!data) return [];
-    return [...new Set(
-      data
-        .map(d => (d.listings as any)?.category)
-        .filter(Boolean) as string[]
-    )];
+    if (!data) return { categories: [], occasions: [] };
+    return {
+      categories: [...new Set(data.map(d => (d.listings as any)?.category).filter(Boolean) as string[])],
+      occasions:  [...new Set(data.map(d => (d.listings as any)?.occasion).filter(Boolean) as string[])],
+    };
   } catch {
-    return [];
-  }
-}
-
-async function getSavedOccasions(userId: string): Promise<string[]> {
-  try {
-    const { data } = await supabase
-      .from('saved_items')
-      .select('listings(occasion)')
-      .eq('user_id', userId)
-      .limit(20);
-    if (!data) return [];
-    return [...new Set(
-      data
-        .map(d => (d.listings as any)?.occasion)
-        .filter(Boolean) as string[]
-    )];
-  } catch {
-    return [];
+    return { categories: [], occasions: [] };
   }
 }
 
@@ -357,17 +338,16 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
                 return r.data;
               });
 
-      const [profile, viewedCats, savedCats, savedOccasions, activeSeason] = await Promise.all([
+      const [profile, viewedCats, savedSignals, activeSeason] = await Promise.all([
         profilePromise,
         getViewedCategories(userId),
-        getSavedCategories(userId),
-        getSavedOccasions(userId),
+        getSavedSignals(userId),
         fetchActiveSeason(),
       ]);
 
       const onboardingCats: string[] = profile?.preferred_categories ?? [];
-      const allCats = [...new Set([...onboardingCats, ...viewedCats, ...savedCats])];
-      const allOccasions = [...new Set(savedOccasions)];
+      const allCats = [...new Set([...onboardingCats, ...viewedCats, ...savedSignals.categories])];
+      const allOccasions = [...new Set(savedSignals.occasions)];
       const isComplete = !!(profile?.avatar_url && profile?.bio);
       const rawName = profile?.full_name ?? '';
       const firstName = rawName === 'New User' ? '' : rawName.split(' ')[0];

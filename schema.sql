@@ -1306,3 +1306,57 @@ SELECT cron.schedule(
   '0 4 * * 0',
   'SELECT public.cleanup_abandoned_drafts()'
 );
+
+-- ─── Cleanup: old notifications (runs daily, 02:30 UTC) ──────────────────────
+SELECT cron.schedule(
+  'cleanup-old-notifications',
+  '30 2 * * *',
+  'DELETE FROM public.notifications WHERE created_at < now() - interval ''90 days'''
+);
+
+-- ─── Cleanup: old profile views (runs weekly, Sunday 03:30 UTC) ───────────────
+SELECT cron.schedule(
+  'cleanup-old-profile-views',
+  '30 3 * * 0',
+  'DELETE FROM public.profile_views WHERE viewed_at < now() - interval ''90 days'''
+);
+
+-- ─── Cleanup: old app errors (runs weekly, Sunday 04:30 UTC) ─────────────────
+SELECT cron.schedule(
+  'cleanup-old-app-errors',
+  '30 4 * * 0',
+  'DELETE FROM public.app_errors WHERE created_at < now() - interval ''90 days'''
+);
+
+-- ─── Cleanup: messages from fully-deleted conversations + old messages ────────
+CREATE OR REPLACE FUNCTION public.cleanup_messages()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  DELETE FROM public.messages
+  WHERE conversation_id IN (
+    SELECT id FROM public.conversations
+    WHERE deleted_by_buyer = true AND deleted_by_seller = true
+  );
+
+  DELETE FROM public.conversations
+  WHERE deleted_by_buyer = true AND deleted_by_seller = true;
+
+  DELETE FROM public.messages
+  WHERE created_at < now() - interval '2 years'
+    AND conversation_id IN (
+      SELECT c.id FROM public.conversations c
+      JOIN public.orders o ON o.listing_id = c.listing_id
+        AND o.buyer_id = c.buyer_id
+      WHERE o.status IN ('completed', 'cancelled')
+    );
+END;
+$$;
+
+SELECT cron.schedule(
+  'cleanup-messages',
+  '0 5 * * 0',
+  'SELECT public.cleanup_messages()'
+);

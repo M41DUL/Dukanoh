@@ -42,6 +42,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const { width } = Dimensions.get('window');
 const IMAGE_HEIGHT = Math.round(width * 1.5);
 
+// Module-level cache: prevents the same user incrementing view_count on the
+// same listing more than once per hour within a single app session.
+const recentViewIncrements = new Map<string, number>(); // `${userId}:${listingId}` → timestamp
+const VIEW_INCREMENT_COOLDOWN = 60 * 60 * 1000; // 1 hour
+
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -126,9 +131,14 @@ export default function ListingDetailScreen() {
       // Track view (fire-and-forget, non-blocking)
       if (data.status !== 'draft') {
         if (user) recordView(id, user.id);
-        supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
-          setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
-        });
+        const cacheKey = `${user?.id ?? 'anon'}:${id}`;
+        const lastIncrement = recentViewIncrements.get(cacheKey) ?? 0;
+        if (Date.now() - lastIncrement > VIEW_INCREMENT_COOLDOWN) {
+          recentViewIncrements.set(cacheKey, Date.now());
+          supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
+            setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
+          });
+        }
       }
 
       // Build similar listings query — fetch 20, then prioritise by occasion match + save_count
