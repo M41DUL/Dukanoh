@@ -156,8 +156,8 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
       : 'Free for 14 days. No charge until your trial ends. Cancel anytime.';
 
   const handleCta = async () => {
-    if (!isVerified) { router.back(); router.push('/stripe-onboarding'); return; }
-    if (!rcPackage) { Alert.alert('Something went wrong', 'Could not load subscription. Please try again.'); return; }
+    if (!isVerified) { router.replace('/stripe-onboarding'); return; }
+    if (!rcPackage) { Alert.alert('Could not load subscription', 'Pull up the paywall and try again. If the issue persists, restart the app.'); return; }
     try {
       setPurchasing(true);
       const { customerInfo } = await Purchases.purchasePackage(rcPackage);
