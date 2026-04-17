@@ -19,6 +19,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
 import { configureGoogleSignIn } from '@/lib/socialAuth';
 import { initErrorReporting } from '@/lib/errorReporting';
+import { initRevenueCat } from '@/lib/revenuecat';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { SavedProvider } from '@/context/SavedContext';
@@ -46,6 +47,7 @@ function RootNavigator() {
   usePushNotifications();
 
   useEffect(() => { configureGoogleSignIn(); }, []);
+  useEffect(() => { if (session?.user.id) initRevenueCat(session.user.id); }, [session?.user.id]);
   const router = useRouter();
   const segments = useSegments();
   const { isDark } = useTheme();
@@ -184,6 +186,10 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="stripe-onboarding"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="payout-account"
           options={{ animation: 'slide_from_right' }}
         />
         <Stack.Screen

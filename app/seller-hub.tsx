@@ -7,9 +7,12 @@ import {
   StyleSheet,
   Animated,
   ActivityIndicator,
+  Alert,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import Purchases, { PurchasesPackage } from 'react-native-purchases';
+import { ENTITLEMENT_ID } from '@/lib/revenuecat';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -95,6 +98,22 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
   const [founderLimit, setFounderLimit] = useState(150);
   const [founderMonthlyPrice, setFounderMonthlyPrice] = useState('£6.99');
   const [standardMonthlyPrice, setStandardMonthlyPrice] = useState('£9.99');
+  const [rcPackage, setRcPackage] = useState<PurchasesPackage | null>(null);
+  const [purchasing, setPurchasing] = useState(false);
+
+  useEffect(() => {
+    Purchases.getOfferings().then(offerings => {
+      const pkg = offerings.current?.monthly ?? offerings.current?.availablePackages[0] ?? null;
+      setRcPackage(pkg ?? null);
+      if (pkg) {
+        const price = pkg.product.priceString;
+        setStandardMonthlyPrice(price);
+        setFounderMonthlyPrice(price);
+      }
+    }).catch(() => {
+      // fall back to hardcoded prices — paywall still usable
+    });
+  }, []);
 
   // "See all benefits" secondary CTA fades out once the user scrolls past it
   const seeAllOpacity = useRef(new Animated.Value(1)).current;
@@ -136,9 +155,28 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
       ? 'Cancel anytime. Billed via the App Store.'
       : 'Free for 14 days. No charge until your trial ends. Cancel anytime.';
 
-  const handleCta = () => {
+  const handleCta = async () => {
     if (!isVerified) { router.back(); router.push('/stripe-onboarding'); return; }
-    // RevenueCat Purchases.purchasePackage() goes here
+    if (!rcPackage) { Alert.alert('Something went wrong', 'Could not load subscription. Please try again.'); return; }
+    try {
+      setPurchasing(true);
+      const { customerInfo } = await Purchases.purchasePackage(rcPackage);
+      const isActive = customerInfo.entitlements.active[ENTITLEMENT_ID] != null;
+      if (isActive) {
+        const expiryDate = customerInfo.entitlements.active[ENTITLEMENT_ID]?.expirationDate;
+        await supabase.from('users').update({
+          seller_tier: 'pro',
+          pro_expires_at: expiryDate ?? null,
+        }).eq('id', (await supabase.auth.getUser()).data.user?.id ?? '');
+        router.replace('/(tabs)/profile');
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert('Something went wrong', 'Your subscription could not be processed. Please try again.');
+      }
+    } finally {
+      setPurchasing(false);
+    }
   };
 
   const handleSeeAll = () => {
@@ -297,12 +335,13 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
           />
         </Animated.View>
         <Button
-          label={ctaLabel}
+          label={purchasing ? 'Processing...' : ctaLabel}
           onPress={handleCta}
           size="lg"
           style={{ width: '100%' }}
           backgroundColor={HUB.accent}
           textColor={HUB.background}
+          disabled={purchasing}
         />
         {ctaNote && <Text style={styles.trialNote}>{ctaNote}</Text>}
       </LinearGradient>

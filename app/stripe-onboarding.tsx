@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -90,6 +90,7 @@ export default function StripeOnboardingScreen() {
         const status = await statusRes.json();
         if (status.complete) {
           await refreshProfile();
+          router.replace('/(tabs)/profile');
         }
       }
     } catch {
@@ -102,7 +103,7 @@ export default function StripeOnboardingScreen() {
   if (isVerified) {
     return (
       <ScreenWrapper>
-        <Header title="Verification" showBack />
+        <Header title="Verification" />
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
           showsVerticalScrollIndicator={false}
@@ -129,29 +130,10 @@ export default function StripeOnboardingScreen() {
             ))}
           </View>
 
-          {/* Wallet CTA */}
           <Button
-            label="View your wallet"
-            onPress={() => router.push('/wallet')}
+            label="View profile"
+            onPress={() => router.replace('/(tabs)/profile')}
           />
-
-          {/* Manage payout account */}
-          <TouchableOpacity
-            style={[styles.manageRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            activeOpacity={0.7}
-            disabled
-          >
-            <View style={styles.manageLeft}>
-              <Ionicons name="card-outline" size={20} color={colors.textSecondary} />
-              <View style={styles.manageText}>
-                <Text style={[styles.manageTitle, { color: colors.textPrimary }]}>Payout account</Text>
-                <Text style={[styles.manageSub, { color: colors.textSecondary }]}>Manage your bank details</Text>
-              </View>
-            </View>
-            <View style={[styles.comingSoonPill, { backgroundColor: colors.border }]}>
-              <Text style={[styles.comingSoonText, { color: colors.textSecondary }]}>Coming soon</Text>
-            </View>
-          </TouchableOpacity>
         </ScrollView>
       </ScreenWrapper>
     );
