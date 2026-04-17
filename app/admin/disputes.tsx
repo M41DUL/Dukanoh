@@ -115,11 +115,11 @@ export default function AdminDisputesScreen() {
     );
   };
 
-  // Resolve in buyer's favour → cancel order, return listing to available
+  // Resolve in buyer's favour → refund via Stripe, cancel order, relist item
   const resolveForBuyer = (order: DisputedOrder) => {
     Alert.alert(
       'Resolve for buyer',
-      `Cancel this order and return the listing to @${order.buyer?.username}? The seller will not be paid.`,
+      `Refund £${order.item_price.toFixed(2)} to @${order.buyer?.username} and cancel the order? The protection fee is non-refundable.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -127,6 +127,28 @@ export default function AdminDisputesScreen() {
           style: 'destructive',
           onPress: async () => {
             setResolving(order.id);
+
+            // Step 1 — Issue Stripe refund (item_price only, not protection fee)
+            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+            const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
+
+            const refundRes = await fetch(`${supabaseUrl}/functions/v1/stripe-refund`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-dukanoh-key': apiKey ?? '',
+              },
+              body: JSON.stringify({ order_id: order.id }),
+            });
+
+            if (!refundRes.ok) {
+              const err = await refundRes.json().catch(() => ({}));
+              setResolving(null);
+              Alert.alert('Refund failed', err?.error ?? 'Could not process refund. Please try again.');
+              return;
+            }
+
+            // Step 2 — Cancel order in DB
             await supabase
               .from('orders')
               .update({
@@ -137,13 +159,14 @@ export default function AdminDisputesScreen() {
               .eq('id', order.id)
               .eq('status', 'disputed');
 
-            // Return listing to available if still linked
+            // Step 3 — Return listing to available
             if (order.listing_id) {
               await supabase
                 .from('listings')
                 .update({ status: 'available', buyer_id: null, sold_at: null })
                 .eq('id', order.listing_id);
             }
+
             setResolving(null);
             checkAdminAndLoad();
           },
