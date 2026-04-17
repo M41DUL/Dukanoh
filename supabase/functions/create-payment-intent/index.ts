@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
+      'Idempotency-Key': `pi-${listing_id}-${buyer_id}`,
     },
     body: piParams,
   });

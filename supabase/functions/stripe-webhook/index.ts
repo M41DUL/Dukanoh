@@ -160,6 +160,46 @@ Deno.serve(async (req) => {
       .eq('status', 'available');
   }
 
+  // A full refund was issued — either via Stripe Dashboard or a dispute resolved
+  // in the buyer's favour. Cancel the order and relist the item.
+  if (event.type === 'charge.refunded') {
+    const charge = event.data.object;
+    const paymentIntentId = charge.payment_intent as string | null;
+
+    if (paymentIntentId) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+
+      // Find the order — only act if it's still in an active state
+      const { data: order } = await supabase
+        .from('orders')
+        .select('id, listing_id')
+        .eq('stripe_payment_id', paymentIntentId)
+        .in('status', ['paid', 'shipped'])
+        .single();
+
+      if (order) {
+        await supabase
+          .from('orders')
+          .update({
+            status: 'cancelled',
+            cancelled_at: new Date().toISOString(),
+            cancelled_by: 'system',
+          })
+          .eq('id', order.id);
+
+        if (order.listing_id) {
+          await supabase
+            .from('listings')
+            .update({ status: 'available', buyer_id: null, sold_at: null })
+            .eq('id', order.listing_id);
+        }
+      }
+    }
+  }
+
   return new Response(JSON.stringify({ received: true }), {
     status: 200,
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
