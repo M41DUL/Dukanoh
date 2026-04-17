@@ -317,11 +317,13 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
       </ScrollView>
 
       {/* ── Sticky footer with fade gradient ── */}
-      <LinearGradient
-        colors={['transparent', HUB.background]}
-        style={[styles.paywallFooter, { paddingBottom: insets.bottom + Spacing.lg }]}
-        pointerEvents="box-none"
-      >
+      <View style={[styles.paywallFooter, { paddingBottom: insets.bottom + Spacing.lg }]}>
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+          <LinearGradient
+            colors={['transparent', HUB.background]}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </View>
         <Animated.View style={{ width: '100%', opacity: seeAllOpacity }} pointerEvents={seeAllVisible ? 'box-none' : 'none'}>
           <Button
             label={`See +${extraFeatures.length} benefits`}
@@ -344,7 +346,7 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
           disabled={purchasing}
         />
         {ctaNote && <Text style={styles.trialNote}>{ctaNote}</Text>}
-      </LinearGradient>
+      </View>
     </View>
   );
 }

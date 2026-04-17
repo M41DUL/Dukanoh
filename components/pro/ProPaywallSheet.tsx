@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   Animated,
+  Alert,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +20,8 @@ import { Button } from '@/components/Button';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Spacing, BorderRadius, FontFamily, proColorsDark } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import { ENTITLEMENT_ID } from '@/lib/revenuecat';
 import { HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
 
 // Paywall always uses the dark Pro palette — it's a premium destination
@@ -40,10 +44,25 @@ export function ProPaywallSheet({
   proExpired,
 }: ProPaywallSheetProps) {
   const insets = useSafeAreaInsets();
+  const { refreshProfile } = useAuth();
   const [founderCount, setFounderCount] = useState<number | null>(null);
   const [founderLimit, setFounderLimit] = useState(150);
   const [founderMonthlyPrice, setFounderMonthlyPrice] = useState('£6.99');
   const [standardMonthlyPrice, setStandardMonthlyPrice] = useState('£9.99');
+  const [rcPackage, setRcPackage] = useState<PurchasesPackage | null>(null);
+  const [purchasing, setPurchasing] = useState(false);
+
+  useEffect(() => {
+    Purchases.getOfferings().then(offerings => {
+      const pkg = offerings.current?.monthly ?? offerings.current?.availablePackages[0] ?? null;
+      setRcPackage(pkg ?? null);
+      if (pkg) {
+        const price = pkg.product.priceString;
+        setStandardMonthlyPrice(price);
+        setFounderMonthlyPrice(price);
+      }
+    }).catch(() => {});
+  }, []);
 
   const seeAllOpacity = useRef(new Animated.Value(1)).current;
   const [seeAllVisible, setSeeAllVisible] = useState(true);
@@ -83,13 +102,37 @@ export function ProPaywallSheet({
       ? 'Cancel anytime. Billed via the App Store.'
       : 'Free for 14 days. No charge until your trial ends. Cancel anytime.';
 
-  const handleCta = () => {
+  const handleCta = async () => {
     if (!isVerified) {
       onClose();
       router.push('/stripe-onboarding');
       return;
     }
-    // RevenueCat Purchases.purchasePackage() goes here
+    if (!rcPackage) {
+      Alert.alert('Could not load subscription', 'Please close and reopen this screen. If the issue persists, restart the app.');
+      return;
+    }
+    try {
+      setPurchasing(true);
+      const { customerInfo } = await Purchases.purchasePackage(rcPackage);
+      const isActive = customerInfo.entitlements.active[ENTITLEMENT_ID] != null;
+      if (isActive) {
+        const expiryDate = customerInfo.entitlements.active[ENTITLEMENT_ID]?.expirationDate;
+        await supabase.from('users').update({
+          seller_tier: 'pro',
+          pro_expires_at: expiryDate ?? null,
+        }).eq('id', (await supabase.auth.getUser()).data.user?.id ?? '');
+        await refreshProfile();
+        onClose();
+        router.replace('/(tabs)/profile');
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert('Something went wrong', 'Your subscription could not be processed. Please try again.');
+      }
+    } finally {
+      setPurchasing(false);
+    }
   };
 
   const handleSeeAll = () => {
@@ -249,12 +292,13 @@ export function ProPaywallSheet({
           />
         </Animated.View>
         <Button
-          label={ctaLabel}
+          label={purchasing ? 'Processing...' : ctaLabel}
           onPress={handleCta}
           size="lg"
           style={{ width: '100%' }}
           backgroundColor={P.primary}
           textColor={P.gradientBottom}
+          disabled={purchasing}
         />
         {ctaNote ? <Text style={styles.trialNote}>{ctaNote}</Text> : null}
       </LinearGradient>
