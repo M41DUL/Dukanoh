@@ -53,19 +53,12 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
-  // Fetch seller's wallet and Stripe account ID
-  const [{ data: wallet }, { data: userRow }] = await Promise.all([
-    supabase
-      .from('seller_wallet')
-      .select('available_balance')
-      .eq('seller_id', user_id)
-      .single(),
-    supabase
-      .from('users')
-      .select('stripe_account_id, stripe_onboarding_complete')
-      .eq('id', user_id)
-      .single(),
-  ]);
+  // Fetch seller's Stripe account — wallet balance claimed atomically below
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('stripe_account_id, stripe_onboarding_complete')
+    .eq('id', user_id)
+    .single();
 
   if (!userRow?.stripe_account_id || !userRow?.stripe_onboarding_complete) {
     return new Response(JSON.stringify({ error: 'Seller verification incomplete' }), {
@@ -74,7 +67,20 @@ Deno.serve(async (req) => {
     });
   }
 
-  const availableBalance = wallet?.available_balance ?? 0;
+  // Atomically zero the balance and return how much was there.
+  // Uses SELECT FOR UPDATE so concurrent requests block here — whichever
+  // runs second sees 0 and exits early, preventing duplicate payouts.
+  const { data: claimedAmount, error: claimError } = await supabase
+    .rpc('claim_available_balance', { p_seller_id: user_id });
+
+  if (claimError) {
+    return new Response(JSON.stringify({ error: 'Failed to claim balance' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const availableBalance = claimedAmount as number ?? 0;
   if (availableBalance <= 0) {
     return new Response(JSON.stringify({ error: 'No funds available to withdraw' }), {
       status: 400,
@@ -84,14 +90,18 @@ Deno.serve(async (req) => {
 
   const amountPence = Math.round(availableBalance * 100);
 
-  // Trigger a payout on the connected account
-  // Note: the connected account must have a bank account linked via their onboarding
+  // Trigger a payout on the connected account.
+  // Balance is already zeroed — if this fails we restore it below.
+  // Idempotency key includes the amount so a legitimate second withdrawal
+  // (after balance is topped up again) gets a fresh key.
+  const idempotencyKey = `payout-${user_id}-${amountPence}`;
   const payoutRes = await fetch('https://api.stripe.com/v1/payouts', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
       'Stripe-Account': userRow.stripe_account_id,
+      'Idempotency-Key': idempotencyKey,
     },
     body: new URLSearchParams({
       amount: String(amountPence),
@@ -102,6 +112,13 @@ Deno.serve(async (req) => {
 
   if (!payoutRes.ok) {
     const err = await payoutRes.json();
+
+    // Restore the balance so the seller can try again
+    await supabase
+      .from('seller_wallet')
+      .update({ available_balance: availableBalance })
+      .eq('seller_id', user_id);
+
     return new Response(JSON.stringify({ error: err?.error?.message ?? 'Payout failed' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -109,12 +126,6 @@ Deno.serve(async (req) => {
   }
 
   const payout = await payoutRes.json();
-
-  // Deduct from wallet
-  await supabase
-    .from('seller_wallet')
-    .update({ available_balance: 0 })
-    .eq('seller_id', user_id);
 
   return new Response(
     JSON.stringify({ success: true, payout_id: payout.id, amount: availableBalance }),

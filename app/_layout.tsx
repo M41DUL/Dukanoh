@@ -206,7 +206,10 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}>
+      <StripeProvider
+        publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
+        merchantIdentifier="merchant.com.m41dul.dukanoh"
+      >
         <ThemeProvider>
           <SavedProvider>
             <BlockedProvider>

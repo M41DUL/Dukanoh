@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
       headers: {
         Authorization: `Bearer ${stripeSecretKey}`,
         'Content-Type': 'application/x-www-form-urlencoded',
+        'Idempotency-Key': `account-${user_id}`,
       },
       body: new URLSearchParams({
         type: 'express',

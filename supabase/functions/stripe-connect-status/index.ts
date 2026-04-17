@@ -81,69 +81,68 @@ Deno.serve(async (req) => {
 
   const account = await stripeRes.json();
   const isComplete = account.charges_enabled === true && account.details_submitted === true;
-  const wasAlreadyComplete = userRow?.stripe_onboarding_complete === true;
 
-  // If newly complete, update the user record
-  if (isComplete && !wasAlreadyComplete) {
-    await supabase
+  if (isComplete) {
+    // Atomically flip stripe_onboarding_complete false → true.
+    // The .eq filter means this only updates if it's currently false —
+    // if a concurrent request already flipped it, no rows match and we skip.
+    const { data: updatedUser } = await supabase
       .from('users')
-      .update({
-        stripe_onboarding_complete: true,
-        is_verified: true,
-        is_seller: true,
-      })
-      .eq('id', user_id);
+      .update({ stripe_onboarding_complete: true, is_verified: true, is_seller: true })
+      .eq('id', user_id)
+      .eq('stripe_onboarding_complete', false)
+      .select('id')
+      .single();
 
-    // Create seller wallet row if it doesn't exist
-    await supabase.from('seller_wallet').upsert(
-      { seller_id: user_id, available_balance: 0, pending_balance: 0, lifetime_earned: 0 },
-      { onConflict: 'seller_id', ignoreDuplicates: true }
-    );
+    // Only proceed if we were the request that made the change
+    if (updatedUser) {
+      // Ensure wallet row exists
+      await supabase.from('seller_wallet').upsert(
+        { seller_id: user_id, available_balance: 0, pending_balance: 0, lifetime_earned: 0 },
+        { onConflict: 'seller_id', ignoreDuplicates: true }
+      );
 
-    // Find any paid orders for this seller where seller_verify_deadline is set
-    // (i.e. orders placed before the seller was verified) and transfer the funds now
-    const { data: pendingOrders } = await supabase
-      .from('orders')
-      .select('id, item_price, stripe_payment_id')
-      .eq('seller_id', user_id)
-      .not('seller_verify_deadline', 'is', null)
-      .in('status', ['paid', 'shipped']);
-
-    for (const order of pendingOrders ?? []) {
-      if (!order.stripe_payment_id) continue;
-
-      const itemPricePence = Math.round(order.item_price * 100);
-
-      // Transfer item price to seller's Connect account
-      await fetch('https://api.stripe.com/v1/transfers', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${stripeSecretKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          amount: String(itemPricePence),
-          currency: 'gbp',
-          destination: accountId,
-          'metadata[order_id]': order.id,
-          'metadata[payment_intent_id]': order.stripe_payment_id,
-        }),
-      });
-
-      // Clear the deadline now that funds have been transferred
-      await supabase
+      // Atomically claim all held orders by clearing seller_verify_deadline in one
+      // UPDATE and returning the rows. A concurrent call finds no rows and skips.
+      const { data: claimedOrders } = await supabase
         .from('orders')
         .update({ seller_verify_deadline: null })
-        .eq('id', order.id);
-    }
+        .eq('seller_id', user_id)
+        .not('seller_verify_deadline', 'is', null)
+        .in('status', ['paid', 'shipped'])
+        .select('id, item_price, stripe_payment_id');
 
-    // Credit wallet with pending balance for those orders
-    if ((pendingOrders ?? []).length > 0) {
-      const totalPending = (pendingOrders ?? []).reduce((sum, o) => sum + o.item_price, 0);
-      await supabase.rpc('increment_pending_balance', {
-        p_seller_id: user_id,
-        p_amount: totalPending,
-      });
+      for (const order of claimedOrders ?? []) {
+        if (!order.stripe_payment_id) continue;
+
+        const itemPricePence = Math.round(order.item_price * 100);
+
+        // Transfer item price (not total_paid — protection fee stays on platform)
+        await fetch('https://api.stripe.com/v1/transfers', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${stripeSecretKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Idempotency-Key': `transfer-${order.id}`,
+          },
+          body: new URLSearchParams({
+            amount: String(itemPricePence),
+            currency: 'gbp',
+            destination: accountId,
+            'metadata[order_id]': order.id,
+            'metadata[payment_intent_id]': order.stripe_payment_id,
+          }),
+        });
+      }
+
+      // Credit wallet with pending balance for the claimed orders
+      if ((claimedOrders ?? []).length > 0) {
+        const totalPending = (claimedOrders ?? []).reduce((sum, o) => sum + o.item_price, 0);
+        await supabase.rpc('increment_pending_balance', {
+          p_seller_id: user_id,
+          p_amount: totalPending,
+        });
+      }
     }
   }
 

@@ -708,7 +708,7 @@ CREATE TABLE public.orders (
   total_paid        NUMERIC(10,2) NOT NULL,
   tracking_number   TEXT,
   courier           TEXT,
-  stripe_payment_id TEXT,
+  stripe_payment_id TEXT UNIQUE,
   seller_verify_deadline TIMESTAMPTZ,
   dispute_reason      TEXT,
   dispute_description TEXT,
@@ -882,6 +882,51 @@ BEGIN
     id        = p_order_id
     AND seller_id = p_seller_id
     AND status    = 'paid';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- confirm_order_receipt RPC — uses server time, enforces shipped→completed guard
+CREATE OR REPLACE FUNCTION public.confirm_order_receipt(
+  p_order_id UUID,
+  p_buyer_id UUID
+)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.orders
+  SET
+    status       = 'completed',
+    delivered_at = NOW(),
+    completed_at = NOW()
+  WHERE
+    id       = p_order_id
+    AND buyer_id = p_buyer_id
+    AND status   = 'shipped';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Atomically zeroes a seller's available_balance and returns the claimed amount.
+-- SELECT FOR UPDATE locks the row so concurrent payout requests queue behind each
+-- other — the second caller sees 0 and exits early, preventing duplicate payouts.
+CREATE OR REPLACE FUNCTION public.claim_available_balance(p_seller_id UUID)
+RETURNS NUMERIC AS $$
+DECLARE
+  v_amount NUMERIC;
+BEGIN
+  SELECT available_balance INTO v_amount
+  FROM public.seller_wallet
+  WHERE seller_id = p_seller_id
+    AND available_balance > 0
+  FOR UPDATE;
+
+  IF v_amount IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  UPDATE public.seller_wallet
+  SET available_balance = 0
+  WHERE seller_id = p_seller_id;
+
+  RETURN v_amount;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 

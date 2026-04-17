@@ -11,6 +11,9 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.m41dul.dukanoh",
+      entitlements: {
+        "com.apple.developer.in-app-payments": ["merchant.com.m41dul.dukanoh"],
+      },
       infoPlist: {
         LSApplicationQueriesSchemes: ["whatsapp"],
         ITSAppUsesNonExemptEncryption: false,

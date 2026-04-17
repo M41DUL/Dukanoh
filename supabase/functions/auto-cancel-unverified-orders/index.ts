@@ -7,6 +7,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // It finds orders where the seller's 7-day verification deadline has passed,
 // cancels them, refunds the buyer via Stripe, and relists the item.
 
+function timingSafeEqual(a: string, b: string): boolean {
+  const encoder = new TextEncoder();
+  const aBytes = encoder.encode(a);
+  const bBytes = encoder.encode(b);
+  if (aBytes.length !== bBytes.length) return false;
+  let result = 0;
+  for (let i = 0; i < aBytes.length; i++) result |= aBytes[i] ^ bBytes[i];
+  return result === 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -17,10 +27,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Secured with the same internal API key as other functions
   const apiKey = Deno.env.get('INTERNAL_API_KEY');
   const providedKey = req.headers.get('x-dukanoh-key');
-  if (!apiKey || !providedKey || apiKey !== providedKey) {
+  if (!apiKey || !providedKey || !timingSafeEqual(providedKey, apiKey)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -65,10 +74,10 @@ Deno.serve(async (req) => {
         headers: {
           Authorization: `Bearer ${stripeSecretKey}`,
           'Content-Type': 'application/x-www-form-urlencoded',
+          'Idempotency-Key': `refund-${order.id}`,
         },
         body: new URLSearchParams({
           payment_intent: order.stripe_payment_id,
-          reason: 'fraudulent', // closest Stripe reason for "seller didn't set up account"
           'metadata[order_id]': order.id,
           'metadata[reason]': 'seller_verification_timeout',
         }),

@@ -111,6 +111,8 @@ Deno.serve(async (req) => {
     'metadata[buyer_id]': buyer_id,
     'metadata[seller_id]': listing.seller_id,
     'metadata[seller_verified]': String(sellerVerified),
+    'metadata[item_price_pence]': String(itemPricePence),
+    'metadata[protection_fee_pence]': String(protectionFeePence),
   });
 
   if (sellerVerified) {
@@ -123,6 +125,7 @@ Deno.serve(async (req) => {
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
+      'Idempotency-Key': `pi-${listing_id}-${buyer_id}`,
     },
     body: piParams,
   });
