@@ -166,15 +166,11 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             if (!user) return;
             setSubmitting(true);
-            await supabase
-              .from('orders')
-              .update({
-                status: 'completed',
-                delivered_at: new Date().toISOString(),
-                completed_at: new Date().toISOString(),
-              })
-              .eq('id', order.id)
-              .eq('buyer_id', user.id);
+            // Uses server-side NOW() via RPC — eliminates device clock skew
+            await supabase.rpc('confirm_order_receipt', {
+              p_order_id: order.id,
+              p_buyer_id: user.id,
+            });
             await fetchOrder();
             setSubmitting(false);
           },
@@ -188,7 +184,7 @@ export default function OrderDetailScreen() {
     if (!order) return;
     Alert.alert(
       'Cancel order',
-      'Are you sure you want to cancel this order? The listing will be returned to available.',
+      `Are you sure you want to cancel? You'll be refunded £${order.item_price.toFixed(2)} to your original payment method. The buyer protection fee is non-refundable.`,
       [
         { text: 'Keep order', style: 'cancel' },
         {
@@ -196,6 +192,28 @@ export default function OrderDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             setSubmitting(true);
+
+            // Step 1 — Issue Stripe refund (item_price only)
+            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+            const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
+
+            const refundRes = await fetch(`${supabaseUrl}/functions/v1/stripe-refund`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-dukanoh-key': apiKey ?? '',
+              },
+              body: JSON.stringify({ order_id: order.id }),
+            });
+
+            if (!refundRes.ok) {
+              const err = await refundRes.json().catch(() => ({}));
+              setSubmitting(false);
+              Alert.alert('Cancellation failed', err?.error ?? 'Could not process refund. Please contact support.');
+              return;
+            }
+
+            // Step 2 — Cancel order in DB
             const cancelledBy = isBuyer ? 'buyer' : 'seller';
             await supabase
               .from('orders')
@@ -205,19 +223,22 @@ export default function OrderDetailScreen() {
                 cancelled_by: cancelledBy,
               })
               .eq('id', order.id);
-            // Return listing to available
+
+            // Step 3 — Return listing to available
             if (order.listing_id) {
               await supabase
                 .from('listings')
                 .update({ status: 'available', buyer_id: null, sold_at: null })
                 .eq('id', order.listing_id);
             }
-            // Record strike if seller cancels
+
+            // Step 4 — Record strike if seller cancels
             if (isSeller && user) {
               await supabase
                 .from('cancellation_strikes')
                 .insert({ seller_id: user.id, order_id: order.id });
             }
+
             await fetchOrder();
             setSubmitting(false);
           },

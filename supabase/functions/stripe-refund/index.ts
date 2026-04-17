@@ -66,8 +66,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (order.status !== 'disputed') {
-    return new Response(JSON.stringify({ error: 'Order is not in disputed status' }), {
+  const refundableStatuses = ['disputed', 'paid', 'created'];
+  if (!refundableStatuses.includes(order.status)) {
+    return new Response(JSON.stringify({ error: `Order cannot be refunded in status: ${order.status}` }), {
       status: 409,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Idempotency-Key': `dispute-refund-${order_id}`,
+      'Idempotency-Key': `refund-${order.status}-${order_id}`,
     },
     body: new URLSearchParams({
       payment_intent: order.stripe_payment_id,

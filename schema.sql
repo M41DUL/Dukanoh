@@ -885,6 +885,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- confirm_order_receipt RPC — uses server time, enforces shipped→completed guard
+CREATE OR REPLACE FUNCTION public.confirm_order_receipt(
+  p_order_id UUID,
+  p_buyer_id UUID
+)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.orders
+  SET
+    status       = 'completed',
+    delivered_at = NOW(),
+    completed_at = NOW()
+  WHERE
+    id       = p_order_id
+    AND buyer_id = p_buyer_id
+    AND status   = 'shipped';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 -- Atomically zeroes a seller's available_balance and returns the claimed amount.
 -- SELECT FOR UPDATE locks the row so concurrent payout requests queue behind each
 -- other — the second caller sees 0 and exits early, preventing duplicate payouts.
