@@ -62,6 +62,10 @@ Deno.serve(async (req) => {
     .eq('id', user_id)
     .single();
 
+  // Fetch user email from auth
+  const { data: authUser } = await supabase.auth.admin.getUserById(user_id);
+  const email = authUser?.user?.email ?? '';
+
   let accountId = userRow?.stripe_account_id as string | null;
 
   // Create a new Express account if needed
@@ -75,8 +79,13 @@ Deno.serve(async (req) => {
       body: new URLSearchParams({
         type: 'express',
         country: 'GB',
+        email,
         'capabilities[card_payments][requested]': 'true',
         'capabilities[transfers][requested]': 'true',
+        'business_type': 'individual',
+        'business_profile[url]': 'https://dukanoh.com',
+        'business_profile[product_description]': 'South Asian clothing resale on Dukanoh marketplace',
+        'business_profile[mcc]': '5691',
       }),
     });
 

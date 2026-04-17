@@ -6,38 +6,46 @@ import * as WebBrowser from 'expo-web-browser';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
-import { Spacing, BorderRadius, ColorTokens, FontFamily, Typography } from '@/constants/theme';
+import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import type { ComponentProps } from 'react';
 
-const BENEFITS = [
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+
+const BENEFITS: { icon: IoniconsName; title: string; body: string }[] = [
   {
-    icon: 'shield-checkmark-outline' as const,
-    title: 'Get Verified',
-    body: 'A blue ✓ badge appears on your profile and listings so members know you\'re verified.',
+    icon: 'shield-checkmark-outline',
+    title: 'Verified badge',
+    body: 'A blue ✓ badge on your profile and listings so buyers know you\'re trusted.',
   },
   {
-    icon: 'wallet-outline' as const,
-    title: 'Receive payments',
-    body: 'Payments from members go into your wallet and you withdraw to your bank whenever you\'re ready.',
+    icon: 'wallet-outline',
+    title: 'Get paid',
+    body: 'Earnings land in your wallet. Withdraw to your bank whenever you\'re ready.',
   },
   {
-    icon: 'lock-closed-outline' as const,
-    title: 'Secure & protected',
-    body: 'Dukanoh Verify handles all card processing. We never store your bank details.',
-  },
-  {
-    icon: 'star-outline' as const,
+    icon: 'diamond-outline',
     title: 'Unlock Dukanoh Pro',
-    body: 'Verification is required before you can subscribe to Dukanoh Pro.',
+    body: 'Verification is required before you can subscribe to Pro.',
+  },
+  {
+    icon: 'lock-closed-outline',
+    title: 'Secure & private',
+    body: 'Your ID and bank details are handled securely. Dukanoh never stores them.',
   },
 ];
 
-const UNLOCKED = [
-  { icon: 'checkmark-circle-outline' as const, label: '✓ Verified badge on your profile and listings' },
-  { icon: 'wallet-outline' as const, label: 'Payments enabled — earnings go to your wallet' },
-  { icon: 'diamond-outline' as const, label: 'Dukanoh Pro access unlocked' },
+const UNLOCKED: { icon: IoniconsName; label: string }[] = [
+  { icon: 'checkmark-circle-outline', label: 'Verified badge on your profile and listings' },
+  { icon: 'wallet-outline', label: 'Payments enabled — earnings go to your wallet' },
+  { icon: 'diamond-outline', label: 'Dukanoh Pro access unlocked' },
+];
+
+const NEEDS = [
+  'A photo ID — passport or driving licence',
+  'Your bank account details for payouts',
 ];
 
 export default function StripeOnboardingScreen() {
@@ -72,11 +80,8 @@ export default function StripeOnboardingScreen() {
       }
 
       const { url } = await res.json();
-
-      // Open Stripe's hosted onboarding in the system browser
       await WebBrowser.openBrowserAsync(url);
 
-      // When the browser closes, check if onboarding is now complete
       const statusRes = await fetch(`${supabaseUrl}/functions/v1/stripe-connect-status`, {
         method: 'POST',
         headers: {
@@ -100,26 +105,25 @@ export default function StripeOnboardingScreen() {
     }
   };
 
+  // ── Verified state ──────────────────────────────────────────────────────────
   if (isVerified) {
     return (
       <ScreenWrapper>
-        <Header title="Verification" />
+        <Header title="Dukanoh Verify" />
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Status */}
           <View style={[styles.statusCard, { backgroundColor: colors.success + '12', borderColor: colors.success + '30' }]}>
             <View style={[styles.statusIconWrap, { backgroundColor: colors.success + '20' }]}>
-              <Ionicons name="checkmark-circle" size={36} color={colors.success} />
+              <Ionicons name="checkmark-circle" size={40} color={colors.success} />
             </View>
             <Text style={[styles.statusTitle, { color: colors.textPrimary }]}>You're verified</Text>
             <Text style={[styles.statusBody, { color: colors.textSecondary }]}>
-              Your identity and account have been confirmed. You're all set to sell on Dukanoh.
+              Your identity has been confirmed. You're all set to sell on Dukanoh.
             </Text>
           </View>
 
-          {/* What's unlocked */}
           <View style={[styles.unlockedBox, { backgroundColor: colors.surface }]}>
             <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>What's unlocked</Text>
             {UNLOCKED.map(item => (
@@ -139,9 +143,10 @@ export default function StripeOnboardingScreen() {
     );
   }
 
+  // ── Unverified state ────────────────────────────────────────────────────────
   return (
     <ScreenWrapper>
-      <Header title="Get Verified" showBack />
+      <Header title="Dukanoh Verify" showBack />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
         showsVerticalScrollIndicator={false}
@@ -151,20 +156,24 @@ export default function StripeOnboardingScreen() {
           <View style={[styles.heroIconWrap, { backgroundColor: colors.primary }]}>
             <Ionicons name="shield-checkmark" size={32} color="#FFFFFF" />
           </View>
-          <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>
-            Become Verified
-          </Text>
+          <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Become Verified</Text>
           <Text style={[styles.heroBody, { color: colors.textSecondary }]}>
-            A quick ID and bank account check — takes a few minutes and unlocks payments, Pro, and your verified badge.
+            A quick identity check — takes a few minutes and unlocks selling, payments, and your verified badge.
           </Text>
         </View>
 
         {/* Benefits */}
-        <View style={styles.benefitsList}>
-          {BENEFITS.map(b => (
-            <View key={b.title} style={[styles.benefitRow, { backgroundColor: colors.surface }]}>
+        <View style={[styles.benefitsBox, { backgroundColor: colors.surface }]}>
+          {BENEFITS.map((b, i) => (
+            <View
+              key={b.title}
+              style={[
+                styles.benefitRow,
+                i < BENEFITS.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+              ]}
+            >
               <View style={[styles.benefitIcon, { backgroundColor: colors.primaryLight }]}>
-                <Ionicons name={b.icon} size={20} color={colors.primary} />
+                <Ionicons name={b.icon} size={18} color={colors.primary} />
               </View>
               <View style={styles.benefitText}>
                 <Text style={[styles.benefitTitle, { color: colors.textPrimary }]}>{b.title}</Text>
@@ -176,19 +185,17 @@ export default function StripeOnboardingScreen() {
 
         {/* What you'll need */}
         <View style={[styles.needsBox, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.needsTitle, { color: colors.textPrimary }]}>What you'll need</Text>
-          <View style={styles.needsList}>
-            {['A government-issued photo ID (passport or driving licence)', 'Your bank account details for payouts'].map(item => (
-              <View key={item} style={styles.needsRow}>
-                <Ionicons name="checkmark-circle-outline" size={16} color={colors.success} />
-                <Text style={[styles.needsText, { color: colors.textSecondary }]}>{item}</Text>
-              </View>
-            ))}
-          </View>
+          <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>What you'll need</Text>
+          {NEEDS.map(item => (
+            <View key={item} style={styles.needsRow}>
+              <Ionicons name="checkmark-circle-outline" size={16} color={colors.success} />
+              <Text style={[styles.needsText, { color: colors.textSecondary }]}>{item}</Text>
+            </View>
+          ))}
         </View>
 
         <Button
-          label="Start Dukanoh Verify"
+          label="Start verification"
           onPress={handleStartOnboarding}
           loading={loading}
         />
@@ -209,7 +216,7 @@ function getStyles(_colors: ColorTokens) {
       gap: Spacing.base,
     },
 
-    // ── Verified state ──
+    // ── Verified ──
     statusCard: {
       borderRadius: BorderRadius.large,
       borderWidth: 1,
@@ -218,8 +225,8 @@ function getStyles(_colors: ColorTokens) {
       gap: Spacing.md,
     },
     statusIconWrap: {
-      width: 72,
-      height: 72,
+      width: 80,
+      height: 80,
       borderRadius: BorderRadius.full,
       alignItems: 'center',
       justifyContent: 'center',
@@ -250,45 +257,12 @@ function getStyles(_colors: ColorTokens) {
       gap: Spacing.sm,
     },
     unlockedText: {
-      ...Typography.body,
-      flex: 1,
-    },
-    manageRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      borderRadius: BorderRadius.large,
-      borderWidth: 1,
-      padding: Spacing.base,
-    },
-    manageLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.md,
-      flex: 1,
-    },
-    manageText: {
-      gap: 2,
-    },
-    manageTitle: {
       fontSize: 14,
-      fontFamily: FontFamily.semibold,
-    },
-    manageSub: {
-      fontSize: 12,
       fontFamily: FontFamily.regular,
-    },
-    comingSoonPill: {
-      borderRadius: BorderRadius.full,
-      paddingHorizontal: Spacing.sm,
-      paddingVertical: 3,
-    },
-    comingSoonText: {
-      fontSize: 11,
-      fontFamily: FontFamily.medium,
+      flex: 1,
     },
 
-    // ── Unverified state ──
+    // ── Unverified ──
     hero: {
       borderRadius: BorderRadius.large,
       padding: Spacing.xl,
@@ -303,7 +277,7 @@ function getStyles(_colors: ColorTokens) {
       justifyContent: 'center',
     },
     heroTitle: {
-      fontSize: 20,
+      fontSize: 22,
       fontFamily: FontFamily.bold,
       textAlign: 'center',
     },
@@ -313,19 +287,19 @@ function getStyles(_colors: ColorTokens) {
       textAlign: 'center',
       lineHeight: 20,
     },
-    benefitsList: {
-      gap: Spacing.sm,
+    benefitsBox: {
+      borderRadius: BorderRadius.large,
+      overflow: 'hidden',
     },
     benefitRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: Spacing.md,
-      borderRadius: BorderRadius.large,
-      padding: Spacing.md,
+      padding: Spacing.base,
     },
     benefitIcon: {
-      width: 40,
-      height: 40,
+      width: 36,
+      height: 36,
       borderRadius: BorderRadius.medium,
       alignItems: 'center',
       justifyContent: 'center',
@@ -334,6 +308,7 @@ function getStyles(_colors: ColorTokens) {
     benefitText: {
       flex: 1,
       gap: 3,
+      paddingTop: 2,
     },
     benefitTitle: {
       fontSize: 14,
@@ -348,13 +323,6 @@ function getStyles(_colors: ColorTokens) {
       borderRadius: BorderRadius.large,
       padding: Spacing.base,
       gap: Spacing.md,
-    },
-    needsTitle: {
-      fontSize: 14,
-      fontFamily: FontFamily.semibold,
-    },
-    needsList: {
-      gap: Spacing.sm,
     },
     needsRow: {
       flexDirection: 'row',
