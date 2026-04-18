@@ -71,11 +71,9 @@ Deno.serve(async (req) => {
   );
 
   if (ACTIVE_EVENTS.has(eventType)) {
-    // Grant Pro access
-    await supabase
-      .from('users')
-      .update({ seller_tier: 'pro', pro_expires_at: expiresAt })
-      .eq('id', userId);
+    const update: Record<string, unknown> = { seller_tier: 'pro', pro_expires_at: expiresAt };
+    if (eventType === 'INITIAL_PURCHASE') update.had_free_trial = true;
+    await supabase.from('users').update(update).eq('id', userId);
   } else if (EXPIRED_EVENTS.has(eventType)) {
     // Revoke Pro access immediately
     await supabase

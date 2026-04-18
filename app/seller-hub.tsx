@@ -169,6 +169,7 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
         await supabase.from('users').update({
           seller_tier: 'pro',
           pro_expires_at: expiryDate ?? null,
+          had_free_trial: true,
         }).eq('id', (await supabase.auth.getUser()).data.user?.id ?? '');
         router.dismiss();
       }
