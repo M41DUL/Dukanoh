@@ -34,12 +34,13 @@ export default function EditProfileScreen() {
 
   React.useEffect(() => {
     if (!user) return;
-    supabase
-      .from('users')
-      .select('full_name, first_name, last_name, bio, avatar_url, location, phone, dob')
-      .eq('id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('full_name, first_name, last_name, bio, avatar_url, location, phone, dob')
+          .eq('id', user.id)
+          .maybeSingle();
         if (data) {
           // Prefer split fields; fall back to splitting full_name for existing accounts
           if (data.first_name || data.last_name) {
@@ -60,9 +61,10 @@ export default function EditProfileScreen() {
           }
           setAvatarUrl(data.avatar_url ?? undefined);
         }
+      } finally {
         setLoading(false);
-      })
-      .catch(() => { setLoading(false); });
+      }
+    })();
   }, [user]);
 
   const uploadAvatar = useCallback(async (uri: string) => {
