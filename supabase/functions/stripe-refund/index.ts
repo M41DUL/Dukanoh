@@ -3,34 +3,30 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const encoder = new TextEncoder();
-  const aBytes = encoder.encode(a);
-  const bBytes = encoder.encode(b);
-  if (aBytes.length !== bBytes.length) return false;
-  let result = 0;
-  for (let i = 0; i < aBytes.length; i++) result |= aBytes[i] ^ bBytes[i];
-  return result === 0;
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dukanoh-key',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
     });
   }
 
-  const apiKey = Deno.env.get('INTERNAL_API_KEY');
-  const providedKey = req.headers.get('x-dukanoh-key');
-  if (!apiKey || !providedKey || !timingSafeEqual(providedKey, apiKey)) {
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const supabaseAuth = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    { global: { headers: { Authorization: authHeader } } }
+  );
+  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+  if (authError || !user) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     });
   }
+  const callerId = user.id;
 
   const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
   if (!stripeSecretKey) {
@@ -55,7 +51,7 @@ Deno.serve(async (req) => {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, stripe_payment_id, item_price, status')
+    .select('id, stripe_payment_id, item_price, status, buyer_id')
     .eq('id', order_id)
     .single();
 
@@ -66,6 +62,23 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Verify the caller is either the buyer or an admin
+  const isCallerBuyer = order.buyer_id === callerId;
+  if (!isCallerBuyer) {
+    const { data: settings } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'admin_user_ids')
+      .single();
+    const adminIds: string[] = JSON.parse(settings?.value ?? '[]');
+    if (!adminIds.includes(callerId)) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
   const refundableStatuses = ['disputed', 'paid', 'created'];
   if (!refundableStatuses.includes(order.status)) {
     return new Response(JSON.stringify({ error: `Order cannot be refunded in status: ${order.status}` }), {
@@ -74,8 +87,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // No payment ID means the order was created without a payment (shouldn't happen
-  // in production but guard against it gracefully)
   if (!order.stripe_payment_id) {
     return new Response(JSON.stringify({ refunded: false, reason: 'no_payment_id' }), {
       status: 200,
@@ -83,7 +94,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Refund item_price only — protection fee is non-refundable per policy
   const refundAmountPence = Math.round(order.item_price * 100);
 
   const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
@@ -105,10 +115,7 @@ Deno.serve(async (req) => {
     const err = await refundRes.json();
     return new Response(
       JSON.stringify({ error: err?.error?.message ?? 'Refund failed' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 

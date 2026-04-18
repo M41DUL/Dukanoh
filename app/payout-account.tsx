@@ -7,6 +7,7 @@ import { Button } from '@/components/Button';
 import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { edgeFetch } from '@/lib/edgeFetch';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function PayoutAccountScreen() {
@@ -19,18 +20,8 @@ export default function PayoutAccountScreen() {
     if (!user) return;
     setLoading(true);
 
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
-
     try {
-      const res = await fetch(`${supabaseUrl}/functions/v1/stripe-login-link`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-dukanoh-key': apiKey ?? '',
-        },
-        body: JSON.stringify({ user_id: user.id }),
-      });
+      const res = await edgeFetch('stripe-login-link');
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

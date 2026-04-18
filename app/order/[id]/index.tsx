@@ -24,6 +24,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { formatGBP } from '@/lib/paymentHelpers';
 import { getOrderActions } from '@/lib/orderHelpers';
+import { edgeFetch } from '@/lib/edgeFetch';
 
 type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
 
@@ -194,17 +195,7 @@ export default function OrderDetailScreen() {
             setSubmitting(true);
 
             // Step 1 — Issue Stripe refund (item_price only)
-            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-            const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
-
-            const refundRes = await fetch(`${supabaseUrl}/functions/v1/stripe-refund`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-dukanoh-key': apiKey ?? '',
-              },
-              body: JSON.stringify({ order_id: order.id }),
-            });
+            const refundRes = await edgeFetch('stripe-refund', { order_id: order.id });
 
             if (!refundRes.ok) {
               const err = await refundRes.json().catch(() => ({}));

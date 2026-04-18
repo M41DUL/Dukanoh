@@ -73,7 +73,6 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
       const invokeWithTimeout = Promise.race([
         supabase.functions.invoke('validate-clothing', {
           body: { imageBase64 },
-          headers: { 'x-dukanoh-key': process.env.EXPO_PUBLIC_INTERNAL_API_KEY ?? '' },
         }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Request timed out')), 15000)

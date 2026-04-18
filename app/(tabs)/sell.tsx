@@ -38,7 +38,6 @@ import { compressImage, compressImageForAnalysis } from '@/lib/imageUtils';
 import { validateListing, buildMeasurements, isFormDirty as checkFormDirty, ListingForm, CATEGORY_TO_GENDER } from '@/lib/sellHelpers';
 import { useAuth } from '@/hooks/useAuth';
 
-const FN_KEY = { 'x-dukanoh-key': process.env.EXPO_PUBLIC_INTERNAL_API_KEY ?? '' };
 
 const ALL_CATEGORIES = Categories.filter(c => c !== 'All') as string[];
 
@@ -105,7 +104,6 @@ export default function SellScreen() {
         if (cancelled) return;
         const invoke = supabase.functions.invoke('analyse-listing-image', {
           body: { imageBase64, check: 'quality' },
-          headers: FN_KEY,
         });
         const timeout = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('timeout')), 15000)
@@ -172,11 +170,9 @@ export default function SellScreen() {
       const [modResult, clothingResult] = await Promise.all([
         timeout(supabase.functions.invoke('analyse-listing-image', {
           body: { imageBase64, check: 'moderation' },
-          headers: FN_KEY,
         })).catch(() => ({ data: { blocked: false } })),
         timeout(supabase.functions.invoke('validate-clothing', {
           body: { imageBase64 },
-          headers: FN_KEY,
         })).catch(() => ({ data: { isClothing: true } })), // fail open
       ]);
 

@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { schedulePaywallOpen } from '@/lib/paywallTrigger';
+import { edgeFetch } from '@/lib/edgeFetch';
 import type { ComponentProps } from 'react';
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
@@ -60,18 +61,8 @@ export default function StripeOnboardingScreen() {
     if (!user) return;
     setLoading(true);
 
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
-
     try {
-      const res = await fetch(`${supabaseUrl}/functions/v1/stripe-connect-onboard`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-dukanoh-key': apiKey ?? '',
-        },
-        body: JSON.stringify({ user_id: user.id }),
-      });
+      const res = await edgeFetch('stripe-connect-onboard');
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -90,14 +81,7 @@ export default function StripeOnboardingScreen() {
       await WebBrowser.openBrowserAsync(url);
       sub.remove();
 
-      const statusRes = await fetch(`${supabaseUrl}/functions/v1/stripe-connect-status`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-dukanoh-key': apiKey ?? '',
-        },
-        body: JSON.stringify({ user_id: user.id }),
-      });
+      const statusRes = await edgeFetch('stripe-connect-status');
 
       if (statusRes.ok) {
         const status = await statusRes.json();
