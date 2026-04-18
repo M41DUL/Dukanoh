@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Animated,
   Alert,
+  Platform,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -99,7 +100,7 @@ export function ProPaywallSheet({
   const ctaNote = !isVerified
     ? 'Verify your account first, then enjoy a 14-day free trial.'
     : hadFreeTrial
-      ? 'Cancel anytime. Billed via the App Store.'
+      ? `Cancel anytime. Billed via the ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}.`
       : 'Free for 14 days. No charge until your trial ends. Cancel anytime.';
 
   const handleCta = async () => {

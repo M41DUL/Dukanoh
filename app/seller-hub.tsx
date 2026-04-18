@@ -8,6 +8,7 @@ import {
   Animated,
   ActivityIndicator,
   Alert,
+  Platform,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -58,6 +59,11 @@ export default function SellerHubScreen() {
     })();
   }, [user]);
 
+  // Pro/Founder dashboard has moved to the profile tab — dismiss this modal
+  useEffect(() => {
+    if (sellerTier === 'pro' || sellerTier === 'founder') router.dismiss();
+  }, [sellerTier]);
+
   if (loadError) {
     return (
       <View style={styles.loadingContainer}>
@@ -81,11 +87,7 @@ export default function SellerHubScreen() {
     );
   }
 
-  // Pro/Founder dashboard has moved to the profile tab — dismiss this modal
-  if (sellerTier === 'pro' || sellerTier === 'founder') {
-    router.dismiss();
-    return null;
-  }
+  if (sellerTier === 'pro' || sellerTier === 'founder') return null;
 
   return <HubPaywall isVerified={isVerified} hadFreeTrial={hadFreeTrial} proExpired={proExpired} />;
 }
@@ -152,7 +154,7 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
   const ctaNote = !isVerified
     ? 'Verify your account first, then enjoy a 14-day free trial.'
     : hadFreeTrial
-      ? 'Cancel anytime. Billed via the App Store.'
+      ? `Cancel anytime. Billed via the ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}.`
       : 'Free for 14 days. No charge until your trial ends. Cancel anytime.';
 
   const handleCta = async () => {

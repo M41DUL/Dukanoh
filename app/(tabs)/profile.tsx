@@ -133,7 +133,7 @@ export default function ProfileScreen() {
     if (now - lastFetchedRef.current > STALE_MS) {
       fetchProfile();
     }
-  }, [fetchProfile]));
+  }, [fetchProfile, refreshProfile]));
 
   useFocusEffect(useCallback(() => {
     if (sellerTier === 'pro' || sellerTier === 'founder') fetchHubSummary();
