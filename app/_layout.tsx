@@ -186,7 +186,7 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="stripe-onboarding"
-          options={{ animation: 'slide_from_right' }}
+          options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal', gestureEnabled: false }}
         />
         <Stack.Screen
           name="payout-account"

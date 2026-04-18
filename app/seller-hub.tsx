@@ -81,9 +81,9 @@ export default function SellerHubScreen() {
     );
   }
 
-  // Pro/Founder dashboard has moved to the profile tab — redirect away
+  // Pro/Founder dashboard has moved to the profile tab — dismiss this modal
   if (sellerTier === 'pro' || sellerTier === 'founder') {
-    router.replace('/(tabs)/profile');
+    router.dismiss();
     return null;
   }
 
@@ -156,7 +156,7 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
       : 'Free for 14 days. No charge until your trial ends. Cancel anytime.';
 
   const handleCta = async () => {
-    if (!isVerified) { router.replace('/stripe-onboarding'); return; }
+    if (!isVerified) { router.dismiss(); router.push('/stripe-onboarding'); return; }
     if (!rcPackage) { Alert.alert('Could not load subscription', 'Pull up the paywall and try again. If the issue persists, restart the app.'); return; }
     try {
       setPurchasing(true);
@@ -168,7 +168,7 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
           seller_tier: 'pro',
           pro_expires_at: expiryDate ?? null,
         }).eq('id', (await supabase.auth.getUser()).data.user?.id ?? '');
-        router.replace('/(tabs)/profile');
+        router.dismiss();
       }
     } catch (e: any) {
       if (!e.userCancelled) {

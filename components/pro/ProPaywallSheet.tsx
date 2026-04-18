@@ -20,7 +20,6 @@ import { Button } from '@/components/Button';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Spacing, BorderRadius, FontFamily, proColorsDark } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/useAuth';
 import { ENTITLEMENT_ID } from '@/lib/revenuecat';
 import { HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
 
@@ -31,6 +30,7 @@ const P = proColorsDark;
 interface ProPaywallSheetProps {
   visible: boolean;
   onClose: () => void;
+  onSuccess: () => Promise<void>;
   isVerified: boolean;
   hadFreeTrial: boolean;
   proExpired: boolean;
@@ -39,12 +39,12 @@ interface ProPaywallSheetProps {
 export function ProPaywallSheet({
   visible,
   onClose,
+  onSuccess,
   isVerified,
   hadFreeTrial,
   proExpired,
 }: ProPaywallSheetProps) {
   const insets = useSafeAreaInsets();
-  const { refreshProfile } = useAuth();
   const [founderCount, setFounderCount] = useState<number | null>(null);
   const [founderLimit, setFounderLimit] = useState(150);
   const [founderMonthlyPrice, setFounderMonthlyPrice] = useState('£6.99');
@@ -122,9 +122,8 @@ export function ProPaywallSheet({
           seller_tier: 'pro',
           pro_expires_at: expiryDate ?? null,
         }).eq('id', (await supabase.auth.getUser()).data.user?.id ?? '');
-        await refreshProfile();
+        await onSuccess();
         onClose();
-        router.replace('/(tabs)/profile');
       }
     } catch (e: any) {
       if (!e.userCancelled) {

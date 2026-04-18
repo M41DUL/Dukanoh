@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -10,6 +10,7 @@ import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/them
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { schedulePaywallOpen } from '@/lib/paywallTrigger';
 import type { ComponentProps } from 'react';
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
@@ -80,7 +81,14 @@ export default function StripeOnboardingScreen() {
       }
 
       const { url } = await res.json();
+      const sub = Linking.addEventListener('url', ({ url: deepLink }) => {
+        if (deepLink.startsWith('dukanoh://stripe-onboarding')) {
+          WebBrowser.dismissBrowser();
+          sub.remove();
+        }
+      });
       await WebBrowser.openBrowserAsync(url);
+      sub.remove();
 
       const statusRes = await fetch(`${supabaseUrl}/functions/v1/stripe-connect-status`, {
         method: 'POST',
@@ -95,7 +103,7 @@ export default function StripeOnboardingScreen() {
         const status = await statusRes.json();
         if (status.complete) {
           await refreshProfile();
-          router.replace('/(tabs)/profile');
+          // Component will re-render to verified state — user sees confirmation
         }
       }
     } catch {
@@ -136,7 +144,7 @@ export default function StripeOnboardingScreen() {
 
           <Button
             label="View profile"
-            onPress={() => router.replace('/(tabs)/profile')}
+            onPress={() => { schedulePaywallOpen(); router.dismiss(); }}
           />
         </ScrollView>
       </ScreenWrapper>

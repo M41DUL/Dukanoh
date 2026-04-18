@@ -15,6 +15,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { HUB, HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
+import { consumePaywallOpen } from '@/lib/paywallTrigger';
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
@@ -33,7 +34,7 @@ interface HubSummary {
 }
 
 export default function ProfileScreen() {
-  const { user, username, isVerified, sellerTier } = useAuth();
+  const { user, username, isVerified, sellerTier, refreshProfile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
@@ -44,6 +45,13 @@ export default function ProfileScreen() {
   const [hubSummaryLoading, setHubSummaryLoading] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [walletVisible, setWalletVisible] = useState(false);
+
+  // Auto-open paywall if stripe-onboarding signalled it
+  useFocusEffect(useCallback(() => {
+    if (consumePaywallOpen()) {
+      refreshProfile().then(() => setPaywallVisible(true));
+    }
+  }, [refreshProfile]));
 
   const quickActions: QuickAction[] = [
     { icon: 'bag-outline', label: 'My listings', onPress: () => router.push('/my-listings') },
@@ -120,6 +128,7 @@ export default function ProfileScreen() {
   }, [user, sellerTier]);
 
   useFocusEffect(useCallback(() => {
+    refreshProfile();
     const now = Date.now();
     if (now - lastFetchedRef.current > STALE_MS) {
       fetchProfile();
@@ -302,6 +311,7 @@ export default function ProfileScreen() {
       <ProPaywallSheet
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
+        onSuccess={async () => { lastFetchedRef.current = 0; await Promise.all([refreshProfile(), fetchProfile()]); }}
         isVerified={isVerified}
         hadFreeTrial={hadFreeTrial}
         proExpired={proExpired}
