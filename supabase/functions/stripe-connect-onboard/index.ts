@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
   // Check if user already has a Connect account
   const { data: userRow } = await supabase
     .from('users')
-    .select('stripe_account_id, stripe_onboarding_complete')
+    .select('stripe_account_id, stripe_onboarding_complete, first_name, last_name, phone, dob')
     .eq('id', user_id)
     .single();
 
@@ -70,23 +70,37 @@ Deno.serve(async (req) => {
 
   // Create a new Express account if needed
   if (!accountId) {
+    const createParams: Record<string, string> = {
+      type: 'express',
+      country: 'GB',
+      email,
+      'capabilities[card_payments][requested]': 'true',
+      'capabilities[transfers][requested]': 'true',
+      'business_type': 'individual',
+      'business_profile[url]': 'https://dukanoh.com',
+      'business_profile[product_description]': 'South Asian clothing resale on Dukanoh marketplace',
+      'business_profile[mcc]': '5691',
+    };
+
+    // Pre-fill individual details to shorten the Stripe onboarding form
+    if (userRow?.first_name) createParams['individual[first_name]'] = userRow.first_name;
+    if (userRow?.last_name)  createParams['individual[last_name]']  = userRow.last_name;
+    if (userRow?.phone)      createParams['individual[phone]']      = userRow.phone;
+    if (userRow?.dob) {
+      // DB stores YYYY-MM-DD
+      const [y, m, d] = (userRow.dob as string).split('-');
+      createParams['individual[dob][year]']  = y;
+      createParams['individual[dob][month]'] = m;
+      createParams['individual[dob][day]']   = d;
+    }
+
     const createRes = await fetch('https://api.stripe.com/v1/accounts', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${stripeSecretKey}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        type: 'express',
-        country: 'GB',
-        email,
-        'capabilities[card_payments][requested]': 'true',
-        'capabilities[transfers][requested]': 'true',
-        'business_type': 'individual',
-        'business_profile[url]': 'https://dukanoh.com',
-        'business_profile[product_description]': 'South Asian clothing resale on Dukanoh marketplace',
-        'business_profile[mcc]': '5691',
-      }),
+      body: new URLSearchParams(createParams),
     });
 
     if (!createRes.ok) {
@@ -114,6 +128,7 @@ Deno.serve(async (req) => {
     'refresh_url': refresh_url ?? `${supabaseUrl}/functions/v1/stripe-connect-refresh`,
     'return_url': return_url ?? `${supabaseUrl}/functions/v1/stripe-connect-return`,
     type: 'account_onboarding',
+    'collection_options[fields]': 'currently_due',
   });
 
   const linkRes = await fetch('https://api.stripe.com/v1/account_links', {
