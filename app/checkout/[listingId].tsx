@@ -302,8 +302,18 @@ export default function CheckoutScreen() {
     if (orderError || !order) {
       setPlacing(false);
       if ((orderError as { code?: string })?.code === '23505') {
-        Alert.alert('Just missed it', 'Someone just bought this item. Browse to find something else.');
-        router.back();
+        // Unique constraint on listing_id fired — check if it's our own order
+        const { data: existing } = await supabase
+          .from('orders')
+          .select('id, buyer_id')
+          .eq('listing_id', listing.id)
+          .single();
+        if (existing?.buyer_id === user.id) {
+          router.replace(`/order/${existing.id}`);
+        } else {
+          Alert.alert('Just missed it', 'Someone just bought this item. Browse to find something else.');
+          router.back();
+        }
       } else {
         Alert.alert('Error', 'Payment taken but order could not be saved. Please contact support.');
       }

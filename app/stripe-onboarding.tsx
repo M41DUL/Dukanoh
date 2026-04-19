@@ -6,11 +6,11 @@ import * as WebBrowser from 'expo-web-browser';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
+import { CelebrationView } from '@/components/CelebrationView';
 import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
-import { schedulePaywallOpen } from '@/lib/paywallTrigger';
 import { edgeFetch } from '@/lib/edgeFetch';
 import type { ComponentProps } from 'react';
 
@@ -37,12 +37,6 @@ const BENEFITS: { icon: IoniconsName; title: string; body: string }[] = [
     title: 'Secure & private',
     body: 'Your ID and bank details are handled securely. Dukanoh never stores them.',
   },
-];
-
-const UNLOCKED: { icon: IoniconsName; label: string }[] = [
-  { icon: 'checkmark-circle-outline', label: 'Verified badge on your profile and listings' },
-  { icon: 'wallet-outline', label: 'Payments enabled — earnings go to your wallet' },
-  { icon: 'diamond-outline', label: 'Dukanoh Pro access unlocked' },
 ];
 
 const NEEDS = [
@@ -82,12 +76,10 @@ export default function StripeOnboardingScreen() {
       sub.remove();
 
       const statusRes = await edgeFetch('stripe-connect-status');
-
       if (statusRes.ok) {
         const status = await statusRes.json();
         if (status.complete) {
           await refreshProfile();
-          // Component will re-render to verified state — user sees confirmation
         }
       }
     } catch {
@@ -102,35 +94,13 @@ export default function StripeOnboardingScreen() {
     return (
       <ScreenWrapper>
         <Header title="Dukanoh Verify" />
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={[styles.statusCard, { backgroundColor: colors.success + '12', borderColor: colors.success + '30' }]}>
-            <View style={[styles.statusIconWrap, { backgroundColor: colors.success + '20' }]}>
-              <Ionicons name="checkmark-circle" size={40} color={colors.success} />
-            </View>
-            <Text style={[styles.statusTitle, { color: colors.textPrimary }]}>You're verified</Text>
-            <Text style={[styles.statusBody, { color: colors.textSecondary }]}>
-              Your identity has been confirmed. You're all set to sell on Dukanoh.
-            </Text>
-          </View>
-
-          <View style={[styles.unlockedBox, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionLabel, { color: colors.textPrimary }]}>What's unlocked</Text>
-            {UNLOCKED.map(item => (
-              <View key={item.label} style={styles.unlockedRow}>
-                <Ionicons name={item.icon} size={18} color={colors.success} />
-                <Text style={[styles.unlockedText, { color: colors.textSecondary }]}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
-
-          <Button
-            label="View profile"
-            onPress={() => { schedulePaywallOpen(); router.dismiss(); }}
-          />
-        </ScrollView>
+        <CelebrationView
+          icon="shield-checkmark"
+          title="You're a verified seller"
+          subtitle="Your identity is confirmed and your listings are now live to buyers. Welcome to Dukanoh."
+          iconColor={colors.success}
+          actions={[{ label: 'Start selling', onPress: () => router.replace('/(tabs)/sell') }]}
+        />
       </ScreenWrapper>
     );
   }
@@ -207,54 +177,6 @@ function getStyles(_colors: ColorTokens) {
       paddingBottom: Spacing['3xl'],
       gap: Spacing.base,
     },
-
-    // ── Verified ──
-    statusCard: {
-      borderRadius: BorderRadius.large,
-      borderWidth: 1,
-      padding: Spacing.xl,
-      alignItems: 'center',
-      gap: Spacing.md,
-    },
-    statusIconWrap: {
-      width: 80,
-      height: 80,
-      borderRadius: BorderRadius.full,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    statusTitle: {
-      fontSize: 22,
-      fontFamily: FontFamily.bold,
-      textAlign: 'center',
-    },
-    statusBody: {
-      fontSize: 14,
-      fontFamily: FontFamily.regular,
-      textAlign: 'center',
-      lineHeight: 20,
-    },
-    unlockedBox: {
-      borderRadius: BorderRadius.large,
-      padding: Spacing.base,
-      gap: Spacing.md,
-    },
-    sectionLabel: {
-      fontSize: 14,
-      fontFamily: FontFamily.semibold,
-    },
-    unlockedRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-    },
-    unlockedText: {
-      fontSize: 14,
-      fontFamily: FontFamily.regular,
-      flex: 1,
-    },
-
-    // ── Unverified ──
     hero: {
       borderRadius: BorderRadius.large,
       padding: Spacing.xl,
@@ -315,6 +237,10 @@ function getStyles(_colors: ColorTokens) {
       borderRadius: BorderRadius.large,
       padding: Spacing.base,
       gap: Spacing.md,
+    },
+    sectionLabel: {
+      fontSize: 14,
+      fontFamily: FontFamily.semibold,
     },
     needsRow: {
       flexDirection: 'row',

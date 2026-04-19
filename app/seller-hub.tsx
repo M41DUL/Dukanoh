@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Button } from '@/components/Button';
+import { CelebrationView } from '@/components/CelebrationView';
 import { Spacing, BorderRadius, FontFamily, Typography, proColors } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -102,6 +103,7 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
   const [standardMonthlyPrice, setStandardMonthlyPrice] = useState('£9.99');
   const [rcPackage, setRcPackage] = useState<PurchasesPackage | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   useEffect(() => {
     Purchases.getOfferings().then(offerings => {
@@ -171,7 +173,7 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
           pro_expires_at: expiryDate ?? null,
           had_free_trial: true,
         }).eq('id', (await supabase.auth.getUser()).data.user?.id ?? '');
-        router.dismiss();
+        setShowCelebration(true);
       }
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -195,6 +197,22 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
 
   const coreFeatures = HUB_FEATURES.filter(f => (CORE_FEATURE_LABELS as readonly string[]).includes(f.label));
   const extraFeatures = HUB_FEATURES.filter(f => !(CORE_FEATURE_LABELS as readonly string[]).includes(f.label));
+
+  if (showCelebration) {
+    return (
+      <View style={[styles.container, { backgroundColor: '#0D0D0D' }]}>
+        <StatusBar style="light" />
+        <CelebrationView
+          icon="diamond"
+          title="You're now Pro"
+          iconColor="#C7F75E"
+          textColor="#F5F5F5"
+          subtitleColor="#9B9B9B"
+          actions={[{ label: 'Start exploring', onPress: () => router.dismiss() }]}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

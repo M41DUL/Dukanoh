@@ -29,6 +29,7 @@ import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SellerOnboarding } from '@/components/SellerOnboarding';
 import { VerificationNudgeSheet } from '@/components/VerificationNudgeSheet';
+import { CelebrationView } from '@/components/CelebrationView';
 import { Select, SelectHandle } from '@/components/Select';
 import { Typography, Spacing, BorderRadius, BorderWidth, Genders, Categories, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens, FontFamily } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -134,6 +135,7 @@ export default function SellScreen() {
   });
 
   useFocusEffect(useCallback(() => {
+    refreshProfile();
     return () => {
       // Runs when tab loses focus — checked via ref to avoid stale closure
       if (formDirtyRef.current && !submittingRef.current) {
@@ -147,7 +149,7 @@ export default function SellScreen() {
         );
       }
     };
-  }, []));
+  }, [refreshProfile]));
 
   const update = (key: keyof ListingForm) => (value: string) => {
     setForm(f => ({ ...f, [key]: value }));
@@ -467,29 +469,42 @@ export default function SellScreen() {
 
   if (showSuccess) {
     const isDraft = !isVerified;
+    if (!isDraft) {
+      return (
+        <ScreenWrapper>
+          <CelebrationView
+            icon="checkmark-circle"
+            title="You're live!"
+            subtitle="Your piece is now listed and visible to members."
+            actions={[
+              { label: 'View profile', variant: 'outline', onPress: () => handleSuccessDismiss('profile') },
+              { label: 'List another', onPress: () => handleSuccessDismiss('another') },
+            ]}
+          />
+        </ScreenWrapper>
+      );
+    }
     return (
       <ScreenWrapper>
         <View style={styles.successContainer}>
           <Animated.View style={[styles.successCircle, {
             transform: [{ scale: successAnim }],
             opacity: successAnim,
-            backgroundColor: isDraft ? colors.surface : colors.primary,
+            backgroundColor: colors.surface,
           }]}>
-            <Ionicons name={isDraft ? 'bookmark' : 'checkmark'} size={48} color={isDraft ? colors.primary : '#fff'} />
+            <Ionicons name="bookmark" size={48} color={colors.primary} />
           </Animated.View>
           <Animated.Text style={[styles.successTitle, { opacity: successAnim, color: colors.textPrimary }]}>
-            {isDraft ? 'Listing saved' : "You're live!"}
+            Listing saved
           </Animated.Text>
           <Animated.Text style={[styles.successSubtitle, { opacity: successAnim, color: colors.textSecondary }]}>
-            {isDraft
-              ? 'Complete verification to publish it — we\'ll release it to buyers once you\'re verified.'
-              : 'Your piece is now listed and visible to members.'}
+            Complete verification to publish it — we'll release it to buyers once you're verified.
           </Animated.Text>
           <View style={styles.successActions}>
             <Button
-              label="View profile"
+              label="Verify now"
               variant="outline"
-              onPress={() => handleSuccessDismiss('profile')}
+              onPress={() => router.push('/stripe-onboarding')}
               style={styles.successBtn}
               borderColor={colors.border}
               textColor={colors.textPrimary}
