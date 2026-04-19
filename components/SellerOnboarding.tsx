@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { lightColors, Spacing, BorderRadius, FontFamily, Typography } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import {
   LOGO_FINAL_W,
   LOGO_FINAL_H,
@@ -35,6 +36,7 @@ interface SellerOnboardingProps {
 }
 
 export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps) {
+  const colors = useThemeColors();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -124,11 +126,11 @@ export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps)
     return (
       <ScreenWrapper>
         <View style={styles.confirmedContainer}>
-          <View style={styles.confirmedIcon}>
-            <Ionicons name="checkmark" size={40} color={lightColors.primary} />
+          <View style={[styles.confirmedIcon, { backgroundColor: colors.surface }]}>
+            <Ionicons name="checkmark" size={40} color={colors.primary} />
           </View>
-          <Text style={styles.confirmedTitle}>You're in!</Text>
-          <Text style={styles.confirmedSubtitle}>
+          <Text style={[styles.confirmedTitle, { color: colors.textPrimary }]}>You're in!</Text>
+          <Text style={[styles.confirmedSubtitle, { color: colors.textSecondary }]}>
             Welcome to the Dukanoh seller community. Start listing your items and reach buyers across the community.
           </Text>
           <Button
