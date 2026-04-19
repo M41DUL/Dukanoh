@@ -339,7 +339,7 @@ export default function OrderDetailScreen() {
   const { canShip, canConfirm, isDisputed } = getOrderActions(order.status, isBuyer, isSeller);
 
   const imageUrl = order.listing?.images?.[0]
-    ? getImageUrl(order.listing.images[0], 'medium')
+    ? getImageUrl(order.listing.images[0], 'detail')
     : null;
 
   return (
