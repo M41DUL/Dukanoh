@@ -43,73 +43,38 @@ Deno.serve(async (req) => {
 
   const { data: userRow } = await supabase
     .from('users')
-    .select('stripe_account_id, stripe_onboarding_complete')
+    .select('stripe_account_id')
     .eq('id', userId)
     .single();
 
-  if (!userRow?.stripe_account_id || !userRow?.stripe_onboarding_complete) {
-    return new Response(JSON.stringify({ error: 'Seller verification incomplete' }), {
-      status: 400,
+  const accountId = userRow?.stripe_account_id as string | null;
+  if (!accountId) {
+    return new Response(JSON.stringify({ error: 'No connected account found' }), {
+      status: 404,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
-  const { data: claimedAmount, error: claimError } = await supabase
-    .rpc('claim_available_balance', { p_seller_id: userId });
-
-  if (claimError) {
-    return new Response(JSON.stringify({ error: 'Failed to claim balance' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const availableBalance = claimedAmount as number ?? 0;
-  if (availableBalance <= 0) {
-    return new Response(JSON.stringify({ error: 'No funds available to withdraw' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const amountPence = Math.round(availableBalance * 100);
-  const idempotencyKey = `payout-${userId}-${amountPence}`;
-
-  const payoutRes = await fetch('https://api.stripe.com/v1/payouts', {
+  const linkRes = await fetch(`https://api.stripe.com/v1/accounts/${accountId}/login_links`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Stripe-Account': userRow.stripe_account_id,
-      'Idempotency-Key': idempotencyKey,
     },
-    body: new URLSearchParams({
-      amount: String(amountPence),
-      currency: 'gbp',
-      'metadata[user_id]': userId,
-    }),
   });
 
-  if (!payoutRes.ok) {
-    const err = await payoutRes.json();
-    await supabase
-      .from('seller_wallet')
-      .update({ available_balance: availableBalance })
-      .eq('seller_id', userId);
-
-    return new Response(JSON.stringify({ error: err?.error?.message ?? 'Payout failed' }), {
+  if (!linkRes.ok) {
+    const err = await linkRes.json();
+    return new Response(JSON.stringify({ error: err?.error?.message ?? 'Failed to generate login link' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
-  const payout = await payoutRes.json();
+  const link = await linkRes.json();
 
-  return new Response(
-    JSON.stringify({ success: true, payout_id: payout.id, amount: availableBalance }),
-    {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    }
-  );
+  return new Response(JSON.stringify({ url: link.url }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
 });

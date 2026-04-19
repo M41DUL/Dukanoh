@@ -21,9 +21,12 @@ export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState('');
+  const [phone, setPhone] = useState('');
+  const [dob, setDob] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -31,21 +34,37 @@ export default function EditProfileScreen() {
 
   React.useEffect(() => {
     if (!user) return;
-    Promise.resolve(
-      supabase
-        .from('users')
-        .select('full_name, bio, avatar_url, location')
-        .eq('id', user.id)
-        .maybeSingle()
-    ).then(({ data }) => {
-      if (data) {
-        setName(data.full_name === 'New User' ? '' : (data.full_name ?? ''));
-        setBio(data.bio ?? '');
-        setLocation(data.location ?? '');
-        setAvatarUrl(data.avatar_url ?? undefined);
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('full_name, first_name, last_name, bio, avatar_url, location, phone, dob')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (data) {
+          // Prefer split fields; fall back to splitting full_name for existing accounts
+          if (data.first_name || data.last_name) {
+            setFirstName(data.first_name ?? '');
+            setLastName(data.last_name ?? '');
+          } else if (data.full_name && data.full_name !== 'New User') {
+            const parts = data.full_name.split(' ');
+            setFirstName(parts[0] ?? '');
+            setLastName(parts.slice(1).join(' '));
+          }
+          setBio(data.bio ?? '');
+          setLocation(data.location ?? '');
+          setPhone(data.phone ?? '');
+          if (data.dob) {
+            // DB stores YYYY-MM-DD, display as DD/MM/YYYY
+            const [y, m, d] = data.dob.split('-');
+            setDob(`${d}/${m}/${y}`);
+          }
+          setAvatarUrl(data.avatar_url ?? undefined);
+        }
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    }).catch(() => { setLoading(false); });
+    })();
   }, [user]);
 
   const uploadAvatar = useCallback(async (uri: string) => {
@@ -120,19 +139,52 @@ export default function EditProfileScreen() {
     }
   }, [takePhoto, pickFromLibrary]);
 
+  const handleDobChange = useCallback((text: string) => {
+    const digits = text.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 4) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    } else if (digits.length > 2) {
+      formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    }
+    setDob(formatted);
+  }, []);
+
+  // Parse DD/MM/YYYY → YYYY-MM-DD for DB, returns null if invalid/empty
+  const parseDob = (raw: string): string | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!match) return null;
+    const [, d, m, y] = match;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  };
+
   const handleSave = useCallback(async () => {
     if (!user) return;
+
+    const trimFirst = firstName.trim();
+    const trimLast = lastName.trim();
+
+    const dobForDb = dob.trim() ? parseDob(dob) : null;
+    if (dob.trim() && !dobForDb) {
+      Alert.alert('Invalid date', 'Please enter your date of birth as DD/MM/YYYY.');
+      return;
+    }
+
     setSaving(true);
-    const trimmedName = name.trim();
-    const trimmedBio = bio.trim();
-    const trimmedLocation = location.trim();
+    const fullName = [trimFirst, trimLast].filter(Boolean).join(' ') || 'New User';
 
     const { error } = await supabase
       .from('users')
       .update({
-        full_name: trimmedName || 'New User',
-        bio: trimmedBio || null,
-        location: trimmedLocation || null,
+        first_name: trimFirst || null,
+        last_name: trimLast || null,
+        full_name: fullName,
+        bio: bio.trim() || null,
+        location: location.trim() || null,
+        phone: phone.trim() || null,
+        dob: dobForDb,
       })
       .eq('id', user.id);
 
@@ -143,7 +195,7 @@ export default function EditProfileScreen() {
     }
     await refreshProfile();
     router.back();
-  }, [user, name, bio, location, refreshProfile]);
+  }, [user, firstName, lastName, bio, location, phone, dob, refreshProfile]);
 
   if (loading) return <ScreenWrapper><View /></ScreenWrapper>;
 
@@ -157,7 +209,7 @@ export default function EditProfileScreen() {
       >
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]} keyboardShouldPersistTaps="handled">
         <TouchableOpacity style={styles.avatarSection} onPress={handleChangePhoto} activeOpacity={0.7}>
-          <Avatar uri={avatarUrl} initials={name[0]?.toUpperCase()} size="xlarge" />
+          <Avatar uri={avatarUrl} initials={firstName[0]?.toUpperCase()} size="xlarge" />
           <Text style={styles.changePhoto}>Change photo</Text>
         </TouchableOpacity>
 
@@ -172,11 +224,21 @@ export default function EditProfileScreen() {
         )}
 
         <Input
-          label="Name"
-          value={name}
-          onChangeText={setName}
-          placeholder="Your name"
+          label="First name"
+          value={firstName}
+          onChangeText={setFirstName}
+          placeholder="First name"
           maxLength={50}
+          autoCapitalize="words"
+        />
+
+        <Input
+          label="Last name"
+          value={lastName}
+          onChangeText={setLastName}
+          placeholder="Last name"
+          maxLength={50}
+          autoCapitalize="words"
         />
 
         <Input
@@ -187,6 +249,25 @@ export default function EditProfileScreen() {
           multiline
           maxLength={200}
           style={styles.bioInput}
+        />
+
+        <Input
+          label="Phone number"
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="+44 7700 900000"
+          keyboardType="phone-pad"
+          maxLength={20}
+        />
+
+        <Input
+          label="Date of birth"
+          value={dob}
+          onChangeText={handleDobChange}
+          placeholder="DD/MM/YYYY"
+          keyboardType="number-pad"
+          maxLength={10}
+          hint="Used to verify your identity when you sell"
         />
 
         <View>

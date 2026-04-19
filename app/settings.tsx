@@ -132,16 +132,16 @@ export default function SettingsScreen() {
 
   const sellingRows: MenuRow[] = [
     {
-      icon: 'wallet-outline',
-      title: 'Wallet',
-      subtitle: 'Balances and payouts',
-      onPress: () => router.push('/wallet'),
-    },
-    {
       icon: 'shield-checkmark-outline',
       title: 'Get Verified',
       subtitle: 'Verify your identity to receive payments',
       onPress: () => router.push('/stripe-onboarding'),
+    },
+    {
+      icon: 'card-outline',
+      title: 'Payout Account',
+      subtitle: 'Manage your bank details',
+      onPress: () => router.push('/payout-account'),
     },
     {
       icon: 'location-outline',

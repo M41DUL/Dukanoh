@@ -19,6 +19,7 @@ import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { edgeFetch } from '@/lib/edgeFetch';
 
 interface DisputedOrder {
   id: string;
@@ -129,17 +130,7 @@ export default function AdminDisputesScreen() {
             setResolving(order.id);
 
             // Step 1 — Issue Stripe refund (item_price only, not protection fee)
-            const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-            const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
-
-            const refundRes = await fetch(`${supabaseUrl}/functions/v1/stripe-refund`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-dukanoh-key': apiKey ?? '',
-              },
-              body: JSON.stringify({ order_id: order.id }),
-            });
+            const refundRes = await edgeFetch('stripe-refund', { order_id: order.id });
 
             if (!refundRes.ok) {
               const err = await refundRes.json().catch(() => ({}));

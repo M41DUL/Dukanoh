@@ -4,7 +4,7 @@ import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.19';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dukanoh-key',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
 // ─── Moderation ───────────────────────────────────────────────────────────────
@@ -53,9 +53,6 @@ Deno.serve(async (req) => {
       status,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
-
-  const apiKey = req.headers.get('x-dukanoh-key');
-  if (apiKey !== Deno.env.get('INTERNAL_API_KEY')) return json({ error: 'Forbidden' }, 403);
 
   try {
     const { imageBase64: rawBase64, check } = await req.json();

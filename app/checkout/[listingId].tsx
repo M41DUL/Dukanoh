@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { calcProtectionFee, calcOrderTotal, formatGBP } from '@/lib/paymentHelpers';
+import { edgeFetch } from '@/lib/edgeFetch';
 
 type PaymentMethod = 'apple_pay' | 'google_pay' | 'card';
 
@@ -144,17 +145,7 @@ export default function CheckoutScreen() {
     setPlacing(true);
 
     // Step 1 — Create PaymentIntent via Edge Function
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const apiKey = process.env.EXPO_PUBLIC_INTERNAL_API_KEY;
-
-    const piRes = await fetch(`${supabaseUrl}/functions/v1/create-payment-intent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-dukanoh-key': apiKey ?? '',
-      },
-      body: JSON.stringify({ listing_id: listing.id, buyer_id: user.id }),
-    });
+    const piRes = await edgeFetch('create-payment-intent', { listing_id: listing.id });
 
     if (!piRes.ok) {
       const err = await piRes.json().catch(() => ({}));

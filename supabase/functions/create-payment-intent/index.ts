@@ -3,16 +3,6 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 
-function timingSafeEqual(a: string, b: string): boolean {
-  const encoder = new TextEncoder();
-  const aBytes = encoder.encode(a);
-  const bBytes = encoder.encode(b);
-  if (aBytes.length !== bBytes.length) return false;
-  let result = 0;
-  for (let i = 0; i < aBytes.length; i++) result |= aBytes[i] ^ bBytes[i];
-  return result === 0;
-}
-
 /** Buyer protection fee: 6.5% of item price + £0.80 flat, in pence */
 function calcProtectionFeePence(itemPricePence: number): number {
   return Math.round(itemPricePence * 0.065 + 80);
@@ -23,19 +13,25 @@ Deno.serve(async (req) => {
     return new Response(null, {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dukanoh-key',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
       },
     });
   }
 
-  const apiKey = Deno.env.get('INTERNAL_API_KEY');
-  const providedKey = req.headers.get('x-dukanoh-key');
-  if (!apiKey || !providedKey || !timingSafeEqual(providedKey, apiKey)) {
+  const authHeader = req.headers.get('Authorization') ?? '';
+  const supabaseAuth = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    { global: { headers: { Authorization: authHeader } } }
+  );
+  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+  if (authError || !user) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     });
   }
+  const buyerId = user.id;
 
   const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
   if (!stripeSecretKey) {
@@ -45,9 +41,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { listing_id, buyer_id } = await req.json();
-  if (!listing_id || !buyer_id) {
-    return new Response(JSON.stringify({ error: 'listing_id and buyer_id required' }), {
+  const { listing_id } = await req.json();
+  if (!listing_id) {
+    return new Response(JSON.stringify({ error: 'listing_id required' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -58,7 +54,6 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
-  // Fetch listing
   const { data: listing } = await supabase
     .from('listings')
     .select('id, price, status, seller_id')
@@ -79,14 +74,13 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (listing.seller_id === buyer_id) {
+  if (listing.seller_id === buyerId) {
     return new Response(JSON.stringify({ error: 'Cannot buy your own listing' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
-  // Fetch seller — check if they're verified
   const { data: seller } = await supabase
     .from('users')
     .select('stripe_account_id, stripe_onboarding_complete')
@@ -95,20 +89,16 @@ Deno.serve(async (req) => {
 
   const sellerVerified = !!(seller?.stripe_account_id && seller?.stripe_onboarding_complete);
 
-  // Calculate amounts in pence
   const itemPricePence = Math.round(listing.price * 100);
   const protectionFeePence = calcProtectionFeePence(itemPricePence);
   const totalPence = itemPricePence + protectionFeePence;
 
-  // Build PaymentIntent params.
-  // If seller is verified: transfer directly to their Connect account.
-  // If not verified: payment stays on platform account; we hold it until they verify.
   const piParams = new URLSearchParams({
     amount: String(totalPence),
     currency: 'gbp',
     'payment_method_types[]': 'card',
     'metadata[listing_id]': listing_id,
-    'metadata[buyer_id]': buyer_id,
+    'metadata[buyer_id]': buyerId,
     'metadata[seller_id]': listing.seller_id,
     'metadata[seller_verified]': String(sellerVerified),
     'metadata[item_price_pence]': String(itemPricePence),
@@ -125,7 +115,7 @@ Deno.serve(async (req) => {
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Idempotency-Key': `pi-${listing_id}-${buyer_id}`,
+      'Idempotency-Key': `pi-${listing_id}-${buyerId}`,
     },
     body: piParams,
   });

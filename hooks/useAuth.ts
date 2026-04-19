@@ -10,7 +10,7 @@ export function useAuth() {
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [isSeller, setIsSeller] = useState<boolean>(false);
   const [isVerified, setIsVerified] = useState<boolean>(false);
-  const [sellerTier, setSellerTier] = useState<string>('free');
+  const [sellerTier, setSellerTier] = useState<'free' | 'pro' | 'founder'>('free');
 
   const [needsUsername, setNeedsUsername] = useState<boolean>(false);
   const [username, setUsername] = useState<string>('');
@@ -26,7 +26,7 @@ export function useAuth() {
     setNeedsUsername(!(data?.username_confirmed ?? true));
     setUsername(data?.username ?? '');
     setIsVerified(data?.is_verified ?? false);
-    setSellerTier(data?.seller_tier ?? 'free');
+    setSellerTier((data?.seller_tier as 'free' | 'pro' | 'founder') ?? 'free');
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -51,6 +51,8 @@ export function useAuth() {
       } else {
         setOnboardingCompleted(null);
         setIsSeller(false);
+        setIsVerified(false);
+        setSellerTier('free');
         setNeedsUsername(false);
         setUsername('');
         setSession(s);

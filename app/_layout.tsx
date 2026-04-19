@@ -19,6 +19,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/hooks/useAuth';
 import { configureGoogleSignIn } from '@/lib/socialAuth';
 import { initErrorReporting } from '@/lib/errorReporting';
+import { initRevenueCat } from '@/lib/revenuecat';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { SavedProvider } from '@/context/SavedContext';
@@ -46,6 +47,7 @@ function RootNavigator() {
   usePushNotifications();
 
   useEffect(() => { configureGoogleSignIn(); }, []);
+  useEffect(() => { if (session?.user.id) initRevenueCat(session.user.id); }, [session?.user.id]);
   const router = useRouter();
   const segments = useSegments();
   const { isDark } = useTheme();
@@ -103,7 +105,7 @@ function RootNavigator() {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" options={{ animation: 'none' }} />
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="username-picker" options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen
@@ -184,6 +186,10 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="stripe-onboarding"
+          options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal', gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="payout-account"
           options={{ animation: 'slide_from_right' }}
         />
         <Stack.Screen

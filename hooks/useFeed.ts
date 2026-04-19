@@ -328,15 +328,17 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
       const profilePromise: Promise<ProfileData> =
         cachedProfile && now - cachedProfile.ts < PROFILE_CACHE_TTL
           ? Promise.resolve(cachedProfile.data)
-          : supabase
-              .from('users')
-              .select('preferred_categories, avatar_url, bio, full_name')
-              .eq('id', userId)
-              .maybeSingle()
-              .then(r => {
-                profileCache[userId] = { data: r.data, ts: now };
-                return r.data;
-              });
+          : Promise.resolve(
+              supabase
+                .from('users')
+                .select('preferred_categories, avatar_url, bio, full_name')
+                .eq('id', userId)
+                .maybeSingle()
+                .then(r => {
+                  profileCache[userId] = { data: r.data, ts: now };
+                  return r.data;
+                })
+            );
 
       const [profile, viewedCats, savedSignals, activeSeason] = await Promise.all([
         profilePromise,

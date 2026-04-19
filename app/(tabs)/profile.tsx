@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, ComponentProps } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/Button';
@@ -10,11 +10,12 @@ import { StarRating } from '@/components/StarRating';
 import { ProPaywallSheet } from '@/components/pro/ProPaywallSheet';
 import { ProProfileTab } from '@/components/pro/ProProfileTab';
 import { WalletSheet } from '@/components/WalletSheet';
-import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors, proColorsLight } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { HUB, HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
+import { consumePaywallOpen } from '@/lib/paywallTrigger';
 
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
@@ -26,24 +27,23 @@ interface QuickAction {
 
 const STALE_MS = 30_000;
 
-interface HubSummary {
-  totalViews: number;
-  totalSaves: number;
-  thisMonthEarned: number;
-}
 
 export default function ProfileScreen() {
-  const { user, username, isVerified, sellerTier } = useAuth();
+  const { user, username, isVerified, sellerTier, refreshProfile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
   const [profileName, setProfileName] = useState('');
   const [profileAvatar, setProfileAvatar] = useState<string | undefined>();
-  const [listingCount, setListingCount] = useState(0);
-  const [hubSummary, setHubSummary] = useState<HubSummary | null>(null);
-  const [hubSummaryLoading, setHubSummaryLoading] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [walletVisible, setWalletVisible] = useState(false);
+
+  // Auto-open paywall if stripe-onboarding signalled it
+  useFocusEffect(useCallback(() => {
+    if (consumePaywallOpen()) {
+      refreshProfile().then(() => setPaywallVisible(true));
+    }
+  }, [refreshProfile]));
 
   const quickActions: QuickAction[] = [
     { icon: 'bag-outline', label: 'My listings', onPress: () => router.push('/my-listings') },
@@ -60,18 +60,11 @@ export default function ProfileScreen() {
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
-    const [{ data, error }, { count }] = await Promise.all([
-      supabase
-        .from('users')
-        .select('full_name, avatar_url, rating_avg, rating_count, had_free_trial, pro_expires_at')
-        .eq('id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('listings')
-        .select('id', { count: 'exact', head: true })
-        .eq('seller_id', user.id)
-        .neq('status', 'archived'),
-    ]);
+    const { data, error } = await supabase
+      .from('users')
+      .select('full_name, avatar_url, rating_avg, rating_count, had_free_trial, pro_expires_at')
+      .eq('id', user.id)
+      .maybeSingle();
     if (error) {
       // fetchProfile failed silently
       return;
@@ -86,56 +79,23 @@ export default function ProfileScreen() {
       const expiresAt = data.pro_expires_at ? new Date(data.pro_expires_at) : null;
       setProExpired(expiresAt !== null && expiresAt < new Date());
     }
-    setListingCount(count ?? 0);
     lastFetchedRef.current = Date.now();
   }, [user]);
 
-  const fetchHubSummary = useCallback(async () => {
-    if (!user || (sellerTier !== 'pro' && sellerTier !== 'founder')) return;
-    setHubSummaryLoading(true);
-    const thisMonthStart = new Date();
-    thisMonthStart.setDate(1);
-    thisMonthStart.setHours(0, 0, 0, 0);
-
-    const [{ count: viewCount }, { data: saves }, { data: earned }] = await Promise.all([
-      supabase
-        .from('listing_views')
-        .select('listing_id, listings!inner(seller_id)', { count: 'exact' })
-        .eq('listings.seller_id', user.id),
-      supabase
-        .from('listings')
-        .select('save_count')
-        .eq('seller_id', user.id),
-      supabase
-        .from('transactions')
-        .select('amount')
-        .eq('seller_id', user.id)
-        .gte('created_at', thisMonthStart.toISOString()),
-    ]);
-    const totalViews = viewCount ?? 0;
-    const totalSaves = (saves ?? []).reduce((sum: number, l: { save_count: number | null }) => sum + (l.save_count ?? 0), 0);
-    const thisMonthEarned = (earned ?? []).reduce((sum: number, t: { amount: number | null }) => sum + (t.amount ?? 0), 0);
-    setHubSummary({ totalViews, totalSaves, thisMonthEarned });
-    setHubSummaryLoading(false);
-  }, [user, sellerTier]);
-
   useFocusEffect(useCallback(() => {
+    refreshProfile();
     const now = Date.now();
     if (now - lastFetchedRef.current > STALE_MS) {
       fetchProfile();
     }
-  }, [fetchProfile]));
-
-  useFocusEffect(useCallback(() => {
-    if (sellerTier === 'pro' || sellerTier === 'founder') fetchHubSummary();
-  }, [fetchHubSummary, sellerTier]));
+  }, [fetchProfile, refreshProfile]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     lastFetchedRef.current = 0;
-    await Promise.all([fetchProfile(), (sellerTier === 'pro' || sellerTier === 'founder') ? fetchHubSummary() : Promise.resolve()]);
+    await Promise.all([refreshProfile(), fetchProfile()]);
     setRefreshing(false);
-  }, [fetchProfile, fetchHubSummary, sellerTier]);
+  }, [fetchProfile, refreshProfile]);
 
   // Pro users get a dedicated business dashboard UI
   if (sellerTier === 'pro' || sellerTier === 'founder') {
@@ -166,11 +126,6 @@ export default function ProfileScreen() {
             {isVerified && (
               <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
                 <Text style={[styles.badgePillText, { color: colors.primaryText }]}>✓ Verified</Text>
-              </View>
-            )}
-            {(sellerTier === 'pro' || sellerTier === 'founder') && (
-              <View style={[styles.badgePill, { backgroundColor: proColors.proAccent + '22', borderColor: proColors.proAccent + '60' }]}>
-                <Text style={[styles.badgePillText, { color: proColorsLight.proAccentText }]}>◆ Pro</Text>
               </View>
             )}
           </View>
@@ -211,82 +166,32 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Dukanoh Pro entry card ── */}
-        {(listingCount > 0 || sellerTier === 'free') && (
-          <TouchableOpacity
-            style={styles.hubCard}
-            onPress={() =>
-              sellerTier === 'pro' || sellerTier === 'founder'
-                ? router.push('/seller-hub')
-                : setPaywallVisible(true)
-            }
-            activeOpacity={0.85}
+        <TouchableOpacity
+          style={styles.hubCard}
+          onPress={() => setPaywallVisible(true)}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={[proColors.gradientEnd, proColors.gradientStart]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.hubCardGradient}
           >
-            <LinearGradient
-              colors={[proColors.gradientEnd, proColors.gradientStart]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.hubCardGradient}
-            >
-              {/* Pro/founder header */}
-              {(sellerTier === 'pro' || sellerTier === 'founder') && (
-                <View style={styles.hubCardHeader}>
-                  <Text style={styles.hubCardTitle}>Dukanoh Pro</Text>
-                  <View style={styles.proBadge}>
-                    <Text style={styles.proBadgeText}>Pro ✦</Text>
-                  </View>
+            <View style={styles.hubCardHeader}>
+              <Text style={styles.hubPlanName}>Dukanoh Pro</Text>
+              <Ionicons name="chevron-forward" size={18} color={HUB.textSecondary} />
+            </View>
+            <View style={styles.hubFeatureList}>
+              {HUB_FEATURES.filter(f => (CORE_FEATURE_LABELS as readonly string[]).includes(f.label)).map(f => (
+                <View key={f.label} style={styles.hubFeatureRow}>
+                  <Ionicons name={f.icon} size={20} color={HUB.textSecondary} />
+                  <Text style={styles.hubFeatureLabel}>{f.label}</Text>
                 </View>
-              )}
-
-              {/* Free user — matches hero card layout */}
-              {sellerTier !== 'pro' && sellerTier !== 'founder' && (
-                <>
-                  <View style={styles.hubCardHeader}>
-                    <Text style={styles.hubPlanName}>Dukanoh Pro</Text>
-                    <Ionicons name="chevron-forward" size={18} color={HUB.textSecondary} />
-                  </View>
-                  <View style={styles.hubFeatureList}>
-                    {HUB_FEATURES.filter(f => (CORE_FEATURE_LABELS as readonly string[]).includes(f.label)).map(f => (
-                      <View key={f.label} style={styles.hubFeatureRow}>
-                        <Ionicons name={f.icon} size={20} color={HUB.textSecondary} />
-                        <Text style={styles.hubFeatureLabel}>{f.label}</Text>
-                      </View>
-                    ))}
-                  </View>
-                  <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - CORE_FEATURE_LABELS.length} more features</Text>
-                </>
-              )}
-
-              {/* Pro/founder user — live metrics */}
-              {(sellerTier === 'pro' || sellerTier === 'founder') && hubSummaryLoading && (
-                <ActivityIndicator color={HUB.accent} style={{ marginVertical: Spacing.sm }} />
-              )}
-              {(sellerTier === 'pro' || sellerTier === 'founder') && !hubSummaryLoading && hubSummary && (
-                <>
-                  <View style={styles.hubMetrics}>
-                    <View style={styles.hubMetric}>
-                      <Text style={styles.hubMetricValue}>£{hubSummary.thisMonthEarned.toFixed(0)}</Text>
-                      <Text style={styles.hubMetricLabel}>This month</Text>
-                    </View>
-                    <View style={styles.hubMetricDivider} />
-                    <View style={styles.hubMetric}>
-                      <Text style={styles.hubMetricValue}>{hubSummary.totalViews}</Text>
-                      <Text style={styles.hubMetricLabel}>Views</Text>
-                    </View>
-                    <View style={styles.hubMetricDivider} />
-                    <View style={styles.hubMetric}>
-                      <Text style={styles.hubMetricValue}>{hubSummary.totalSaves}</Text>
-                      <Text style={styles.hubMetricLabel}>Saves</Text>
-                    </View>
-                  </View>
-                  <View style={styles.hubCardFooter}>
-                    <Text style={styles.hubCardFooterText}>Open Dukanoh Pro</Text>
-                    <Ionicons name="chevron-forward" size={14} color={HUB.accent} />
-                  </View>
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
+              ))}
+            </View>
+            <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - CORE_FEATURE_LABELS.length} more features</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* ── Settings — secondary footer CTA ── */}
         <Button
@@ -302,6 +207,7 @@ export default function ProfileScreen() {
       <ProPaywallSheet
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
+        onSuccess={async () => { lastFetchedRef.current = 0; await Promise.all([refreshProfile(), fetchProfile()]); }}
         isVerified={isVerified}
         hadFreeTrial={hadFreeTrial}
         proExpired={proExpired}
