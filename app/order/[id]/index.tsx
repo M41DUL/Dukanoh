@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   TextInput,
   Linking,
+  ActionSheetIOS,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
@@ -17,7 +19,7 @@ import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -41,61 +43,57 @@ interface Order {
   courier: string | null;
   dispute_reason: string | null;
   dispute_description: string | null;
+  disputed_at: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
   created_at: string;
-  // Delivery address snapshot (captured at checkout — immutable)
   delivery_address_line1: string | null;
   delivery_address_line2: string | null;
   delivery_city: string | null;
   delivery_postcode: string | null;
   delivery_country: string | null;
-  disputed_at: string | null;
   auto_release_at: string | null;
-  listing: {
-    title: string;
-    images: string[];
-  } | null;
+  listing: { title: string; images: string[] } | null;
   buyer: { username: string; avatar_url: string | null } | null;
   seller: { username: string; avatar_url: string | null; is_verified: boolean } | null;
 }
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
+    day: 'numeric', month: 'short', year: 'numeric',
   });
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  created: 'Order placed',
-  paid: 'Payment received',
-  shipped: 'Shipped',
+  created:   'Order placed',
+  paid:      'Payment received',
+  shipped:   'Shipped',
   delivered: 'Delivered',
   completed: 'Completed',
-  disputed: 'Disputed',
+  disputed:  'Disputed',
   cancelled: 'Cancelled',
 };
 
 const STATUS_COLOR: Record<OrderStatus, string> = {
-  created: '#F59E0B',
-  paid: '#3735C5',
-  shipped: '#3735C5',
+  created:   '#F59E0B',
+  paid:      '#3735C5',
+  shipped:   '#3735C5',
   delivered: '#22C55E',
   completed: '#22C55E',
-  disputed: '#FF4444',
+  disputed:  '#FF4444',
   cancelled: '#9B9B9B',
 };
 
 export default function OrderDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, fromCheckout } = useLocalSearchParams<{ id: string; fromCheckout?: string }>();
   const { user } = useAuth();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
+
+  const isFromCheckout = fromCheckout === 'true';
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -137,8 +135,6 @@ export default function OrderDetailScreen() {
       return;
     }
     setSubmitting(true);
-    // mark_order_shipped RPC uses server-side NOW() for shipped_at and auto_release_at,
-    // eliminating any device clock skew. It also enforces the paid→shipped guard at DB level.
     const { error } = await supabase.rpc('mark_order_shipped', {
       p_order_id:  order.id,
       p_seller_id: user.id,
@@ -167,7 +163,6 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             if (!user) return;
             setSubmitting(true);
-            // Uses server-side NOW() via RPC — eliminates device clock skew
             await supabase.rpc('confirm_order_receipt', {
               p_order_id: order.id,
               p_buyer_id: user.id,
@@ -193,43 +188,25 @@ export default function OrderDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             setSubmitting(true);
-
-            // Step 1 — Issue Stripe refund (item_price only)
             const refundRes = await edgeFetch('stripe-refund', { order_id: order.id });
-
             if (!refundRes.ok) {
               const err = await refundRes.json().catch(() => ({}));
               setSubmitting(false);
               Alert.alert('Cancellation failed', err?.error ?? 'Could not process refund. Please contact support.');
               return;
             }
-
-            // Step 2 — Cancel order in DB
             const cancelledBy = isBuyer ? 'buyer' : 'seller';
-            await supabase
-              .from('orders')
-              .update({
-                status: 'cancelled',
-                cancelled_at: new Date().toISOString(),
-                cancelled_by: cancelledBy,
-              })
-              .eq('id', order.id);
-
-            // Step 3 — Return listing to available
+            await supabase.from('orders').update({
+              status: 'cancelled',
+              cancelled_at: new Date().toISOString(),
+              cancelled_by: cancelledBy,
+            }).eq('id', order.id);
             if (order.listing_id) {
-              await supabase
-                .from('listings')
-                .update({ status: 'available', buyer_id: null, sold_at: null })
-                .eq('id', order.listing_id);
+              await supabase.from('listings').update({ status: 'available', buyer_id: null, sold_at: null }).eq('id', order.listing_id);
             }
-
-            // Step 4 — Record strike if seller cancels
             if (isSeller && user) {
-              await supabase
-                .from('cancellation_strikes')
-                .insert({ seller_id: user.id, order_id: order.id });
+              await supabase.from('cancellation_strikes').insert({ seller_id: user.id, order_id: order.id });
             }
-
             await fetchOrder();
             setSubmitting(false);
           },
@@ -238,7 +215,7 @@ export default function OrderDetailScreen() {
     );
   };
 
-  // ── Buyer: withdraw dispute (satisfied / resolved directly with seller) ──
+  // ── Buyer: withdraw dispute ──────────────────────────────────
   const handleWithdrawDispute = () => {
     Alert.alert(
       'Withdraw dispute',
@@ -250,21 +227,92 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             if (!user || !order) return;
             setSubmitting(true);
-            await supabase
-              .from('orders')
-              .update({
-                status: 'completed',
-                delivered_at: new Date().toISOString(),
-                completed_at: new Date().toISOString(),
-              })
-              .eq('id', order.id)
-              .eq('buyer_id', user.id);
+            await supabase.from('orders').update({
+              status: 'completed',
+              delivered_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+            }).eq('id', order.id).eq('buyer_id', user.id);
             await fetchOrder();
             setSubmitting(false);
           },
         },
       ]
     );
+  };
+
+  // ── Message counterpart ──────────────────────────────────────
+  const handleMessage = async () => {
+    if (!order) return;
+    const { data } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('listing_id', order.listing_id ?? '')
+      .maybeSingle();
+    if (data?.id) {
+      router.push(`/conversation/${data.id}`);
+    } else {
+      router.push('/(tabs)/inbox');
+    }
+  };
+
+  // ── Need help action sheet ───────────────────────────────────
+  const handleNeedHelp = () => {
+    if (!order) return;
+    const { canCancel, canDispute, canWithdrawDispute } = getOrderActions(order.status, isBuyer, isSeller);
+
+    const optionLabels: string[] = [];
+    const optionActions: (() => void)[] = [];
+
+    optionLabels.push(isBuyer ? 'Message seller' : 'Message buyer');
+    optionActions.push(handleMessage);
+
+    if (canCancel) {
+      optionLabels.push('Cancel order');
+      optionActions.push(handleCancel);
+    }
+
+    if (canDispute && isBuyer) {
+      optionLabels.push('Raise a dispute');
+      optionActions.push(() => router.push(`/order/${order.id}/dispute`));
+    }
+
+    if (canWithdrawDispute) {
+      optionLabels.push('Withdraw dispute');
+      optionActions.push(handleWithdrawDispute);
+    }
+
+    optionLabels.push('Contact support');
+    optionActions.push(() => Linking.openURL(`mailto:support@dukanoh.com?subject=Order ${order.id}`));
+
+    if (Platform.OS === 'ios') {
+      const cancelIndex = optionLabels.length;
+      const destructiveIndex = optionLabels.indexOf('Cancel order');
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: [...optionLabels, 'Cancel'],
+          cancelButtonIndex: cancelIndex,
+          destructiveButtonIndex: destructiveIndex >= 0 ? destructiveIndex : undefined,
+        },
+        (buttonIndex) => {
+          if (buttonIndex < optionActions.length) {
+            optionActions[buttonIndex]();
+          }
+        },
+      );
+    } else {
+      Alert.alert(
+        'Need help?',
+        undefined,
+        [
+          ...optionLabels.map((label, i) => ({
+            text: label,
+            style: label === 'Cancel order' ? ('destructive' as const) : ('default' as const),
+            onPress: optionActions[i],
+          })),
+          { text: 'Dismiss', style: 'cancel' as const },
+        ],
+      );
+    }
   };
 
   if (loading) {
@@ -288,286 +336,242 @@ export default function OrderDetailScreen() {
   }
 
   const statusColor = STATUS_COLOR[order.status] ?? colors.textSecondary;
-  const {
-    canShip,
-    canConfirm,
-    canDispute,
-    canCancel,
-    canWithdrawDispute,
-    isDisputed,
-  } = getOrderActions(order.status, isBuyer, isSeller);
+  const { canShip, canConfirm, isDisputed } = getOrderActions(order.status, isBuyer, isSeller);
+
+  const imageUrl = order.listing?.images?.[0]
+    ? getImageUrl(order.listing.images[0], 'medium')
+    : null;
 
   return (
     <ScreenWrapper>
       <Header title="Order details" showBack />
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Status banner */}
-        <View style={[styles.statusBanner, { backgroundColor: `${statusColor}18` }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusText, { color: statusColor }]}>
-            {STATUS_LABEL[order.status]}
-          </Text>
-        </View>
 
-        {/* Item card */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Item</Text>
-          <View style={styles.itemRow}>
-            {order.listing?.images?.[0] ? (
+      <View style={styles.inner}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scroll,
+            { paddingBottom: isFromCheckout ? insets.bottom + Spacing['2xl'] : insets.bottom + 100 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Status pill */}
+          <View style={[styles.statusPill, { backgroundColor: `${statusColor}15` }]}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {STATUS_LABEL[order.status]}
+            </Text>
+          </View>
+
+          {/* Item image */}
+          <View style={[styles.imageWrap, { backgroundColor: colors.surface }]}>
+            {imageUrl ? (
               <Image
-                source={{ uri: getImageUrl(order.listing.images[0], 'thumbnail') }}
-                style={styles.itemImage}
+                source={{ uri: imageUrl }}
+                style={styles.image}
                 contentFit="cover"
               />
             ) : (
-              <View style={[styles.itemImage, { backgroundColor: colors.surfaceAlt }]} />
+              <View style={[styles.image, { backgroundColor: colors.surfaceAlt }]} />
             )}
-            <View style={styles.itemInfo}>
-              <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
-                {order.listing?.title ?? 'Listing removed'}
-              </Text>
-              <Text style={[styles.itemPrice, { color: colors.textPrimary }]}>
-                {formatGBP(order.item_price)}
-              </Text>
-            </View>
           </View>
-        </View>
 
-        {/* Order meta */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Details</Text>
-          <MetaRow label="Order date" value={formatDate(order.created_at)} colors={colors} />
-          <MetaRow label={isBuyer ? 'Seller' : 'Buyer'} value={isBuyer ? `@${order.seller?.username}` : `@${order.buyer?.username}`} colors={colors} />
-          <MetaRow label="Item price" value={formatGBP(order.item_price)} colors={colors} />
-          <MetaRow label="Buyer protection" value={formatGBP(order.protection_fee)} colors={colors} />
-          <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
-          <MetaRow label="Total paid" value={formatGBP(order.total_paid)} bold colors={colors} />
-          {order.status === 'completed' && (
+          {/* Item title + price */}
+          <View style={styles.itemInfo}>
+            <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
+              {order.listing?.title ?? 'Listing removed'}
+            </Text>
+            <Text style={[styles.itemPrice, { color: colors.textPrimary }]}>
+              {formatGBP(order.item_price)}
+            </Text>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          {/* Order details */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Details</Text>
+            <MetaRow label="Order date" value={formatDate(order.created_at)} colors={colors} />
             <MetaRow
-              label="Released by"
-              value={order.delivered_at ? 'Buyer confirmed receipt' : 'Auto-released after 2 days'}
+              label={isBuyer ? 'Seller' : 'Buyer'}
+              value={isBuyer ? `@${order.seller?.username}` : `@${order.buyer?.username}`}
               colors={colors}
             />
+            <MetaRow label="Item price" value={formatGBP(order.item_price)} colors={colors} />
+            <MetaRow label="Buyer protection" value={formatGBP(order.protection_fee)} colors={colors} />
+            <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
+            <MetaRow label="Total paid" value={formatGBP(order.total_paid)} bold colors={colors} />
+            {order.status === 'completed' && (
+              <MetaRow
+                label="Released by"
+                value={order.delivered_at ? 'Buyer confirmed receipt' : 'Auto-released after 2 days'}
+                colors={colors}
+              />
+            )}
+          </View>
+
+          {/* Tracking */}
+          {order.status !== 'created' && order.status !== 'paid' && order.tracking_number && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Tracking</Text>
+                {order.courier ? <MetaRow label="Courier" value={order.courier} colors={colors} /> : null}
+                <MetaRow label="Tracking number" value={order.tracking_number} colors={colors} />
+                {order.shipped_at && (
+                  <MetaRow label="Shipped on" value={formatDate(order.shipped_at)} colors={colors} />
+                )}
+              </View>
+            </>
           )}
-        </View>
 
-        {/* Tracking info (shown once shipped) */}
-        {order.status !== 'created' && order.status !== 'paid' && order.tracking_number && (
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Tracking</Text>
-            {order.courier ? (
-              <MetaRow label="Courier" value={order.courier} colors={colors} />
-            ) : null}
-            <MetaRow label="Tracking number" value={order.tracking_number} colors={colors} />
-            {order.shipped_at && (
-              <MetaRow label="Shipped on" value={formatDate(order.shipped_at)} colors={colors} />
-            )}
-          </View>
-        )}
+          {/* ── SELLER: unverified nudge ─────────────────────────── */}
+          {canShip && !order.seller?.is_verified && (
+            <TouchableOpacity
+              style={[styles.nudgeCard, { backgroundColor: colors.amber + '15', borderColor: colors.amber + '35' }]}
+              onPress={() => router.push('/stripe-onboarding')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="shield-checkmark-outline" size={18} color={colors.amber} />
+              <View style={styles.nudgeText}>
+                <Text style={[styles.nudgeTitle, { color: colors.textPrimary }]}>
+                  Complete Dukanoh Verify to receive payment
+                </Text>
+                <Text style={[styles.nudgeSub, { color: colors.textSecondary }]}>
+                  Funds won't reach you until your account is verified.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
 
-        {/* ── SELLER: unverified payment nudge ─────────────────── */}
-        {canShip && !order.seller?.is_verified && (
-          <TouchableOpacity
-            style={[styles.verifyNudge, { backgroundColor: colors.amber + '18', borderColor: colors.amber + '40' }]}
-            onPress={() => router.push('/stripe-onboarding')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="shield-checkmark-outline" size={18} color={colors.amber} />
-            <View style={styles.verifyNudgeText}>
-              <Text style={[styles.verifyNudgeTitle, { color: colors.textPrimary }]}>
-                Complete Dukanoh Verify to receive payment
-              </Text>
-              <Text style={[styles.verifyNudgeSub, { color: colors.textSecondary }]}>
-                Tap to get verified — funds won't reach you until your account is verified.
-              </Text>
+          {/* ── SELLER: ship to address ──────────────────────────── */}
+          {canShip && (
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Ship to</Text>
+              {order.delivery_address_line1 ? (
+                <Text style={[styles.addressText, { color: colors.textPrimary }]}>
+                  {[
+                    order.delivery_address_line1,
+                    order.delivery_address_line2,
+                    order.delivery_city,
+                    order.delivery_postcode,
+                    order.delivery_country,
+                  ].filter(Boolean).join('\n')}
+                </Text>
+              ) : (
+                <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                  No delivery address was saved at checkout.
+                </Text>
+              )}
             </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )}
+          )}
 
-        {/* ── SELLER: delivery address (snapshot from checkout) ─── */}
-        {canShip && (
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Ship to</Text>
-            {order.delivery_address_line1 ? (
-              <Text style={[styles.addressText, { color: colors.textPrimary }]}>
-                {[
-                  order.delivery_address_line1,
-                  order.delivery_address_line2,
-                  order.delivery_city,
-                  order.delivery_postcode,
-                  order.delivery_country,
-                ].filter(Boolean).join('\n')}
-              </Text>
-            ) : (
+          {/* ── SELLER: mark shipped form ────────────────────────── */}
+          {canShip && (
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Ship this order</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                No delivery address was saved at checkout.
+                Enter tracking details and mark as shipped. The buyer has 2 days to confirm receipt.
               </Text>
-            )}
-          </View>
-        )}
+              <View style={[styles.inputWrap, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+                <TextInput
+                  style={[styles.textInput, { color: colors.textPrimary }]}
+                  placeholder="Tracking number *"
+                  placeholderTextColor={colors.textSecondary}
+                  value={trackingNumber}
+                  onChangeText={setTrackingNumber}
+                  underlineColorAndroid="transparent"
+                  autoCapitalize="characters"
+                />
+              </View>
+              <View style={[styles.inputWrap, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+                <TextInput
+                  style={[styles.textInput, { color: colors.textPrimary }]}
+                  placeholder="Courier (e.g. Royal Mail)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={courier}
+                  onChangeText={setCourier}
+                  underlineColorAndroid="transparent"
+                  autoCapitalize="words"
+                />
+              </View>
+              <Button label="Mark as shipped" onPress={handleMarkShipped} loading={submitting} />
+            </View>
+          )}
 
-        {/* ── SELLER: enter tracking + mark shipped ─────────────── */}
-        {canShip && (
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Ship this order</Text>
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              Enter tracking details and mark as shipped. The buyer has 2 days to confirm receipt.
-            </Text>
-            <View style={[styles.inputWrap, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-              <TextInput
-                style={[styles.textInput, { color: colors.textPrimary }]}
-                placeholder="Tracking number *"
-                placeholderTextColor={colors.textSecondary}
-                value={trackingNumber}
-                onChangeText={setTrackingNumber}
-                underlineColorAndroid="transparent"
-                autoCapitalize="characters"
-              />
+          {/* ── BUYER: confirm receipt ───────────────────────────── */}
+          {canConfirm && (
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Has your item arrived?</Text>
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                Confirming receipt releases payment to the seller.
+              </Text>
+              {order.auto_release_at && (
+                <View style={[styles.autoRelease, { backgroundColor: colors.amber + '15', borderColor: colors.amber + '35' }]}>
+                  <Ionicons name="time-outline" size={14} color={colors.amber} />
+                  <Text style={[styles.autoReleaseText, { color: colors.amber }]}>
+                    Funds release automatically on {formatDate(order.auto_release_at)} if you don't confirm
+                  </Text>
+                </View>
+              )}
+              <Button label="Item received" onPress={handleConfirmReceipt} loading={submitting} />
             </View>
-            <View style={[styles.inputWrap, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-              <TextInput
-                style={[styles.textInput, { color: colors.textPrimary }]}
-                placeholder="Courier (e.g. Royal Mail)"
-                placeholderTextColor={colors.textSecondary}
-                value={courier}
-                onChangeText={setCourier}
-                underlineColorAndroid="transparent"
-                autoCapitalize="words"
-              />
+          )}
+
+          {/* ── DISPUTE card ─────────────────────────────────────── */}
+          {isDisputed && (
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <View style={styles.disputeHeader}>
+                <View style={[styles.disputeIcon, { backgroundColor: `${colors.error}15` }]}>
+                  <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Dispute filed</Text>
+                  {order.disputed_at && (
+                    <Text style={[styles.hint, { color: colors.textSecondary }]}>{formatDate(order.disputed_at)}</Text>
+                  )}
+                </View>
+              </View>
+              {order.dispute_reason && (
+                <View style={[styles.reasonPill, { backgroundColor: `${colors.error}12` }]}>
+                  <Text style={[styles.reasonText, { color: colors.error }]}>{order.dispute_reason}</Text>
+                </View>
+              )}
+              {order.dispute_description && (
+                <Text style={[styles.hint, { color: colors.textPrimary }]}>{order.dispute_description}</Text>
+              )}
+              <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                Our team reviews all disputes and will be in touch within 7 days.
+              </Text>
             </View>
+          )}
+        </ScrollView>
+
+        {/* ── Sticky bottom bar ─────────────────────────────────── */}
+        {!isFromCheckout && (
+          <View style={[styles.stickyBar, {
+            borderTopColor: colors.border,
+            backgroundColor: colors.background,
+            paddingBottom: insets.bottom + Spacing.sm,
+          }]}>
             <Button
-              label="Mark as shipped"
-              onPress={handleMarkShipped}
-              loading={submitting}
+              label="Need help with this order?"
+              variant="outline"
+              onPress={handleNeedHelp}
             />
           </View>
         )}
-
-        {/* ── BUYER: confirm receipt + dispute ─────────────────── */}
-        {(canConfirm || canDispute) && (
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Has your item arrived?</Text>
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              Confirming receipt releases payment to the seller. If there's a problem, raise a dispute instead.
-            </Text>
-            {order.auto_release_at && (
-              <View style={[styles.autoReleaseNotice, { backgroundColor: colors.amber + '18', borderColor: colors.amber + '40' }]}>
-                <Ionicons name="time-outline" size={14} color={colors.amber} />
-                <Text style={[styles.autoReleaseText, { color: colors.amber }]}>
-                  Funds release automatically on {formatDate(order.auto_release_at)} if you don't confirm
-                </Text>
-              </View>
-            )}
-            <View style={styles.actionRow}>
-              {canDispute && (
-                <Button
-                  label="Raise dispute"
-                  variant="outline"
-                  onPress={() => router.push(`/order/${order.id}/dispute`)}
-                  style={styles.halfBtn}
-                />
-              )}
-              {canConfirm && (
-                <Button
-                  label="Item received"
-                  onPress={handleConfirmReceipt}
-                  loading={submitting}
-                  style={styles.halfBtn}
-                />
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* ── DISPUTE: resolution card ──────────────────────────── */}
-        {isDisputed && (
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            <View style={styles.disputeHeader}>
-              <View style={[styles.disputeIconWrap, { backgroundColor: `${colors.error}18` }]}>
-                <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Dispute filed</Text>
-                {order.disputed_at && (
-                  <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                    {formatDate(order.disputed_at)}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {order.dispute_reason && (
-              <View style={[styles.disputeReasonPill, { backgroundColor: `${colors.error}14` }]}>
-                <Text style={[styles.disputeReasonText, { color: colors.error }]}>
-                  {order.dispute_reason}
-                </Text>
-              </View>
-            )}
-
-            {order.dispute_description && (
-              <Text style={[styles.hint, { color: colors.textPrimary }]}>
-                {order.dispute_description}
-              </Text>
-            )}
-
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              Our team reviews all disputes and will be in touch within 7 days. You can also contact us directly.
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.supportLink, { borderColor: colors.border }]}
-              onPress={() => Linking.openURL('mailto:support@dukanoh.com?subject=Order Dispute ' + order.id)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="mail-outline" size={16} color={colors.primaryText} />
-              <Text style={[styles.supportLinkText, { color: colors.primaryText }]}>
-                Contact Dukanoh Support
-              </Text>
-            </TouchableOpacity>
-
-            {canWithdrawDispute && (
-              <Button
-                label="Withdraw dispute"
-                variant="outline"
-                onPress={handleWithdrawDispute}
-                loading={submitting}
-              />
-            )}
-          </View>
-        )}
-
-        {/* Cancel */}
-        {canCancel && (
-          <TouchableOpacity style={styles.cancelLink} onPress={handleCancel}>
-            <Text style={[styles.cancelText, { color: colors.error }]}>Cancel order</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
+      </View>
     </ScreenWrapper>
   );
 }
 
-function MetaRow({
-  label,
-  value,
-  bold,
-  colors,
-}: {
-  label: string;
-  value: string;
-  bold?: boolean;
-  colors: ColorTokens;
-}) {
+function MetaRow({ label, value, bold, colors }: { label: string; value: string; bold?: boolean; colors: ColorTokens }) {
   return (
     <View style={metaStyles.row}>
       <Text style={[metaStyles.label, { color: colors.textSecondary }]}>{label}</Text>
-      <Text style={[metaStyles.value, { color: colors.textPrimary, fontFamily: bold ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+      <Text style={[metaStyles.value, { color: colors.textPrimary, fontFamily: bold ? FontFamily.bold : FontFamily.medium }]}>
         {value}
       </Text>
     </View>
@@ -576,79 +580,96 @@ function MetaRow({
 
 const metaStyles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  label: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  label: { fontSize: 13, fontFamily: FontFamily.regular },
   value: { fontSize: 13 },
 });
 
 function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
-    content: {
+    inner: { flex: 1 },
+    scroll: {
       paddingTop: Spacing.base,
-      paddingBottom: Spacing['3xl'],
-      gap: Spacing.md,
+      gap: Spacing.base,
     },
-    statusBanner: {
+    statusPill: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: Spacing.sm,
-      paddingHorizontal: Spacing.base,
-      paddingVertical: Spacing.md,
-      borderRadius: BorderRadius.large,
+      alignSelf: 'flex-start',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: 6,
+      borderRadius: BorderRadius.full,
     },
     statusDot: {
-      width: 8,
-      height: 8,
+      width: 7,
+      height: 7,
       borderRadius: 4,
     },
     statusText: {
-      fontSize: 14,
-      fontFamily: 'Inter_600SemiBold',
+      fontSize: 13,
+      fontFamily: FontFamily.semibold,
+    },
+    imageWrap: {
+      borderRadius: BorderRadius.large,
+      overflow: 'hidden',
+      marginHorizontal: -Spacing.base,
+    },
+    image: {
+      width: '100%',
+      aspectRatio: 4 / 5,
+    },
+    itemInfo: {
+      gap: Spacing.xs,
+    },
+    itemTitle: {
+      fontSize: 16,
+      fontFamily: FontFamily.medium,
+      lineHeight: 22,
+    },
+    itemPrice: {
+      fontSize: 22,
+      fontFamily: FontFamily.bold,
+    },
+    divider: {
+      height: StyleSheet.hairlineWidth,
+      marginHorizontal: -Spacing.base,
+    },
+    section: {
+      gap: Spacing.md,
+    },
+    sectionLabel: {
+      fontSize: 11,
+      fontFamily: FontFamily.semibold,
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
+    },
+    metaDivider: {
+      height: StyleSheet.hairlineWidth,
     },
     card: {
       borderRadius: BorderRadius.large,
       padding: Spacing.base,
       gap: Spacing.md,
     },
-    sectionLabel: {
-      fontSize: 11,
-      fontFamily: 'Inter_600SemiBold',
-      letterSpacing: 0.6,
-      textTransform: 'uppercase',
-    },
-    itemRow: {
+    nudgeCard: {
       flexDirection: 'row',
-      gap: Spacing.md,
+      alignItems: 'center',
+      gap: Spacing.sm,
+      borderRadius: BorderRadius.large,
+      borderWidth: 1,
+      padding: Spacing.base,
     },
-    itemImage: {
-      width: 72,
-      height: 90,
-      borderRadius: BorderRadius.medium,
-    },
-    itemInfo: {
-      flex: 1,
-      justifyContent: 'center',
-      gap: Spacing.xs,
-    },
-    itemTitle: {
-      fontSize: 14,
-      fontFamily: 'Inter_500Medium',
-      lineHeight: 20,
-    },
-    itemPrice: {
-      fontSize: 18,
-      fontFamily: 'Inter_700Bold',
-    },
-    metaDivider: {
-      height: 1,
-    },
+    nudgeText: { flex: 1, gap: 2 },
+    nudgeTitle: { fontSize: 13, fontFamily: FontFamily.semibold },
+    nudgeSub: { fontSize: 12, fontFamily: FontFamily.regular, lineHeight: 17 },
     hint: {
       fontSize: 13,
-      fontFamily: 'Inter_400Regular',
+      fontFamily: FontFamily.regular,
       lineHeight: 18,
     },
     addressText: {
       fontSize: 14,
-      fontFamily: 'Inter_400Regular',
+      fontFamily: FontFamily.regular,
       lineHeight: 22,
     },
     inputWrap: {
@@ -660,9 +681,9 @@ function getStyles(_colors: ColorTokens) {
     },
     textInput: {
       fontSize: 14,
-      fontFamily: 'Inter_400Regular',
+      fontFamily: FontFamily.regular,
     },
-    autoReleaseNotice: {
+    autoRelease: {
       flexDirection: 'row',
       alignItems: 'flex-start',
       gap: Spacing.xs,
@@ -674,30 +695,15 @@ function getStyles(_colors: ColorTokens) {
     autoReleaseText: {
       flex: 1,
       fontSize: 12,
-      fontFamily: 'Inter_400Regular',
+      fontFamily: FontFamily.regular,
       lineHeight: 17,
-    },
-    actionRow: {
-      flexDirection: 'row',
-      gap: Spacing.sm,
-    },
-    halfBtn: {
-      flex: 1,
-    },
-    cancelLink: {
-      alignItems: 'center',
-      paddingVertical: Spacing.base,
-    },
-    cancelText: {
-      fontSize: 14,
-      fontFamily: 'Inter_500Medium',
     },
     disputeHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.md,
     },
-    disputeIconWrap: {
+    disputeIcon: {
       width: 36,
       height: 36,
       borderRadius: BorderRadius.medium,
@@ -705,61 +711,22 @@ function getStyles(_colors: ColorTokens) {
       justifyContent: 'center',
       flexShrink: 0,
     },
-    disputeReasonPill: {
+    reasonPill: {
       alignSelf: 'flex-start',
       paddingHorizontal: Spacing.md,
       paddingVertical: 4,
       borderRadius: BorderRadius.full,
     },
-    disputeReasonText: {
+    reasonText: {
       fontSize: 12,
-      fontFamily: 'Inter_600SemiBold',
+      fontFamily: FontFamily.semibold,
     },
-    divider: {
-      height: 1,
-    },
-    supportLink: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      borderWidth: 1,
-      borderRadius: BorderRadius.medium,
+    stickyBar: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingTop: Spacing.base,
       paddingHorizontal: Spacing.base,
-      paddingVertical: Spacing.md,
     },
-    supportLinkText: {
-      fontSize: 14,
-      fontFamily: 'Inter_500Medium',
-    },
-    verifyNudge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-      borderRadius: BorderRadius.large,
-      borderWidth: 1,
-      padding: Spacing.base,
-    },
-    verifyNudgeText: {
-      flex: 1,
-      gap: 2,
-    },
-    verifyNudgeTitle: {
-      fontSize: 13,
-      fontFamily: 'Inter_600SemiBold',
-    },
-    verifyNudgeSub: {
-      fontSize: 12,
-      fontFamily: 'Inter_400Regular',
-      lineHeight: 17,
-    },
-    notFound: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    notFoundText: {
-      fontSize: 14,
-      fontFamily: 'Inter_400Regular',
-    },
+    notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    notFoundText: { fontSize: 14, fontFamily: FontFamily.regular },
   });
 }

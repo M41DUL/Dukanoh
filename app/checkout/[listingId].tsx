@@ -309,7 +309,7 @@ export default function CheckoutScreen() {
           .eq('listing_id', listing.id)
           .single();
         if (existing?.buyer_id === user.id) {
-          router.replace(`/order/${existing.id}`);
+          router.replace(`/order/${existing.id}?fromCheckout=true`);
         } else {
           Alert.alert('Just missed it', 'Someone just bought this item. Browse to find something else.');
           router.back();
@@ -327,7 +327,7 @@ export default function CheckoutScreen() {
       .eq('id', listing.id);
 
     setPlacing(false);
-    router.replace(`/order/${order.id}`);
+    router.replace(`/order/${order.id}?fromCheckout=true`);
   };
 
   if (loading) {
