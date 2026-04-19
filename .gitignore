@@ -1,5 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+# Test files (may contain JWT tokens)
+test/edge-functions.http
+
 # dependencies
 node_modules/
 
