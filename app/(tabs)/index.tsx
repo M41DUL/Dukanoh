@@ -25,6 +25,7 @@ import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useFeed } from '@/hooks/useFeed';
 import { useBlocked } from '@/context/BlockedContext';
 import { JustSoldToast } from '@/components/JustSoldToast';
+import { JUST_SOLD_TOAST_ENABLED } from '@/lib/featureFlags';
 import { DukanohFitSheet } from '@/components/DukanohFitSheet';
 
 export default function HomeScreen() {
@@ -187,7 +188,7 @@ export default function HomeScreen() {
             )}
           </ScrollView>
         )}
-        <JustSoldToast />
+        {JUST_SOLD_TOAST_ENABLED && <JustSoldToast />}
       </View>
       <DukanohFitSheet visible={fitSheetVisible} onClose={() => setFitSheetVisible(false)} />
     </ScreenWrapper>
