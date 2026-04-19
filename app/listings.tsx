@@ -221,7 +221,7 @@ export default function ListingsScreen() {
 
   // ─── Build query ──────────────────────────────────────────
   const buildQuery = useCallback(() => {
-    let orderCol = 'created_at';
+    let orderCol = 'published_at';
     let ascending = false;
     if (sort === 'price_asc') { orderCol = 'price'; ascending = true; }
     else if (sort === 'price_desc') { orderCol = 'price'; ascending = false; }
@@ -230,7 +230,7 @@ export default function ListingsScreen() {
 
     let q = supabase
       .from('listings')
-      .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, fabric, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
+      .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, fabric, save_count, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
       .order(orderCol, { ascending });
 
     if (!myListings) q = q.eq('status', 'available');

@@ -47,7 +47,7 @@ const ALL_CATEGORIES = (Categories as unknown as string[]).filter(c => c !== 'Al
 
 export default function EditListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, isVerified } = useAuth();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -206,6 +206,7 @@ export default function EditListingScreen() {
           worn_at: form.worn_at.trim() || null,
           images: imageUrls,
           status: newStatus,
+          ...(newStatus === 'available' ? { published_at: new Date().toISOString() } : {}),
         })
         .eq('id', id);
       if (error) throw error;
@@ -396,8 +397,14 @@ export default function EditListingScreen() {
                 style={styles.draftBtn}
               />
               <Button
-                label="Publish"
-                onPress={() => save('available')}
+                label={isVerified ? 'Publish' : 'Verify to publish'}
+                onPress={() => {
+                  if (!isVerified) {
+                    router.push('/stripe-onboarding');
+                    return;
+                  }
+                  save('available');
+                }}
                 loading={saving}
                 style={styles.listBtn}
               />

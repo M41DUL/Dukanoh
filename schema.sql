@@ -93,6 +93,7 @@ CREATE TABLE public.listings (
   view_count      INT DEFAULT 0,
   save_count      INT DEFAULT 0,
   sold_at         TIMESTAMPTZ,
+  published_at    TIMESTAMPTZ,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   -- Seller Hub
   is_boosted      BOOLEAN DEFAULT FALSE,
@@ -132,6 +133,7 @@ CREATE POLICY "Sellers can delete their own collections"
 -- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS seller_invite_code TEXT UNIQUE;
 -- UPDATE public.users SET seller_invite_code = upper(substring(md5(random()::text), 1, 8)) WHERE seller_invite_code IS NULL;
 -- ALTER TABLE public.listings ADD CONSTRAINT listings_price_check CHECK (price >= 0 AND price <= 2000);
+-- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
 
 -- Conversations (one per listing + buyer pair)
 CREATE TABLE public.conversations (
@@ -367,7 +369,13 @@ ALTER TABLE public.saved_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own saved"
   ON public.saved_items FOR SELECT USING ((select auth.uid()) = user_id);
 CREATE POLICY "Users can save listings"
-  ON public.saved_items FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+  ON public.saved_items FOR INSERT WITH CHECK (
+    (select auth.uid()) = user_id
+    AND EXISTS (
+      SELECT 1 FROM public.listings l
+      WHERE l.id = listing_id AND l.status IN ('available', 'sold')
+    )
+  );
 CREATE POLICY "Users can unsave listings"
   ON public.saved_items FOR DELETE USING ((select auth.uid()) = user_id);
 
@@ -499,27 +507,43 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- Atomically consume an invite code and activate the user as a seller.
--- Returns TRUE if both steps succeeded; rolls back entirely on failure.
-CREATE OR REPLACE FUNCTION public.activate_seller(p_code TEXT, p_user_id UUID)
+-- Atomically consume an invite code (if provided) and activate the user as a seller.
+-- p_code = NULL skips invite check (used when SELLER_INVITE_REQUIRED feature flag is off).
+-- Always generates 3 single-use invite codes for the newly activated seller.
+-- Returns TRUE on success, FALSE if a code was provided but invalid/already used.
+CREATE OR REPLACE FUNCTION public.activate_seller(p_user_id UUID, p_code TEXT DEFAULT NULL)
 RETURNS BOOLEAN AS $$
 DECLARE
   v_updated INT;
+  v_username TEXT;
+  v_i INT;
+  v_code TEXT;
 BEGIN
-  -- Consume the invite
-  UPDATE public.invites
-  SET is_used = TRUE, used_at = NOW()
-  WHERE code = p_code AND is_used = FALSE;
+  -- If a code was provided, consume it
+  IF p_code IS NOT NULL THEN
+    UPDATE public.invites
+    SET is_used = TRUE, used_at = NOW(), used_by = p_user_id
+    WHERE code = p_code AND is_used = FALSE;
 
-  GET DIAGNOSTICS v_updated = ROW_COUNT;
-  IF v_updated = 0 THEN
-    RETURN FALSE;
+    GET DIAGNOSTICS v_updated = ROW_COUNT;
+    IF v_updated = 0 THEN
+      RETURN FALSE;
+    END IF;
   END IF;
 
   -- Activate seller
   UPDATE public.users
   SET is_seller = TRUE
   WHERE id = p_user_id;
+
+  -- Generate 3 single-use invite codes for this seller
+  SELECT username INTO v_username FROM public.users WHERE id = p_user_id;
+  FOR v_i IN 1..3 LOOP
+    v_code := upper(substring(v_username, 1, 5)) || '-' || upper(substring(md5(random()::text), 1, 4));
+    INSERT INTO public.invites (code, created_by)
+    VALUES (v_code, p_user_id)
+    ON CONFLICT (code) DO NOTHING;
+  END LOOP;
 
   RETURN TRUE;
 END;

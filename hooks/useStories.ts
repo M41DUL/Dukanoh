@@ -56,7 +56,7 @@ export interface StoryListing {
   status: 'available' | 'sold';
   viewed: boolean;
   is_boosted?: boolean;
-  created_at?: string;
+  published_at?: string;
   seller_id?: string;
   seller: {
     username: string;
@@ -65,7 +65,7 @@ export interface StoryListing {
 }
 
 const LISTING_SELECT =
-  'id, title, price, images, category, condition, status, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)';
+  'id, title, price, images, category, condition, status, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)';
 
 export function useStories() {
   const { user } = useAuth();
@@ -87,14 +87,14 @@ export function useStories() {
       { data: viewedListings },
       { data: viewedStories },
     ] = await Promise.all([
-      // Organic: listed in last 5 hours, exclude own
+      // Organic: published in last 5 hours, exclude own
       supabase
         .from('listings')
         .select(LISTING_SELECT)
         .eq('status', 'available')
         .neq('seller_id', user.id)
-        .gte('created_at', since5h)
-        .order('created_at', { ascending: false })
+        .gte('published_at', since5h)
+        .order('published_at', { ascending: false })
         .limit(50),
 
       // Active boosts from boosts table — source of truth
@@ -133,7 +133,7 @@ export function useStories() {
           .in('id', boostedIds)
           .eq('status', 'available')
           .neq('seller_id', user.id)
-          .order('created_at', { ascending: false })
+          .order('published_at', { ascending: false })
           .limit(20)
         ).data
       : [];

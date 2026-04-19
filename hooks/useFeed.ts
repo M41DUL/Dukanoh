@@ -168,7 +168,7 @@ async function fetchSuggestedSection(
       .select(SUGGESTED_SELECT)
       .eq('status', 'available')
       .neq('seller_id', userId)
-      .order('created_at', { ascending: false })
+      .order('published_at', { ascending: false })
       .limit(25); // fetch extra to allow for diversity filtering
     if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
     return q;
@@ -194,9 +194,10 @@ async function fetchSuggestedSection(
     }
   }
 
-  // Re-sort merged results by newest first
+  // Re-sort merged results by published_at desc
   merged.sort((a, b) =>
-    new Date((b as any).created_at).getTime() - new Date((a as any).created_at).getTime()
+    new Date((b as any).published_at ?? (b as any).created_at).getTime() -
+    new Date((a as any).published_at ?? (a as any).created_at).getTime()
   );
 
   // Apply seller diversity cap: max 2 listings per seller
@@ -223,7 +224,7 @@ async function fetchNewArrivals(
     .select(SUGGESTED_SELECT)
     .eq('status', 'available')
     .neq('seller_id', userId)
-    .order('created_at', { ascending: false })
+    .order('published_at', { ascending: false })
     .limit(25); // fetch extra to allow for diversity filtering
 
   if (blockedIds.length > 0) query = query.not('seller_id', 'in', `(${blockedIds.join(',')})`);

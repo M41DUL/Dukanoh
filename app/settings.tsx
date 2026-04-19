@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, Share } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -12,6 +12,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlocked } from '@/context/BlockedContext';
 import { supabase } from '@/lib/supabase';
+import { SELLER_INVITE_REQUIRED } from '@/lib/featureFlags';
 import type { ComponentProps } from 'react';
 import Constants from 'expo-constants';
 
@@ -27,7 +28,7 @@ interface MenuRow {
 }
 
 export default function SettingsScreen() {
-  const { user, signOut, refreshProfile } = useAuth();
+  const { user, isSeller, signOut, refreshProfile } = useAuth();
   const { blockedIds, unblockUser } = useBlocked();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -36,8 +37,27 @@ export default function SettingsScreen() {
   const [blockedSheetVisible, setBlockedSheetVisible] = useState(false);
   const [blockedUsers, setBlockedUsers] = useState<{ id: string; username: string; avatar_url?: string }[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
+  const [inviteCodes, setInviteCodes] = useState<{ code: string; is_used: boolean; used_by_username?: string }[]>([]);
 
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+
+  useEffect(() => {
+    if (!SELLER_INVITE_REQUIRED || !isSeller || !user) return;
+    (async () => {
+      const { data } = await supabase
+        .from('invites')
+        .select('code, is_used, used_by:users!invites_used_by_fkey(username)')
+        .eq('created_by', user.id)
+        .order('created_at', { ascending: true });
+      if (data) {
+        setInviteCodes(data.map((row: any) => ({
+          code: row.code,
+          is_used: row.is_used,
+          used_by_username: row.used_by?.username,
+        })));
+      }
+    })();
+  }, [user, isSeller]);
 
   React.useEffect(() => {
     if (!user) return;
@@ -247,6 +267,39 @@ export default function SettingsScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {renderSection(sellingRows, 'Selling')}
+
+        {SELLER_INVITE_REQUIRED && isSeller && inviteCodes.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Invite a Seller</Text>
+            {inviteCodes.map(invite => (
+              <View key={invite.code} style={[styles.inviteRow, { borderBottomColor: colors.border }]}>
+                <View style={styles.inviteLeft}>
+                  <Text style={[styles.inviteCode, { color: invite.is_used ? colors.textSecondary : colors.textPrimary }]}>
+                    {invite.code}
+                  </Text>
+                  <Text style={[styles.inviteStatus, { color: colors.textSecondary }]}>
+                    {invite.is_used ? `Used by @${invite.used_by_username ?? 'someone'}` : 'Available'}
+                  </Text>
+                </View>
+                {!invite.is_used && (
+                  <TouchableOpacity
+                    style={[styles.shareBtn, { backgroundColor: colors.primaryLight }]}
+                    onPress={() =>
+                      Share.share({
+                        message: `I've invited you to sell on Dukanoh — the curated South Asian fashion marketplace. Use code ${invite.code} to get started.`,
+                      })
+                    }
+                    hitSlop={8}
+                  >
+                    <Ionicons name="share-outline" size={16} color={colors.primary} />
+                    <Text style={[styles.shareBtnText, { color: colors.primary }]}>Share</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
         {renderSection(accountRows)}
         {renderSection(supportRows)}
         {renderSection(legalRows)}
@@ -306,6 +359,39 @@ function getStyles(colors: ColorTokens) {
     content: {
       paddingTop: Spacing.lg,
       paddingBottom: Spacing['3xl'],
+    },
+
+    // Invite codes
+    inviteRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: Spacing.md,
+      borderBottomWidth: 1,
+    },
+    inviteLeft: {
+      gap: 2,
+    },
+    inviteCode: {
+      fontSize: 15,
+      fontFamily: FontFamily.semibold,
+      letterSpacing: 0.5,
+    },
+    inviteStatus: {
+      fontSize: 12,
+      fontFamily: FontFamily.regular,
+    },
+    shareBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.xs,
+      borderRadius: BorderRadius.full,
+    },
+    shareBtnText: {
+      fontSize: 13,
+      fontFamily: FontFamily.semibold,
     },
 
     // Sections
