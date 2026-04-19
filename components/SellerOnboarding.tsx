@@ -24,6 +24,7 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { supabase } from '@/lib/supabase';
+import { SELLER_INVITE_REQUIRED } from '@/lib/featureFlags';
 
 const LINE_HEIGHT = 44;
 const LINES = ['Snap, upload', 'and start earning', 'in minutes.'];
@@ -90,15 +91,18 @@ export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps)
   }, []); // one-time entrance animation — animated values are stable refs
 
   const handleSubmit = async () => {
-    if (!code.trim()) { setError('Please enter your invite code'); return; }
+    if (SELLER_INVITE_REQUIRED && !code.trim()) {
+      setError('Please enter your invite code');
+      return;
+    }
     Keyboard.dismiss();
     setLoading(true);
     setError('');
 
     try {
       const { data: activated, error: rpcError } = await supabase.rpc('activate_seller', {
-        p_code: code.trim().toUpperCase(),
         p_user_id: userId,
+        ...(SELLER_INVITE_REQUIRED ? { p_code: code.trim().toUpperCase() } : {}),
       });
 
       if (rpcError) throw rpcError;
@@ -179,31 +183,33 @@ export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps)
 
         {/* CTA section */}
         <Animated.View style={[styles.ctaSection, { opacity: ctaOpacity, transform: [{ translateY: ctaY }] }]}>
-          <Input
-            placeholder="Invite code"
-            value={code}
-            onChangeText={text => { setCode(text); setError(''); }}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            error={error}
-            inputContainerStyle={styles.inputContainer}
-            placeholderColor="rgba(255,255,255,0.4)"
-            style={styles.inputText}
-            hintColor="rgba(255,255,255,0.5)"
-          />
+          {SELLER_INVITE_REQUIRED && (
+            <Input
+              placeholder="Invite code"
+              value={code}
+              onChangeText={text => { setCode(text); setError(''); }}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              error={error}
+              inputContainerStyle={styles.inputContainer}
+              placeholderColor="rgba(255,255,255,0.4)"
+              style={styles.inputText}
+              hintColor="rgba(255,255,255,0.5)"
+            />
+          )}
           <TouchableOpacity
-            style={[styles.submitBtn, !code.trim() && styles.submitBtnDisabled]}
+            style={[styles.submitBtn, (SELLER_INVITE_REQUIRED && !code.trim()) && styles.submitBtnDisabled]}
             onPress={handleSubmit}
             activeOpacity={0.85}
-            disabled={!code.trim() || loading}
+            disabled={(SELLER_INVITE_REQUIRED && !code.trim()) || loading}
             accessibilityRole="button"
-            accessibilityLabel="List my first item"
+            accessibilityLabel={SELLER_INVITE_REQUIRED ? 'List my first item' : 'Start selling'}
           >
             {loading ? (
               <ActivityIndicator color="#0D0D0D" />
             ) : (
-              <Text style={[styles.submitBtnText, !code.trim() && styles.submitBtnTextDisabled]}>
-                List my first item
+              <Text style={[styles.submitBtnText, (SELLER_INVITE_REQUIRED && !code.trim()) && styles.submitBtnTextDisabled]}>
+                {SELLER_INVITE_REQUIRED ? 'List my first item' : 'Start selling'}
               </Text>
             )}
           </TouchableOpacity>

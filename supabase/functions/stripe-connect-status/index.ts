@@ -84,6 +84,31 @@ Deno.serve(async (req) => {
         { onConflict: 'seller_id', ignoreDuplicates: true }
       );
 
+      // Auto-publish drafts with staggered published_at (10 min apart) so they
+      // drip into the feed naturally rather than flooding all at once.
+      const { data: drafts } = await supabase
+        .from('listings')
+        .select('id')
+        .eq('seller_id', userId)
+        .eq('status', 'draft')
+        .order('created_at', { ascending: true });
+
+      if (drafts && drafts.length > 0) {
+        const now = Date.now();
+        const TEN_MINUTES_MS = 10 * 60 * 1000;
+        await Promise.all(
+          drafts.map((draft, i) =>
+            supabase
+              .from('listings')
+              .update({
+                status: 'available',
+                published_at: new Date(now + i * TEN_MINUTES_MS).toISOString(),
+              })
+              .eq('id', draft.id)
+          )
+        );
+      }
+
       const { data: claimedOrders } = await supabase
         .from('orders')
         .update({ seller_verify_deadline: null })

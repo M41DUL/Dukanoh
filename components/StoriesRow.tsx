@@ -109,7 +109,7 @@ function ListingStoryViewer({
             <Text style={viewerStyles.sponsoredText}>Sponsored</Text>
           </View>
         )}
-        <Text style={viewerStyles.topTime}>{timeAgo(story.created_at)}</Text>
+        <Text style={viewerStyles.topTime}>{timeAgo(story.published_at)}</Text>
         <View style={{ flex: 1 }} />
         <TouchableOpacity onPress={onClose} hitSlop={16} style={viewerStyles.topCloseBtn} accessibilityLabel="Close story" accessibilityRole="button">
           <Ionicons name="close" size={26} color="#fff" />

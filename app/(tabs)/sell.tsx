@@ -28,21 +28,25 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SellerOnboarding } from '@/components/SellerOnboarding';
+import { VerificationNudgeSheet } from '@/components/VerificationNudgeSheet';
 import { Select, SelectHandle } from '@/components/Select';
-import { Typography, Spacing, BorderRadius, BorderWidth, Genders, Categories, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, Genders, Categories, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens, FontFamily } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { compressImage, compressImageForAnalysis } from '@/lib/imageUtils';
 import { validateListing, buildMeasurements, isFormDirty as checkFormDirty, ListingForm, CATEGORY_TO_GENDER } from '@/lib/sellHelpers';
 import { useAuth } from '@/hooks/useAuth';
+
+const NUDGE_SEEN_KEY = 'has_seen_verification_nudge';
 
 
 const ALL_CATEGORIES = Categories.filter(c => c !== 'All') as string[];
 
 export default function SellScreen() {
-  const { user, isSeller, loading: authLoading, refreshProfile } = useAuth();
+  const { user, isSeller, isVerified, loading: authLoading, refreshProfile } = useAuth();
   const isFocused = useIsFocused();
   const emptyForm: ListingForm = {
     title: '', description: '', price: '', gender: '', category: '',
@@ -58,6 +62,7 @@ export default function SellScreen() {
   const [coverWarnings, setCoverWarnings] = useState<string[]>([]);
   const [analysingImages, setAnalysingImages] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showNudge, setShowNudge] = useState(false);
   const successAnim = useRef(new Animated.Value(0)).current;;
   const colors = useThemeColors();
   const { isDark } = useTheme();
@@ -374,7 +379,10 @@ export default function SellScreen() {
     if (!validate(status === 'draft') || !user) return;
     Keyboard.dismiss();
 
-    setSubmitting(status);
+    // Unverified sellers always save as draft regardless of intent
+    const effectiveStatus = !isVerified && status === 'available' ? 'draft' : status;
+
+    setSubmitting(effectiveStatus);
     try {
       const imageUrls = await uploadImages();
 
@@ -393,12 +401,18 @@ export default function SellScreen() {
         measurements: buildMeasurements(measurementsNote),
         worn_at: form.worn_at.trim() || null,
         images: imageUrls,
-        status,
+        status: effectiveStatus,
+        published_at: effectiveStatus === 'available' ? new Date().toISOString() : null,
       });
 
       if (error) throw error;
 
-      if (status === 'available') {
+      if (effectiveStatus === 'available') {
+        setShowSuccess(true);
+        successAnim.setValue(0);
+        Animated.spring(successAnim, { toValue: 1, speed: 8, bounciness: 10, useNativeDriver: true }).start();
+      } else if (status === 'available' && !isVerified) {
+        // User tapped "List Piece" but isn't verified — show success then nudge
         setShowSuccess(true);
         successAnim.setValue(0);
         Animated.spring(successAnim, { toValue: 1, speed: 8, bounciness: 10, useNativeDriver: true }).start();
@@ -408,7 +422,7 @@ export default function SellScreen() {
         ]);
       }
     } catch (err: unknown) {
-      const action = status === 'draft' ? 'save draft' : 'create listing';
+      const action = effectiveStatus === 'draft' ? 'save draft' : 'create listing';
       Alert.alert('Error', err instanceof Error ? err.message : `Failed to ${action}.`);
     } finally {
       setSubmitting(null);
@@ -438,38 +452,59 @@ export default function SellScreen() {
     );
   }
 
+  const handleSuccessDismiss = async (action: 'profile' | 'another') => {
+    setShowSuccess(false);
+    resetForm();
+    if (!isVerified) {
+      const seen = await AsyncStorage.getItem(NUDGE_SEEN_KEY);
+      if (!seen) {
+        await AsyncStorage.setItem(NUDGE_SEEN_KEY, 'true');
+        setShowNudge(true);
+      }
+    }
+    if (action === 'profile') router.push('/(tabs)/profile');
+  };
+
   if (showSuccess) {
+    const isDraft = !isVerified;
     return (
       <ScreenWrapper>
         <View style={styles.successContainer}>
           <Animated.View style={[styles.successCircle, {
             transform: [{ scale: successAnim }],
             opacity: successAnim,
+            backgroundColor: isDraft ? colors.surface : colors.primary,
           }]}>
-            <Ionicons name="checkmark" size={48} color="#fff" />
+            <Ionicons name={isDraft ? 'bookmark' : 'checkmark'} size={48} color={isDraft ? colors.primary : '#fff'} />
           </Animated.View>
-          <Animated.Text style={[styles.successTitle, { opacity: successAnim }]}>
-            You're live!
+          <Animated.Text style={[styles.successTitle, { opacity: successAnim, color: colors.textPrimary }]}>
+            {isDraft ? 'Listing saved' : "You're live!"}
           </Animated.Text>
-          <Animated.Text style={[styles.successSubtitle, { opacity: successAnim }]}>
-            Your piece is now listed and visible to members.
+          <Animated.Text style={[styles.successSubtitle, { opacity: successAnim, color: colors.textSecondary }]}>
+            {isDraft
+              ? 'Complete verification to publish it — we\'ll release it to buyers once you\'re verified.'
+              : 'Your piece is now listed and visible to members.'}
           </Animated.Text>
           <View style={styles.successActions}>
             <Button
               label="View profile"
               variant="outline"
-              onPress={() => { setShowSuccess(false); resetForm(); router.push('/(tabs)/profile'); }}
+              onPress={() => handleSuccessDismiss('profile')}
               style={styles.successBtn}
               borderColor={colors.border}
               textColor={colors.textPrimary}
             />
             <Button
               label="List another"
-              onPress={() => { setShowSuccess(false); resetForm(); }}
+              onPress={() => handleSuccessDismiss('another')}
               style={styles.successBtn}
             />
           </View>
         </View>
+        <VerificationNudgeSheet
+          visible={showNudge}
+          onDismiss={() => setShowNudge(false)}
+        />
       </ScreenWrapper>
     );
   }
@@ -480,6 +515,21 @@ export default function SellScreen() {
         <Header title="New Listing" />
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      {/* Verification nudge banner */}
+      {isSeller && !isVerified && (
+        <TouchableOpacity
+          style={[styles.verifyBanner, { backgroundColor: colors.primaryLight }]}
+          onPress={() => router.push('/stripe-onboarding')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="shield-outline" size={16} color={colors.primary} />
+          <Text style={[styles.verifyBannerText, { color: colors.primary }]}>
+            Get paid — complete verification
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+        </TouchableOpacity>
+      )}
+
       {/* Progress bar */}
       <View style={styles.progressBar}>
         <View style={[styles.progressFill, { width: `${scrollProgress * 100}%` }]} />
@@ -788,6 +838,18 @@ export default function SellScreen() {
 
 function getStyles(colors: ColorTokens, isDark: boolean) {
   return StyleSheet.create({
+    verifyBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.xs,
+      paddingHorizontal: Spacing.base,
+      paddingVertical: Spacing.sm,
+    },
+    verifyBannerText: {
+      flex: 1,
+      fontSize: 13,
+      fontFamily: FontFamily.semibold,
+    },
     progressBar: {
       height: 2,
       backgroundColor: colors.border,
