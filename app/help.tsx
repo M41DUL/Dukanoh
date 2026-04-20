@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Linking, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
@@ -7,7 +8,6 @@ import { Divider } from '@/components/Divider';
 import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
-const SUPPORT_EMAIL = 'support@dukanoh.com';
 
 interface FAQ {
   question: string;
@@ -75,17 +75,17 @@ export default function HelpScreen() {
         </View>
 
         {/* Get in touch */}
-        <Text style={styles.sectionTitle}>Get in touch</Text>
+        <Text style={styles.sectionTitle}>Still need help?</Text>
         <Text style={styles.contactBody}>
-          Can't find what you're looking for? We're happy to help.
+          Can't find what you're looking for? Send us a message and we'll get back to you.
         </Text>
         <TouchableOpacity
           style={styles.emailBtn}
-          onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
+          onPress={() => router.push('/feedback')}
           activeOpacity={0.7}
         >
-          <Ionicons name="mail-outline" size={20} color={colors.primaryText} />
-          <Text style={styles.emailBtnText}>{SUPPORT_EMAIL}</Text>
+          <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.primary} />
+          <Text style={styles.emailBtnText}>Send us a message</Text>
           <Ionicons name="arrow-forward" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
       </ScrollView>
@@ -142,7 +142,7 @@ function getStyles(colors: ColorTokens) {
       flex: 1,
       fontSize: 15,
       fontFamily: FontFamily.semibold,
-      color: colors.primaryText,
+      color: colors.textPrimary,
     },
   });
 }
