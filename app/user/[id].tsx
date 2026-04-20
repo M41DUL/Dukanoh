@@ -34,6 +34,7 @@ interface Seller {
   rating_count?: number;
   created_at?: string;
   is_verified?: boolean;
+  is_official?: boolean;
   is_seller?: boolean;
   seller_tier?: string;
   avg_response_time_mins?: number | null;
@@ -86,7 +87,7 @@ export default function SellerProfileScreen() {
     if (!id) return;
 
     Promise.all([
-      supabase.from('users').select('id, username, avatar_url, bio, rating_avg, rating_count, created_at, is_verified, is_seller, seller_tier, avg_response_time_mins').eq('id', id).single(),
+      supabase.from('users').select('id, username, avatar_url, bio, rating_avg, rating_count, created_at, is_verified, is_official, is_seller, seller_tier, avg_response_time_mins').eq('id', id).single(),
       supabase
         .from('listings')
         .select('id, title, price, original_price, price_dropped_at, images, status, category, size, condition, save_count, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
@@ -219,7 +220,7 @@ export default function SellerProfileScreen() {
     const options: { text: string; onPress?: () => void; style?: 'cancel' | 'destructive' | 'default' }[] = [
       { text: 'Share', onPress: handleShare },
     ];
-    if (!isOwnProfile) {
+    if (!isOwnProfile && !seller?.is_official) {
       options.push({ text: 'Report user', onPress: handleReport });
       options.push({ text: 'Block user', style: 'destructive', onPress: handleBlock });
     }
@@ -276,6 +277,11 @@ export default function SellerProfileScreen() {
             <View style={styles.profileInfo}>
               <View style={styles.usernameRow}>
                 <Text style={styles.username}>@{seller.username}</Text>
+                {seller.is_official && (
+                  <View style={[styles.badgePill, { backgroundColor: '#0D0D0D' }]}>
+                    <Text style={[styles.badgePillText, { color: '#FFFFFF' }]}>Official</Text>
+                  </View>
+                )}
                 {seller.is_verified && (
                   <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
                     <Text style={[styles.badgePillText, { color: colors.primaryText }]}>✓ Verified</Text>

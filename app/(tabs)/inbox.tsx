@@ -9,7 +9,7 @@ import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Divider } from '@/components/Divider';
-import { Typography, Spacing, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, FontFamily, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,7 +21,7 @@ interface Conversation {
   listing_id: string;
   listing_title: string;
   is_buyer: boolean;
-  other_user: { username: string; avatar_url?: string };
+  other_user: { username: string; avatar_url?: string; is_official?: boolean };
   last_message: string;
   updated_at: string;
   unread: boolean;
@@ -56,8 +56,8 @@ export default function InboxScreen() {
         updated_at,
         deleted_by_buyer,
         deleted_by_seller,
-        buyer:users!conversations_buyer_id_fkey ( username, avatar_url ),
-        seller:users!conversations_seller_id_fkey ( username, avatar_url ),
+        buyer:users!conversations_buyer_id_fkey ( username, avatar_url, is_official ),
+        seller:users!conversations_seller_id_fkey ( username, avatar_url, is_official ),
         listing:listings!conversations_listing_id_fkey ( title )
       `)
       .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
@@ -84,7 +84,7 @@ export default function InboxScreen() {
             listing_id: c.listing_id,
             listing_title: c.listing?.title ?? '',
             is_buyer: isBuyer,
-            other_user: { username: other?.username ?? 'Unknown', avatar_url: other?.avatar_url },
+            other_user: { username: other?.username ?? 'Unknown', avatar_url: other?.avatar_url, is_official: other?.is_official ?? false },
             last_message: c.last_message ?? '',
             updated_at: c.updated_at,
             unread: !!c.last_message_sender_id && c.last_message_sender_id !== user.id,
@@ -278,6 +278,11 @@ export default function InboxScreen() {
         <View style={styles.rowContent}>
           <View style={styles.rowHeader}>
             <Text style={[styles.username, item.unread && styles.usernameUnread]} numberOfLines={1}>@{item.other_user.username}</Text>
+            {item.other_user.is_official && (
+              <View style={styles.officialPill}>
+                <Text style={styles.officialPillText}>Official</Text>
+              </View>
+            )}
             {item.unread && <View style={styles.unreadDot} />}
             <Text style={[styles.time, item.unread && styles.timeUnread]}>{formatTime(item.updated_at)}</Text>
           </View>
@@ -381,6 +386,17 @@ function getStyles(colors: ColorTokens) {
     },
     usernameUnread: {
       fontFamily: 'Inter_700Bold',
+    },
+    officialPill: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: BorderRadius.full,
+      backgroundColor: '#0D0D0D',
+    },
+    officialPillText: {
+      fontSize: 10,
+      fontFamily: FontFamily.semibold,
+      color: '#FFFFFF',
     },
     unreadDot: {
       width: 8,

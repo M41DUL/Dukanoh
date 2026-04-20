@@ -49,6 +49,8 @@ CREATE TABLE public.users (
   sale_mode_discount_pct      INT,
   -- Verified status (set via Stripe Connect onboarding webhook)
   is_verified                 BOOLEAN DEFAULT FALSE,
+  -- Official brand account flag (e.g. @dukanoh)
+  is_official                 BOOLEAN DEFAULT FALSE,
   -- Cancellation accountability
   cancellation_strike_count   INT NOT NULL DEFAULT 0,
   account_status              TEXT NOT NULL DEFAULT 'active' CHECK (account_status IN ('active', 'warned', 'suspended')),
@@ -716,6 +718,7 @@ CREATE INDEX idx_notifications_user ON public.notifications (user_id);
 
 -- New columns on users (payments + address)
 -- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
+-- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_official BOOLEAN DEFAULT FALSE;
 -- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address_line1 TEXT;
 -- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address_line2 TEXT;
 -- ALTER TABLE public.users ADD COLUMN IF NOT EXISTS city TEXT;
@@ -1439,3 +1442,28 @@ SELECT cron.schedule(
   '0 5 * * 0',
   'SELECT public.cleanup_messages()'
 );
+
+-- User feedback
+CREATE TABLE public.feedback (
+  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id    UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  type       TEXT NOT NULL CHECK (type IN ('bug', 'feature', 'general')),
+  message    TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert their own feedback"
+  ON public.feedback FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can read all feedback"
+  ON public.feedback FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.platform_settings
+      WHERE key = 'admin_user_ids'
+        AND value::jsonb @> to_jsonb(auth.uid()::text)
+    )
+  );

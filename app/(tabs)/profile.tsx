@@ -29,7 +29,7 @@ const STALE_MS = 30_000;
 
 
 export default function ProfileScreen() {
-  const { user, username, isVerified, sellerTier, refreshProfile } = useAuth();
+  const { user, username, isVerified, isOfficial, sellerTier, refreshProfile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
@@ -123,6 +123,11 @@ export default function ProfileScreen() {
           ) : null}
           <View style={styles.usernameRow}>
             <Text style={styles.username}>@{username}</Text>
+            {isOfficial && (
+              <View style={[styles.badgePill, { backgroundColor: '#0D0D0D' }]}>
+                <Text style={[styles.badgePillText, { color: '#FFFFFF' }]}>Official</Text>
+              </View>
+            )}
             {isVerified && (
               <View style={[styles.badgePill, { backgroundColor: colors.primaryLight }]}>
                 <Text style={[styles.badgePillText, { color: colors.primaryText }]}>✓ Verified</Text>

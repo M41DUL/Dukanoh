@@ -28,7 +28,7 @@ interface MenuRow {
 }
 
 export default function SettingsScreen() {
-  const { user, isSeller, signOut, refreshProfile } = useAuth();
+  const { user, isSeller, isOfficial, signOut, refreshProfile } = useAuth();
   const { blockedIds, unblockUser } = useBlocked();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -202,6 +202,12 @@ export default function SettingsScreen() {
       subtitle: 'Learn the basics',
       onPress: () => router.push('/how-it-works'),
     },
+    {
+      icon: 'chatbubble-ellipses-outline',
+      title: 'Send Feedback',
+      subtitle: 'Report a bug or suggest a feature',
+      onPress: () => router.push('/feedback'),
+    },
   ];
 
   const legalRows: MenuRow[] = [
@@ -312,6 +318,18 @@ export default function SettingsScreen() {
             subtitle: 'Admin — resolve buyer/seller disputes',
             onPress: () => router.push('/admin/disputes'),
           },
+          {
+            icon: 'chatbubble-ellipses-outline',
+            title: 'Feedback',
+            subtitle: 'Admin — view user submissions',
+            onPress: () => router.push('/admin/feedback'),
+          },
+          ...(isOfficial ? [{
+            icon: 'toggle-outline' as const,
+            title: 'Account Flags',
+            subtitle: 'Toggle seller, verified, tier status',
+            onPress: () => router.push('/admin/account-flags'),
+          }] : []),
         ], 'Admin')}
 
         {/* Footer */}
