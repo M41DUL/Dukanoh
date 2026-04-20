@@ -28,7 +28,7 @@ interface MenuRow {
 }
 
 export default function SettingsScreen() {
-  const { user, isSeller, isOfficial, signOut, refreshProfile } = useAuth();
+  const { user, isSeller, isVerified, isOfficial, signOut, refreshProfile } = useAuth();
   const { blockedIds, unblockUser } = useBlocked();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -150,27 +150,6 @@ export default function SettingsScreen() {
     );
   };
 
-  const sellingRows: MenuRow[] = [
-    {
-      icon: 'shield-checkmark-outline',
-      title: 'Get Verified',
-      subtitle: 'Verify your identity to receive payments',
-      onPress: () => router.push('/stripe-onboarding'),
-    },
-    {
-      icon: 'card-outline',
-      title: 'Payout Account',
-      subtitle: 'Manage your bank details',
-      onPress: () => router.push('/payout-account'),
-    },
-    {
-      icon: 'location-outline',
-      title: 'Delivery Address',
-      subtitle: 'Saved for checkout',
-      onPress: () => router.push('/settings/address'),
-    },
-  ];
-
   const accountRows: MenuRow[] = [
     {
       icon: 'color-palette-outline',
@@ -188,19 +167,46 @@ export default function SettingsScreen() {
       title: 'Feed Preferences',
       onPress: handleResetPreferences,
     },
+    ...(!isSeller ? [{
+      icon: 'storefront-outline' as IoniconsName,
+      title: 'Become a seller',
+      subtitle: 'Start listing your pieces on Dukanoh',
+      onPress: () => router.push('/stripe-onboarding'),
+    }] : []),
+  ];
+
+  const sellingRows: MenuRow[] = [
+    ...(!isVerified ? [{
+      icon: 'shield-checkmark-outline' as IoniconsName,
+      title: 'Get Verified',
+      subtitle: 'Verify your identity to receive payments',
+      onPress: () => router.push('/stripe-onboarding'),
+    }] : []),
+    {
+      icon: 'card-outline',
+      title: 'Payout Account',
+      subtitle: 'Manage your bank details',
+      onPress: () => router.push('/payout-account'),
+    },
+    {
+      icon: 'location-outline',
+      title: 'Delivery Address',
+      subtitle: 'Saved for checkout',
+      onPress: () => router.push('/settings/address'),
+    },
   ];
 
   const supportRows: MenuRow[] = [
-    {
-      icon: 'help-circle-outline',
-      title: 'Help & Support',
-      onPress: () => router.push('/help'),
-    },
     {
       icon: 'information-circle-outline',
       title: 'How Dukanoh Works',
       subtitle: 'Learn the basics',
       onPress: () => router.push('/how-it-works'),
+    },
+    {
+      icon: 'help-circle-outline',
+      title: 'Help & Support',
+      onPress: () => router.push('/help'),
     },
     {
       icon: 'chatbubble-ellipses-outline',
@@ -260,8 +266,8 @@ export default function SettingsScreen() {
     </View>
   );
 
-  const renderSection = (rows: MenuRow[], title?: string) => (
-    <View style={styles.section}>
+  const renderSection = (rows: MenuRow[], title?: string, spaced = false) => (
+    <View style={[styles.section, spaced && styles.sectionSpaced]}>
       {title ? <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{title}</Text> : null}
       {rows.map(row => renderRow(row))}
     </View>
@@ -272,7 +278,8 @@ export default function SettingsScreen() {
       <Header title="Settings" showBack />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {renderSection(sellingRows, 'Selling')}
+        {renderSection(accountRows, 'Account')}
+        {isSeller && renderSection(sellingRows, 'Selling', true)}
 
         {SELLER_INVITE_REQUIRED && isSeller && inviteCodes.length > 0 && (
           <View style={styles.section}>
@@ -306,10 +313,9 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {renderSection(accountRows)}
-        {renderSection(supportRows)}
-        {renderSection(legalRows)}
-        {renderSection(actionRows)}
+        {renderSection(supportRows, 'Support', true)}
+        {renderSection(legalRows, 'Legal', true)}
+        {renderSection(actionRows, 'Account Settings', true)}
 
         {isAdmin && renderSection([
           {
@@ -330,7 +336,7 @@ export default function SettingsScreen() {
             subtitle: 'Toggle seller, verified, tier status',
             onPress: () => router.push('/admin/account-flags'),
           }] : []),
-        ], 'Admin')}
+        ], 'Admin', true)}
 
         {/* Footer */}
         <Text style={styles.footer}>Dukanoh v{appVersion}</Text>
@@ -414,6 +420,9 @@ function getStyles(colors: ColorTokens) {
 
     // Sections
     section: {},
+    sectionSpaced: {
+      paddingTop: Spacing.xl,
+    },
     sectionTitle: {
       fontSize: 11,
       fontFamily: 'Inter_600SemiBold',
