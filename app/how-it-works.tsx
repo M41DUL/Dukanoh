@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
@@ -37,7 +38,7 @@ const STEPS: Step[] = [
   {
     icon: 'shield-checkmark-outline',
     title: 'Pay securely',
-    description: 'Checkout with built-in buyer protection. Your payment is held in escrow until you confirm the piece has arrived.',
+    description: 'Checkout with built-in buyer protection. A small protection fee is added at checkout. Your payment is held in escrow until you confirm the piece has arrived.',
   },
   {
     icon: 'star-outline',
@@ -160,12 +161,12 @@ export default function HowItWorksScreen() {
             <View style={styles.sellerCta}>
               <Text style={styles.sellerCtaTitle}>Want to sell?</Text>
               <Text style={styles.sellerCtaSubtitle}>
-                Get a seller invite from a friend to start listing your pieces.
+                Anyone can sell on Dukanoh. Create your first listing in minutes and get verified to start receiving payments.
               </Text>
               <Button
-                label="I have a seller code"
+                label="Start selling"
                 variant="primary"
-                onPress={() => {}}
+                onPress={() => router.push('/stripe-onboarding')}
                 style={styles.sellerCtaBtn}
               />
             </View>

@@ -17,23 +17,27 @@ interface FAQ {
 const FAQS: FAQ[] = [
   {
     question: 'How does buying work?',
-    answer: 'Find a piece you love, message the member if you have questions, then checkout directly in the app. Your payment is held securely in escrow until you confirm the piece has arrived.',
+    answer: 'Find a piece you love, message the member if you have questions, then checkout directly in the app. A small buyer protection fee is added at checkout. Your payment is held securely in escrow until you confirm the piece has arrived.',
+  },
+  {
+    question: 'What is the buyer protection fee?',
+    answer: 'Every purchase includes a buyer protection fee of 6.5% of the item price plus £0.80. This covers you if your piece doesn\'t arrive or doesn\'t match the listing. The fee is non-refundable but the full item price is covered if a dispute is resolved in your favour.',
   },
   {
     question: 'What is buyer protection?',
-    answer: 'Every purchase on Dukanoh includes built-in buyer protection. If your piece doesn\'t arrive or doesn\'t match the listing, raise a dispute and our team will step in. Payments are only released to the seller once you confirm receipt.',
+    answer: 'Every purchase on Dukanoh includes built-in buyer protection. If your piece doesn\'t arrive or doesn\'t match the listing, raise a dispute and our team will step in. Payments are only released to the seller once you confirm receipt, or automatically after 2 days.',
   },
   {
     question: 'Can I return a piece?',
-    answer: 'If there\'s an issue with your order — wrong item, not as described, or it never arrived — raise a dispute from your order screen. Our team reviews all disputes and will resolve it fairly.',
+    answer: 'If there\'s an issue with your order — wrong item, not as described, damaged, or it never arrived — raise a dispute from your order screen. Our team reviews all disputes and will resolve it fairly.',
   },
   {
     question: 'How do I become a seller?',
-    answer: 'You need a seller invite from an existing member on Dukanoh. Once you have a code, you can start listing your pieces straight away.',
+    answer: 'Anyone can sell on Dukanoh. Just tap the Sell tab to create your first listing. To receive payments, you\'ll need to complete Dukanoh Verify — a quick identity check that takes a few minutes.',
   },
   {
     question: 'When do I get paid as a seller?',
-    answer: 'Once the buyer confirms receipt of their piece, your earnings are released to your wallet. If they don\'t confirm within 2 days of delivery, funds are released automatically. You can withdraw to your bank once you\'re verified.',
+    answer: 'Once the buyer confirms receipt of their piece, your earnings move to your wallet. If they don\'t confirm within 2 days, funds are released automatically. You can withdraw to your bank at any time once you\'re verified.',
   },
   {
     question: 'What if I have an issue with another member?',
