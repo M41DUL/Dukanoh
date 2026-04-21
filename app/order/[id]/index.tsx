@@ -504,17 +504,23 @@ export default function OrderDetailScreen() {
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Has your item arrived?</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Once you confirm, payment is held for 48 hours. You can still raise a dispute during that window.
+                Confirm receipt to start the 48-hour release window, or report an issue to hold payment.
               </Text>
               {order.auto_release_at && (
                 <View style={[styles.autoRelease, { backgroundColor: colors.amber + '15', borderColor: colors.amber + '35' }]}>
                   <Ionicons name="time-outline" size={14} color={colors.amber} />
                   <Text style={[styles.autoReleaseText, { color: colors.amber }]}>
-                    Payment releases automatically on {formatDate(order.auto_release_at)} if you don't confirm
+                    Payment releases automatically on {formatDate(order.auto_release_at)} if you take no action
                   </Text>
                 </View>
               )}
               <Button label="Item received" onPress={handleConfirmReceipt} loading={submitting} />
+              <Button
+                label="Report an issue"
+                variant="outline"
+                onPress={() => router.push(`/order/${order.id}/dispute`)}
+                style={{ marginTop: 8 }}
+              />
             </View>
           )}
 
@@ -523,8 +529,14 @@ export default function OrderDetailScreen() {
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Receipt confirmed</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Payment is held until {order.auto_release_at ? formatDate(order.auto_release_at) : 'shortly'}. If something is wrong with your order, raise a dispute before then.
+                Payment is held until {order.auto_release_at ? formatDate(order.auto_release_at) : 'shortly'}. Raise a dispute before then if something is wrong.
               </Text>
+              <Button
+                label="Report an issue"
+                variant="outline"
+                onPress={() => router.push(`/order/${order.id}/dispute`)}
+                style={{ marginTop: 8 }}
+              />
             </View>
           )}
 
