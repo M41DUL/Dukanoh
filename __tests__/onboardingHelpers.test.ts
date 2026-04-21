@@ -180,8 +180,8 @@ describe('getActiveBubbleSize', () => {
 // ─── getSubtitleText ────────────────────────────────────────
 
 describe('getSubtitleText', () => {
-  test('returns "Pick at least one" for 0 selected', () => {
-    expect(getSubtitleText(0)).toBe('Pick at least one');
+  test('returns "Pick at least one to continue" for 0 selected', () => {
+    expect(getSubtitleText(0)).toBe('Pick at least one to continue');
   });
 
   test('returns count for 1 selected', () => {
