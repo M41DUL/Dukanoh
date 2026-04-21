@@ -90,6 +90,7 @@ export default function TaxInfoScreen() {
 
   const dobIso = displayToIso(dobDisplay);
   const isValid =
+    legalName.trim().length > 0 &&
     tinNumber.trim().length >= 8 &&
     !!dobIso &&
     addressLine1.trim().length > 0 &&
@@ -102,6 +103,7 @@ export default function TaxInfoScreen() {
     const { error } = await supabase
       .from('users')
       .update({
+        full_name: legalName.trim(),
         dob: dobIso,
         address_line1: addressLine1.trim(),
         address_line2: addressLine2.trim() || null,
@@ -163,16 +165,15 @@ export default function TaxInfoScreen() {
           {/* ── Personal details ── */}
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Personal details</Text>
 
-          {/* Legal name — read-only */}
-          <View style={styles.readonlyWrap}>
-            <Text style={styles.readonlyLabel}>Legal name</Text>
-            <Text style={[styles.readonlyValue, { color: legalName ? colors.textPrimary : colors.textSecondary }]}>
-              {legalName || 'Not set — update your profile first'}
-            </Text>
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              To change your legal name, update your profile.
-            </Text>
-          </View>
+          <Input
+            label="Legal name"
+            value={legalName}
+            onChangeText={setLegalName}
+            placeholder="Your full legal name"
+            autoCapitalize="words"
+            autoCorrect={false}
+            hint="Enter your name exactly as it appears on official documents."
+          />
 
           <Input
             label="Date of birth"
@@ -312,16 +313,6 @@ function getStyles(colors: ColorTokens) {
       fontFamily: FontFamily.semibold,
       textTransform: 'uppercase',
       letterSpacing: 0.6,
-    },
-    readonlyWrap: {
-      gap: Spacing.xs,
-    },
-    readonlyLabel: {
-      ...Typography.label,
-      color: colors.textPrimary,
-    },
-    readonlyValue: {
-      ...Typography.body,
     },
     hint: {
       ...Typography.caption,
