@@ -16,6 +16,8 @@ interface Flags {
   is_seller: boolean;
   is_verified: boolean;
   seller_tier: SellerTier;
+  tax_hold: boolean;
+  tax_id_collected_at: string | null;
 }
 
 const TIERS: SellerTier[] = ['free', 'pro', 'founder'];
@@ -32,7 +34,7 @@ export default function AccountFlagsScreen() {
     if (!user) return;
     const { data } = await supabase
       .from('users')
-      .select('is_seller, is_verified, seller_tier')
+      .select('is_seller, is_verified, seller_tier, tax_hold, tax_id_collected_at')
       .eq('id', user.id)
       .single();
     if (data) setFlags(data as Flags);
@@ -106,6 +108,53 @@ export default function AccountFlagsScreen() {
               thumbColor="#FFFFFF"
               disabled={saving}
             />
+          </View>
+        </View>
+
+        {/* Tax state */}
+        <Text style={styles.sectionTitle}>Tax / DAC7</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <View style={styles.row}>
+            <View style={styles.rowLabel}>
+              <Text style={styles.rowTitle}>Tax hold</Text>
+              <Text style={styles.rowSub}>Hides all listings until TIN is submitted</Text>
+            </View>
+            <Switch
+              value={flags.tax_hold}
+              onValueChange={v => update({ tax_hold: v })}
+              trackColor={{ false: colors.border, true: '#DC2626' }}
+              thumbColor="#FFFFFF"
+              disabled={saving}
+            />
+          </View>
+
+          <Divider style={styles.divider} />
+
+          <View style={styles.row}>
+            <View style={styles.rowLabel}>
+              <Text style={styles.rowTitle}>TIN on file</Text>
+              <Text style={styles.rowSub}>
+                {flags.tax_id_collected_at
+                  ? `Submitted ${new Date(flags.tax_id_collected_at).toLocaleDateString('en-GB')}`
+                  : 'Not submitted yet'}
+              </Text>
+            </View>
+            {flags.tax_id_collected_at && (
+              <TouchableOpacity
+                onPress={() => Alert.alert(
+                  'Clear TIN?',
+                  'This will remove the stored tax details so you can test the collection flow again.',
+                  [
+                    { text: 'Clear', style: 'destructive', onPress: () => update({ tax_id_collected_at: null } as any) },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]
+                )}
+                hitSlop={8}
+                disabled={saving}
+              >
+                <Text style={[styles.rowSub, { color: colors.error }]}>Clear</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
