@@ -155,7 +155,7 @@ export default function OrderDetailScreen() {
     if (!order) return;
     Alert.alert(
       'Confirm receipt',
-      'Confirming receipt will release payment to the seller. Are you sure the item has arrived?',
+      'Confirming receipt starts a 48-hour window before payment is released to the seller. You can still raise a dispute during that window.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -403,7 +403,7 @@ export default function OrderDetailScreen() {
             {order.status === 'completed' && (
               <MetaRow
                 label="Released by"
-                value={order.delivered_at ? 'Buyer confirmed receipt' : 'Auto-released after 2 days'}
+                value={order.delivered_at ? 'Buyer confirmed receipt' : 'Auto-released after 7 days'}
                 colors={colors}
               />
             )}
@@ -471,7 +471,7 @@ export default function OrderDetailScreen() {
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Ship this order</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Enter tracking details and mark as shipped. The buyer has 2 days to confirm receipt.
+                Enter tracking details and mark as shipped. Once the buyer confirms receipt, payment is held for 48 hours before being released to you.
               </Text>
               <View style={[styles.inputWrap, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
                 <TextInput
@@ -504,17 +504,27 @@ export default function OrderDetailScreen() {
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Has your item arrived?</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Confirming receipt releases payment to the seller.
+                Once you confirm, payment is held for 48 hours. You can still raise a dispute during that window.
               </Text>
               {order.auto_release_at && (
                 <View style={[styles.autoRelease, { backgroundColor: colors.amber + '15', borderColor: colors.amber + '35' }]}>
                   <Ionicons name="time-outline" size={14} color={colors.amber} />
                   <Text style={[styles.autoReleaseText, { color: colors.amber }]}>
-                    Funds release automatically on {formatDate(order.auto_release_at)} if you don't confirm
+                    Payment releases automatically on {formatDate(order.auto_release_at)} if you don't confirm
                   </Text>
                 </View>
               )}
               <Button label="Item received" onPress={handleConfirmReceipt} loading={submitting} />
+            </View>
+          )}
+
+          {/* ── BUYER: delivered — dispute window active ─────────── */}
+          {order.status === 'delivered' && isBuyer && (
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Receipt confirmed</Text>
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                Payment is held until {order.auto_release_at ? formatDate(order.auto_release_at) : 'shortly'}. If something is wrong with your order, raise a dispute before then.
+              </Text>
             </View>
           )}
 

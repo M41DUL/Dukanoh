@@ -33,7 +33,7 @@ export function getOrderActions(
   return {
     canShip:             isSeller && status === 'paid',
     canConfirm:          isBuyer  && status === 'shipped',
-    canDispute:          isBuyer  && status === 'shipped',
+    canDispute:          isBuyer  && (status === 'shipped' || status === 'delivered'),
     canCancel:           (isBuyer || isSeller) && (status === 'paid' || status === 'created'),
     canWithdrawDispute:  isBuyer  && status === 'disputed',
     isDisputed:          status === 'disputed',

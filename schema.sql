@@ -913,7 +913,7 @@ BEGIN
     tracking_number = p_tracking,
     courier         = p_courier,
     shipped_at      = NOW(),
-    auto_release_at = NOW() + INTERVAL '2 days'
+    auto_release_at = NOW() + INTERVAL '7 days'
   WHERE
     id        = p_order_id
     AND seller_id = p_seller_id
@@ -921,7 +921,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- confirm_order_receipt RPC — uses server time, enforces shipped→completed guard
+-- confirm_order_receipt RPC — uses server time, enforces shipped→delivered guard.
+-- Moves order to 'delivered' and resets auto_release_at to +2 days so the
+-- dispute window starts from confirmed delivery, not from shipping.
 CREATE OR REPLACE FUNCTION public.confirm_order_receipt(
   p_order_id UUID,
   p_buyer_id UUID
@@ -930,9 +932,9 @@ RETURNS void AS $$
 BEGIN
   UPDATE public.orders
   SET
-    status       = 'completed',
-    delivered_at = NOW(),
-    completed_at = NOW()
+    status          = 'delivered',
+    delivered_at    = NOW(),
+    auto_release_at = NOW() + INTERVAL '2 days'
   WHERE
     id       = p_order_id
     AND buyer_id = p_buyer_id
@@ -972,7 +974,7 @@ RETURNS void AS $$
 BEGIN
   UPDATE public.orders
   SET status = 'completed', completed_at = NOW()
-  WHERE status = 'shipped'
+  WHERE status IN ('shipped', 'delivered')
     AND auto_release_at IS NOT NULL
     AND auto_release_at <= NOW();
 END;
