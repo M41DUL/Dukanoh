@@ -1492,8 +1492,11 @@ SELECT cron.schedule(
 CREATE TABLE public.feedback (
   id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   user_id    UUID REFERENCES public.users (id) ON DELETE SET NULL,
-  type       TEXT NOT NULL CHECK (type IN ('bug', 'feature', 'general')),
+  type       TEXT NOT NULL CHECK (type IN ('bug', 'feature', 'general', 'support')),
   message    TEXT NOT NULL,
+  name       TEXT,
+  email      TEXT,
+  source     TEXT NOT NULL DEFAULT 'app',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -1502,6 +1505,10 @@ ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can insert their own feedback"
   ON public.feedback FOR INSERT TO authenticated
   WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Anon can insert website support submissions"
+  ON public.feedback FOR INSERT TO anon
+  WITH CHECK (user_id IS NULL AND source = 'website');
 
 CREATE POLICY "Admins can read all feedback"
   ON public.feedback FOR SELECT TO authenticated
