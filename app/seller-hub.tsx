@@ -106,6 +106,7 @@ function HubPaywall({ isVerified, hadFreeTrial, hadFounderSub, proExpired }: { i
   const [rcPackage, setRcPackage] = useState<PurchasesPackage | null>(null);
   const [purchasing, setPurchasing] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [coolingOffAck, setCoolingOffAck] = useState(false);
 
   useEffect(() => {
     Purchases.getOfferings().then(offerings => {
@@ -359,6 +360,24 @@ function HubPaywall({ isVerified, hadFreeTrial, hadFounderSub, proExpired }: { i
             borderColor={HUB.border}
           />
         </Animated.View>
+        {isVerified && (
+          <TouchableOpacity
+            style={styles.coolingOffRow}
+            onPress={() => setCoolingOffAck(v => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              styles.coolingOffBox,
+              { borderColor: coolingOffAck ? HUB.accent : HUB.border },
+              coolingOffAck && { backgroundColor: HUB.accent },
+            ]}>
+              {coolingOffAck && <Ionicons name="checkmark" size={13} color={HUB.background} />}
+            </View>
+            <Text style={styles.coolingOffText}>
+              I want immediate access and understand this waives my 14-day cancellation right.
+            </Text>
+          </TouchableOpacity>
+        )}
         <Button
           label={purchasing ? 'Processing...' : ctaLabel}
           onPress={handleCta}
@@ -366,7 +385,7 @@ function HubPaywall({ isVerified, hadFreeTrial, hadFounderSub, proExpired }: { i
           style={{ width: '100%' }}
           backgroundColor={HUB.accent}
           textColor={HUB.background}
-          disabled={purchasing}
+          disabled={purchasing || (isVerified && !coolingOffAck)}
         />
         {ctaNote && <Text style={styles.trialNote}>{ctaNote}</Text>}
       </View>
@@ -528,6 +547,29 @@ const styles = StyleSheet.create({
     color: HUB.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  coolingOffRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    width: '100%',
+  },
+  coolingOffBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  coolingOffText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: FontFamily.regular,
+    color: HUB.textSecondary,
+    lineHeight: 17,
   },
 
   expiredBanner: {
