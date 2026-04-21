@@ -761,6 +761,7 @@ CREATE TABLE public.orders (
   appealed_at         TIMESTAMPTZ,
   appeal_by           TEXT,          -- 'buyer' | 'seller'
   appeal_reason       TEXT,
+  dispatch_deadline_at TIMESTAMPTZ,
   shipped_at        TIMESTAMPTZ,
   delivered_at      TIMESTAMPTZ,
   auto_release_at   TIMESTAMPTZ,
@@ -1001,6 +1002,21 @@ BEGIN
     AND appealed_at IS NULL;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Dispatch deadline: set 5 days from payment on status → paid
+CREATE OR REPLACE FUNCTION public.set_dispatch_deadline()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status = 'paid' AND (OLD.status IS DISTINCT FROM 'paid') THEN
+    NEW.dispatch_deadline_at := NOW() + INTERVAL '5 days';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_set_dispatch_deadline
+  BEFORE UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.set_dispatch_deadline();
 
 -- Platform settings (Founder Plan config etc.)
 CREATE TABLE public.platform_settings (

@@ -49,58 +49,35 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
-  // Find all orders past their seller verification deadline
-  const { data: expiredOrders } = await supabase
-    .from('orders')
-    .select('id, listing_id, seller_id, stripe_payment_id, total_paid')
-    .not('seller_verify_deadline', 'is', null)
-    .lt('seller_verify_deadline', new Date().toISOString())
-    .in('status', ['paid', 'shipped']);
+  const now = new Date().toISOString();
 
-  if (!expiredOrders || expiredOrders.length === 0) {
-    return new Response(JSON.stringify({ cancelled: 0 }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  let cancelledCount = 0;
-
-  for (const order of expiredOrders) {
-    // Refund the buyer via Stripe
+  async function cancelAndRefund(
+    order: { id: string; listing_id: string | null; seller_id: string | null; stripe_payment_id: string | null; total_paid: number },
+    reason: string,
+    clearField: Record<string, null>,
+  ): Promise<boolean> {
     if (order.stripe_payment_id) {
       const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${stripeSecretKey}`,
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Idempotency-Key': `refund-${order.id}`,
+          'Idempotency-Key': `refund-${order.id}-${reason}`,
         },
         body: new URLSearchParams({
           payment_intent: order.stripe_payment_id,
           'metadata[order_id]': order.id,
-          'metadata[reason]': 'seller_verification_timeout',
+          'metadata[reason]': reason,
         }),
       });
-
-      if (!refundRes.ok) {
-        // Skip this order — refund failed, leave for next run
-        continue;
-      }
+      if (!refundRes.ok) return false;
     }
 
-    // Cancel the order
     await supabase
       .from('orders')
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        cancelled_by: 'system',
-        seller_verify_deadline: null,
-      })
+      .update({ status: 'cancelled', cancelled_at: now, cancelled_by: 'system', ...clearField })
       .eq('id', order.id);
 
-    // Relist the item
     if (order.listing_id) {
       await supabase
         .from('listings')
@@ -108,7 +85,41 @@ Deno.serve(async (req) => {
         .eq('id', order.listing_id);
     }
 
-    cancelledCount++;
+    if (order.seller_id) {
+      await supabase
+        .from('cancellation_strikes')
+        .insert({ seller_id: order.seller_id, order_id: order.id });
+    }
+
+    return true;
+  }
+
+  let cancelledCount = 0;
+
+  // 1. Seller verification timeout
+  const { data: unverifiedOrders } = await supabase
+    .from('orders')
+    .select('id, listing_id, seller_id, stripe_payment_id, total_paid')
+    .not('seller_verify_deadline', 'is', null)
+    .lt('seller_verify_deadline', now)
+    .in('status', ['paid', 'shipped']);
+
+  for (const order of unverifiedOrders ?? []) {
+    const ok = await cancelAndRefund(order, 'seller_verification_timeout', { seller_verify_deadline: null });
+    if (ok) cancelledCount++;
+  }
+
+  // 2. Dispatch deadline expired — seller did not ship within 5 days of payment
+  const { data: undispatchedOrders } = await supabase
+    .from('orders')
+    .select('id, listing_id, seller_id, stripe_payment_id, total_paid')
+    .not('dispatch_deadline_at', 'is', null)
+    .lt('dispatch_deadline_at', now)
+    .eq('status', 'paid');
+
+  for (const order of undispatchedOrders ?? []) {
+    const ok = await cancelAndRefund(order, 'dispatch_deadline_expired', { dispatch_deadline_at: null });
+    if (ok) cancelledCount++;
   }
 
   return new Response(JSON.stringify({ cancelled: cancelledCount }), {

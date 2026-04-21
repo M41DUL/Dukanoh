@@ -54,6 +54,7 @@ interface Order {
   delivery_city: string | null;
   delivery_postcode: string | null;
   delivery_country: string | null;
+  dispatch_deadline_at: string | null;
   auto_release_at: string | null;
   resolution_outcome: string | null;
   resolution_note: string | null;
@@ -480,6 +481,14 @@ export default function OrderDetailScreen() {
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
                 Enter tracking details and mark as shipped. Once the buyer confirms receipt, payment is held for 48 hours before being released to you.
               </Text>
+              {order.dispatch_deadline_at && (
+                <View style={[styles.autoRelease, { backgroundColor: colors.amber + '15', borderColor: colors.amber + '35' }]}>
+                  <Ionicons name="time-outline" size={14} color={colors.amber} />
+                  <Text style={[styles.autoReleaseText, { color: colors.amber }]}>
+                    Dispatch by {formatDate(order.dispatch_deadline_at)} — the order will be automatically cancelled and the buyer refunded if you miss this deadline.
+                  </Text>
+                </View>
+              )}
               <View style={[styles.inputWrap, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
                 <TextInput
                   style={[styles.textInput, { color: colors.textPrimary }]}
