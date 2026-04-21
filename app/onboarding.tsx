@@ -23,8 +23,6 @@ import {
 import {
   LOGO_FINAL_W,
   LOGO_FINAL_H,
-  LOGO_TRANSLATE_X,
-  LOGO_TRANSLATE_Y,
 } from '@/constants/logoLayout';
 import {
   ONBOARDING_CATEGORIES,
@@ -441,14 +439,7 @@ export default function OnboardingScreen() {
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Big watermark logo at bottom */}
       <View style={styles.logoContainer}>
-        <View
-          style={{
-            transform: [
-              { translateX: LOGO_TRANSLATE_X },
-              { translateY: LOGO_TRANSLATE_Y },
-            ],
-          }}
-        >
+        <View style={{ marginBottom: -60 }}>
           <DukanohLogo width={LOGO_FINAL_W} height={LOGO_FINAL_H} />
         </View>
       </View>
@@ -527,7 +518,7 @@ function getStyles(colors: ColorTokens) {
     logoContainer: {
       ...StyleSheet.absoluteFillObject,
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'flex-end',
       overflow: 'hidden',
     },
     content: {

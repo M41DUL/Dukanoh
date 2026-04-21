@@ -17,8 +17,6 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import {
   LOGO_FINAL_W,
   LOGO_FINAL_H,
-  LOGO_TRANSLATE_X,
-  LOGO_TRANSLATE_Y,
 } from '@/constants/logoLayout';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Input } from '@/components/Input';
@@ -150,14 +148,7 @@ export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps)
     >
       {/* Big logo at bottom */}
       <View style={styles.logoContainer}>
-        <View
-          style={{
-            transform: [
-              { translateX: LOGO_TRANSLATE_X },
-              { translateY: LOGO_TRANSLATE_Y },
-            ],
-          }}
-        >
+        <View style={{ marginBottom: -60 }}>
           <DukanohLogo width={LOGO_FINAL_W} height={LOGO_FINAL_H} />
         </View>
       </View>
@@ -235,7 +226,7 @@ const styles = StyleSheet.create({
   logoContainer: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     overflow: 'hidden',
   },
   content: {

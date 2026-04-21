@@ -18,8 +18,6 @@ import { lightColors, Spacing } from '@/constants/theme';
 import {
   LOGO_FINAL_W,
   LOGO_FINAL_H,
-  LOGO_TRANSLATE_X,
-  LOGO_TRANSLATE_Y,
 } from '@/constants/logoLayout';
 
 interface AuthLayoutProps {
@@ -50,16 +48,9 @@ export function AuthLayout({ children, isDirty }: AuthLayoutProps) {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Big logo at bottom — matches intro screen position */}
+      {/* Big logo at bottom */}
       <View style={styles.logoContainer}>
-        <View
-          style={{
-            transform: [
-              { translateX: LOGO_TRANSLATE_X },
-              { translateY: LOGO_TRANSLATE_Y },
-            ],
-          }}
-        >
+        <View style={{ marginBottom: -60 }}>
           <DukanohLogo width={LOGO_FINAL_W} height={LOGO_FINAL_H} />
         </View>
       </View>
@@ -96,7 +87,7 @@ const styles = StyleSheet.create({
   logoContainer: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     overflow: 'hidden',
   },
   content: {

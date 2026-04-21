@@ -15,8 +15,6 @@ import { Button } from '@/components/Button';
 import {
   LOGO_FINAL_W,
   LOGO_FINAL_H,
-  LOGO_TRANSLATE_X,
-  LOGO_TRANSLATE_Y,
 } from '@/constants/logoLayout';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { AuthSheet } from '@/components/AuthSheet';
@@ -165,14 +163,7 @@ export default function IntroScreen() {
       <Animated.View
         style={[styles.logoContainer, { transform: [{ translateY: logoBottomY }] }]}
       >
-        <View
-          style={{
-            transform: [
-              { translateX: LOGO_TRANSLATE_X },
-              { translateY: LOGO_TRANSLATE_Y },
-            ],
-          }}
-        >
+        <View style={{ marginBottom: -60 }}>
           <DukanohLogo width={LOGO_FINAL_W} height={LOGO_FINAL_H} />
         </View>
       </Animated.View>
@@ -253,7 +244,7 @@ const styles = StyleSheet.create({
   logoContainer: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     overflow: 'hidden',
   },
   introContent: {
