@@ -279,6 +279,11 @@
         <td>Impressions, views, saves, and click-throughs on boosted listings and Stories; boost activation and expiry timestamps</td>
         <td>Generated automatically when a Story Boost is active</td>
       </tr>
+      <tr>
+        <td><strong>Tax Reporting Data (Sellers)</strong></td>
+        <td>National Insurance (NI) number or Unique Taxpayer Reference (UTR), date of birth (if not previously provided), and home address &mdash; collected for HMRC reporting under the UK Platform Information Reporting Regulations 2023</td>
+        <td>Provided by you via the in-app Tax information screen when you approach the reporting threshold &mdash; see section&nbsp;8</td>
+      </tr>
     </tbody>
   </table>
   <p>We do not intentionally collect special category data. If you include such data voluntarily in listings or messages, you do so at your own discretion.</p>
@@ -310,6 +315,7 @@
       <tr><td>Managing Pro subscriptions and billing</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
       <tr><td>Processing in-app purchases (Boosts)</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
       <tr><td>Providing Boost &amp; Story analytics to Pro sellers</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
+      <tr><td>Collecting and reporting seller tax data to HMRC (UK PIRRR 2023 / DAC7)</td><td>Legal obligation (UK PIRRR 2023, SI&nbsp;2023/817)</td><td>Art. 6(1)(c)</td></tr>
     </tbody>
   </table>
   <p>Where we rely on legitimate interests, we have conducted a Legitimate Interests Assessment (LIA) and are satisfied our interests are not overridden by your rights and freedoms. You may request a copy of any LIA at <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a>.</p>
@@ -387,7 +393,44 @@
   <p>We will always notify you before initiating a verification check and provide an explanation of why it is required.</p>
 
   <!-- 8 -->
-  <h2 id="escrow">8. Marketplace Transactions &amp; Payment Escrow</h2>
+  <h2 id="dac7">8. Platform Tax Reporting (UK PIRRR 2023 / DAC7)</h2>
+  <p>Dukanoh is a <strong>Reporting Platform Operator</strong> under the UK Platform Information Reporting Regulations 2023 (UK PIRRR 2023), which implement the OECD DAC7 framework into UK law. Under these regulations we are required to collect, verify, and annually report certain information about sellers who use the platform to generate income.</p>
+  <h3>8.1 Who is affected</h3>
+  <p>These obligations apply to sellers who, in any calendar year, either:</p>
+  <ul>
+    <li>complete <strong>29 or more sales</strong>, or</li>
+    <li>receive <strong>£1,690 or more</strong> in gross proceeds from sales.</li>
+  </ul>
+  <p>If you approach or exceed either threshold, Dukanoh will ask you to provide your tax identification details before your listings remain visible on the platform.</p>
+  <h3>8.2 Data we collect for PIRRR reporting</h3>
+  <table class="data-table">
+    <thead>
+      <tr><th>Data Element</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Legal full name</td><td>Identity of reportable seller for HMRC submission</td></tr>
+      <tr><td>Date of birth</td><td>Seller identification as required by UK PIRRR Reg. 14</td></tr>
+      <tr><td>Primary residential address</td><td>UK tax residence determination</td></tr>
+      <tr><td>Tax identification number (NI or UTR)</td><td>Linking seller to HMRC records; mandatory for report</td></tr>
+      <tr><td>Gross proceeds per reporting period</td><td>Reportable consideration as defined in UK PIRRR Schedule 2</td></tr>
+      <tr><td>Number of relevant activities (sales)</td><td>Reported alongside proceeds to HMRC</td></tr>
+    </tbody>
+  </table>
+  <p>This processing is carried out under <strong>legal obligation (Art. 6(1)(c) UK GDPR)</strong> — compliance with the UK Platform Information Reporting Regulations 2023 is not optional for Dukanoh.</p>
+  <h3>8.3 How we use and share this data</h3>
+  <ul>
+    <li>Tax reporting data is used solely to compile the annual PIRRR report submitted to HMRC by 31 January each year for the preceding calendar year.</li>
+    <li>We share the required data elements directly with <strong>HMRC</strong> as the UK competent authority for DAC7 purposes.</li>
+    <li>HMRC may further share this data with other tax authorities under international exchange-of-information agreements where the seller is tax-resident outside the UK.</li>
+    <li>We do not use your tax identification data for any commercial purpose.</li>
+  </ul>
+  <h3>8.4 Seller notification</h3>
+  <p>We will notify you by in-app notice when your transaction count or gross proceeds approach the reporting threshold. Once the threshold is met, you will receive a separate notice confirming that your details have been (or will be) included in the annual HMRC report. You may request a copy of the data reported about you by contacting <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a>.</p>
+  <h3>8.5 Listing suspension</h3>
+  <p>Where a seller has reached the reporting threshold but has not provided their tax identification details, Dukanoh is required under UK PIRRR 2023 to suspend that seller&rsquo;s listings until the details are provided. This is a legal requirement and not a discretionary enforcement measure. Listings will be reinstated promptly upon receipt of the required information.</p>
+
+  <!-- 9 -->
+  <h2 id="escrow">9. Marketplace Transactions &amp; Payment Escrow</h2>
   <p>When a buyer completes a purchase on Dukanoh, the following data processing occurs in connection with our escrow payment model:</p>
   <ul>
     <li>Payment is collected from the buyer and held securely by our payment processor on behalf of Dukanoh until the transaction is confirmed.</li>
@@ -397,8 +440,8 @@
   </ul>
   <p>Our payment processor acts as a separate data controller for payment fraud prevention purposes. Their privacy policy governs that processing.</p>
 
-  <!-- 9 -->
-  <h2 id="messaging">9. In-App Messaging</h2>
+  <!-- 10 -->
+  <h2 id="messaging">10. In-App Messaging</h2>
   <p>Dukanoh provides an in-app messaging feature allowing buyers and sellers to communicate about listings. In connection with this:</p>
   <ul>
     <li>Message content is stored on our servers for as long as both parties&rsquo; accounts remain active, then deleted within 90 days of account closure.</li>
@@ -407,8 +450,8 @@
     <li>End-to-end encryption is not currently applied to in-app messages. Do not share sensitive personal or financial information via messages.</li>
   </ul>
 
-  <!-- 10 -->
-  <h2 id="cookies">10. Cookies and Tracking Technologies</h2>
+  <!-- 11 -->
+  <h2 id="cookies">11. Cookies and Tracking Technologies</h2>
   <p>The App uses cookies, device identifiers, and similar technologies:</p>
   <table class="data-table">
     <thead>
@@ -443,8 +486,8 @@
   </table>
   <p>A detailed breakdown of all cookies and SDKs used is available in our separate Cookie Policy at <a href="https://www.dukanoh.com/cookie-policy">www.dukanoh.com/cookie-policy</a>. You can manage preferences via the in-app privacy settings.</p>
 
-  <!-- 11 -->
-  <h2 id="sharing">11. Sharing Your Personal Data</h2>
+  <!-- 12 -->
+  <h2 id="sharing">12. Sharing Your Personal Data</h2>
   <p>We do not sell your personal data. We share it only in the following circumstances:</p>
   <ul>
     <li><strong>Payment Processor (e.g. Stripe):</strong> To collect payments, manage escrow, and process seller payouts. PCI-DSS compliant. Independent data controller for fraud prevention.</li>
@@ -453,17 +496,18 @@
     <li><strong>Analytics Providers (e.g. Firebase):</strong> To understand App usage, subject to your consent.</li>
     <li><strong>Delivery / Logistics Partners:</strong> Name, address, and order reference shared with couriers solely for the purpose of fulfilling deliveries.</li>
     <li><strong>Buyer and Seller (each other):</strong> To complete a transaction, we share necessary fulfilment information (e.g. delivery address with seller, seller display name and rating with buyer). Full contact details are not shared outside of what is needed to fulfil the order.</li>
+    <li><strong>HMRC (UK Platform Tax Reporting):</strong> Seller name, date of birth, address, tax identification number, and annual gross proceeds, as required by the UK Platform Information Reporting Regulations 2023 (UK PIRRR / DAC7). This disclosure is mandatory where the reporting threshold is met. See section 8 for full details.</li>
     <li><strong>Legal &amp; Regulatory Authorities:</strong> Where required by law, court order, or to protect our legal rights or the safety of users.</li>
     <li><strong>Dispute Resolution:</strong> Where a dispute is escalated, relevant transaction and communication records may be shared with the other party or a mediator to the extent necessary for resolution.</li>
     <li><strong>Business Transfers:</strong> In the event of a merger or acquisition, under equivalent data protection obligations.</li>
   </ul>
 
-  <!-- 12 -->
-  <h2 id="international-transfers">12. International Data Transfers</h2>
+  <!-- 13 -->
+  <h2 id="international-transfers">13. International Data Transfers</h2>
   <p>Some service providers operate outside the UK. Where transfers occur to non-adequate countries, we rely on UK IDTAs or UK Addenda to EU SCCs. Contact <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> to request a copy of applicable safeguards.</p>
 
-  <!-- 13 -->
-  <h2 id="retention">13. Data Retention</h2>
+  <!-- 14 -->
+  <h2 id="retention">14. Data Retention</h2>
   <p>We retain data only as long as necessary:</p>
   <table class="data-table">
     <thead>
@@ -481,6 +525,7 @@
       <tr><td>Dispute records</td><td>6 years from resolution</td><td>Legitimate interests (limitation period)</td></tr>
       <tr><td>Trust &amp; safety logs</td><td>3 years from last relevant event</td><td>Legitimate interests / Legal obligation</td></tr>
       <tr><td>KYC verification result</td><td>5 years from verification date</td><td>Legal obligation (AML Regs)</td></tr>
+      <tr><td>Tax / TIN data (NI/UTR, DOB, address collected for PIRRR)</td><td>5 years from end of reporting year</td><td>Legal obligation (UK PIRRR 2023, Reg. 23)</td></tr>
       <tr><td>Analytics data</td><td>Up to 26 months</td><td>Legitimate interests</td></tr>
       <tr><td>Marketing consent records</td><td>Until withdrawn + 1 year</td><td>ICO guidance</td></tr>
       <tr><td>User-generated content</td><td>Until deleted by user or account closure</td><td>Contract</td></tr>
@@ -491,8 +536,8 @@
   </table>
   <p>Where data cannot be deleted due to a live legal hold or ongoing dispute, we will inform you of the hold and its expected duration. Where possible, we will anonymise data rather than delete it where anonymisation satisfies the underlying retention purpose &mdash; anonymised data is no longer personal data under UK GDPR.</p>
 
-  <!-- 14 -->
-  <h2 id="your-rights">14. Your Rights Under UK GDPR</h2>
+  <!-- 15 -->
+  <h2 id="your-rights">15. Your Rights Under UK GDPR</h2>
   <p>You have the following rights. Contact us at <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> to exercise them. We respond within one calendar month:</p>
   <table class="data-table">
     <thead>
@@ -546,8 +591,8 @@
     </tbody>
   </table>
 
-  <!-- 15 -->
-  <h2 id="complain">15. Right to Complain</h2>
+  <!-- 16 -->
+  <h2 id="complain">16. Right to Complain</h2>
   <p>You have the right to complain to the Information Commissioner&rsquo;s Office (ICO):</p>
   <table class="contact-table">
     <tbody>
@@ -558,8 +603,8 @@
   </table>
   <p style="margin-top:0.75rem;">We ask that you contact us first at <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> to try to resolve any concern before escalating to the ICO.</p>
 
-  <!-- 16 -->
-  <h2 id="online-safety">16. Online Safety Act 2023 &amp; Content Moderation</h2>
+  <!-- 17 -->
+  <h2 id="online-safety">17. Online Safety Act 2023 &amp; Content Moderation</h2>
   <p>As an online marketplace that hosts user-generated content, TAFSI LTD is subject to duties under the Online Safety Act 2023 (OSA). In fulfilling these duties we:</p>
   <ul>
     <li>Maintain and publish a Prohibited Items Policy setting out content and listings that are not permitted on the platform.</li>
@@ -570,8 +615,8 @@
   </ul>
   <p>Processing of content for moderation purposes is carried out under legal obligation (Art. 6(1)(c)). Automated screening may be used as a first step, but removal decisions on disputed content involve human review.</p>
 
-  <!-- 17 -->
-  <h2 id="security">17. Data Security</h2>
+  <!-- 18 -->
+  <h2 id="security">18. Data Security</h2>
   <ul>
     <li>Encryption of all data in transit (TLS 1.2+) and at rest.</li>
     <li>Tokenisation of payment card data by our PCI-DSS compliant processor.</li>
@@ -582,20 +627,20 @@
   </ul>
   <p>You are responsible for keeping your login credentials secure. Report any suspected unauthorised access to <a href="mailto:support@dukanoh.com">support@dukanoh.com</a> immediately.</p>
 
-  <!-- 18 -->
-  <h2 id="children">18. Children&rsquo;s Privacy</h2>
+  <!-- 19 -->
+  <h2 id="children">19. Children&rsquo;s Privacy</h2>
   <p>Dukanoh is for users aged 18 and over only. We do not knowingly collect data from under-18s. If you believe a minor has registered, contact <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> and we will delete the account without undue delay.</p>
 
-  <!-- 19 -->
-  <h2 id="automated-decisions">19. Automated Decision-Making</h2>
+  <!-- 20 -->
+  <h2 id="automated-decisions">20. Automated Decision-Making</h2>
   <p>We use automated processes for listing screening, fraud scoring, and recommendation ranking. Where an automated decision produces a significant legal or similarly significant effect on you (such as account suspension), a human review is always available. Contact <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> to request a human review of any automated decision.</p>
 
-  <!-- 20 -->
-  <h2 id="changes">20. Changes to This Policy</h2>
+  <!-- 21 -->
+  <h2 id="changes">21. Changes to This Policy</h2>
   <p>We will notify you of material changes via the App or email at least 14 days before they take effect. The Effective Date above indicates the current version.</p>
 
-  <!-- 21 -->
-  <h2 id="contact">21. Contact Us</h2>
+  <!-- 22 -->
+  <h2 id="contact">22. Contact Us</h2>
   <p>For all privacy and data protection enquiries:</p>
   <table class="contact-table">
     <tbody>
