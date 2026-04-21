@@ -283,11 +283,11 @@ export default function SignUpScreen() {
         />
         <Text style={styles.terms}>
           By signing up you agree to our{' '}
-          <Text style={styles.termsLink} onPress={() => Linking.openURL('https://dukanoh.com/terms')}>
+          <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}>
             Terms of Service
           </Text>
           {' '}and{' '}
-          <Text style={styles.termsLink} onPress={() => Linking.openURL('https://dukanoh.com/privacy')}>
+          <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.dukanoh.com/privacy-policy')}>
             Privacy Policy
           </Text>
           .

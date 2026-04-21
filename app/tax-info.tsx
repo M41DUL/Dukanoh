@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -279,7 +280,13 @@ export default function TaxInfoScreen() {
 
           <Text style={[styles.hint, { color: colors.textSecondary }]}>
             This information is stored securely and will only be shared with HMRC if you reach the
-            reporting threshold. See our Privacy Policy for details.
+            reporting threshold.{' '}
+            <Text
+              style={{ textDecorationLine: 'underline' }}
+              onPress={() => Linking.openURL('https://www.dukanoh.com/privacy-policy')}
+            >
+              See our Privacy Policy for details.
+            </Text>
           </Text>
 
           <TouchableOpacity
