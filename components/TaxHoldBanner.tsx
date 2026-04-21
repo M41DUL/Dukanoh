@@ -14,7 +14,7 @@ export function TaxHoldBanner({ taxStatus }: Props) {
 
   if (!taxStatus || taxStatus.hasTin) return null;
 
-  const hardBlock = taxStatus.taxHold || taxStatus.yearCount >= 30 || taxStatus.yearSales >= 1700;
+  const hardBlock = taxStatus.taxHold || taxStatus.yearCount >= 29 || taxStatus.yearSales >= 1690;
   const warning = !hardBlock && (taxStatus.yearCount >= 25 || taxStatus.yearSales >= 1500);
 
   if (hardBlock) {

@@ -32,7 +32,7 @@ export function useTaxStatus(userId: string | undefined) {
     const yearSales = orders.reduce((s, o) => s + (o.item_price ?? 0), 0);
     const hasTin = !!userRes.data?.tax_id_collected_at;
     const taxHold = !!userRes.data?.tax_hold;
-    const overThreshold = yearCount >= 30 || yearSales >= 1700;
+    const overThreshold = yearCount >= 29 || yearSales >= 1690;
 
     // Auto-set tax_hold in DB when threshold is crossed and no TIN on file
     if (overThreshold && !hasTin && !taxHold) {
