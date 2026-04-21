@@ -53,8 +53,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  const userId = event.app_user_id as string | null;
+  const userId    = event.app_user_id as string | null;
   const eventType = event.type as string;
+  const productId = event.product_id as string | null;
   const expirationMs = event.expiration_at_ms as number | null;
   const expiresAt = expirationMs ? new Date(expirationMs).toISOString() : null;
 
@@ -70,23 +71,84 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
+  // Detect founder product via env var set at deploy time
+  const founderProductId = Deno.env.get('FOUNDER_PRODUCT_ID') ?? '';
+  const isFounderProduct = founderProductId !== '' && productId === founderProductId;
+
   if (ACTIVE_EVENTS.has(eventType)) {
-    const update: Record<string, unknown> = { seller_tier: 'pro', pro_expires_at: expiresAt };
-    if (eventType === 'INITIAL_PURCHASE') update.had_free_trial = true;
-    await supabase.from('users').update(update).eq('id', userId);
+    if (isFounderProduct && eventType === 'INITIAL_PURCHASE') {
+      // Check eligibility: must not have cancelled a founder sub before, and slots must remain
+      const [userRes, settingsRes] = await Promise.all([
+        supabase.from('users').select('had_founder_subscription').eq('id', userId).maybeSingle(),
+        supabase.from('platform_settings').select('key, value').in('key', ['founder_count', 'founder_limit']),
+      ]);
+
+      const hadFounderSub = userRes.data?.had_founder_subscription ?? false;
+      const row = (k: string) => settingsRes.data?.find((r: { key: string }) => r.key === k)?.value;
+      const founderCount = parseInt(row('founder_count') ?? '0', 10);
+      const founderLimit = parseInt(row('founder_limit') ?? '150', 10);
+      const slotsAvailable = founderCount < founderLimit;
+
+      if (!hadFounderSub && slotsAvailable) {
+        // Eligible — grant founder tier and increment count
+        await Promise.all([
+          supabase.from('users').update({
+            seller_tier: 'founder',
+            pro_expires_at: expiresAt,
+            had_free_trial: true,
+          }).eq('id', userId),
+          supabase.from('platform_settings')
+            .update({ value: String(founderCount + 1) })
+            .eq('key', 'founder_count'),
+        ]);
+      } else {
+        // Ineligible (previously cancelled founder OR cap reached) — treat as standard pro
+        await supabase.from('users').update({
+          seller_tier: 'pro',
+          pro_expires_at: expiresAt,
+          had_free_trial: true,
+        }).eq('id', userId);
+      }
+    } else {
+      // Standard pro purchase or non-initial founder event (renewal, uncancellation, product change)
+      const update: Record<string, unknown> = {
+        seller_tier: isFounderProduct ? 'founder' : 'pro',
+        pro_expires_at: expiresAt,
+      };
+      if (eventType === 'INITIAL_PURCHASE') update.had_free_trial = true;
+      await supabase.from('users').update(update).eq('id', userId);
+    }
   } else if (EXPIRED_EVENTS.has(eventType)) {
-    // Revoke Pro access immediately
-    await supabase
-      .from('users')
-      .update({ seller_tier: 'free', pro_expires_at: null })
-      .eq('id', userId);
+    // Revoke Pro/Founder access immediately on expiry
+    const updates: Record<string, unknown> = {
+      seller_tier: 'free',
+      pro_expires_at: null,
+    };
+
+    if (isFounderProduct) {
+      // Permanently flag and decrement live count
+      updates.had_founder_subscription = true;
+      const { data: settingsData } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'founder_count')
+        .maybeSingle();
+      const currentCount = parseInt(settingsData?.value ?? '1', 10);
+      await supabase.from('platform_settings')
+        .update({ value: String(Math.max(0, currentCount - 1)) })
+        .eq('key', 'founder_count');
+    }
+
+    await supabase.from('users').update(updates).eq('id', userId);
   } else if (CANCELLATION_EVENTS.has(eventType)) {
-    // User cancelled but keep access until expiry — just update the expiry date
-    // The existing DB cron job handles revoking when pro_expires_at passes
-    await supabase
-      .from('users')
-      .update({ pro_expires_at: expiresAt })
-      .eq('id', userId);
+    // Access continues until expiry — update expiry and permanently flag founder cancellers
+    const updates: Record<string, unknown> = { pro_expires_at: expiresAt };
+    if (isFounderProduct) {
+      // Flag immediately on cancellation so they can't re-subscribe at founder pricing
+      // even while their current access is still active
+      updates.had_founder_subscription = true;
+    }
+    await supabase.from('users').update(updates).eq('id', userId);
   }
 
   return new Response(JSON.stringify({ received: true }), {

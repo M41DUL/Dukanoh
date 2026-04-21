@@ -33,6 +33,7 @@ export default function SellerHubScreen() {
   const { user, isVerified } = useAuth();
   const [sellerTier, setSellerTier] = useState<string | null>(null);
   const [hadFreeTrial, setHadFreeTrial] = useState(false);
+  const [hadFounderSub, setHadFounderSub] = useState(false);
   const [proExpired, setProExpired] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
@@ -42,7 +43,7 @@ export default function SellerHubScreen() {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('seller_tier, had_free_trial, pro_expires_at')
+          .select('seller_tier, had_free_trial, had_founder_subscription, pro_expires_at')
           .eq('id', user.id)
           .maybeSingle();
         if (error) { setLoadError(true); return; }
@@ -54,6 +55,7 @@ export default function SellerHubScreen() {
         setSellerTier(expired ? 'free' : tier);
         setProExpired(expired);
         setHadFreeTrial(data?.had_free_trial ?? false);
+        setHadFounderSub(data?.had_founder_subscription ?? false);
       } catch {
         setLoadError(true);
       }
@@ -90,12 +92,12 @@ export default function SellerHubScreen() {
 
   if (sellerTier === 'pro' || sellerTier === 'founder') return null;
 
-  return <HubPaywall isVerified={isVerified} hadFreeTrial={hadFreeTrial} proExpired={proExpired} />;
+  return <HubPaywall isVerified={isVerified} hadFreeTrial={hadFreeTrial} hadFounderSub={hadFounderSub} proExpired={proExpired} />;
 }
 
 // ── Paywall screen ───────────────────────────────────────────
 
-function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: boolean; hadFreeTrial: boolean; proExpired: boolean }) {
+function HubPaywall({ isVerified, hadFreeTrial, hadFounderSub, proExpired }: { isVerified: boolean; hadFreeTrial: boolean; hadFounderSub: boolean; proExpired: boolean }) {
   const insets = useSafeAreaInsets();
   const [founderCount, setFounderCount] = useState<number | null>(null);
   const [founderLimit, setFounderLimit] = useState(150);
@@ -145,7 +147,7 @@ function HubPaywall({ isVerified, hadFreeTrial, proExpired }: { isVerified: bool
       });
   }, [founderLimit]);
 
-  const isFounderAvailable = founderCount !== null && founderCount < founderLimit;
+  const isFounderAvailable = founderCount !== null && founderCount < founderLimit && !hadFounderSub;
   const founderSlotsLeft   = founderLimit - (founderCount ?? 0);
   const monthlyPrice       = isFounderAvailable ? founderMonthlyPrice : standardMonthlyPrice;
 
