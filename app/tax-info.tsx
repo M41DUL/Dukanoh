@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Header } from '@/components/Header';
 import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
@@ -50,6 +50,7 @@ function formatDobInput(raw: string): string {
 export default function TaxInfoScreen() {
   const { user } = useAuth();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [legalName, setLegalName] = useState('');
@@ -126,26 +127,36 @@ export default function TaxInfoScreen() {
     ]);
   };
 
+  const closeButton = (
+    <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+      <Ionicons name="close" size={22} color={colors.textSecondary} />
+    </TouchableOpacity>
+  );
+
+  const topPad = insets.top + Spacing.sm;
+  const bottomPad = insets.bottom + Spacing.base;
+
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <View style={[styles.safe, { backgroundColor: colors.background, paddingTop: topPad }]}>
         <View style={styles.handle} />
-        <Header title="Tax information" showBack />
+        <Header title="Tax information" rightAction={closeButton} />
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+    <View style={[styles.safe, { backgroundColor: colors.background, paddingTop: topPad }]}>
       <View style={styles.handle} />
-      <Header title="Tax information" showBack />
+      <Header title="Tax information" rightAction={closeButton} />
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={80}
+        keyboardVerticalOffset={topPad + 56}
       >
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -164,7 +175,6 @@ export default function TaxInfoScreen() {
             </View>
           )}
 
-          {/* ── Personal details ── */}
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Personal details</Text>
 
           <Input
@@ -225,7 +235,6 @@ export default function TaxInfoScreen() {
 
           <Divider />
 
-          {/* ── Tax identifier ── */}
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Tax identifier</Text>
 
           {(['NI', 'UTR'] as TinType[]).map((t, i) => (
@@ -263,21 +272,22 @@ export default function TaxInfoScreen() {
               : 'Found on your Self Assessment returns or HMRC correspondence. 10 digits.'}
           />
 
-          <Divider />
-
           <Text style={[styles.hint, { color: colors.textSecondary }]}>
             This information is stored securely and will only be shared with HMRC if you reach the
             reporting threshold. See our Privacy Policy for details.
           </Text>
+        </ScrollView>
 
+        {/* Sticky CTA */}
+        <View style={[styles.footer, { paddingBottom: bottomPad, borderTopColor: colors.border }]}>
           <Button
             label={saving ? 'Saving…' : alreadySubmitted ? 'Update details' : 'Save details'}
             onPress={handleSave}
             disabled={!isValid || saving}
           />
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -290,7 +300,6 @@ function getStyles(colors: ColorTokens) {
       borderRadius: 2,
       backgroundColor: colors.border,
       alignSelf: 'center',
-      marginTop: Spacing.sm,
       marginBottom: Spacing.sm,
     },
     flex: { flex: 1 },
@@ -298,8 +307,13 @@ function getStyles(colors: ColorTokens) {
     content: {
       paddingHorizontal: Spacing.base,
       paddingTop: Spacing.lg,
-      paddingBottom: Spacing['3xl'],
+      paddingBottom: Spacing.xl,
       gap: Spacing.lg,
+    },
+    footer: {
+      paddingHorizontal: Spacing.base,
+      paddingTop: Spacing.base,
+      borderTopWidth: 1,
     },
     body: {
       ...Typography.body,
