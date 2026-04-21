@@ -59,7 +59,12 @@ CREATE TABLE public.users (
   address_line2               TEXT,
   city                        TEXT,
   postcode                    TEXT,
-  country                     TEXT DEFAULT 'United Kingdom'
+  country                     TEXT DEFAULT 'United Kingdom',
+  -- DAC7 / UK PIRRR tax reporting
+  tax_id_type                 TEXT,           -- 'NI' or 'UTR'
+  tax_id_number               TEXT,           -- NI number or UTR
+  tax_id_collected_at         TIMESTAMPTZ,
+  tax_hold                    BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- Invites (controls access to the platform)

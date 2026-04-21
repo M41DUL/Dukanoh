@@ -153,7 +153,7 @@ async function fetchTrendingCategories(
   return categories;
 }
 
-const SUGGESTED_SELECT = 'id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)';
+const SUGGESTED_SELECT = 'id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)';
 
 // Suggested for You: no boosts, occasion signal, seller diversity cap, limit 10
 async function fetchSuggestedSection(
@@ -182,12 +182,12 @@ async function fetchSuggestedSection(
 
   const results = await Promise.all(queries);
 
-  // Merge and deduplicate by listing id
+  // Merge and deduplicate by listing id; exclude tax-held sellers
   const seen = new Set<string>();
   const merged: Listing[] = [];
   for (const { data } of results) {
     for (const item of (data ?? []) as Listing[]) {
-      if (!seen.has(item.id)) {
+      if (!seen.has(item.id) && !(item as any).seller?.tax_hold) {
         seen.add(item.id);
         merged.push(item);
       }
@@ -231,7 +231,9 @@ async function fetchNewArrivals(
   if (gender) query = query.eq('category', gender);
 
   const { data } = await query;
-  const listings = (data ?? []) as unknown as Listing[];
+  const listings = ((data ?? []) as unknown as Listing[]).filter(
+    l => !(l as any).seller?.tax_hold
+  );
   if (listings.length === 0) return listings;
 
   // Apply seller diversity cap: max 2 listings per seller

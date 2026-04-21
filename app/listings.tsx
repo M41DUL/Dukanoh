@@ -230,7 +230,7 @@ export default function ListingsScreen() {
 
     let q = supabase
       .from('listings')
-      .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, fabric, save_count, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
+      .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, fabric, save_count, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)')
       .order(orderCol, { ascending });
 
     if (!myListings) q = q.eq('status', 'available');
@@ -325,7 +325,10 @@ export default function ListingsScreen() {
     }
 
     setFetchError(false);
-    const filtered = applyClientFilters((data ?? []) as unknown as Listing[], trimmedQuery);
+    const rawData = ((data ?? []) as unknown as Listing[]).filter(
+      l => !myListings && (l as any).seller?.tax_hold ? false : true
+    );
+    const filtered = applyClientFilters(rawData, trimmedQuery);
     // Only apply Pro ranking when not doing a text search (text search should respect relevance)
     const items = isTextSearch ? filtered : proRankSort(filtered);
 

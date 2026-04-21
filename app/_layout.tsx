@@ -196,6 +196,10 @@ function RootNavigator() {
           name="admin/disputes"
           options={{ animation: 'slide_from_right' }}
         />
+        <Stack.Screen
+          name="tax-info"
+          options={{ animation: 'slide_from_bottom', presentation: 'formSheet' }}
+        />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {splashVisible && (
