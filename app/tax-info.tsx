@@ -7,14 +7,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Header } from '@/components/Header';
+import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { Divider } from '@/components/Divider';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,14 +24,12 @@ import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/co
 
 type TinType = 'NI' | 'UTR';
 
-// Convert stored YYYY-MM-DD to display DD/MM/YYYY
 function isoToDisplay(iso: string | null): string {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
 }
 
-// Convert display DD/MM/YYYY to stored YYYY-MM-DD
 function displayToIso(display: string): string | null {
   const parts = display.replace(/\s/g, '').split('/');
   if (parts.length !== 3) return null;
@@ -54,15 +52,12 @@ export default function TaxInfoScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  // Identity fields
   const [legalName, setLegalName] = useState('');
   const [dobDisplay, setDobDisplay] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
   const [addressLine2, setAddressLine2] = useState('');
   const [city, setCity] = useState('');
   const [postcode, setPostcode] = useState('');
-
-  // TIN fields
   const [tinType, setTinType] = useState<TinType>('NI');
   const [tinNumber, setTinNumber] = useState('');
 
@@ -101,14 +96,6 @@ export default function TaxInfoScreen() {
     city.trim().length > 0 &&
     postcode.trim().length > 0;
 
-  const missingFields = [
-    !dobIso && 'Date of birth',
-    !addressLine1.trim() && 'Address line 1',
-    !city.trim() && 'Town / city',
-    !postcode.trim() && 'Postcode',
-    tinNumber.trim().length < 8 && (tinType === 'NI' ? 'NI number' : 'UTR number'),
-  ].filter(Boolean) as string[];
-
   const handleSave = async () => {
     if (!user || !isValid) return;
     setSaving(true);
@@ -139,17 +126,17 @@ export default function TaxInfoScreen() {
 
   if (loading) {
     return (
-      <ScreenWrapper>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
         <Header title="Tax information" showBack />
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
         </View>
-      </ScreenWrapper>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScreenWrapper>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
       <Header title="Tax information" showBack />
       <KeyboardAvoidingView
         style={styles.flex}
@@ -167,7 +154,7 @@ export default function TaxInfoScreen() {
           </Text>
 
           {alreadySubmitted && (
-            <View style={[styles.successBanner, { backgroundColor: '#F0FDF4' }]}>
+            <View style={styles.successBanner}>
               <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
               <Text style={styles.successText}>Details on file — you can update them below.</Text>
             </View>
@@ -175,132 +162,110 @@ export default function TaxInfoScreen() {
 
           {/* ── Personal details ── */}
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Personal details</Text>
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
 
-            {/* Legal name — read-only */}
-            <Text style={styles.fieldLabel}>Legal name</Text>
+          {/* Legal name — read-only */}
+          <View style={styles.readonlyWrap}>
+            <Text style={styles.readonlyLabel}>Legal name</Text>
             <Text style={[styles.readonlyValue, { color: legalName ? colors.textPrimary : colors.textSecondary }]}>
               {legalName || 'Not set — update your profile first'}
             </Text>
             <Text style={[styles.hint, { color: colors.textSecondary }]}>
               To change your legal name, update your profile.
             </Text>
+          </View>
 
-            <Divider />
+          <Input
+            label="Date of birth"
+            value={dobDisplay}
+            onChangeText={v => setDobDisplay(formatDobInput(v))}
+            placeholder="DD/MM/YYYY"
+            keyboardType="number-pad"
+            maxLength={10}
+          />
 
-            {/* Date of birth */}
-            <Text style={styles.fieldLabel}>Date of birth</Text>
-            <TextInput
-              style={[styles.inlineInput, { color: colors.textPrimary }]}
-              value={dobDisplay}
-              onChangeText={v => setDobDisplay(formatDobInput(v))}
-              placeholder="DD/MM/YYYY"
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="number-pad"
-              maxLength={10}
-            />
+          <Input
+            label="Address line 1"
+            value={addressLine1}
+            onChangeText={setAddressLine1}
+            placeholder="e.g. 12 Chapel Street"
+            autoCapitalize="words"
+          />
 
-            <Divider />
+          <Input
+            label="Address line 2 (optional)"
+            value={addressLine2}
+            onChangeText={setAddressLine2}
+            placeholder="Flat, building, estate…"
+            autoCapitalize="words"
+          />
 
-            {/* Address */}
-            <Text style={styles.fieldLabel}>Home address</Text>
-            <TextInput
-              style={[styles.inlineInput, { color: colors.textPrimary }]}
-              value={addressLine1}
-              onChangeText={setAddressLine1}
-              placeholder="Address line 1"
-              placeholderTextColor={colors.textSecondary}
-              autoCapitalize="words"
-            />
-            <TextInput
-              style={[styles.inlineInput, styles.inlineInputGap, { color: colors.textPrimary }]}
-              value={addressLine2}
-              onChangeText={setAddressLine2}
-              placeholder="Address line 2 (optional)"
-              placeholderTextColor={colors.textSecondary}
-              autoCapitalize="words"
-            />
-            <View style={styles.rowInputs}>
-              <TextInput
-                style={[styles.inlineInput, styles.inlineInputGap, styles.flex, { color: colors.textPrimary }]}
+          <View style={styles.rowInputs}>
+            <View style={styles.flex}>
+              <Input
+                label="Town / city"
                 value={city}
                 onChangeText={setCity}
-                placeholder="Town / city"
-                placeholderTextColor={colors.textSecondary}
+                placeholder="e.g. Manchester"
                 autoCapitalize="words"
               />
-              <TextInput
-                style={[styles.inlineInput, styles.inlineInputGap, styles.postcodeInput, { color: colors.textPrimary }]}
+            </View>
+            <View style={styles.postcodeWrap}>
+              <Input
+                label="Postcode"
                 value={postcode}
                 onChangeText={v => setPostcode(v.toUpperCase())}
-                placeholder="Postcode"
-                placeholderTextColor={colors.textSecondary}
+                placeholder="SK14 1JB"
                 autoCapitalize="characters"
               />
             </View>
           </View>
 
+          <Divider />
+
           {/* ── Tax identifier ── */}
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Tax identifier</Text>
-          <View style={[styles.card, { backgroundColor: colors.surface }]}>
-            {(['NI', 'UTR'] as TinType[]).map((t, i) => (
-              <View key={t}>
-                <TouchableOpacity
-                  style={styles.optionRow}
-                  onPress={() => setTinType(t)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.optionLabel, { color: colors.textPrimary }]}>
-                    {t === 'NI' ? 'National Insurance number' : 'Unique Taxpayer Reference (UTR)'}
-                  </Text>
-                  <View style={[
-                    styles.radio,
-                    { borderColor: tinType === t ? colors.primary : colors.border },
-                    tinType === t && { backgroundColor: colors.primary },
-                  ]}>
-                    {tinType === t && <View style={styles.radioDot} />}
-                  </View>
-                </TouchableOpacity>
-                {i === 0 && <Divider />}
-              </View>
-            ))}
 
-            <Divider />
+          {(['NI', 'UTR'] as TinType[]).map((t, i) => (
+            <View key={t}>
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() => setTinType(t)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.optionLabel, { color: colors.textPrimary }]}>
+                  {t === 'NI' ? 'National Insurance number' : 'Unique Taxpayer Reference (UTR)'}
+                </Text>
+                <View style={[
+                  styles.radio,
+                  { borderColor: tinType === t ? colors.primary : colors.border },
+                  tinType === t && { backgroundColor: colors.primary },
+                ]}>
+                  {tinType === t && <View style={styles.radioDot} />}
+                </View>
+              </TouchableOpacity>
+              {i === 0 && <Divider />}
+            </View>
+          ))}
 
-            <Text style={styles.fieldLabel}>
-              {tinType === 'NI' ? 'NI number' : 'UTR number'}
-            </Text>
-            <TextInput
-              style={[styles.inlineInput, { color: colors.textPrimary }]}
-              value={tinNumber}
-              onChangeText={setTinNumber}
-              placeholder={tinType === 'NI' ? 'e.g. AB 12 34 56 C' : 'e.g. 1234567890'}
-              placeholderTextColor={colors.textSecondary}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              keyboardType={tinType === 'UTR' ? 'number-pad' : 'default'}
-            />
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              {tinType === 'NI'
-                ? 'Found on your payslips, P60, or HMRC letters.'
-                : 'Found on your Self Assessment returns or HMRC correspondence. 10 digits.'}
-            </Text>
-          </View>
+          <Input
+            label={tinType === 'NI' ? 'NI number' : 'UTR number'}
+            value={tinNumber}
+            onChangeText={setTinNumber}
+            placeholder={tinType === 'NI' ? 'e.g. AB 12 34 56 C' : 'e.g. 1234567890'}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            keyboardType={tinType === 'UTR' ? 'number-pad' : 'default'}
+            hint={tinType === 'NI'
+              ? 'Found on your payslips, P60, or HMRC letters.'
+              : 'Found on your Self Assessment returns or HMRC correspondence. 10 digits.'}
+          />
 
-          {/* Missing fields hint */}
-          {missingFields.length > 0 && (
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              Still needed: {missingFields.join(', ')}
-            </Text>
-          )}
+          <Divider />
 
-          {/* Legal note */}
-          <View style={[styles.legalBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.hint, { color: colors.textSecondary }]}>
-              This information is stored securely and will only be shared with HMRC if you reach
-              the reporting threshold. See our Privacy Policy for details.
-            </Text>
-          </View>
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            This information is stored securely and will only be shared with HMRC if you reach the
+            reporting threshold. See our Privacy Policy for details.
+          </Text>
 
           <Button
             label={saving ? 'Saving…' : alreadySubmitted ? 'Update details' : 'Save details'}
@@ -309,15 +274,17 @@ export default function TaxInfoScreen() {
           />
         </ScrollView>
       </KeyboardAvoidingView>
-    </ScreenWrapper>
+    </SafeAreaView>
   );
 }
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
+    safe: { flex: 1 },
     flex: { flex: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     content: {
+      paddingHorizontal: Spacing.base,
       paddingTop: Spacing.lg,
       paddingBottom: Spacing['3xl'],
       gap: Spacing.lg,
@@ -331,6 +298,7 @@ function getStyles(colors: ColorTokens) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: Spacing.sm,
+      backgroundColor: '#F0FDF4',
       borderRadius: BorderRadius.medium,
       padding: Spacing.base,
     },
@@ -344,45 +312,28 @@ function getStyles(colors: ColorTokens) {
       fontFamily: FontFamily.semibold,
       textTransform: 'uppercase',
       letterSpacing: 0.6,
-      marginBottom: -Spacing.sm,
     },
-    card: {
-      borderRadius: BorderRadius.large,
-      paddingHorizontal: Spacing.base,
-      paddingBottom: Spacing.sm,
+    readonlyWrap: {
+      gap: Spacing.xs,
     },
-    fieldLabel: {
-      fontSize: 11,
-      fontFamily: FontFamily.semibold,
-      color: colors.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-      marginTop: Spacing.base,
-      marginBottom: Spacing.xs,
+    readonlyLabel: {
+      ...Typography.label,
+      color: colors.textPrimary,
     },
     readonlyValue: {
       ...Typography.body,
-      paddingBottom: Spacing.xs,
     },
     hint: {
       ...Typography.caption,
       lineHeight: 18,
-      paddingVertical: Spacing.sm,
-    },
-    inlineInput: {
-      fontSize: 15,
-      fontFamily: FontFamily.regular,
-      paddingVertical: Spacing.sm,
-    },
-    inlineInputGap: {
-      marginTop: Spacing.xs,
     },
     rowInputs: {
       flexDirection: 'row',
       gap: Spacing.sm,
+      alignItems: 'flex-start',
     },
-    postcodeInput: {
-      width: 110,
+    postcodeWrap: {
+      width: 120,
     },
     optionRow: {
       flexDirection: 'row',
@@ -407,11 +358,6 @@ function getStyles(colors: ColorTokens) {
       height: 8,
       borderRadius: 4,
       backgroundColor: '#fff',
-    },
-    legalBox: {
-      borderWidth: 1,
-      borderRadius: BorderRadius.large,
-      paddingHorizontal: Spacing.base,
     },
   });
 }
