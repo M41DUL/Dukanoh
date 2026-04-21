@@ -8,7 +8,6 @@ import {
   Linking,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -81,20 +80,10 @@ export default function PrivacySettingsScreen() {
           Manage how Dukanoh uses your data. Strictly necessary cookies cannot be disabled as they are required for the app to function.
         </Text>
 
-        {/* Strictly necessary — locked */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <ToggleRow
-            label="Strictly necessary"
-            description="Authentication, session management, and security. Required for the app to work."
-            value={true}
-            locked
-            colors={colors}
-            styles={styles}
-          />
-          <Divider />
-          <ToggleRow
             label="Analytics"
-            description="Usage patterns and crash reports (e.g. Firebase). Helps us improve the app."
+            description="Usage patterns and crash reports. Helps us improve the app."
             value={consent.analytics_consent}
             onValueChange={v => handleToggle('analytics_consent', v)}
             colors={colors}
@@ -109,22 +98,9 @@ export default function PrivacySettingsScreen() {
             colors={colors}
             styles={styles}
           />
-        </View>
-
-        {/* Marketing push — separate PECR section */}
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Push notifications</Text>
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <ToggleRow
-            label="Transactional"
-            description="Order updates, messages, and dispute alerts. Cannot be disabled."
-            value={true}
-            locked
-            colors={colors}
-            styles={styles}
-          />
           <Divider />
           <ToggleRow
-            label="Marketing"
+            label="Marketing notifications"
             description="Promotions, new features, and personalised offers from Dukanoh."
             value={consent.marketing_push_consent}
             onValueChange={v => handleToggle('marketing_push_consent', v)}
@@ -149,36 +125,25 @@ function ToggleRow({
   description,
   value,
   onValueChange,
-  locked,
   colors,
   styles,
 }: {
   label: string;
   description: string;
   value: boolean;
-  onValueChange?: (v: boolean) => void;
-  locked?: boolean;
+  onValueChange: (v: boolean) => void;
   colors: ColorTokens;
   styles: ReturnType<typeof getStyles>;
 }) {
   return (
     <View style={styles.row}>
       <View style={styles.rowText}>
-        <View style={styles.rowLabelRow}>
-          <Text style={[styles.rowLabel, { color: colors.textPrimary }]}>{label}</Text>
-          {locked && (
-            <View style={[styles.lockedBadge, { backgroundColor: colors.surfaceAlt }]}>
-              <Ionicons name="lock-closed" size={10} color={colors.textSecondary} />
-              <Text style={[styles.lockedText, { color: colors.textSecondary }]}>Required</Text>
-            </View>
-          )}
-        </View>
+        <Text style={[styles.rowLabel, { color: colors.textPrimary }]}>{label}</Text>
         <Text style={[styles.rowDescription, { color: colors.textSecondary }]}>{description}</Text>
       </View>
       <Switch
         value={value}
-        onValueChange={locked ? undefined : onValueChange}
-        disabled={locked}
+        onValueChange={onValueChange}
         trackColor={{ false: colors.border, true: colors.primary }}
         thumbColor="#fff"
       />
@@ -198,13 +163,6 @@ function getStyles(_colors: ColorTokens) {
       fontFamily: FontFamily.regular,
       lineHeight: 19,
     },
-    sectionLabel: {
-      fontSize: 11,
-      fontFamily: FontFamily.semibold,
-      textTransform: 'uppercase',
-      letterSpacing: 0.6,
-      marginBottom: -Spacing.sm,
-    },
     card: {
       borderRadius: BorderRadius.large,
       overflow: 'hidden',
@@ -220,11 +178,6 @@ function getStyles(_colors: ColorTokens) {
       flex: 1,
       gap: 3,
     },
-    rowLabelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.sm,
-    },
     rowLabel: {
       fontSize: 14,
       fontFamily: FontFamily.medium,
@@ -233,18 +186,6 @@ function getStyles(_colors: ColorTokens) {
       fontSize: 12,
       fontFamily: FontFamily.regular,
       lineHeight: 17,
-    },
-    lockedBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 3,
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: BorderRadius.full,
-    },
-    lockedText: {
-      fontSize: 10,
-      fontFamily: FontFamily.medium,
     },
     policyLink: {
       fontSize: 13,
