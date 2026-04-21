@@ -32,7 +32,7 @@ const STALE_MS = 30_000;
 
 export default function ProfileScreen() {
   const { user, username, isVerified, isOfficial, sellerTier, refreshProfile } = useAuth();
-  const { taxStatus } = useTaxStatus(user?.id);
+  const { taxStatus, reloadTaxStatus } = useTaxStatus(user?.id);
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
@@ -87,11 +87,12 @@ export default function ProfileScreen() {
 
   useFocusEffect(useCallback(() => {
     refreshProfile();
+    reloadTaxStatus();
     const now = Date.now();
     if (now - lastFetchedRef.current > STALE_MS) {
       fetchProfile();
     }
-  }, [fetchProfile, refreshProfile]));
+  }, [fetchProfile, refreshProfile, reloadTaxStatus]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

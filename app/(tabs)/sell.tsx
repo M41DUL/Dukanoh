@@ -50,7 +50,7 @@ const ALL_CATEGORIES = Categories.filter(c => c !== 'All') as string[];
 
 export default function SellScreen() {
   const { user, isSeller, isVerified, loading: authLoading, refreshProfile } = useAuth();
-  const { taxStatus } = useTaxStatus(isSeller ? user?.id : undefined);
+  const { taxStatus, reloadTaxStatus } = useTaxStatus(isSeller ? user?.id : undefined);
   const isFocused = useIsFocused();
   const emptyForm: ListingForm = {
     title: '', description: '', price: '', gender: '', category: '',
@@ -139,6 +139,7 @@ export default function SellScreen() {
 
   useFocusEffect(useCallback(() => {
     refreshProfile();
+    reloadTaxStatus();
     return () => {
       // Runs when tab loses focus — checked via ref to avoid stale closure
       if (formDirtyRef.current && !submittingRef.current) {
@@ -152,7 +153,7 @@ export default function SellScreen() {
         );
       }
     };
-  }, [refreshProfile]));
+  }, [refreshProfile, reloadTaxStatus]));
 
   const update = (key: keyof ListingForm) => (value: string) => {
     setForm(f => ({ ...f, [key]: value }));
