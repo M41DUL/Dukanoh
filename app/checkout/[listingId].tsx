@@ -548,13 +548,13 @@ export default function CheckoutScreen() {
 
         <View style={[styles.breakdownRow, { marginTop: Spacing.md }]}>
           <View style={styles.breakdownInfo}>
-            <Text style={[styles.breakdownLabel, { fontFamily: FontFamily.semibold }]}>Total Including Buyer Protect</Text>
+            <Text style={[styles.breakdownLabel, { fontFamily: FontFamily.semibold }]}>Total Including Safe Checkout</Text>
             <Text style={[styles.breakdownValue, { fontFamily: FontFamily.semibold }]}>£{total.toFixed(2)}</Text>
           </View>
         </View>
 
         <Text style={styles.breakdownNote}>
-          Every purchase on Dukanoh comes with Buyer Protect included. If your item doesn't arrive or doesn't match the listing, we've got you covered.
+          Every purchase on Dukanoh includes Safe Checkout. If your piece does not arrive or does not match the listing, raise a dispute and our team will step in.
         </Text>
       </BottomSheet>
     </ScreenWrapper>
