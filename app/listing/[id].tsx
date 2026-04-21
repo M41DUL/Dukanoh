@@ -477,20 +477,22 @@ export default function ListingDetailScreen() {
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <Animated.View style={[styles.headerBg, { opacity: headerBgOpacity }]} />
         <Animated.View style={[styles.headerBorderLine, { opacity: headerBgOpacity }]} />
-        <TouchableOpacity style={styles.headerBtn} onPress={() => router.back()} activeOpacity={0.8}>
-          <Animated.View style={[styles.iconLayer, { opacity: btnBackdropOpacity }]}>
-            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
-          </Animated.View>
-          <Animated.View style={[styles.iconLayer, { opacity: headerBgOpacity }]}>
-            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-          </Animated.View>
+        <TouchableOpacity style={styles.headerBtnLeft} onPress={() => router.back()} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, right: 12 }}>
+          <View style={styles.headerBtnIcon}>
+            <Animated.View style={[styles.iconLayer, { opacity: btnBackdropOpacity }]}>
+              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+            </Animated.View>
+            <Animated.View style={[styles.iconLayer, { opacity: headerBgOpacity }]}>
+              <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+            </Animated.View>
+          </View>
         </TouchableOpacity>
         <Animated.View style={[styles.headerTitleWrap, { top: insets.top, opacity: titleOpacity }]} pointerEvents="none">
           <Text style={styles.headerTitle} numberOfLines={1}>{listing.title}</Text>
         </Animated.View>
         <View style={styles.headerRight}>
           <TouchableOpacity
-            style={styles.headerBtn}
+            style={styles.headerBtnRight}
             onPress={
               isSeller && listing.status === 'draft'
                 ? handleSellerOptions
@@ -499,21 +501,24 @@ export default function ListingDetailScreen() {
                 : handleMoreOptions
             }
             activeOpacity={0.8}
+            hitSlop={{ top: 8, bottom: 8, left: 12 }}
           >
-            <Animated.View style={[styles.iconLayer, { opacity: btnBackdropOpacity }]}>
-              <Ionicons
-                name={isSeller && listing.status !== 'draft' ? 'share-outline' : 'ellipsis-horizontal'}
-                size={22}
-                color="#FFFFFF"
-              />
-            </Animated.View>
-            <Animated.View style={[styles.iconLayer, { opacity: headerBgOpacity }]}>
-              <Ionicons
-                name={isSeller && listing.status !== 'draft' ? 'share-outline' : 'ellipsis-horizontal'}
-                size={22}
-                color={colors.textPrimary}
-              />
-            </Animated.View>
+            <View style={styles.headerBtnIcon}>
+              <Animated.View style={[styles.iconLayer, { opacity: btnBackdropOpacity }]}>
+                <Ionicons
+                  name={isSeller && listing.status !== 'draft' ? 'share-outline' : 'ellipsis-horizontal'}
+                  size={22}
+                  color="#FFFFFF"
+                />
+              </Animated.View>
+              <Animated.View style={[styles.iconLayer, { opacity: headerBgOpacity }]}>
+                <Ionicons
+                  name={isSeller && listing.status !== 'draft' ? 'share-outline' : 'ellipsis-horizontal'}
+                  size={22}
+                  color={colors.textPrimary}
+                />
+              </Animated.View>
+            </View>
           </TouchableOpacity>
         </View>
       </View>
@@ -1021,7 +1026,9 @@ function getStyles(colors: ColorTokens) {
       height: StyleSheet.hairlineWidth,
       backgroundColor: colors.border,
     },
-    headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    headerBtnLeft: { paddingLeft: Spacing.base, paddingRight: Spacing.sm, paddingVertical: Spacing.sm },
+    headerBtnRight: { paddingRight: Spacing.base, paddingLeft: Spacing.sm, paddingVertical: Spacing.sm },
+    headerBtnIcon: { width: 22, height: 22 },
     iconLayer: {
       ...StyleSheet.absoluteFillObject,
       alignItems: 'center',
