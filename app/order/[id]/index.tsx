@@ -180,7 +180,7 @@ export default function OrderDetailScreen() {
     if (!order) return;
     Alert.alert(
       'Cancel order',
-      `Are you sure you want to cancel? You'll be refunded £${order.item_price.toFixed(2)} to your original payment method. The buyer protection fee is non-refundable.`,
+      `Are you sure you want to cancel? You'll be refunded £${order.item_price.toFixed(2)} to your original payment method. The Dukanoh Safe Checkout charge is non-refundable.`,
       [
         { text: 'Keep order', style: 'cancel' },
         {
@@ -397,7 +397,7 @@ export default function OrderDetailScreen() {
               colors={colors}
             />
             <MetaRow label="Item price" value={formatGBP(order.item_price)} colors={colors} />
-            <MetaRow label="Buyer protection" value={formatGBP(order.protection_fee)} colors={colors} />
+            <MetaRow label="Dukanoh Safe Checkout" value={formatGBP(order.protection_fee)} colors={colors} />
             <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
             <MetaRow label="Total paid" value={formatGBP(order.total_paid)} bold colors={colors} />
             {order.status === 'completed' && (

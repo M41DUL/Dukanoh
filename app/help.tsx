@@ -17,15 +17,15 @@ interface FAQ {
 const FAQS: FAQ[] = [
   {
     question: 'How does buying work?',
-    answer: 'Find a piece you love, message the member if you have questions, then checkout directly in the app. A small buyer protection fee is added at checkout. Your payment is held securely in escrow until you confirm the piece has arrived.',
+    answer: 'Find a piece you love, message the member if you have questions, then checkout directly in the app. Dukanoh Safe Checkout is included on every order. Your payment is held securely in escrow until you confirm the piece has arrived.',
   },
   {
-    question: 'What is the buyer protection fee?',
-    answer: 'Every purchase includes a buyer protection fee of 6.5% of the item price plus £0.80. This covers you if your piece doesn\'t arrive or doesn\'t match the listing. The fee is non-refundable but the full item price is covered if a dispute is resolved in your favour.',
+    question: 'What is the Dukanoh Safe Checkout charge?',
+    answer: 'Every purchase includes Dukanoh Safe Checkout — a small charge of 6.5% of the item price plus £0.80. This covers you if your piece doesn\'t arrive or doesn\'t match the listing. The charge is non-refundable but the full item price is refunded if a dispute is resolved in your favour.',
   },
   {
-    question: 'What is buyer protection?',
-    answer: 'Every purchase on Dukanoh includes built-in buyer protection. If your piece doesn\'t arrive or doesn\'t match the listing, raise a dispute and our team will step in. Payments are only released to the seller once you confirm receipt, or automatically after 2 days.',
+    question: 'What is Dukanoh Safe Checkout?',
+    answer: 'Every purchase on Dukanoh includes Dukanoh Safe Checkout. If your piece doesn\'t arrive or doesn\'t match the listing, raise a dispute and our team will step in. Payments are only released to the seller once you confirm receipt, or automatically after 2 days.',
   },
   {
     question: 'Can I return a piece?',

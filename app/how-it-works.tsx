@@ -38,7 +38,7 @@ const STEPS: Step[] = [
   {
     icon: 'shield-checkmark-outline',
     title: 'Pay securely',
-    description: 'Checkout with built-in buyer protection. A small protection fee is added at checkout. Your payment is held in escrow until you confirm the piece has arrived.',
+    description: 'Every order includes Dukanoh Safe Checkout. Your payment is held in escrow until you confirm the piece has arrived.',
   },
   {
     icon: 'star-outline',
@@ -50,7 +50,7 @@ const STEPS: Step[] = [
 const BUYER_TIPS: Tip[] = [
   {
     icon: 'shield-checkmark-outline',
-    text: 'Every purchase includes built-in buyer protection. If a piece doesn\'t arrive or doesn\'t match the listing, we\'ve got you covered.',
+    text: 'Every purchase includes Dukanoh Safe Checkout. If a piece doesn\'t arrive or doesn\'t match the listing, we\'ve got you covered.',
   },
   {
     icon: 'eye-outline',
@@ -126,7 +126,7 @@ export default function HowItWorksScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
           <Text style={styles.infoText}>
-            Every purchase on Dukanoh includes buyer protection. Payments are held in escrow and only released to the seller once you confirm your piece has arrived safely.
+            Every purchase on Dukanoh includes Dukanoh Safe Checkout. Payments are held in escrow and only released to the seller once you confirm your piece has arrived safely.
           </Text>
         </View>
 

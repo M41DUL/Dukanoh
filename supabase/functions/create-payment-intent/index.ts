@@ -3,7 +3,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 
-/** Buyer protection fee: 6.5% of item price + £0.80 flat, in pence */
+/** Dukanoh Safe Checkout charge: 6.5% of item price + £0.80 flat, in pence */
 function calcProtectionFeePence(itemPricePence: number): number {
   return Math.round(itemPricePence * 0.065 + 80);
 }

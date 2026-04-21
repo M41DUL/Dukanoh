@@ -120,7 +120,7 @@ export default function AdminDisputesScreen() {
   const resolveForBuyer = (order: DisputedOrder) => {
     Alert.alert(
       'Resolve for buyer',
-      `Refund £${order.item_price.toFixed(2)} to @${order.buyer?.username} and cancel the order? The protection fee is non-refundable.`,
+      `Refund £${order.item_price.toFixed(2)} to @${order.buyer?.username} and cancel the order? The Dukanoh Safe Checkout charge is non-refundable.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

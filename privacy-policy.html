@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Dukanoh</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --text:        #111111;
+      --muted:       #555555;
+      --border:      #e0e0e0;
+      --bg:          #ffffff;
+      --bg-alt:      #f7f7f7;
+      --max-width:   740px;
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.7;
+      padding: 0 1rem;
+    }
+
+    .page {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 3rem 0 5rem;
+    }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+    header .brand {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    header .meta {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    header .meta span + span::before { content: " · "; }
+
+    /* ── Intro ── */
+    .intro {
+      background: var(--bg-alt);
+      border-left: 3px solid var(--text);
+      padding: 1rem 1.25rem;
+      border-radius: 0 4px 4px 0;
+      margin-bottom: 2.5rem;
+      font-size: 0.95rem;
+    }
+
+    /* ── Section headings ── */
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-top: 2.5rem;
+      margin-bottom: 0.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+    h3 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-top: 1.25rem;
+      margin-bottom: 0.4rem;
+    }
+
+    /* ── Body text ── */
+    p { margin-bottom: 0.8rem; font-size: 0.95rem; }
+
+    /* ── Lists ── */
+    ul {
+      margin: 0.5rem 0 0.8rem 1.25rem;
+      font-size: 0.95rem;
+    }
+    ul li { margin-bottom: 0.35rem; }
+
+    /* ── Data tables ── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0 1rem;
+      font-size: 0.875rem;
+      overflow-x: auto;
+      display: block;
+    }
+    .data-table thead tr {
+      background: var(--text);
+      color: #fff;
+    }
+    .data-table thead th {
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .data-table tbody tr:nth-child(even) { background: var(--bg-alt); }
+    .data-table tbody td {
+      padding: 0.55rem 0.75rem;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+
+    /* ── Identity card ── */
+    .identity-card {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .identity-card td {
+      padding: 0.55rem 0.85rem;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+    }
+    .identity-card td:first-child {
+      font-weight: 600;
+      width: 150px;
+      background: var(--bg-alt);
+      white-space: nowrap;
+    }
+    .identity-card tr:last-child td { border-bottom: none; }
+
+    /* ── Contact table ── */
+    .contact-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+    }
+    .contact-table td {
+      padding: 0.5rem 0.75rem;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+    }
+    .contact-table td:first-child {
+      font-weight: 600;
+      width: 140px;
+      white-space: nowrap;
+    }
+    .contact-table tr:last-child td { border-bottom: none; }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 4rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      header h1 { font-size: 1.5rem; }
+      h2 { font-size: 1rem; }
+      .identity-card td:first-child { width: 110px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="brand">Dukanoh</div>
+    <h1>Privacy Policy</h1>
+    <div class="meta">
+      <span>Effective: 16 April 2026</span>
+      <span>Controller: TAFSI LTD</span>
+      <span>ICO Reg. ZC125203</span>
+    </div>
+  </header>
+
+  <div class="intro">
+    This Privacy Policy explains how TAFSI LTD (&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;) collects, uses, and protects your personal data when you use the Dukanoh mobile marketplace application. We are committed to full compliance with the UK General Data Protection Regulation (UK GDPR), the Data Protection Act 2018, and the Online Safety Act 2023. By using the App you acknowledge that you have read and understood this policy.
+  </div>
+
+  <!-- 1 -->
+  <h2 id="who-we-are">1. Who We Are</h2>
+  <p>The data controller responsible for your personal data is:</p>
+  <table class="identity-card">
+    <tbody>
+      <tr><td>Company</td><td>TAFSI LTD</td></tr>
+      <tr><td>Registered in</td><td>England and Wales</td></tr>
+      <tr><td>Registered Address</td><td>29 Chapel Street, Hyde, SK14 1JB</td></tr>
+      <tr><td>Company Number</td><td>17154212</td></tr>
+      <tr><td>ICO Registration</td><td>ZC125203</td></tr>
+      <tr><td>Data Contact</td><td><a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a></td></tr>
+    </tbody>
+  </table>
+
+  <!-- 2 -->
+  <h2 id="data-we-collect">2. Personal Data We Collect</h2>
+  <p>We collect the following categories of personal data:</p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th>Examples</th>
+        <th>How Collected</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Identity &amp; Contact</strong></td>
+        <td>Full name, email, phone number, delivery and billing address</td>
+        <td>Provided by you on registration or at checkout</td>
+      </tr>
+      <tr>
+        <td><strong>Payment Data</strong></td>
+        <td>Tokenised card details (last 4 digits, expiry), billing address, transaction history</td>
+        <td>Provided by you; card data processed exclusively by our PCI-DSS payment processor</td>
+      </tr>
+      <tr>
+        <td><strong>Marketplace Activity</strong></td>
+        <td>Listings created, items purchased, offers made, transaction history</td>
+        <td>Generated automatically as you use the marketplace</td>
+      </tr>
+      <tr>
+        <td><strong>User-Generated Content</strong></td>
+        <td>Product photos, descriptions, reviews, ratings, in-app messages</td>
+        <td>Provided by you within the App</td>
+      </tr>
+      <tr>
+        <td><strong>Usage &amp; Analytics</strong></td>
+        <td>IP address, device ID, OS version, pages viewed, session duration, crash reports</td>
+        <td>Collected automatically via analytics SDKs</td>
+      </tr>
+      <tr>
+        <td><strong>Communications</strong></td>
+        <td>Support tickets, in-app messages, email correspondence</td>
+        <td>Provided by you when you contact us or message other users</td>
+      </tr>
+      <tr>
+        <td><strong>Identity Verification</strong></td>
+        <td>Government-issued ID document data, selfie imagery (where KYC is required)</td>
+        <td>Provided by you when identity verification is triggered &mdash; see section 7</td>
+      </tr>
+      <tr>
+        <td><strong>Social Login Data</strong></td>
+        <td>Name, email, and profile identifier from Google or Apple sign-in</td>
+        <td>Collected if you choose to sign in via Google or Apple ID</td>
+      </tr>
+      <tr>
+        <td><strong>Pro Subscription Data</strong></td>
+        <td>Subscription plan type (Founder / Standard), subscription status, start and renewal dates, Founder tier eligibility</td>
+        <td>Generated when you subscribe to Dukanoh Pro via the App</td>
+      </tr>
+      <tr>
+        <td><strong>In-App Purchase Records</strong></td>
+        <td>Purchase confirmation tokens, item purchased (e.g. Story Boost), transaction date and amount, App Store or Google Play order reference</td>
+        <td>Provided by Apple App Store or Google Play when an in-app purchase is completed</td>
+      </tr>
+      <tr>
+        <td><strong>Boost &amp; Story Analytics</strong></td>
+        <td>Impressions, views, saves, and click-throughs on boosted listings and Stories; boost activation and expiry timestamps</td>
+        <td>Generated automatically when a Story Boost is active</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>We do not intentionally collect special category data. If you include such data voluntarily in listings or messages, you do so at your own discretion.</p>
+
+  <!-- 3 -->
+  <h2 id="legal-basis">3. Legal Basis for Processing (UK GDPR Article 6)</h2>
+  <p>Every processing activity we carry out has a documented legal basis:</p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Processing Activity</th>
+        <th>Legal Basis</th>
+        <th>UK GDPR Article</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Account creation and management</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
+      <tr><td>Processing marketplace transactions</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
+      <tr><td>Holding payments in escrow</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
+      <tr><td>Fraud detection and trust &amp; safety profiling</td><td>Legitimate interests + Legal obligation</td><td>Art. 6(1)(f) + (c)</td></tr>
+      <tr><td>Identity / KYC verification</td><td>Legal obligation (AML Regs 2017)</td><td>Art. 6(1)(c)</td></tr>
+      <tr><td>Analytics and App improvement</td><td>Legitimate interests</td><td>Art. 6(1)(f)</td></tr>
+      <tr><td>Retaining financial records</td><td>Legal obligation (HMRC)</td><td>Art. 6(1)(c)</td></tr>
+      <tr><td>Sending transactional notifications</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
+      <tr><td>Sending push notifications (marketing)</td><td>Consent</td><td>Art. 6(1)(a)</td></tr>
+      <tr><td>Sending marketing emails (existing customers)</td><td>Legitimate interests (soft opt-in)</td><td>Art. 6(1)(f)</td></tr>
+      <tr><td>Content moderation (Online Safety Act)</td><td>Legal obligation</td><td>Art. 6(1)(c)</td></tr>
+      <tr><td>Resolving buyer/seller disputes</td><td>Legitimate interests + Legal obligation</td><td>Art. 6(1)(f) + (c)</td></tr>
+      <tr><td>Managing Pro subscriptions and billing</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
+      <tr><td>Processing in-app purchases (Boosts)</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
+      <tr><td>Providing Boost &amp; Story analytics to Pro sellers</td><td>Contract performance</td><td>Art. 6(1)(b)</td></tr>
+    </tbody>
+  </table>
+  <p>Where we rely on legitimate interests, we have conducted a Legitimate Interests Assessment (LIA) and are satisfied our interests are not overridden by your rights and freedoms. You may request a copy of any LIA at <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a>.</p>
+
+  <!-- 4 -->
+  <h2 id="how-we-use">4. How We Use Your Personal Data</h2>
+  <ul>
+    <li>To create and manage your Dukanoh account.</li>
+    <li>To facilitate marketplace transactions between buyers and sellers.</li>
+    <li>To hold payments securely in escrow and release them upon confirmed delivery.</li>
+    <li>To communicate with you about your account, orders, listings, and messages.</li>
+    <li>To send transactional push notifications (e.g. order updates, delivery status).</li>
+    <li>To send marketing communications where you have opted in, or under the soft opt-in rule for existing customers.</li>
+    <li>To personalise your marketplace feed and surface relevant listings.</li>
+    <li>To detect and prevent fraudulent listings, transactions, and account activity.</li>
+    <li>To moderate content and ensure compliance with our Prohibited Items Policy and the Online Safety Act 2023.</li>
+    <li>To resolve disputes between buyers and sellers.</li>
+    <li>To comply with legal and regulatory obligations including HMRC, AML, and ICO requirements.</li>
+    <li>To improve App performance, fix bugs, and develop new features.</li>
+    <li>To manage your Dukanoh Pro subscription, including billing, renewal, and Founder tier tracking.</li>
+    <li>To process in-app purchases (such as Story Boosts) and deliver purchased features.</li>
+    <li>To provide Pro sellers with analytics dashboards showing boost and listing performance metrics.</li>
+  </ul>
+
+  <!-- 5 -->
+  <h2 id="trust-safety">5. Trust, Safety &amp; Fraud Prevention</h2>
+  <p>Dukanoh uses automated systems and human review to protect users and maintain a trustworthy marketplace. This processing includes:</p>
+  <ul>
+    <li><strong>Listing screening:</strong> Automated analysis of listing titles, descriptions, and images to detect prohibited items, counterfeit goods, and misleading content.</li>
+    <li><strong>Transaction monitoring:</strong> Behavioural analysis of account and transaction patterns to detect fraud, money laundering, or suspicious activity.</li>
+    <li><strong>Account profiling:</strong> We may assign internal trust scores based on transaction history, dispute rates, verification status, and community feedback. These scores influence account features (e.g. withdrawal limits) but do not produce solely automated decisions with significant legal effects without human review.</li>
+    <li><strong>Dispute evidence:</strong> We retain records of buyer/seller disputes, reports, and moderation decisions to ensure consistent enforcement and enable appeals.</li>
+  </ul>
+  <p>This processing is carried out under legitimate interests (protecting our platform and users) and legal obligation (AML Regulations, Online Safety Act 2023). You have the right to object to profiling based on legitimate interests &mdash; see section 14.</p>
+  <p><strong>Transparency note:</strong> We will not covertly restrict or shadow-ban accounts without notifying the affected user, except where doing so would compromise an active fraud investigation or is required by law.</p>
+
+  <!-- 6 -->
+  <h2 id="push-notifications">6. Push Notifications</h2>
+  <p>We send two categories of push notifications to your device:</p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Examples</th>
+        <th>Legal Basis</th>
+        <th>Can be disabled?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Transactional</strong></td>
+        <td>Order confirmed, item dispatched, message received, payment released</td>
+        <td>Contract performance</td>
+        <td>Limited &mdash; may affect core functionality</td>
+      </tr>
+      <tr>
+        <td><strong>Marketing &amp; Promotional</strong></td>
+        <td>New listings in saved searches, price drops, platform news</td>
+        <td>Consent</td>
+        <td>Yes &mdash; via App notification settings at any time</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>You can manage notification preferences at any time through your device settings or the Dukanoh in-app notification centre. Withdrawing consent for marketing notifications will not affect transactional alerts.</p>
+
+  <!-- 7 -->
+  <h2 id="kyc">7. Identity Verification (KYC)</h2>
+  <p>Dukanoh may require identity verification in the following circumstances:</p>
+  <ul>
+    <li>When a seller&rsquo;s cumulative transaction volume exceeds thresholds set under the Money Laundering Regulations 2017 or HMRC reporting requirements.</li>
+    <li>When we have reasonable grounds to suspect fraud or account misuse.</li>
+    <li>When withdrawing funds above a set threshold to a bank account.</li>
+  </ul>
+  <p>Where verification is required, we use a third-party identity verification provider to compare a photo of your identity document with a selfie. Biometric comparison data is processed by our verification provider and is not stored by Dukanoh beyond the result (pass/fail) and a reference number. This processing is carried out under legal obligation (Art. 6(1)(c)) and, where biometric data is involved, explicit consent (Art. 9(2)(a)).</p>
+  <p>We will always notify you before initiating a verification check and provide an explanation of why it is required.</p>
+
+  <!-- 8 -->
+  <h2 id="escrow">8. Marketplace Transactions &amp; Payment Escrow</h2>
+  <p>When a buyer completes a purchase on Dukanoh, the following data processing occurs in connection with our escrow payment model:</p>
+  <ul>
+    <li>Payment is collected from the buyer and held securely by our payment processor on behalf of Dukanoh until the transaction is confirmed.</li>
+    <li>Seller bank account details (provided during seller onboarding) are stored in encrypted form by our payment processor to facilitate payouts.</li>
+    <li>Transaction metadata (amount, timestamp, item reference, buyer and seller identifiers) is retained for 7 years to satisfy HMRC obligations.</li>
+    <li>If a dispute is raised, payment may be held beyond the standard release window for the duration of the dispute. A legal hold may extend this further if proceedings are initiated.</li>
+  </ul>
+  <p>Our payment processor acts as a separate data controller for payment fraud prevention purposes. Their privacy policy governs that processing.</p>
+
+  <!-- 9 -->
+  <h2 id="messaging">9. In-App Messaging</h2>
+  <p>Dukanoh provides an in-app messaging feature allowing buyers and sellers to communicate about listings. In connection with this:</p>
+  <ul>
+    <li>Message content is stored on our servers for as long as both parties&rsquo; accounts remain active, then deleted within 90 days of account closure.</li>
+    <li>Messages may be reviewed by our Trust &amp; Safety team where a report of abuse, prohibited content, or fraud has been made.</li>
+    <li>We do not read messages for commercial purposes or use them to serve advertising. Automated scanning may occur solely to detect illegal content as required under the Online Safety Act 2023.</li>
+    <li>End-to-end encryption is not currently applied to in-app messages. Do not share sensitive personal or financial information via messages.</li>
+  </ul>
+
+  <!-- 10 -->
+  <h2 id="cookies">10. Cookies and Tracking Technologies</h2>
+  <p>The App uses cookies, device identifiers, and similar technologies:</p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Purpose</th>
+        <th>Consent Required?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Strictly Necessary</strong></td>
+        <td>Session management, authentication, security, cart state</td>
+        <td>No</td>
+      </tr>
+      <tr>
+        <td><strong>Functional</strong></td>
+        <td>Saved preferences, language, recently viewed listings</td>
+        <td>No</td>
+      </tr>
+      <tr>
+        <td><strong>Analytics (e.g. Firebase)</strong></td>
+        <td>Usage patterns, crash reporting, feature performance</td>
+        <td>Yes</td>
+      </tr>
+      <tr>
+        <td><strong>Marketing</strong></td>
+        <td>Personalised ads and retargeting on third-party platforms</td>
+        <td>Yes</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>A detailed breakdown of all cookies and SDKs used is available in our separate Cookie Policy at <a href="https://www.dukanoh.com/cookie-policy">www.dukanoh.com/cookie-policy</a>. You can manage preferences via the in-app privacy settings.</p>
+
+  <!-- 11 -->
+  <h2 id="sharing">11. Sharing Your Personal Data</h2>
+  <p>We do not sell your personal data. We share it only in the following circumstances:</p>
+  <ul>
+    <li><strong>Payment Processor (e.g. Stripe):</strong> To collect payments, manage escrow, and process seller payouts. PCI-DSS compliant. Independent data controller for fraud prevention.</li>
+    <li><strong>Identity Verification Provider:</strong> To perform KYC checks where required. Biometric data is processed and discarded by them, not stored by Dukanoh.</li>
+    <li><strong>Cloud Infrastructure (e.g. AWS):</strong> To host the App, store data, and deliver the service.</li>
+    <li><strong>Analytics Providers (e.g. Firebase):</strong> To understand App usage, subject to your consent.</li>
+    <li><strong>Delivery / Logistics Partners:</strong> Name, address, and order reference shared with couriers solely for the purpose of fulfilling deliveries.</li>
+    <li><strong>Buyer and Seller (each other):</strong> To complete a transaction, we share necessary fulfilment information (e.g. delivery address with seller, seller display name and rating with buyer). Full contact details are not shared outside of what is needed to fulfil the order.</li>
+    <li><strong>Legal &amp; Regulatory Authorities:</strong> Where required by law, court order, or to protect our legal rights or the safety of users.</li>
+    <li><strong>Dispute Resolution:</strong> Where a dispute is escalated, relevant transaction and communication records may be shared with the other party or a mediator to the extent necessary for resolution.</li>
+    <li><strong>Business Transfers:</strong> In the event of a merger or acquisition, under equivalent data protection obligations.</li>
+  </ul>
+
+  <!-- 12 -->
+  <h2 id="international-transfers">12. International Data Transfers</h2>
+  <p>Some service providers operate outside the UK. Where transfers occur to non-adequate countries, we rely on UK IDTAs or UK Addenda to EU SCCs. Contact <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> to request a copy of applicable safeguards.</p>
+
+  <!-- 13 -->
+  <h2 id="retention">13. Data Retention</h2>
+  <p>We retain data only as long as necessary:</p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th>Retention Period</th>
+        <th>Basis</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Account data</td><td>Active period + 2 years post-closure</td><td>Contract / Legitimate interests</td></tr>
+      <tr><td>Transaction records</td><td>7 years from transaction date</td><td>Legal obligation (HMRC)</td></tr>
+      <tr><td>Escrow / payment data</td><td>7 years from transaction date</td><td>Legal obligation</td></tr>
+      <tr><td>In-app messages</td><td>Active period + 90 days post-closure</td><td>Contract</td></tr>
+      <tr><td>Dispute records</td><td>6 years from resolution</td><td>Legitimate interests (limitation period)</td></tr>
+      <tr><td>Trust &amp; safety logs</td><td>3 years from last relevant event</td><td>Legitimate interests / Legal obligation</td></tr>
+      <tr><td>KYC verification result</td><td>5 years from verification date</td><td>Legal obligation (AML Regs)</td></tr>
+      <tr><td>Analytics data</td><td>Up to 26 months</td><td>Legitimate interests</td></tr>
+      <tr><td>Marketing consent records</td><td>Until withdrawn + 1 year</td><td>ICO guidance</td></tr>
+      <tr><td>User-generated content</td><td>Until deleted by user or account closure</td><td>Contract</td></tr>
+      <tr><td>Pro subscription records</td><td>Duration of subscription + 2 years post-cancellation</td><td>Contract / Legitimate interests</td></tr>
+      <tr><td>In-app purchase records</td><td>7 years from purchase date</td><td>Legal obligation (HMRC)</td></tr>
+      <tr><td>Boost &amp; Story analytics</td><td>26 months rolling</td><td>Legitimate interests</td></tr>
+    </tbody>
+  </table>
+  <p>Where data cannot be deleted due to a live legal hold or ongoing dispute, we will inform you of the hold and its expected duration. Where possible, we will anonymise data rather than delete it where anonymisation satisfies the underlying retention purpose &mdash; anonymised data is no longer personal data under UK GDPR.</p>
+
+  <!-- 14 -->
+  <h2 id="your-rights">14. Your Rights Under UK GDPR</h2>
+  <p>You have the following rights. Contact us at <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> to exercise them. We respond within one calendar month:</p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Right</th>
+        <th>What it means</th>
+        <th>Limitations</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Access (Art. 15)</strong></td>
+        <td>Request a copy of all data we hold about you</td>
+        <td>Must verify identity; cannot include third-party data</td>
+      </tr>
+      <tr>
+        <td><strong>Rectification (Art. 16)</strong></td>
+        <td>Correct inaccurate or incomplete data</td>
+        <td>Cannot alter records required for legal compliance</td>
+      </tr>
+      <tr>
+        <td><strong>Erasure (Art. 17)</strong></td>
+        <td>Request deletion where no compelling reason to retain</td>
+        <td>Does not apply during legal holds or where legal obligation requires retention</td>
+      </tr>
+      <tr>
+        <td><strong>Restriction (Art. 18)</strong></td>
+        <td>Limit how we process your data</td>
+        <td>Processing may continue for legal claims or public interest</td>
+      </tr>
+      <tr>
+        <td><strong>Portability (Art. 20)</strong></td>
+        <td>Receive your data in machine-readable format</td>
+        <td>Applies only to data processed by consent or contract</td>
+      </tr>
+      <tr>
+        <td><strong>Object (Art. 21)</strong></td>
+        <td>Object to processing based on legitimate interests</td>
+        <td>We may continue if compelling legitimate grounds exist</td>
+      </tr>
+      <tr>
+        <td><strong>Object to profiling</strong></td>
+        <td>Object to trust &amp; safety or recommendation profiling</td>
+        <td>We may continue if necessary to protect platform integrity</td>
+      </tr>
+      <tr>
+        <td><strong>Withdraw consent</strong></td>
+        <td>Withdraw consent at any time without affecting prior processing</td>
+        <td>Affects only consent-based processing</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- 15 -->
+  <h2 id="complain">15. Right to Complain</h2>
+  <p>You have the right to complain to the Information Commissioner&rsquo;s Office (ICO):</p>
+  <table class="contact-table">
+    <tbody>
+      <tr><td>Website</td><td><a href="https://ico.org.uk" target="_blank" rel="noopener">www.ico.org.uk</a></td></tr>
+      <tr><td>Helpline</td><td>0303 123 1113</td></tr>
+      <tr><td>Address</td><td>Wycliffe House, Water Lane, Wilmslow, SK9 5AF</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:0.75rem;">We ask that you contact us first at <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> to try to resolve any concern before escalating to the ICO.</p>
+
+  <!-- 16 -->
+  <h2 id="online-safety">16. Online Safety Act 2023 &amp; Content Moderation</h2>
+  <p>As an online marketplace that hosts user-generated content, TAFSI LTD is subject to duties under the Online Safety Act 2023 (OSA). In fulfilling these duties we:</p>
+  <ul>
+    <li>Maintain and publish a Prohibited Items Policy setting out content and listings that are not permitted on the platform.</li>
+    <li>Operate systems to identify, remove, and report illegal content &mdash; including listings for prohibited goods &mdash; in a timely manner.</li>
+    <li>Process user reports of illegal or harmful content and action them promptly.</li>
+    <li>Conduct regular illegal content risk assessments and maintain a record of our safety measures.</li>
+    <li>Provide accessible mechanisms for users to report content and to appeal moderation decisions.</li>
+  </ul>
+  <p>Processing of content for moderation purposes is carried out under legal obligation (Art. 6(1)(c)). Automated screening may be used as a first step, but removal decisions on disputed content involve human review.</p>
+
+  <!-- 17 -->
+  <h2 id="security">17. Data Security</h2>
+  <ul>
+    <li>Encryption of all data in transit (TLS 1.2+) and at rest.</li>
+    <li>Tokenisation of payment card data by our PCI-DSS compliant processor.</li>
+    <li>Role-based access controls &mdash; staff access data on a strict need-to-know basis.</li>
+    <li>Regular penetration testing and vulnerability assessments.</li>
+    <li>ICO breach notification within 72 hours where required.</li>
+    <li>Internal incident response plan and post-incident review procedures.</li>
+  </ul>
+  <p>You are responsible for keeping your login credentials secure. Report any suspected unauthorised access to <a href="mailto:support@dukanoh.com">support@dukanoh.com</a> immediately.</p>
+
+  <!-- 18 -->
+  <h2 id="children">18. Children&rsquo;s Privacy</h2>
+  <p>Dukanoh is for users aged 18 and over only. We do not knowingly collect data from under-18s. If you believe a minor has registered, contact <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> and we will delete the account without undue delay.</p>
+
+  <!-- 19 -->
+  <h2 id="automated-decisions">19. Automated Decision-Making</h2>
+  <p>We use automated processes for listing screening, fraud scoring, and recommendation ranking. Where an automated decision produces a significant legal or similarly significant effect on you (such as account suspension), a human review is always available. Contact <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> to request a human review of any automated decision.</p>
+
+  <!-- 20 -->
+  <h2 id="changes">20. Changes to This Policy</h2>
+  <p>We will notify you of material changes via the App or email at least 14 days before they take effect. The Effective Date above indicates the current version.</p>
+
+  <!-- 21 -->
+  <h2 id="contact">21. Contact Us</h2>
+  <p>For all privacy and data protection enquiries:</p>
+  <table class="contact-table">
+    <tbody>
+      <tr><td>Data Protection</td><td><a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a></td></tr>
+      <tr><td>Support</td><td><a href="mailto:support@dukanoh.com">support@dukanoh.com</a></td></tr>
+      <tr><td>Post</td><td>TAFSI LTD, 29 Chapel Street, Hyde, SK14 1JB</td></tr>
+    </tbody>
+  </table>
+
+  <footer>
+    <p>TAFSI LTD &middot; Registered in England and Wales &middot; Company No. 17154212 &middot; ICO Reg. ZC125203</p>
+    <p style="margin-top:0.4rem;">29 Chapel Street, Hyde, SK14 1JB &middot; &copy; 2026 Dukanoh. All rights reserved.</p>
+  </footer>
+
+</div>
+</body>
+</html>

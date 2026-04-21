@@ -128,7 +128,7 @@ async function handleOrderEmail(
               itemRow({ title: itemTitle, image: itemImage }),
               summaryTable('Order summary', [
                 ['Item price', `£${parseFloat(record.item_price).toFixed(2)}`],
-                ['Buyer protection', `£${parseFloat(record.protection_fee).toFixed(2)}`],
+                ['Dukanoh Safe Checkout', `£${parseFloat(record.protection_fee).toFixed(2)}`],
                 ['Total paid', `£${parseFloat(record.total_paid).toFixed(2)}`],
               ]),
             ],

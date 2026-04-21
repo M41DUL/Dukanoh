@@ -175,7 +175,7 @@ export default function CheckoutScreen() {
               paymentType: PlatformPay.PaymentType.Immediate,
             },
             {
-              label: 'Buyer Protection',
+              label: 'Dukanoh Safe Checkout',
               amount: protectionFee.toFixed(2),
               paymentType: PlatformPay.PaymentType.Immediate,
             },
@@ -482,7 +482,7 @@ export default function CheckoutScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.feeLabelRow}>
-              <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Buyer protection</Text>
+              <Text style={[styles.feeLabel, { color: colors.textSecondary }]}>Dukanoh Safe Checkout</Text>
               <Ionicons name="shield-checkmark-outline" size={13} color={colors.success} style={{ marginLeft: 4 }} />
             </View>
             <Text style={[styles.feeValue, { color: colors.textSecondary }]}>{formatGBP(protectionFee)}</Text>
@@ -515,7 +515,7 @@ export default function CheckoutScreen() {
       </View>
       </View>
 
-      {/* ── Buyer protection sheet ────────────────────────────── */}
+      {/* ── Safe Checkout sheet ──────────────────────────────── */}
       <BottomSheet
         visible={protectionSheetVisible}
         onClose={() => setProtectionSheetVisible(false)}
@@ -539,7 +539,7 @@ export default function CheckoutScreen() {
             <Ionicons name="shield-checkmark-outline" size={18} color={colors.textPrimary} />
           </View>
           <View style={styles.breakdownInfo}>
-            <Text style={styles.breakdownLabel}>Buyer Protect fee</Text>
+            <Text style={styles.breakdownLabel}>Dukanoh Safe Checkout</Text>
             <Text style={styles.breakdownValue}>£{protectionFee.toFixed(2)}</Text>
           </View>
         </View>
