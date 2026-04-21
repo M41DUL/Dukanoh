@@ -165,6 +165,10 @@ function RootNavigator() {
           options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
         />
         <Stack.Screen
+          name="settings/privacy"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
           name="settings/address"
           options={{ animation: 'slide_from_right' }}
         />

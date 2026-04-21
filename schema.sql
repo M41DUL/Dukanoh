@@ -37,6 +37,9 @@ CREATE TABLE public.users (
   pro_expires_at              TIMESTAMPTZ,
   had_free_trial              BOOLEAN DEFAULT FALSE,  -- set true via RevenueCat webhook on trial start; never reset
   had_founder_subscription    BOOLEAN NOT NULL DEFAULT FALSE,  -- set true permanently when founder sub cancels/expires; blocks re-subscription at founder pricing
+  analytics_consent           BOOLEAN NOT NULL DEFAULT TRUE,   -- Firebase/analytics opt-out
+  marketing_consent           BOOLEAN NOT NULL DEFAULT FALSE,  -- personalisation/retargeting opt-in
+  marketing_push_consent      BOOLEAN NOT NULL DEFAULT FALSE,  -- marketing push notifications (PECR)
   -- Stripe Connect Express
   stripe_account_id           TEXT,
   stripe_onboarding_complete  BOOLEAN DEFAULT FALSE,

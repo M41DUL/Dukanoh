@@ -218,6 +218,12 @@ export default function SettingsScreen() {
 
   const legalRows: MenuRow[] = [
     {
+      icon: 'options-outline',
+      title: 'Privacy Settings',
+      subtitle: 'Manage cookies and tracking',
+      onPress: () => router.push('/settings/privacy'),
+    },
+    {
       icon: 'document-text-outline',
       title: 'Terms & Conditions',
       onPress: () => {},

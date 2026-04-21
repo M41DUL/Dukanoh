@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Keyboard, Linking, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Keyboard, Linking, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
@@ -24,6 +24,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [marketingPush, setMarketingPush] = useState(false);
 
   // Per-field validation
   const [usernameError, setUsernameError] = useState('');
@@ -138,6 +139,13 @@ export default function SignUpScreen() {
         }),
       );
       if (authError) throw authError;
+      // Write marketing push consent if opted in
+      if (marketingPush) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('users').update({ marketing_push_consent: true }).eq('id', user.id);
+        }
+      }
       // Root layout auth effect handles navigation
     } catch (err) {
       setError(getAuthError(err, err instanceof Error ? err.message : 'Something went wrong. Please try again.'));
@@ -211,6 +219,18 @@ export default function SignUpScreen() {
           hintColor={passwordStrength?.color}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        <TouchableOpacity
+          style={styles.marketingRow}
+          onPress={() => setMarketingPush(v => !v)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, marketingPush && styles.checkboxChecked]}>
+            {marketingPush && <Ionicons name="checkmark" size={12} color="#0D0D0D" />}
+          </View>
+          <Text style={styles.marketingText}>
+            Send me promotions and new feature updates from Dukanoh.
+          </Text>
+        </TouchableOpacity>
         <Button
           label="Create account"
           onPress={handleSignUp}
@@ -247,6 +267,34 @@ const styles = StyleSheet.create({
   error: {
     ...Typography.caption,
     color: lightColors.error,
+  },
+  marketingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  checkboxChecked: {
+    backgroundColor: '#C7F75E',
+    borderColor: '#C7F75E',
+  },
+  marketingText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: 'rgba(255,255,255,0.6)',
+    lineHeight: 17,
   },
   terms: {
     fontSize: 12,
