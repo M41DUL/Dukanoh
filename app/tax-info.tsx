@@ -61,6 +61,7 @@ export default function TaxInfoScreen() {
   const [postcode, setPostcode] = useState('');
   const [tinType, setTinType] = useState<TinType>('NI');
   const [tinNumber, setTinNumber] = useState('');
+  const [declared, setDeclared] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -83,7 +84,9 @@ export default function TaxInfoScreen() {
         setPostcode(data.postcode ?? '');
         if (data.tax_id_type) setTinType(data.tax_id_type as TinType);
         if (data.tax_id_number) setTinNumber(data.tax_id_number);
-        setAlreadySubmitted(!!data.tax_id_collected_at);
+        const submitted = !!data.tax_id_collected_at;
+        setAlreadySubmitted(submitted);
+        if (submitted) setDeclared(true);
       }
       setLoading(false);
     })();
@@ -96,7 +99,8 @@ export default function TaxInfoScreen() {
     !!dobIso &&
     addressLine1.trim().length > 0 &&
     city.trim().length > 0 &&
-    postcode.trim().length > 0;
+    postcode.trim().length > 0 &&
+    declared;
 
   const handleSave = async () => {
     if (!user || !isValid) return;
@@ -113,6 +117,7 @@ export default function TaxInfoScreen() {
         tax_id_type: tinType,
         tax_id_number: tinNumber.trim().toUpperCase(),
         tax_id_collected_at: new Date().toISOString(),
+        tax_declaration_at: new Date().toISOString(),
         tax_hold: false,
       })
       .eq('id', user.id);
@@ -164,8 +169,8 @@ export default function TaxInfoScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.body}>
-            UK law requires us to collect and report seller details to HMRC once you reach 30 sales
-            or £1,700 in a calendar year (UK PIRRR 2023).
+            UK law requires us to collect and report seller details to HMRC once you reach 29 sales
+            or £1,690 in a calendar year (UK PIRRR 2023).
           </Text>
 
           {alreadySubmitted && (
@@ -276,6 +281,23 @@ export default function TaxInfoScreen() {
             This information is stored securely and will only be shared with HMRC if you reach the
             reporting threshold. See our Privacy Policy for details.
           </Text>
+
+          <TouchableOpacity
+            style={styles.declarationRow}
+            onPress={() => setDeclared(v => !v)}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              styles.checkbox,
+              { borderColor: declared ? colors.primary : colors.border },
+              declared && { backgroundColor: colors.primary },
+            ]}>
+              {declared && <Ionicons name="checkmark" size={13} color="#fff" />}
+            </View>
+            <Text style={[styles.declarationText, { color: colors.textPrimary }]}>
+              I confirm that all information provided is accurate and complete to the best of my knowledge. I understand that this information may be reported to HMRC and that providing false or misleading information is a criminal offence.
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
 
         {/* Sticky CTA */}
@@ -374,6 +396,28 @@ function getStyles(colors: ColorTokens) {
       height: 8,
       borderRadius: 4,
       backgroundColor: '#fff',
+    },
+    declarationRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: Spacing.sm,
+      paddingVertical: Spacing.sm,
+    },
+    checkbox: {
+      width: 20,
+      height: 20,
+      borderRadius: 4,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 1,
+      flexShrink: 0,
+    },
+    declarationText: {
+      flex: 1,
+      fontSize: 13,
+      fontFamily: FontFamily.regular,
+      lineHeight: 19,
     },
   });
 }

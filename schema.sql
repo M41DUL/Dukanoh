@@ -64,6 +64,7 @@ CREATE TABLE public.users (
   tax_id_type                 TEXT,           -- 'NI' or 'UTR'
   tax_id_number               TEXT,           -- NI number or UTR
   tax_id_collected_at         TIMESTAMPTZ,
+  tax_declaration_at          TIMESTAMPTZ,    -- timestamp of seller's accuracy declaration (HMRC due-diligence evidence)
   tax_hold                    BOOLEAN NOT NULL DEFAULT FALSE
 );
 
