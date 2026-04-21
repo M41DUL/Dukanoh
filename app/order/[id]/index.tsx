@@ -485,7 +485,7 @@ export default function OrderDetailScreen() {
                 <View style={[styles.autoRelease, { backgroundColor: colors.amber + '15', borderColor: colors.amber + '35' }]}>
                   <Ionicons name="time-outline" size={14} color={colors.amber} />
                   <Text style={[styles.autoReleaseText, { color: colors.amber }]}>
-                    Dispatch by {formatDate(order.dispatch_deadline_at)} — the order will be automatically cancelled and the buyer refunded if you miss this deadline.
+                    Dispatch by {formatDate(order.dispatch_deadline_at)}. Miss this deadline and the order will be automatically cancelled and the buyer refunded.
                   </Text>
                 </View>
               )}
@@ -614,7 +614,7 @@ export default function OrderDetailScreen() {
               <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
               {order.appealed_at ? (
                 <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                  Appeal submitted — our team will respond within 7 days.
+                  Appeal submitted. Our team will respond within 7 days.
                 </Text>
               ) : order.appeal_deadline_at && new Date(order.appeal_deadline_at) > new Date() ? (
                 <>

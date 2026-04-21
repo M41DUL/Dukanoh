@@ -59,7 +59,7 @@ export function ManageCollectionsSheet({
 
       {collections.length === 0 ? (
         <Text style={[styles.emptyText, { color: P.textSecondary }]}>
-          No collections yet — tap + to create one.
+          No collections yet. Tap + to create one.
         </Text>
       ) : (
         collections.map(col => (

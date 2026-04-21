@@ -177,7 +177,7 @@ export default function TaxInfoScreen() {
           {alreadySubmitted && (
             <View style={styles.successBanner}>
               <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
-              <Text style={styles.successText}>Details on file — you can update them below.</Text>
+              <Text style={styles.successText}>Details on file. You can update them below.</Text>
             </View>
           )}
 

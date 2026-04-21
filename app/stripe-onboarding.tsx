@@ -40,7 +40,7 @@ const BENEFITS: { icon: IoniconsName; title: string; body: string }[] = [
 ];
 
 const NEEDS = [
-  'A photo ID — passport or driving licence',
+  'A photo ID (passport or driving licence)',
   'Your bank account details for payouts',
   'Takes around 5 minutes',
 ];

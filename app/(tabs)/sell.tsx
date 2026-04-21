@@ -502,7 +502,7 @@ export default function SellScreen() {
             Listing saved
           </Animated.Text>
           <Animated.Text style={[styles.successSubtitle, { opacity: successAnim, color: colors.textSecondary }]}>
-            Complete verification to publish it — we'll release it to buyers once you're verified.
+            Complete verification to publish it. We'll release it to buyers once you're verified.
           </Animated.Text>
           <View style={styles.successActions}>
             <Button
@@ -550,7 +550,7 @@ export default function SellScreen() {
         >
           <Ionicons name="shield-outline" size={16} color={colors.primary} />
           <Text style={[styles.verifyBannerText, { color: colors.primary }]}>
-            Get paid — complete verification
+            Get verified to get paid
           </Text>
           <Ionicons name="chevron-forward" size={14} color={colors.primary} />
         </TouchableOpacity>
@@ -676,7 +676,7 @@ export default function SellScreen() {
             ref={descRef}
             label="Description"
             required
-            placeholder="Describe your item — fit, flaws, styling tips…"
+            placeholder="Describe the fit, flaws, styling tips…"
             value={form.description}
             onChangeText={update('description')}
             error={errors.description}

@@ -504,7 +504,7 @@ export default function OnboardingScreen() {
         <View style={styles.sheetContent}>
           <Text style={styles.sheetHeading}>{"What's your taste?"}</Text>
           <Text style={styles.sheetSubtitle}>
-            {"Pick the categories you love. Your home feed builds itself around your choices — you can update them any time in Settings."}
+            {"Pick the categories you love. Your home feed builds itself around your choices. You can update them any time in Settings."}
           </Text>
           <Button
             label="Choose my categories"

@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legal &amp; Platform Policies — Dukanoh</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --text:        #111111;
+      --muted:       #555555;
+      --border:      #e0e0e0;
+      --bg:          #ffffff;
+      --bg-alt:      #f7f7f7;
+      --max-width:   740px;
+    }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.7;
+      padding: 0 1rem;
+    }
+
+    .page {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 3rem 0 5rem;
+    }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    header .brand {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    header .meta {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    header .meta span + span::before { content: " · "; }
+
+    /* ── Page nav ── */
+    .page-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 3rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .page-nav a {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.35rem 0.75rem;
+      white-space: nowrap;
+    }
+    .page-nav a:hover { background: var(--bg-alt); }
+
+    /* ── Section blocks ── */
+    .policy-section {
+      padding-top: 2rem;
+      margin-top: 2rem;
+      border-top: 2px solid var(--text);
+    }
+    .policy-section .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+
+    /* ── Section headings ── */
+    h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      line-height: 1.2;
+    }
+    h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-top: 1.5rem;
+      margin-bottom: 0.4rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    h4 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-top: 1rem;
+      margin-bottom: 0.3rem;
+      color: var(--text);
+    }
+
+    /* ── Body text ── */
+    p { margin-bottom: 0.8rem; font-size: 0.95rem; }
+
+    /* ── Lists ── */
+    ul, ol {
+      margin: 0.5rem 0 0.8rem 1.25rem;
+      font-size: 0.95rem;
+    }
+    ul li, ol li { margin-bottom: 0.35rem; }
+
+    /* ── Intro box ── */
+    .intro {
+      background: var(--bg-alt);
+      border-left: 3px solid var(--text);
+      padding: 0.9rem 1.25rem;
+      border-radius: 0 4px 4px 0;
+      margin-bottom: 1.25rem;
+      font-size: 0.9rem;
+    }
+
+    /* ── Notice / placeholder ── */
+    .notice {
+      background: #fff8e6;
+      border-left: 3px solid #e6a817;
+      padding: 0.9rem 1.25rem;
+      border-radius: 0 4px 4px 0;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    /* ── Data tables ── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0 1rem;
+      font-size: 0.875rem;
+      overflow-x: auto;
+      display: block;
+    }
+    .data-table thead tr {
+      background: var(--text);
+      color: #fff;
+    }
+    .data-table thead th {
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .data-table tbody tr:nth-child(even) { background: var(--bg-alt); }
+    .data-table tbody td {
+      padding: 0.55rem 0.75rem;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 4rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      header h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.15rem; }
+      .page-nav { gap: 0.35rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="brand">Dukanoh</div>
+    <h1>Legal &amp; Platform Policies</h1>
+    <div class="meta">
+      <span>Effective: 16 April 2026</span>
+      <span>Operator: TAFSI LTD</span>
+      <span>Company No. 17154212</span>
+    </div>
+  </header>
+
+  <nav class="page-nav" aria-label="Jump to section">
+    <a href="#prohibited-items">Prohibited Items</a>
+    <a href="#fees">Fee Schedule</a>
+    <a href="#safe-checkout">Safe Checkout</a>
+    <a href="#appeals">Appeals</a>
+    <a href="#cookie-policy">Cookie Policy</a>
+    <a href="#transparency">Transparency Report</a>
+  </nav>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 1. PROHIBITED ITEMS POLICY                  -->
+  <!-- ═══════════════════════════════════════════ -->
+  <section class="policy-section" id="prohibited-items">
+    <div class="section-label">Policy</div>
+    <h2>Prohibited Items Policy</h2>
+    <p><em>Last updated: 16 April 2026</em></p>
+
+    <div class="intro">
+      Dukanoh is a general consumer marketplace. Certain items may not be listed, sold, or facilitated through the platform under any circumstances. This policy applies to all users — buyers, sellers, and anyone using the App to communicate about goods. Violations may result in immediate listing removal, account suspension, and referral to law enforcement.
+    </div>
+
+    <h3>Always Prohibited</h3>
+    <p>The following categories are permanently prohibited regardless of context, stated purpose, or jurisdiction of the seller:</p>
+
+    <h4>Illegal Goods</h4>
+    <p>Any item whose possession, sale, or distribution is unlawful under UK law, including goods subject to import/export restrictions, sanctions, or licensing requirements that the seller does not hold.</p>
+
+    <h4>Counterfeit and Infringing Goods</h4>
+    <p>Any item bearing a trade mark, logo, or branding that it is not authorised to carry by the rights holder. This includes replica goods, &ldquo;inspired by&rdquo; items that reproduce protected design elements, and unauthorised merchandise. Listing grey-market goods (genuine goods sold outside authorised channels) may also be restricted.</p>
+
+    <h4>Stolen Goods</h4>
+    <p>Any item obtained through theft, fraud, deception, or handling stolen goods. This includes items obtained via account fraud, identity theft, card fraud, or any other dishonest means.</p>
+
+    <h4>Weapons and Controlled Items</h4>
+    <ul>
+      <li>Firearms, handguns, rifles, shotguns, and component parts</li>
+      <li>Imitation firearms capable of being converted to fire live ammunition</li>
+      <li>Knives with a blade over 3 inches that lock in place, or designed for combat or offensive use</li>
+      <li>Stun guns, tasers, pepper spray, and other offensive weapons</li>
+      <li>Ammunition, cartridges, and propellant charges</li>
+      <li>Crossbows, air weapons above permitted muzzle energy thresholds</li>
+      <li>Any item requiring a Firearms Certificate or Shotgun Certificate under the Firearms Act 1968</li>
+    </ul>
+
+    <h4>Regulated and Controlled Substances</h4>
+    <ul>
+      <li>Prescription-only medicines, controlled drugs (Class A, B, or C under the Misuse of Drugs Act 1971), and veterinary medicines</li>
+      <li>Novel psychoactive substances</li>
+      <li>Tobacco products and nicotine products (including vapes) unless the seller holds appropriate UK retail authorisation</li>
+      <li>Alcohol sold for commercial resale without appropriate licensing</li>
+      <li>Drug paraphernalia marketed or intended for illegal drug use</li>
+    </ul>
+
+    <h4>Dangerous, Unsafe, and Recalled Products</h4>
+    <ul>
+      <li>Products that have been subject to a UK or EU safety recall</li>
+      <li>Electrical goods that do not comply with UK safety standards (UKCA or equivalent CE marking)</li>
+      <li>Goods that pose a fire, explosion, toxicity, or choking hazard and are not fit for sale under the General Product Safety Regulations 2005</li>
+      <li>Goods containing asbestos or other banned hazardous materials</li>
+    </ul>
+
+    <h4>Adult and Explicit Content</h4>
+    <ul>
+      <li>Sexually explicit material of any kind</li>
+      <li>Any content that sexualises, exploits, or harms minors (this will be immediately reported to the National Crime Agency)</li>
+    </ul>
+
+    <h4>Personal Data and Privacy-Infringing Goods</h4>
+    <ul>
+      <li>Databases, files, or documents containing other individuals&rsquo; personal information</li>
+      <li>Account credentials, passwords, or access tokens</li>
+      <li>Spyware, surveillance software, or tracking devices intended for covert use</li>
+    </ul>
+
+    <h4>Financial and Fraud-Related Items</h4>
+    <ul>
+      <li>Counterfeit currency, banknotes, or financial instruments</li>
+      <li>Fraudulent documents, fake identity documents, or forged certificates</li>
+      <li>Pyramid scheme materials, multi-level marketing recruitment packages, or get-rich-quick schemes</li>
+    </ul>
+
+    <h4>Live Animals and Animal Products</h4>
+    <ul>
+      <li>Live animals of any species</li>
+      <li>Protected species or products derived from them (CITES-listed species)</li>
+      <li>Ivory and other banned wildlife products</li>
+    </ul>
+
+    <h3>Conditionally Permitted</h3>
+    <p>The following items are permitted only where the conditions stated are met. Dukanoh may request evidence of eligibility before or after listing.</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>Item Category</th><th>Condition for Listing</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Second-hand electrical goods</td><td>Must be described accurately, including any known faults. Must comply with applicable UK safety standards.</td></tr>
+        <tr><td>Cosmetics and skincare</td><td>Must not be expired, tampered with, or lacking original sealed packaging where hygiene requires it.</td></tr>
+        <tr><td>Food and drink</td><td>Must be within best-before date, properly labelled, and compliant with UK food safety legislation. Not permitted for perishable items.</td></tr>
+        <tr><td>Sports and leisure equipment</td><td>Safety-critical equipment (e.g. climbing gear, cycle helmets) must meet current UK/EU safety standards and must not have been subject to impact or damage that could compromise integrity.</td></tr>
+        <tr><td>Baby and children&rsquo;s items</td><td>Must comply with UK Toy Safety Regulations 2011. Car seats and safety-critical items must be undamaged, within expiry date (where applicable), and must have full history.</td></tr>
+        <tr><td>Medical devices (non-prescription)</td><td>Must be CE/UKCA marked and not require a prescription. Expired medical devices may not be listed.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Reporting a Prohibited Listing</h3>
+    <p>If you see a listing that you believe violates this policy, tap the <strong>Report</strong> button on the listing. Our Trust &amp; Safety team reviews all reports. You can also email <a href="mailto:support@dukanoh.com">support@dukanoh.com</a> with the listing reference.</p>
+    <p>If a listing is removed following your report, you will receive a confirmation. The seller is notified separately. If you believe a removal was made in error, see the <a href="#appeals">Appeals Policy</a>.</p>
+
+    <h3>Enforcement</h3>
+    <p>Dukanoh reserves the right to remove any Listing that we believe, in our sole discretion, violates this policy, applicable law, or our community standards. Repeated or serious violations will result in account suspension or permanent termination. In cases involving illegal content, we may be required to report to the National Crime Agency, Trading Standards, or other authorities.</p>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 2. FEE SCHEDULE                             -->
+  <!-- ═══════════════════════════════════════════ -->
+  <section class="policy-section" id="fees">
+    <div class="section-label">Commercial</div>
+    <h2>Fee Schedule</h2>
+    <p><em>Last updated: 16 April 2026</em></p>
+
+    <div class="intro">
+      All fees are displayed in GBP and are inclusive of any applicable VAT. Fees may be updated from time to time with reasonable advance notice via the App or email. The current fees at the time of any transaction are the fees that apply to that transaction.
+    </div>
+
+    <h3>Seller Fees</h3>
+    <p>Dukanoh charges <strong>0% commission</strong> on completed sales. Sellers receive 100% of the listed item price. There are no listing fees, relisting fees, or final value fees.</p>
+
+    <h3>Buyer Fees</h3>
+    <p>A service fee is applied to buyer purchases at the point of checkout. The fee is displayed clearly before payment is confirmed and is calculated as follows:</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>Transaction Value</th><th>Buyer Service Fee</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Any completed purchase</td><td>Displayed at checkout — see the App for current rate</td></tr>
+      </tbody>
+    </table>
+    <p>The buyer service fee covers platform operation, Dukanoh Safe Checkout coverage, payment processing, and customer support. It is non-refundable except where a full refund is issued due to an item not being received or being significantly not as described.</p>
+
+    <h3>Dukanoh Pro Subscription</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Plan</th><th>Price</th><th>Availability</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Founder Plan</strong></td><td>&pound;6.99 / month</td><td>First 150 subscribers only. Locked for continuous active subscriptions. Re-subscribing after cancellation reverts to Standard Pro rate.</td></tr>
+        <tr><td><strong>Standard Pro</strong></td><td>&pound;9.99 / month</td><td>Available once Founder spots are exhausted, or as the standard plan for new subscribers.</td></tr>
+        <tr><td><strong>Free Trial</strong></td><td>14 days free</td><td>Available once per account for eligible verified sellers.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Story Boosts</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>User Type</th><th>Boost Price</th><th>Monthly Allowance</th><th>Max Active Boosts</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Standard (non-Pro) sellers</strong></td><td>&pound;1.49 per boost</td><td>None included</td><td>5</td></tr>
+        <tr><td><strong>Dukanoh Pro sellers</strong></td><td>&pound;0.99 per additional boost</td><td>3 free boosts/month (resets on subscription anniversary)</td><td>10</td></tr>
+      </tbody>
+    </table>
+    <p>Story Boosts are processed through Apple App Store or Google Play in-app purchase systems. Purchased boosts are non-refundable once redeemed. Unused free Pro boosts do not roll over to the following month.</p>
+
+    <h3>Payment Processing</h3>
+    <p>All payments are processed by Stripe Payments UK Limited. Stripe applies its own processing fees, which are borne by Dukanoh and not charged to users separately. Sellers receive the full listed item price; buyers pay only the listed price plus the buyer service fee stated above.</p>
+
+    <h3>Changes to Fees</h3>
+    <p>Dukanoh will give at least 14 days&rsquo; notice of any increase to buyer service fees or Pro subscription prices, via in-app notification and email. Fee changes do not affect in-progress transactions at the time of the change.</p>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 3. SAFE CHECKOUT                            -->
+  <!-- ═══════════════════════════════════════════ -->
+  <section class="policy-section" id="safe-checkout">
+    <div class="section-label">Buyer Protection</div>
+    <h2>Dukanoh Safe Checkout</h2>
+    <p><em>Last updated: 16 April 2026</em></p>
+
+    <div class="intro">
+      Dukanoh Safe Checkout is a discretionary purchase resolution scheme. It is <strong>not a contract of insurance</strong> and is not regulated as such under the Financial Services and Markets Act 2000. It is a voluntary programme operated by Dukanoh to help resolve transactional disputes. It does not affect your statutory rights under the Consumer Rights Act 2015 or any other applicable law.
+    </div>
+
+    <h3>Eligible Transactions</h3>
+    <p>Dukanoh Safe Checkout applies to transactions that meet <strong>all</strong> of the following criteria:</p>
+    <ul>
+      <li>The transaction was completed through the Dukanoh App (not arranged off-platform).</li>
+      <li>The item value is <strong>&pound;1,000 or less</strong>.</li>
+      <li>The item is a physical, tangible good.</li>
+      <li>The dispute is raised within <strong>48 hours</strong> of the delivery being marked as delivered.</li>
+    </ul>
+
+    <h3>What Is Covered</h3>
+    <p>Dukanoh will use reasonable endeavours to facilitate a refund of the original purchase price (up to &pound;1,000) where:</p>
+    <ul>
+      <li>The item is not delivered within a reasonable period and cannot be traced using the uploaded tracking information.</li>
+      <li>The item received is significantly not as described &mdash; materially different in condition, specification, or authenticity from the Listing.</li>
+      <li>The item received is counterfeit.</li>
+      <li>The item arrives damaged due to inadequate packaging by the Seller.</li>
+    </ul>
+
+    <h3>How Claims Are Funded</h3>
+    <p>Where a Dukanoh Safe Checkout claim is upheld, Dukanoh seeks to fund the refund through the following in order of priority:</p>
+    <ol>
+      <li><strong>Seller recovery</strong> &mdash; from funds held by Stripe that have not yet been released to the Seller.</li>
+      <li><strong>Stripe dispute mechanisms</strong> &mdash; where Stripe&rsquo;s payment dispute or chargeback process applies.</li>
+      <li><strong>Dukanoh discretion</strong> &mdash; in limited circumstances, Dukanoh may at its sole discretion contribute toward a refund where the above channels have been exhausted.</li>
+    </ol>
+    <p>Where funds have already been released to a Seller prior to a dispute being raised, Dukanoh will use reasonable efforts to recover them but cannot guarantee recovery. In such cases your recourse may be against the Seller directly or via your card issuer&rsquo;s chargeback process.</p>
+
+    <h3>How to Make a Claim</h3>
+    <ol>
+      <li>Tap <strong>Report an Issue</strong> on the relevant order within <strong>48 hours</strong> of the item being marked as delivered.</li>
+      <li>Select the issue type and provide photographic or other evidence of the problem.</li>
+      <li>Our Trust &amp; Safety team will review your claim and respond within <strong>7 days</strong>.</li>
+      <li>If your claim is upheld, a refund will be processed within 5&ndash;10 business days to your original payment method, subject to successful recovery under the funding process above.</li>
+    </ol>
+
+    <h3>Full Exclusions List</h3>
+    <p>Dukanoh Safe Checkout <strong>does not apply</strong> in the following circumstances:</p>
+
+    <h4>Transaction-Level Exclusions</h4>
+    <ul>
+      <li>Transaction value exceeds &pound;1,000.</li>
+      <li>The dispute is raised after the 48-hour window has elapsed.</li>
+      <li>The Buyer confirmed receipt before raising the dispute.</li>
+      <li>The transaction was arranged or completed off-platform.</li>
+    </ul>
+
+    <h4>Item-Level Exclusions</h4>
+    <ul>
+      <li>Digital goods, software, licences, gift cards, or intangible items.</li>
+      <li>Services of any kind (as opposed to physical goods).</li>
+      <li>Vehicles (cars, motorcycles, bicycles, scooters) and vehicle parts where the dispute relates to mechanical condition not visible in photographs.</li>
+      <li>Perishable goods (food, flowers, live plants) where deterioration is consistent with normal transit time.</li>
+      <li>Items listed and sold as faulty, spares, or for parts &mdash; where the fault was accurately disclosed in the Listing.</li>
+      <li>Items listed as &ldquo;collection only&rdquo; that were collected in person.</li>
+      <li>Custom-made or personalised items created to the Buyer&rsquo;s specification (unless the item is objectively defective).</li>
+      <li>Items purchased in a category explicitly labelled &ldquo;sold as seen&rdquo; where that label was displayed on the Listing at time of purchase.</li>
+    </ul>
+
+    <h4>Conduct-Based Exclusions</h4>
+    <ul>
+      <li>The item has been used, worn, altered, or damaged by the Buyer after receipt.</li>
+      <li>The dispute is a change of mind rather than a material discrepancy with the Listing.</li>
+      <li>The Buyer has made a false, exaggerated, or vexatious claim.</li>
+      <li>The issue relates to a subjective preference (e.g. colour appearing slightly different on screen vs. in person) rather than an objective mismatch.</li>
+    </ul>
+
+    <h3>Your Statutory Rights</h3>
+    <p>Dukanoh Safe Checkout is in addition to, and does not replace, your statutory rights under the Consumer Rights Act 2015, the Consumer Contracts Regulations 2013, and the Digital Markets, Competition and Consumers Act 2024. You retain all statutory rights regardless of whether a Dukanoh Safe Checkout claim is upheld or excluded. If you are dissatisfied with a claim outcome, you may seek independent redress through the courts.</p>
+
+    <h3>Appeals</h3>
+    <p>If you disagree with a Safe Checkout decision, you may appeal within 7 days. See the <a href="#appeals">Appeals Policy</a> for the full process.</p>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 4. APPEALS POLICY                           -->
+  <!-- ═══════════════════════════════════════════ -->
+  <section class="policy-section" id="appeals">
+    <div class="section-label">Policy</div>
+    <h2>Appeals Policy</h2>
+    <p><em>Last updated: 16 April 2026</em></p>
+
+    <div class="intro">
+      Dukanoh operates an accessible appeals process for three categories of platform decision: listing removals, account actions, and dispute outcomes. You have the right to appeal any decision that affects your use of the platform. This process is also how we fulfil our obligations under the Online Safety Act 2023 to provide a transparent and accessible user redress mechanism.
+    </div>
+
+    <h3>Category 1: Listing Removal Appeals</h3>
+    <p><strong>Who can appeal:</strong> Any seller whose listing has been removed by Dukanoh.</p>
+    <p><strong>Grounds for appeal:</strong></p>
+    <ul>
+      <li>The removal was made in error (the item does not fall within the Prohibited Items Policy).</li>
+      <li>New information or evidence is available that was not considered at the time of removal.</li>
+      <li>The item was removed due to an automated screening error and a human review has not taken place.</li>
+    </ul>
+    <p><strong>How to appeal:</strong></p>
+    <ol>
+      <li>Tap <strong>Appeal this decision</strong> in the notification you received about the removal, or navigate to <strong>Account &rarr; Activity &rarr; Removed Listings</strong>.</li>
+      <li>State the grounds for your appeal and provide any supporting evidence (e.g. proof of authenticity, safety certificates, ownership documentation).</li>
+      <li>Submit your appeal within <strong>30 days</strong> of the removal notice.</li>
+    </ol>
+    <p><strong>What happens next:</strong> A member of our Trust &amp; Safety team (separate from whoever made the original decision) will review your appeal and respond within <strong>5 business days</strong>. If your appeal is upheld, the listing will be reinstated and any related account action reviewed.</p>
+
+    <h3>Category 2: Account Action Appeals</h3>
+    <p><strong>Who can appeal:</strong> Any user whose account has been suspended, restricted, or terminated by Dukanoh.</p>
+    <p><strong>Grounds for appeal:</strong></p>
+    <ul>
+      <li>The action was taken in error or based on incorrect information.</li>
+      <li>The circumstances that led to the action have been resolved.</li>
+      <li>The action is disproportionate given the nature of the breach.</li>
+    </ul>
+    <p><strong>How to appeal:</strong></p>
+    <ol>
+      <li>Email <a href="mailto:appeals@dukanoh.com">appeals@dukanoh.com</a> with the subject line <strong>Account Appeal &mdash; [your username]</strong>.</li>
+      <li>Include your account email, a description of the situation, and any supporting evidence.</li>
+      <li>Submit your appeal within <strong>60 days</strong> of the account action notice.</li>
+    </ol>
+    <p><strong>What happens next:</strong> We will acknowledge your appeal within 2 business days and issue a full response within <strong>10 business days</strong>. If your appeal is upheld, your account will be reinstated or the restriction removed. Where termination is upheld, we will explain the basis and confirm whether re-registration is permitted.</p>
+
+    <h3>Category 3: Dispute Decision Appeals</h3>
+    <p><strong>Who can appeal:</strong> Either the Buyer or the Seller in a transaction dispute resolved through the Dukanoh platform.</p>
+    <p><strong>Grounds for appeal:</strong></p>
+    <ul>
+      <li>New evidence is available that was not submitted during the original dispute process.</li>
+      <li>The decision contains a factual error or was reached without considering evidence you submitted.</li>
+      <li>The decision process was not followed correctly.</li>
+    </ul>
+    <p><strong>How to appeal:</strong></p>
+    <ol>
+      <li>Tap <strong>Appeal this decision</strong> within the dispute thread in the App, or email <a href="mailto:appeals@dukanoh.com">appeals@dukanoh.com</a> referencing your dispute ID.</li>
+      <li>Submit your appeal within <strong>7 days</strong> of the dispute decision being issued.</li>
+      <li>Include only new evidence not previously submitted. Appeals based solely on disagreement with the outcome without new evidence will not be upheld.</li>
+    </ol>
+    <p><strong>What happens next:</strong> A senior Trust &amp; Safety reviewer will assess the appeal and respond within <strong>7 days</strong>. Appeal decisions are final within the platform. This does not affect any right you have to seek redress through the courts of England and Wales.</p>
+
+    <h3>Principles of Our Appeals Process</h3>
+    <ul>
+      <li>All appeals are reviewed by a person who was not involved in the original decision.</li>
+      <li>We will not penalise you for submitting a good-faith appeal.</li>
+      <li>Where an automated decision contributed to the original action, human review is mandatory as part of the appeal.</li>
+      <li>We will explain the outcome of your appeal clearly, including the reason if it is not upheld.</li>
+    </ul>
+
+    <h3>Escalation</h3>
+    <p>If you are unsatisfied with the outcome of an appeal, you may contact us at <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a> to request escalation to a senior manager. Dukanoh is not currently enrolled in a formal ADR scheme, but we will engage constructively with any independent mediation you initiate. You also retain the right to pursue the matter through the courts of England and Wales.</p>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 5. COOKIE POLICY                            -->
+  <!-- ═══════════════════════════════════════════ -->
+  <section class="policy-section" id="cookie-policy">
+    <div class="section-label">Privacy</div>
+    <h2>Cookie Policy</h2>
+    <p><em>Last updated: 16 April 2026</em></p>
+
+    <div class="intro">
+      This Cookie Policy explains what cookies and similar tracking technologies Dukanoh uses in the App, why we use them, and how you can manage your preferences. It supplements our <a href="/privacy-policy">Privacy Policy</a> and is required under the Privacy and Electronic Communications Regulations 2003 (PECR).
+    </div>
+
+    <h3>What Are Cookies and Tracking Technologies?</h3>
+    <p>Cookies are small text files stored on your device when you use an app or website. Mobile apps also use device identifiers (such as your Advertising ID) and software development kits (SDKs) that function similarly. Together, these technologies allow apps to remember your preferences, measure performance, and serve relevant content.</p>
+
+    <h3>Categories of Tracking Technologies We Use</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Category</th><th>Purpose</th><th>Examples</th><th>Consent Required?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Strictly Necessary</strong></td>
+          <td>Essential for the App to function. Enables authentication, session management, security, and payment flows.</td>
+          <td>Session tokens, authentication cookies, Stripe payment session identifiers</td>
+          <td>No &mdash; these cannot be disabled without breaking core functionality</td>
+        </tr>
+        <tr>
+          <td><strong>Functional</strong></td>
+          <td>Remembers your preferences and settings to improve your experience.</td>
+          <td>Saved search preferences, notification settings, recently viewed listings</td>
+          <td>No &mdash; used to deliver the service you&rsquo;ve configured</td>
+        </tr>
+        <tr>
+          <td><strong>Analytics &amp; Performance</strong></td>
+          <td>Helps us understand how users interact with the App, diagnose bugs, and improve features.</td>
+          <td>Firebase Analytics (Google LLC), Firebase Crashlytics</td>
+          <td>Yes &mdash; you can opt out via App privacy settings</td>
+        </tr>
+        <tr>
+          <td><strong>Marketing &amp; Personalisation</strong></td>
+          <td>Used to measure campaign performance and show relevant content on third-party platforms.</td>
+          <td>Advertising identifiers (IDFA on iOS, GAID on Android)</td>
+          <td>Yes &mdash; opt-in required; managed via App privacy settings</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Specific SDKs and Third-Party Tools</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Tool / SDK</th><th>Provider</th><th>Category</th><th>Data Processed</th><th>Privacy Policy</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Firebase Analytics</td>
+          <td>Google LLC</td>
+          <td>Analytics</td>
+          <td>App usage events, session data, device identifiers, IP address (anonymised)</td>
+          <td><a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com</a></td>
+        </tr>
+        <tr>
+          <td>Firebase Crashlytics</td>
+          <td>Google LLC</td>
+          <td>Analytics</td>
+          <td>Crash reports, device model, OS version, App version</td>
+          <td><a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com</a></td>
+        </tr>
+        <tr>
+          <td>Stripe</td>
+          <td>Stripe Payments UK Ltd</td>
+          <td>Strictly Necessary</td>
+          <td>Payment session tokens, device fingerprint for fraud prevention, tokenised card data</td>
+          <td><a href="https://stripe.com/gb/privacy" target="_blank" rel="noopener">stripe.com/gb/privacy</a></td>
+        </tr>
+        <tr>
+          <td>Apple App Store / Google Play IAP</td>
+          <td>Apple Inc. / Google LLC</td>
+          <td>Strictly Necessary</td>
+          <td>In-app purchase receipts and order references</td>
+          <td>Apple: <a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener">apple.com/legal/privacy</a> &mdash; Google: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com</a></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>We review our third-party SDK list periodically. If we add new tracking tools that require your consent, we will notify you and update this policy before those tools are activated.</p>
+
+    <h3>Retention Periods</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Category</th><th>Retention Period</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Session / authentication tokens</td><td>Duration of session, or up to 30 days for &ldquo;stay signed in&rdquo; tokens</td></tr>
+        <tr><td>Analytics data (Firebase)</td><td>Up to 14 months per Google&rsquo;s default retention; we apply a 13-month rolling cap</td></tr>
+        <tr><td>Crash reports</td><td>90 days from report date</td></tr>
+        <tr><td>Advertising identifiers</td><td>Until consent is withdrawn or the identifier is reset by your device</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Managing Your Preferences</h3>
+    <p>You can manage your tracking preferences at any time in <strong>App Settings &rarr; Privacy</strong>. You can:</p>
+    <ul>
+      <li>Enable or disable analytics tracking.</li>
+      <li>Enable or disable marketing personalisation and advertising identifiers.</li>
+      <li>Reset your advertising identifier at any time through your device settings (iOS: Settings &rarr; Privacy &rarr; Tracking; Android: Settings &rarr; Google &rarr; Ads).</li>
+    </ul>
+    <p>Disabling analytics or marketing tracking will not affect your ability to use the App&rsquo;s core features.</p>
+
+    <h3>Contact</h3>
+    <p>If you have questions about our use of cookies or tracking technologies, contact us at <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a>.</p>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 6. TRANSPARENCY REPORT                      -->
+  <!-- ═══════════════════════════════════════════ -->
+  <section class="policy-section" id="transparency">
+    <div class="section-label">Annual Report</div>
+    <h2>Transparency Report</h2>
+    <p><em>Published annually in accordance with Dukanoh&rsquo;s obligations under the Online Safety Act 2023.</em></p>
+
+    <div class="intro">
+      Dukanoh is committed to transparency about how we moderate content, handle illegal activity reports, respond to law enforcement requests, and enforce our platform policies. This report is published once per calendar year. The first full report (covering 2026 activity) will be published in Q1 2027.
+    </div>
+
+    <h3>Year 1 Statement (2026 &mdash; Platform Launch Year)</h3>
+    <p>Dukanoh launched in 2026. As we are in our first year of operation, we are establishing the baseline data and systems required for full annual reporting. The categories below reflect what our Transparency Report will cover from the 2026 report (published Q1 2027) onwards.</p>
+
+    <h3>What Our Annual Report Will Cover</h3>
+
+    <h4>Content Moderation</h4>
+    <ul>
+      <li>Number of listings reviewed by automated systems.</li>
+      <li>Number of listings removed, broken down by category (prohibited items, counterfeit, illegal content, other policy violations).</li>
+      <li>Number of listings removed following user reports vs. proactive detection.</li>
+      <li>Average time from report to action.</li>
+    </ul>
+
+    <h4>User Reports</h4>
+    <ul>
+      <li>Total number of user reports received.</li>
+      <li>Breakdown by report type (prohibited item, counterfeit, harassment, fraud, other).</li>
+      <li>Proportion of reports actioned vs. not actioned, with reasons.</li>
+    </ul>
+
+    <h4>Account Actions</h4>
+    <ul>
+      <li>Number of accounts suspended and permanently terminated.</li>
+      <li>Primary reasons for account action.</li>
+    </ul>
+
+    <h4>Appeals</h4>
+    <ul>
+      <li>Number of appeals received by category (listing removal, account action, dispute decision).</li>
+      <li>Number of appeals upheld and overturned.</li>
+      <li>Average time to appeal resolution.</li>
+    </ul>
+
+    <h4>Law Enforcement and Regulatory Requests</h4>
+    <ul>
+      <li>Number of requests received from law enforcement or regulatory authorities.</li>
+      <li>Number of requests complied with in full or in part.</li>
+      <li>Jurisdictions making requests (UK only, or international).</li>
+    </ul>
+
+    <h4>Illegal Content Risk Assessment</h4>
+    <p>A summary of our most recent illegal content risk assessment, including the categories of illegal content we have assessed as presenting the greatest risk on the platform and the measures we have implemented or are implementing to address them.</p>
+
+    <h3>Contact</h3>
+    <p>If you have questions about our safety practices or this report, contact <a href="mailto:legal@dukanoh.com">legal@dukanoh.com</a>.</p>
+    <p>To report illegal content or a safety concern, use the <strong>Report</strong> button in the App or email <a href="mailto:support@dukanoh.com">support@dukanoh.com</a>.</p>
+  </section>
+
+
+  <footer>
+    <p>TAFSI LTD &middot; Registered in England and Wales &middot; Company No. 17154212 &middot; 29 Chapel Street, Hyde, SK14 1JB</p>
+    <p style="margin-top:0.4rem;">&copy; 2026 Dukanoh. All rights reserved. &middot; <a href="/terms-and-conditions">Terms &amp; Conditions</a> &middot; <a href="/privacy-policy">Privacy Policy</a></p>
+  </footer>
+
+</div>
+</body>
+</html>

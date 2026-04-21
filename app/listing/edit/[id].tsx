@@ -289,7 +289,7 @@ export default function EditListingScreen() {
         <Input
           label="Description"
           required
-          placeholder="Describe your item — fit, flaws, styling tips…"
+          placeholder="Describe the fit, flaws, styling tips…"
           value={form.description}
           onChangeText={update('description')}
           error={errors.description}

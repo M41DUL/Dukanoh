@@ -247,7 +247,7 @@ function HubPaywall({ isVerified, hadFreeTrial, hadFounderSub, proExpired }: { i
         )}
 
         {/* ── Subheading above card ── */}
-        <Text style={styles.paywallSubheading}>The seller toolkit — only on Dukanoh Pro.</Text>
+        <Text style={styles.paywallSubheading}>The seller toolkit. Only on Dukanoh Pro.</Text>
 
         {/* ── Hero card ── */}
         <LinearGradient

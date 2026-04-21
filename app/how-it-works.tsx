@@ -28,7 +28,7 @@ const STEPS: Step[] = [
   {
     icon: 'search-outline',
     title: 'Discover',
-    description: 'Rare pieces from verified members across the community — festive, formal, casual, and everything in between.',
+    description: 'Rare pieces from verified members. Festive, formal, casual, and everything in between.',
   },
   {
     icon: 'chatbubble-outline',
@@ -38,7 +38,7 @@ const STEPS: Step[] = [
   {
     icon: 'shield-checkmark-outline',
     title: 'Pay securely',
-    description: 'Every order includes Dukanoh Safe Checkout. Payment is held until you confirm your piece has arrived — or released automatically 48 hours after delivery.',
+    description: 'Every order includes Dukanoh Safe Checkout. Payment is held until you confirm your piece has arrived, or released automatically 48 hours after delivery.',
   },
   {
     icon: 'star-outline',
@@ -77,7 +77,7 @@ const SELLER_TIPS: Tip[] = [
   },
   {
     icon: 'pricetag-outline',
-    text: 'Price by research — check what similar pieces have sold for on Dukanoh.',
+    text: 'Price by research. Check what similar pieces have sold for on Dukanoh.',
   },
   {
     icon: 'chatbubbles-outline',
@@ -85,7 +85,7 @@ const SELLER_TIPS: Tip[] = [
   },
   {
     icon: 'cube-outline',
-    text: 'Be honest about condition. List any flaws — it builds your reputation.',
+    text: 'Be honest about condition. List any flaws. It builds your reputation.',
   },
   {
     icon: 'cube-outline',
@@ -165,7 +165,7 @@ export default function HowItWorksScreen() {
             <View style={styles.sellerCta}>
               <Text style={styles.sellerCtaTitle}>List your pieces.</Text>
               <Text style={styles.sellerCtaSubtitle}>
-                Someone's been looking for them. Complete Dukanoh Verify to start receiving payments — it takes a few minutes.
+                Someone's been looking for them. Complete Dukanoh Verify to start receiving payments. Takes a few minutes.
               </Text>
               <Button
                 label="Start selling"

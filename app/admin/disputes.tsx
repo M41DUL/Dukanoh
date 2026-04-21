@@ -234,7 +234,7 @@ export default function AdminDisputesScreen() {
               <View style={[styles.appealBadge, { backgroundColor: `${colors.primary}14`, borderColor: `${colors.primary}40` }]}>
                 <Ionicons name="refresh-circle-outline" size={14} color={colors.primary} />
                 <Text style={[styles.appealBadgeText, { color: colors.primary }]}>
-                  Appeal — {item.appeal_by === 'buyer' ? `@${item.buyer?.username}` : `@${item.seller?.username}`}
+                  Appeal by {item.appeal_by === 'buyer' ? `@${item.buyer?.username}` : `@${item.seller?.username}`}
                 </Text>
               </View>
             )}
@@ -362,7 +362,7 @@ export default function AdminDisputesScreen() {
             </View>
 
             <Button
-              label={resolving ? 'Resolving…' : `Confirm — ${outcome === 'release_seller' ? 'Seller wins' : 'Buyer wins'}`}
+              label={resolving ? 'Resolving…' : `Confirm: ${outcome === 'release_seller' ? 'Seller wins' : 'Buyer wins'}`}
               onPress={handleResolve}
               loading={resolving}
             />

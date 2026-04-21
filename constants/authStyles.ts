@@ -28,9 +28,9 @@ export function getPasswordStrength(pw: string): { label: string; color: string 
   const hasNumber = /[0-9]/.test(pw);
   const hasSymbol = /[^a-zA-Z0-9]/.test(pw);
   const variety = [hasUpper, hasLower, hasNumber, hasSymbol].filter(Boolean).length;
-  if (pw.length >= 10 && variety >= 3) return { label: 'Strong — 10+ chars with mixed types', color: lightColors.success };
-  if (pw.length >= 8 && variety >= 2) return { label: 'Good — try adding numbers or symbols', color: lightColors.secondary };
-  return { label: 'Weak — use 8+ chars with numbers or symbols', color: '#FFA500' };
+  if (pw.length >= 10 && variety >= 3) return { label: 'Strong password', color: lightColors.success };
+  if (pw.length >= 8 && variety >= 2) return { label: 'Good. Try adding numbers or symbols', color: lightColors.secondary };
+  return { label: 'Weak. Use 8+ characters with numbers or symbols', color: '#FFA500' };
 }
 
 /** Validates a username and returns an error string, or empty string if valid */

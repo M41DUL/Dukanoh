@@ -346,7 +346,7 @@ export default function ListingDetailScreen() {
 
   const handleShare = () => {
     Share.share({
-      message: `${listing.title} — £${listing.price.toFixed(2)} on Dukanoh`,
+      message: `${listing.title}, £${listing.price.toFixed(2)} on Dukanoh`,
     });
   };
 
@@ -953,7 +953,7 @@ export default function ListingDetailScreen() {
       <BottomSheet visible={boostVisible} onClose={handleCloseBoost}>
         <Text style={styles.boostTitle}>Boost listing</Text>
         <Text style={styles.boostSubtitle}>
-          Get more eyes on this piece — your listing jumps to the front of Stories for 24 hours.
+          Get more eyes on this piece. Your listing jumps to the front of Stories for 24 hours.
         </Text>
         <View style={styles.hairline} />
         <View style={styles.boostDetailRow}>

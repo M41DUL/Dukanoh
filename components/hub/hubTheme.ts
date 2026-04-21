@@ -17,17 +17,17 @@ type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
 export const CORE_FEATURE_LABELS = [
   'Priority ranking in search and discovery',
-  'Analytics — see what\'s selling and what\'s not',
+  'Analytics. See what\'s selling and what\'s not',
   '3 Story boosts every month',
 ] as const;
 
 export const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
   { icon: 'flash-outline',        label: '3 Story boosts every month' },
-  { icon: 'bar-chart-outline',    label: 'Analytics — see what\'s selling and what\'s not' },
+  { icon: 'bar-chart-outline',    label: 'Analytics. See what\'s selling and what\'s not' },
   { icon: 'trending-up-outline',  label: 'Priority ranking in search and discovery' },
   { icon: 'create-outline',       label: 'Bulk price editing across your listings' },
-  { icon: 'arrow-down-outline',   label: 'Price Drop badge — show buyers you\'ve reduced' },
-  { icon: 'folder-outline',       label: 'Collections — group listings by theme or occasion' },
+  { icon: 'arrow-down-outline',   label: 'Price Drop badge. Shows buyers you\'ve reduced' },
+  { icon: 'folder-outline',       label: 'Collections. Group listings by theme or occasion' },
   { icon: 'share-social-outline', label: 'Share kit for Instagram and WhatsApp' },
   { icon: 'diamond-outline',      label: '◆ Pro badge on your profile and listings' },
   { icon: 'flash-outline',        label: 'Fast Responder badge for quick replies' },

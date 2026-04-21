@@ -305,7 +305,7 @@ export default function SettingsScreen() {
                     style={[styles.shareBtn, { backgroundColor: colors.primaryLight }]}
                     onPress={() =>
                       Share.share({
-                        message: `I've invited you to sell on Dukanoh — the curated South Asian fashion marketplace. Use code ${invite.code} to get started.`,
+                        message: `I've invited you to sell on Dukanoh, the curated South Asian fashion marketplace. Use code ${invite.code} to get started.`,
                       })
                     }
                     hitSlop={8}
@@ -327,13 +327,13 @@ export default function SettingsScreen() {
           {
             icon: 'shield-half-outline',
             title: 'Disputes',
-            subtitle: 'Admin — resolve buyer/seller disputes',
+            subtitle: 'Admin: resolve buyer/seller disputes',
             onPress: () => router.push('/admin/disputes'),
           },
           {
             icon: 'chatbubble-ellipses-outline',
             title: 'Feedback',
-            subtitle: 'Admin — view user submissions',
+            subtitle: 'Admin: view user submissions',
             onPress: () => router.push('/admin/feedback'),
           },
           ...(isOfficial ? [{

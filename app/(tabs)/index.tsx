@@ -63,7 +63,7 @@ export default function HomeScreen() {
         key: 'fit',
         icon: 'camera-outline' as const,
         title: 'Dukanoh Fit',
-        subtitle: 'Snap a piece — find what matches it',
+        subtitle: 'Snap a piece and find what matches it',
         onPress: () => { markFitSeen(); setFitSheetVisible(true); },
         gradientColors: (isDark ? ['rgba(199,247,94,0.12)', colors.surface] : ['#E8FBC5', colors.surface]) as [string, string],
         iconColor: isDark ? colors.secondary : colors.textPrimary,

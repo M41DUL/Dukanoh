@@ -696,7 +696,7 @@ export function ProProfileTab() {
         <Text style={[styles.sheetTitle, { color: P.textPrimary }]}>Add to Collection</Text>
         {!dash || dash.collections.length === 0 ? (
           <Text style={[styles.sheetEmptyText, { color: P.textSecondary }]}>
-            No collections yet — create one first.
+            No collections yet. Create one from your listings.
           </Text>
         ) : (
           <>

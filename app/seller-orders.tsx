@@ -26,8 +26,8 @@ interface Order {
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
   created: 'Placed',
-  paid: 'Paid — ship when ready',
-  shipped: 'Shipped — awaiting confirmation',
+  paid: 'Paid. Ready to ship',
+  shipped: 'Shipped. Awaiting confirmation',
   delivered: 'Delivered',
   completed: 'Completed',
   disputed: 'Disputed',

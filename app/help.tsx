@@ -25,15 +25,15 @@ const FAQS: FAQ[] = [
   },
   {
     question: 'How much does Dukanoh Safe Checkout cost?',
-    answer: 'Dukanoh Safe Checkout is charged to the buyer at 6.5% of the item price plus £0.80 per order. Sellers pay no commission — you keep 100% of your listing price.',
+    answer: 'Dukanoh Safe Checkout is charged to the buyer at 6.5% of the item price plus £0.80 per order. Sellers pay no commission. You keep 100% of your listing price.',
   },
   {
-    question: 'Something\'s wrong with my order — what do I do?',
+    question: 'Something\'s wrong with my order. What do I do?',
     answer: 'Tap "Report an issue" from your order screen within 48 hours of delivery. Our Trust & Safety team reviews all disputes and will respond within 7 days. If your dispute is upheld, you\'ll receive a full refund on the item price.',
   },
   {
     question: 'How do I become a seller?',
-    answer: 'Tap the Sell tab and create your first listing. To receive payments, complete Dukanoh Verify — a quick identity check powered by Stripe. It takes a few minutes.',
+    answer: 'Tap the Sell tab and create your first listing. To receive payments, complete Dukanoh Verify, a quick identity check powered by Stripe. It takes a few minutes.',
   },
   {
     question: 'When do I get paid as a seller?',
@@ -49,7 +49,7 @@ const FAQS: FAQ[] = [
   },
   {
     question: 'How do I delete my account?',
-    answer: 'Go to Settings and scroll to the bottom. Tap "Delete Account" — this permanently removes your account and all your data. It cannot be undone.',
+    answer: 'Go to Settings and scroll to the bottom. Tap "Delete Account". This permanently removes your account and all your data. It cannot be undone.',
   },
 ];
 
