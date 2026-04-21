@@ -28,11 +28,22 @@ export function useTaxStatus(userId: string | undefined) {
         .gte('created_at', yearStart),
     ]);
     const orders = (ordersRes.data ?? []) as { id: string; item_price: number }[];
+    const yearCount = orders.length;
+    const yearSales = orders.reduce((s, o) => s + (o.item_price ?? 0), 0);
+    const hasTin = !!userRes.data?.tax_id_collected_at;
+    const taxHold = !!userRes.data?.tax_hold;
+    const overThreshold = yearCount >= 30 || yearSales >= 1700;
+
+    // Auto-set tax_hold in DB when threshold is crossed and no TIN on file
+    if (overThreshold && !hasTin && !taxHold) {
+      await supabase.from('users').update({ tax_hold: true }).eq('id', userId);
+    }
+
     setStatus({
-      yearCount: orders.length,
-      yearSales: orders.reduce((s, o) => s + (o.item_price ?? 0), 0),
-      hasTin: !!userRes.data?.tax_id_collected_at,
-      taxHold: !!userRes.data?.tax_hold,
+      yearCount,
+      yearSales,
+      hasTin,
+      taxHold: taxHold || (overThreshold && !hasTin),
     });
   }, [userId]);
 
