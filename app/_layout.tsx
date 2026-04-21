@@ -198,7 +198,7 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="tax-info"
-          options={{ animation: 'slide_from_bottom', presentation: 'formSheet' }}
+          options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
         />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />

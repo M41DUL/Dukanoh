@@ -128,7 +128,8 @@ export default function TaxInfoScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+        <View style={styles.handle} />
         <Header title="Tax information" showBack />
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
@@ -138,7 +139,8 @@ export default function TaxInfoScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <View style={styles.handle} />
       <Header title="Tax information" showBack />
       <KeyboardAvoidingView
         style={styles.flex}
@@ -282,6 +284,15 @@ export default function TaxInfoScreen() {
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     safe: { flex: 1 },
+    handle: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      alignSelf: 'center',
+      marginTop: Spacing.sm,
+      marginBottom: Spacing.sm,
+    },
     flex: { flex: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     content: {
