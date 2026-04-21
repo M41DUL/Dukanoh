@@ -208,10 +208,11 @@ function HubPaywall({ isVerified, hadFreeTrial, hadFounderSub, proExpired }: { i
         <CelebrationView
           icon="diamond"
           title="You're now Pro"
+          subtitle="Your Pro features are live. Head to your profile to see your analytics and manage your listings."
           iconColor="#C7F75E"
           textColor="#F5F5F5"
           subtitleColor="#9B9B9B"
-          actions={[{ label: 'Start exploring', onPress: () => router.dismiss() }]}
+          actions={[{ label: 'Go to profile', onPress: () => router.dismiss() }]}
         />
       </View>
     );
@@ -241,12 +242,12 @@ function HubPaywall({ isVerified, hadFreeTrial, hadFounderSub, proExpired }: { i
         {proExpired && (
           <View style={styles.expiredBanner}>
             <Ionicons name="warning-outline" size={16} color={proColors.amber} />
-            <Text style={styles.expiredBannerText}>Your Pro subscription has expired. Resubscribe to restore access.</Text>
+            <Text style={styles.expiredBannerText}>Your Pro subscription has expired. Resubscribe below to restore your features.</Text>
           </View>
         )}
 
         {/* ── Subheading above card ── */}
-        <Text style={styles.paywallSubheading}>Sell more. Know more. Earn more. On Dukanoh Pro.</Text>
+        <Text style={styles.paywallSubheading}>The seller toolkit — only on Dukanoh Pro.</Text>
 
         {/* ── Hero card ── */}
         <LinearGradient

@@ -502,12 +502,12 @@ export default function OnboardingScreen() {
       {/* Welcome bottom sheet — only on first signup, not profile reset */}
       <BottomSheet visible={showWelcome} onClose={() => setShowWelcome(false)}>
         <View style={styles.sheetContent}>
-          <Text style={styles.sheetHeading}>{"Let\u2019s personalise\nyour feed"}</Text>
+          <Text style={styles.sheetHeading}>{"What's your taste?"}</Text>
           <Text style={styles.sheetSubtitle}>
-            {"Dukanoh is built around what you love. Tell us what catches your eye and we\u2019ll curate a feed that feels like it was made for you."}
+            {"Pick the categories you love. Your home feed builds itself around your choices — you can update them any time in Settings."}
           </Text>
           <Button
-            label="Get started"
+            label="Choose my categories"
             onPress={() => setShowWelcome(false)}
             variant="primary"
             style={styles.sheetButton}

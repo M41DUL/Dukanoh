@@ -226,7 +226,7 @@ export default function IntroScreen() {
             onPress={() => setSheetMode('join')}
           />
           <Button
-            label="Already have an account"
+            label="Sign in"
             variant="outline"
             onPress={() => setSheetMode('login')}
             borderColor="rgba(255,255,255,0.5)"

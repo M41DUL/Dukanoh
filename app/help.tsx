@@ -17,35 +17,39 @@ interface FAQ {
 const FAQS: FAQ[] = [
   {
     question: 'How does buying work?',
-    answer: 'Find a piece you love, message the member if you have questions, then checkout directly in the app. Dukanoh Safe Checkout is included on every order. Your payment is held securely in escrow until you confirm the piece has arrived.',
-  },
-  {
-    question: 'What is the Dukanoh Safe Checkout charge?',
-    answer: 'Every purchase includes Dukanoh Safe Checkout — a small charge of 6.5% of the item price plus £0.80. This covers you if your piece doesn\'t arrive or doesn\'t match the listing. The charge is non-refundable but the full item price is refunded if a dispute is resolved in your favour.',
+    answer: 'Discover a piece, message the member if you have questions, then checkout in the app. Dukanoh Safe Checkout is included on every order. Your payment is held by Stripe until you confirm the piece has arrived.',
   },
   {
     question: 'What is Dukanoh Safe Checkout?',
-    answer: 'Every purchase on Dukanoh includes Dukanoh Safe Checkout. If your piece doesn\'t arrive or doesn\'t match the listing, raise a dispute and our team will step in. Payments are only released to the seller once you confirm receipt, or automatically after 2 days.',
+    answer: 'Dukanoh Safe Checkout covers orders up to £1,000. If your piece doesn\'t arrive or doesn\'t match the listing, raise a dispute within 48 hours of delivery and our team will step in. We aim to resolve all claims within 7 days. The Safe Checkout charge is non-refundable, but the full item price is refunded if a dispute is resolved in your favour.',
   },
   {
-    question: 'Can I return a piece?',
-    answer: 'If there\'s an issue with your order — wrong item, not as described, damaged, or it never arrived — raise a dispute from your order screen. Our team reviews all disputes and will resolve it fairly.',
+    question: 'How much does Dukanoh Safe Checkout cost?',
+    answer: 'Dukanoh Safe Checkout is charged to the buyer at 6.5% of the item price plus £0.80 per order. Sellers pay no commission — you keep 100% of your listing price.',
+  },
+  {
+    question: 'Something\'s wrong with my order — what do I do?',
+    answer: 'Tap "Report an issue" from your order screen within 48 hours of delivery. Our Trust & Safety team reviews all disputes and will respond within 7 days. If your dispute is upheld, you\'ll receive a full refund on the item price.',
   },
   {
     question: 'How do I become a seller?',
-    answer: 'Anyone can sell on Dukanoh. Just tap the Sell tab to create your first listing. To receive payments, you\'ll need to complete Dukanoh Verify — a quick identity check that takes a few minutes.',
+    answer: 'Tap the Sell tab and create your first listing. To receive payments, complete Dukanoh Verify — a quick identity check powered by Stripe. It takes a few minutes.',
   },
   {
     question: 'When do I get paid as a seller?',
-    answer: 'Once the buyer confirms receipt of their piece, your earnings move to your wallet. If they don\'t confirm within 2 days, funds are released automatically. You can withdraw to your bank at any time once you\'re verified.',
+    answer: 'Once the buyer confirms receipt, your earnings are held for 48 hours in case of disputes, then released to your wallet. If the buyer doesn\'t confirm, funds are released automatically 7 days after you ship. You can withdraw to your bank from the Wallet screen once you\'re verified.',
+  },
+  {
+    question: 'How long do I have to dispatch?',
+    answer: 'You must dispatch within 5 days of a sale. If you don\'t ship in time, the order is automatically cancelled and the buyer is refunded in full.',
   },
   {
     question: 'What if I have an issue with another member?',
-    answer: 'You can report any member or listing by tapping the flag icon on their profile or listing. For order issues, raise a dispute directly from your order screen and our team will review it.',
+    answer: 'Tap the flag icon on any profile or listing to report it. For order issues, raise a dispute directly from your order screen.',
   },
   {
     question: 'How do I delete my account?',
-    answer: 'Go to Settings and scroll to the bottom. Tap "Delete Account" — this will permanently remove your account and all your data. This cannot be undone.',
+    answer: 'Go to Settings and scroll to the bottom. Tap "Delete Account" — this permanently removes your account and all your data. It cannot be undone.',
   },
 ];
 
@@ -77,7 +81,7 @@ export default function HelpScreen() {
         {/* Get in touch */}
         <Text style={styles.sectionTitle}>Still need help?</Text>
         <Text style={styles.contactBody}>
-          Can't find what you're looking for? Send us a message and we'll get back to you.
+          Can't find what you're looking for? Send us a message and we'll get back to you as soon as we can.
         </Text>
         <TouchableOpacity
           style={styles.emailBtn}

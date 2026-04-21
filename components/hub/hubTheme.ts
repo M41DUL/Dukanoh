@@ -16,20 +16,20 @@ export const HUB = {
 type IoniconsName = ComponentProps<typeof Ionicons>['name'];
 
 export const CORE_FEATURE_LABELS = [
-  'Pro ranking. Your listings shown higher in search.',
-  "Analytics and earnings. See what's working.",
-  '3 free boosts into Stories every month',
+  'Priority ranking in search and discovery',
+  'Analytics — see what\'s selling and what\'s not',
+  '3 Story boosts every month',
 ] as const;
 
 export const HUB_FEATURES: { icon: IoniconsName; label: string }[] = [
-  { icon: 'flash-outline',        label: '3 free boosts into Stories every month' },
-  { icon: 'bar-chart-outline',    label: 'Analytics and earnings. See what\'s working.' },
-  { icon: 'trending-up-outline',  label: 'Pro ranking. Your listings shown higher in search.' },
-  { icon: 'create-outline',       label: 'Bulk price editing across all listings' },
-  { icon: 'arrow-down-outline',   label: 'Price Drop badge when you lower a price' },
-  { icon: 'folder-outline',       label: 'Collections. Organise your listings into themed groups.' },
+  { icon: 'flash-outline',        label: '3 Story boosts every month' },
+  { icon: 'bar-chart-outline',    label: 'Analytics — see what\'s selling and what\'s not' },
+  { icon: 'trending-up-outline',  label: 'Priority ranking in search and discovery' },
+  { icon: 'create-outline',       label: 'Bulk price editing across your listings' },
+  { icon: 'arrow-down-outline',   label: 'Price Drop badge — show buyers you\'ve reduced' },
+  { icon: 'folder-outline',       label: 'Collections — group listings by theme or occasion' },
   { icon: 'share-social-outline', label: 'Share kit for Instagram and WhatsApp' },
-  { icon: 'diamond-outline',      label: 'Pro badge ◆ on your profile and listings' },
+  { icon: 'diamond-outline',      label: '◆ Pro badge on your profile and listings' },
   { icon: 'flash-outline',        label: 'Fast Responder badge for quick replies' },
 ];
 

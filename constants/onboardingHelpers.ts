@@ -56,7 +56,7 @@ export function getActiveBubbleSize(baseSize: number, screenWidth: number, activ
 
 // ─── Dynamic subtitle ───────────────────────────────────────
 export function getSubtitleText(count: number): string {
-  if (count === 0) return 'Pick at least one';
+  if (count === 0) return 'Pick at least one to continue';
   if (count < 3) return `${count} selected`;
   return `${count} selected \u2014 nice taste!`;
 }

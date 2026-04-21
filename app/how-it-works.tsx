@@ -28,64 +28,68 @@ const STEPS: Step[] = [
   {
     icon: 'search-outline',
     title: 'Discover',
-    description: 'Find exclusive pieces from verified members across the community.',
+    description: 'Rare pieces from verified members across the community — festive, formal, casual, and everything in between.',
   },
   {
     icon: 'chatbubble-outline',
     title: 'Message',
-    description: 'Chat with members, ask questions and make offers directly.',
+    description: 'Message any member directly. Ask about condition, measurements, or make an offer.',
   },
   {
     icon: 'shield-checkmark-outline',
     title: 'Pay securely',
-    description: 'Every order includes Dukanoh Safe Checkout. Your payment is held in escrow until you confirm the piece has arrived.',
+    description: 'Every order includes Dukanoh Safe Checkout. Payment is held until you confirm your piece has arrived — or released automatically 48 hours after delivery.',
   },
   {
     icon: 'star-outline',
     title: 'Review',
-    description: 'Leave a review after your purchase to build trust in the community.',
+    description: 'Rate the transaction once it\'s done. Reviews build trust across the community.',
   },
 ];
 
 const BUYER_TIPS: Tip[] = [
   {
     icon: 'shield-checkmark-outline',
-    text: 'Every purchase includes Dukanoh Safe Checkout. If a piece doesn\'t arrive or doesn\'t match the listing, we\'ve got you covered.',
+    text: 'Dukanoh Safe Checkout covers orders up to £1,000. If a piece doesn\'t arrive or doesn\'t match the listing, raise a dispute and our team will step in.',
   },
   {
     icon: 'eye-outline',
-    text: 'Always check photos and ask questions before committing to a purchase.',
+    text: 'Check the photos carefully and message the seller before committing.',
   },
   {
     icon: 'star-half-outline',
-    text: 'Check the member\'s reviews and rating before buying.',
+    text: 'Review the member\'s ratings and past transactions before buying.',
   },
   {
     icon: 'checkmark-circle-outline',
-    text: 'Confirm receipt once your piece arrives to release payment to the seller.',
+    text: 'Confirm receipt once your piece arrives. This releases payment to the seller and opens a 48-hour window to raise any issues.',
   },
   {
     icon: 'alert-circle-outline',
-    text: 'If something doesn\'t feel right, raise a dispute and our team will step in.',
+    text: 'Raise a dispute within 48 hours of delivery if something\'s wrong. Our team reviews all claims within 7 days.',
   },
 ];
 
 const SELLER_TIPS: Tip[] = [
   {
     icon: 'camera-outline',
-    text: 'Use clear, well-lit photos from multiple angles — great photos sell pieces faster.',
+    text: 'Clear, well-lit photos from multiple angles. Great photos move pieces faster.',
   },
   {
     icon: 'pricetag-outline',
-    text: 'Price fairly — check similar pieces to stay competitive.',
+    text: 'Price by research — check what similar pieces have sold for on Dukanoh.',
   },
   {
     icon: 'chatbubbles-outline',
-    text: 'Respond to messages quickly. A high response rate builds trust.',
+    text: 'Reply quickly. Members buy from sellers they trust.',
   },
   {
     icon: 'cube-outline',
-    text: 'Describe condition honestly — include any flaws or signs of wear.',
+    text: 'Be honest about condition. List any flaws — it builds your reputation.',
+  },
+  {
+    icon: 'cube-outline',
+    text: 'Dispatch within 5 days of a sale. Orders not shipped in time are automatically cancelled and the buyer refunded.',
   },
 ];
 
@@ -126,15 +130,15 @@ export default function HowItWorksScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
           <Text style={styles.infoText}>
-            Every purchase on Dukanoh includes Dukanoh Safe Checkout. Payments are held in escrow and only released to the seller once you confirm your piece has arrived safely.
+            Every order on Dukanoh includes Dukanoh Safe Checkout. Payments are held by Stripe and only released to the seller once you confirm your piece has arrived, or automatically 48 hours after delivery if you take no action.
           </Text>
         </View>
 
         <Divider style={styles.sectionDivider} />
 
         {/* Buyer tips */}
-        <Text style={styles.sectionTitle}>Buying safely</Text>
-        <Text style={styles.sectionSubtitle}>Tips to protect yourself when purchasing</Text>
+        <Text style={styles.sectionTitle}>Buying on Dukanoh</Text>
+        <Text style={styles.sectionSubtitle}>What to know before you purchase</Text>
         {BUYER_TIPS.map((tip) => (
           <View key={tip.text} style={styles.tipRow}>
             <Ionicons name={tip.icon} size={20} color={colors.primary} />
@@ -145,8 +149,8 @@ export default function HowItWorksScreen() {
         <Divider style={styles.sectionDivider} />
 
         {/* Seller tips */}
-        <Text style={styles.sectionTitle}>Selling tips</Text>
-        <Text style={styles.sectionSubtitle}>How to make the most of your listings</Text>
+        <Text style={styles.sectionTitle}>Selling on Dukanoh</Text>
+        <Text style={styles.sectionSubtitle}>How to make your listings work harder</Text>
         {SELLER_TIPS.map((tip) => (
           <View key={tip.text} style={styles.tipRow}>
             <Ionicons name={tip.icon} size={20} color={colors.primary} />
@@ -159,9 +163,9 @@ export default function HowItWorksScreen() {
           <>
             <Divider style={styles.sectionDivider} />
             <View style={styles.sellerCta}>
-              <Text style={styles.sellerCtaTitle}>Want to sell?</Text>
+              <Text style={styles.sellerCtaTitle}>List your pieces.</Text>
               <Text style={styles.sellerCtaSubtitle}>
-                Anyone can sell on Dukanoh. Create your first listing in minutes and get verified to start receiving payments.
+                Someone's been looking for them. Complete Dukanoh Verify to start receiving payments — it takes a few minutes.
               </Text>
               <Button
                 label="Start selling"

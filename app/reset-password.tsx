@@ -64,12 +64,12 @@ export default function ResetPasswordScreen() {
   if (done) {
     return (
       <AuthLayout>
-        <Text style={styles.heading}>Password updated</Text>
+        <Text style={styles.heading}>Password updated.</Text>
         <Text style={styles.subtitle}>
-          Your password has been changed. You're all set.
+          Your new password is set. You're good to go.
         </Text>
         <Button
-          label="Continue"
+          label="Back to Dukanoh"
           onPress={() => router.replace('/(tabs)')}
           variant="secondary"
           style={{ marginTop: Spacing.lg }}
@@ -80,9 +80,9 @@ export default function ResetPasswordScreen() {
 
   return (
     <AuthLayout>
-      <Text style={styles.heading}>Set new password</Text>
+      <Text style={styles.heading}>New password</Text>
       <Text style={styles.subtitle}>
-        Enter your new password below.
+        Choose a new password for your account.
       </Text>
 
       <View style={styles.form}>

@@ -20,7 +20,7 @@ const BENEFITS: { icon: IoniconsName; title: string; body: string }[] = [
   {
     icon: 'shield-checkmark-outline',
     title: 'Verified badge',
-    body: 'A blue ✓ badge on your profile and listings so buyers know you\'re trusted.',
+    body: 'A verified badge on your profile and listings. Members buy from sellers they trust.',
   },
   {
     icon: 'wallet-outline',
@@ -28,20 +28,21 @@ const BENEFITS: { icon: IoniconsName; title: string; body: string }[] = [
     body: 'Earnings land in your wallet. Withdraw to your bank whenever you\'re ready.',
   },
   {
-    icon: 'diamond-outline',
-    title: 'Unlock Dukanoh Pro',
-    body: 'Verification is required before you can subscribe to Pro.',
+    icon: 'storefront-outline',
+    title: '0% commission',
+    body: 'Keep 100% of your listing price. Dukanoh charges no seller fees.',
   },
   {
-    icon: 'lock-closed-outline',
-    title: 'Secure & private',
-    body: 'Your ID and bank details are handled securely. Dukanoh never stores them.',
+    icon: 'diamond-outline',
+    title: 'Unlock Dukanoh Pro',
+    body: 'Verification is required before you can subscribe to Pro and access advanced seller tools.',
   },
 ];
 
 const NEEDS = [
   'A photo ID — passport or driving licence',
   'Your bank account details for payouts',
+  'Takes around 5 minutes',
 ];
 
 export default function StripeOnboardingScreen() {
@@ -97,7 +98,7 @@ export default function StripeOnboardingScreen() {
         <CelebrationView
           icon="shield-checkmark"
           title="You're a verified seller"
-          subtitle="Your identity is confirmed and your listings are now live to buyers. Welcome to Dukanoh."
+          subtitle="You're verified. Earnings from your sales will land in your wallet and you can withdraw to your bank at any time."
           iconColor={colors.success}
           actions={[{ label: 'Start selling', onPress: () => router.replace('/(tabs)/sell') }]}
         />
@@ -118,9 +119,9 @@ export default function StripeOnboardingScreen() {
           <View style={[styles.heroIconWrap, { backgroundColor: colors.primary }]}>
             <Ionicons name="shield-checkmark" size={32} color="#FFFFFF" />
           </View>
-          <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Become Verified</Text>
+          <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>Dukanoh Verify</Text>
           <Text style={[styles.heroBody, { color: colors.textSecondary }]}>
-            A quick identity check — takes a few minutes and unlocks selling, payments, and your verified badge.
+            Complete a quick identity check to start receiving payments, earn your verified badge, and unlock Dukanoh Pro.
           </Text>
         </View>
 
@@ -163,7 +164,7 @@ export default function StripeOnboardingScreen() {
         />
 
         <Text style={[styles.disclaimer, { color: colors.textSecondary }]}>
-          Your data is encrypted and handled securely. Dukanoh does not store your ID or bank details.
+          Identity verification and payment processing is handled by Stripe. Dukanoh does not store your ID or bank details.
         </Text>
       </ScrollView>
     </ScreenWrapper>

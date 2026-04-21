@@ -46,14 +46,14 @@ export default function FeedbackScreen() {
       return;
     }
 
-    Alert.alert('Thanks for the feedback', 'We read every submission and use it to improve Dukanoh.', [
+    Alert.alert('Thanks for the feedback', 'We read everything. It goes straight to the team.', [
       { text: 'Done', onPress: () => router.back() },
     ]);
   };
 
   return (
     <ScreenWrapper>
-      <Header title="Send Feedback" showBack />
+      <Header title="Feedback" showBack />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -64,7 +64,7 @@ export default function FeedbackScreen() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.label}>What kind of feedback is this?</Text>
+          <Text style={styles.label}>What is this about?</Text>
           <View style={styles.typeRow}>
             {TYPES.map(t => (
               <TouchableOpacity
