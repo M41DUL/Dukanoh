@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Switch,
-  Linking,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -109,12 +108,6 @@ export default function PrivacySettingsScreen() {
           />
         </View>
 
-        <Text
-          style={[styles.policyLink, { color: colors.primary }]}
-          onPress={() => Linking.openURL('https://dukanoh.com/privacy')}
-        >
-          Read our full Privacy Policy →
-        </Text>
       </ScrollView>
     </ScreenWrapper>
   );
@@ -186,11 +179,6 @@ function getStyles(_colors: ColorTokens) {
       fontSize: 12,
       fontFamily: FontFamily.regular,
       lineHeight: 17,
-    },
-    policyLink: {
-      fontSize: 13,
-      fontFamily: FontFamily.medium,
-      textAlign: 'center',
     },
   });
 }
