@@ -18,10 +18,35 @@ import {
 } from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
 
+function formatDobInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function dobToIso(display: string): string | null {
+  const parts = display.replace(/\s/g, '').split('/');
+  if (parts.length !== 3) return null;
+  const [d, m, y] = parts;
+  if (d.length !== 2 || m.length !== 2 || y.length !== 4) return null;
+  const date = new Date(`${y}-${m}-${d}`);
+  if (isNaN(date.getTime())) return null;
+  return `${y}-${m}-${d}`;
+}
+
+function isOver18(isoDate: string): boolean {
+  const dob = new Date(isoDate);
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 18);
+  return dob <= cutoff;
+}
+
 export default function SignUpScreen() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [dobDisplay, setDobDisplay] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [marketingPush, setMarketingPush] = useState(false);
@@ -105,10 +130,16 @@ export default function SignUpScreen() {
 
   const isEmailValid = EMAIL_REGEX.test(email.trim());
 
+  const dobIso = dobToIso(dobDisplay);
+  const dobValid = !!dobIso;
+  const dobOver18 = dobIso ? isOver18(dobIso) : null;
+
   const isFormValid =
     usernameValid &&
     isEmailValid &&
-    password.length >= PASSWORD_MIN;
+    password.length >= PASSWORD_MIN &&
+    dobValid &&
+    dobOver18 === true;
 
   const handleSignUp = async () => {
     if (loading) return;
@@ -139,12 +170,13 @@ export default function SignUpScreen() {
         }),
       );
       if (authError) throw authError;
-      // Write marketing push consent if opted in
-      if (marketingPush) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase.from('users').update({ marketing_push_consent: true }).eq('id', user.id);
-        }
+      // Write DOB and optional marketing push consent
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('users').update({
+          dob: dobIso,
+          ...(marketingPush ? { marketing_push_consent: true } : {}),
+        }).eq('id', user.id);
       }
       // Root layout auth effect handles navigation
     } catch (err) {
@@ -217,6 +249,16 @@ export default function SignUpScreen() {
           error={passwordStrength && password.length < PASSWORD_MIN ? passwordStrength.label : undefined}
           hint={passwordStrength && password.length >= PASSWORD_MIN ? passwordStrength.label : undefined}
           hintColor={passwordStrength?.color}
+        />
+        <Input
+          placeholder="Date of birth (DD/MM/YYYY)"
+          value={dobDisplay}
+          onChangeText={v => setDobDisplay(formatDobInput(v))}
+          keyboardType="number-pad"
+          maxLength={10}
+          returnKeyType="done"
+          error={dobValid && dobOver18 === false ? 'You must be 18 or over to use Dukanoh' : undefined}
+          {...AUTH_INPUT_STYLE}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <TouchableOpacity
