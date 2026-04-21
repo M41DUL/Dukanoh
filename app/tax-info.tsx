@@ -128,7 +128,7 @@ export default function TaxInfoScreen() {
   };
 
   const closeButton = (
-    <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+    <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={{ paddingRight: Spacing.base }}>
       <Ionicons name="close" size={22} color={colors.textSecondary} />
     </TouchableOpacity>
   );
