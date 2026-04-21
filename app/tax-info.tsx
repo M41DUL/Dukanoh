@@ -354,7 +354,7 @@ function getStyles(colors: ColorTokens) {
     optionRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: Spacing.base,
+      paddingVertical: Spacing.sm,
     },
     optionLabel: {
       flex: 1,
