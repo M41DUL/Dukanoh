@@ -61,8 +61,8 @@ export default function DisputeScreen() {
         disputed_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .eq('buyer_id', user.id)  // safety: only the buyer can dispute
-      .eq('status', 'shipped'); // guard: only valid from shipped state
+      .eq('buyer_id', user.id)                    // safety: only the buyer can dispute
+      .in('status', ['shipped', 'delivered']);    // valid from shipped or delivered (48h window)
 
     setSubmitting(false);
 

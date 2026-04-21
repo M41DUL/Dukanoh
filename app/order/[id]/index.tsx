@@ -28,7 +28,7 @@ import { formatGBP } from '@/lib/paymentHelpers';
 import { getOrderActions } from '@/lib/orderHelpers';
 import { edgeFetch } from '@/lib/edgeFetch';
 
-type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
+type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'resolved' | 'cancelled';
 
 interface Order {
   id: string;
@@ -55,6 +55,11 @@ interface Order {
   delivery_postcode: string | null;
   delivery_country: string | null;
   auto_release_at: string | null;
+  resolution_outcome: string | null;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  appeal_deadline_at: string | null;
+  appealed_at: string | null;
   listing: { title: string; images: string[] } | null;
   buyer: { username: string; avatar_url: string | null } | null;
   seller: { username: string; avatar_url: string | null; is_verified: boolean } | null;
@@ -73,6 +78,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   delivered: 'Delivered',
   completed: 'Completed',
   disputed:  'Disputed',
+  resolved:  'Resolved',
   cancelled: 'Cancelled',
 };
 
@@ -83,6 +89,7 @@ const STATUS_COLOR: Record<OrderStatus, string> = {
   delivered: '#22C55E',
   completed: '#22C55E',
   disputed:  '#FF4444',
+  resolved:  '#22C55E',
   cancelled: '#9B9B9B',
 };
 
@@ -566,6 +573,57 @@ export default function OrderDetailScreen() {
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
                 Our team reviews all disputes and will be in touch within 7 days.
               </Text>
+            </View>
+          )}
+
+          {/* ── RESOLVED card ────────────────────────────────────── */}
+          {order.status === 'resolved' && (
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <View style={styles.disputeHeader}>
+                <View style={[styles.disputeIcon, { backgroundColor: '#22C55E15' }]}>
+                  <Ionicons name="checkmark-circle-outline" size={18} color="#22C55E" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Dispute resolved</Text>
+                  {order.resolved_at && (
+                    <Text style={[styles.hint, { color: colors.textSecondary }]}>{formatDate(order.resolved_at)}</Text>
+                  )}
+                </View>
+              </View>
+              <View style={[styles.reasonPill, {
+                backgroundColor: order.resolution_outcome === 'release_seller' ? '#22C55E15' : `${colors.error}12`,
+              }]}>
+                <Text style={[styles.reasonText, {
+                  color: order.resolution_outcome === 'release_seller' ? '#15803D' : colors.error,
+                }]}>
+                  {order.resolution_outcome === 'release_seller' ? 'Decided in favour of seller' : 'Decided in favour of buyer'}
+                </Text>
+              </View>
+              {order.resolution_note && (
+                <Text style={[styles.hint, { color: colors.textPrimary }]}>{order.resolution_note}</Text>
+              )}
+              <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
+              {order.appealed_at ? (
+                <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                  Appeal submitted — our team will respond within 7 days.
+                </Text>
+              ) : order.appeal_deadline_at && new Date(order.appeal_deadline_at) > new Date() ? (
+                <>
+                  <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                    You can appeal this decision before {formatDate(order.appeal_deadline_at)}.
+                  </Text>
+                  <Button
+                    label="Appeal this decision"
+                    variant="outline"
+                    onPress={() => router.push(`/order/${order.id}/appeal`)}
+                    style={{ marginTop: 4 }}
+                  />
+                </>
+              ) : (
+                <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                  Appeal window closed.
+                </Text>
+              )}
             </View>
           )}
         </ScrollView>

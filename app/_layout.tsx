@@ -181,6 +181,10 @@ function RootNavigator() {
           options={{ animation: 'slide_from_right' }}
         />
         <Stack.Screen
+          name="order/[id]/appeal"
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
           name="wallet"
           options={{ animation: 'slide_from_right' }}
         />

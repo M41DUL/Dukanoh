@@ -750,6 +750,13 @@ CREATE TABLE public.orders (
   dispute_reason      TEXT,
   dispute_description TEXT,
   disputed_at         TIMESTAMPTZ,
+  resolution_outcome  TEXT,          -- 'release_seller' | 'refund_buyer'
+  resolution_note     TEXT,          -- admin explanation shown to both parties
+  resolved_at         TIMESTAMPTZ,
+  appeal_deadline_at  TIMESTAMPTZ,   -- resolved_at + 7 days
+  appealed_at         TIMESTAMPTZ,
+  appeal_by           TEXT,          -- 'buyer' | 'seller'
+  appeal_reason       TEXT,
   shipped_at        TIMESTAMPTZ,
   delivered_at      TIMESTAMPTZ,
   auto_release_at   TIMESTAMPTZ,
@@ -973,11 +980,21 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 CREATE OR REPLACE FUNCTION public.auto_release_orders()
 RETURNS void AS $$
 BEGIN
+  -- Normal delivery auto-release (shipped / delivered → completed)
   UPDATE public.orders
   SET status = 'completed', completed_at = NOW()
   WHERE status IN ('shipped', 'delivered')
     AND auto_release_at IS NOT NULL
     AND auto_release_at <= NOW();
+
+  -- Settle resolved disputes where appeal window has passed and no appeal filed
+  UPDATE public.orders
+  SET status = 'completed', completed_at = NOW()
+  WHERE status = 'resolved'
+    AND resolution_outcome = 'release_seller'
+    AND appeal_deadline_at IS NOT NULL
+    AND appeal_deadline_at <= NOW()
+    AND appealed_at IS NULL;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
