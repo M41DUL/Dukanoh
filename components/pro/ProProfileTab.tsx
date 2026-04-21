@@ -31,6 +31,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { getImageUrl } from '@/lib/imageUtils';
 import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { TaxHoldBanner } from '@/components/TaxHoldBanner';
+import { useTaxStatus } from '@/hooks/useTaxStatus';
 import type { HubListing, HubCollection } from '@/components/hub/hubTheme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -78,14 +80,7 @@ export function ProProfileTab() {
   const [dash, setDash] = useState<DashData | null>(null);
   const [dashLoading, setDashLoading] = useState(true);
 
-  // DAC7 threshold monitoring
-  const [taxStatus, setTaxStatus] = useState<{
-    yearSales: number;
-    yearCount: number;
-    hasTin: boolean;
-    taxHold: boolean;
-    warningDismissed: boolean;
-  } | null>(null);
+  const { taxStatus } = useTaxStatus(user?.id);
 
   // Sheet state
   const [manageColVisible, setManageColVisible] = useState(false);
@@ -263,37 +258,9 @@ export function ProProfileTab() {
     }
   }, [user]);
 
-  const fetchTaxStatus = useCallback(async () => {
-    if (!user) return;
-    const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString();
-    const [userRes, ordersRes] = await Promise.all([
-      supabase
-        .from('users')
-        .select('tax_id_collected_at, tax_hold')
-        .eq('id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('orders')
-        .select('id, item_price')
-        .eq('seller_id', user.id)
-        .eq('status', 'completed')
-        .gte('created_at', yearStart),
-    ]);
-    const orders = ordersRes.data ?? [];
-    const yearCount = orders.length;
-    const yearSales = orders.reduce((s: number, o: { item_price: number }) => s + (o.item_price ?? 0), 0);
-    setTaxStatus({
-      yearSales,
-      yearCount,
-      hasTin: !!userRes.data?.tax_id_collected_at,
-      taxHold: !!userRes.data?.tax_hold,
-      warningDismissed: false,
-    });
-  }, [user]);
-
   const loadAll = useCallback(async () => {
-    await Promise.all([fetchProfile(), fetchBalance(), fetchDash(), fetchTaxStatus()]);
-  }, [fetchProfile, fetchBalance, fetchDash, fetchTaxStatus]);
+    await Promise.all([fetchProfile(), fetchBalance(), fetchDash()]);
+  }, [fetchProfile, fetchBalance, fetchDash]);
 
   useEffect(() => {
     if (Date.now() - lastFetchedRef.current > STALE_MS) {
@@ -479,57 +446,8 @@ export function ProProfileTab() {
           />
         </View>
 
-        {/* ── DAC7 tax threshold banners ── */}
-        {taxStatus && !taxStatus.hasTin && (() => {
-          const hardBlock = taxStatus.taxHold || taxStatus.yearCount >= 30 || taxStatus.yearSales >= 1700;
-          const warning = !hardBlock && (taxStatus.yearCount >= 25 || taxStatus.yearSales >= 1500);
-          if (hardBlock) {
-            return (
-              <TouchableOpacity
-                style={[styles.taxBanner, styles.taxBannerHard]}
-                onPress={() => router.push('/tax-info')}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="alert-circle" size={18} color="#fff" />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.taxBannerTitle}>Tax details required</Text>
-                  <Text style={styles.taxBannerBody}>
-                    You've reached the HMRC reporting threshold. Your listings are hidden until you
-                    add your tax details.
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />
-              </TouchableOpacity>
-            );
-          }
-          if (warning && !taxStatus.warningDismissed) {
-            return (
-              <TouchableOpacity
-                style={[styles.taxBanner, styles.taxBannerWarn]}
-                onPress={() => router.push('/tax-info')}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="information-circle" size={18} color="#92400E" />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.taxBannerTitle, { color: '#92400E' }]}>
-                    Approaching reporting threshold
-                  </Text>
-                  <Text style={[styles.taxBannerBody, { color: '#78350F' }]}>
-                    You're close to HMRC's reporting limit. Add your tax details now to avoid any
-                    disruption to your listings.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setTaxStatus(prev => prev ? { ...prev, warningDismissed: true } : prev)}
-                  hitSlop={8}
-                >
-                  <Ionicons name="close" size={16} color="#92400E" />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            );
-          }
-          return null;
-        })()}
+        {/* ── DAC7 tax threshold banner ── */}
+        <TaxHoldBanner taxStatus={taxStatus} />
 
         {/* ── Quick links ── */}
         <View style={styles.quickLinks}>
@@ -896,36 +814,6 @@ const styles = StyleSheet.create({
   carouselWrap: {
     marginHorizontal: -Spacing.base,
     paddingHorizontal: Spacing.base,
-  },
-
-  // Tax threshold banners
-  taxBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    borderRadius: BorderRadius.medium,
-    padding: Spacing.base,
-    marginBottom: Spacing.base,
-  },
-  taxBannerHard: {
-    backgroundColor: '#DC2626',
-  },
-  taxBannerWarn: {
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-  },
-  taxBannerTitle: {
-    fontFamily: FontFamily.semibold,
-    fontSize: 13,
-    color: '#fff',
-    marginBottom: 2,
-  },
-  taxBannerBody: {
-    fontFamily: FontFamily.regular,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.85)',
-    lineHeight: 17,
   },
 
   // Quick links

@@ -40,6 +40,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { compressImage, compressImageForAnalysis } from '@/lib/imageUtils';
 import { validateListing, buildMeasurements, isFormDirty as checkFormDirty, ListingForm, CATEGORY_TO_GENDER } from '@/lib/sellHelpers';
 import { useAuth } from '@/hooks/useAuth';
+import { useTaxStatus } from '@/hooks/useTaxStatus';
+import { TaxHoldBanner } from '@/components/TaxHoldBanner';
 
 const NUDGE_SEEN_KEY = 'has_seen_verification_nudge';
 
@@ -48,6 +50,7 @@ const ALL_CATEGORIES = Categories.filter(c => c !== 'All') as string[];
 
 export default function SellScreen() {
   const { user, isSeller, isVerified, loading: authLoading, refreshProfile } = useAuth();
+  const { taxStatus } = useTaxStatus(isSeller ? user?.id : undefined);
   const isFocused = useIsFocused();
   const emptyForm: ListingForm = {
     title: '', description: '', price: '', gender: '', category: '',
@@ -530,6 +533,13 @@ export default function SellScreen() {
         <Header title="New Listing" />
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      {/* Tax hold banner */}
+      {isSeller && (
+        <View style={styles.padded}>
+          <TaxHoldBanner taxStatus={taxStatus} />
+        </View>
+      )}
+
       {/* Verification nudge banner */}
       {isSeller && !isVerified && (
         <TouchableOpacity

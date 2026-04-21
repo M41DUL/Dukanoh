@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,20 +13,21 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
+import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
+import { Divider } from '@/components/Divider';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { BorderRadius, FontFamily, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 
 type TinType = 'NI' | 'UTR';
 
 export default function TaxInfoScreen() {
   const { user } = useAuth();
   const colors = useThemeColors();
-  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [tinType, setTinType] = useState<TinType>('NI');
   const [tinNumber, setTinNumber] = useState('');
@@ -51,9 +54,6 @@ export default function TaxInfoScreen() {
     })();
   }, [user]);
 
-  const niPlaceholder = 'e.g. AB 12 34 56 C';
-  const utrPlaceholder = 'e.g. 1234567890';
-
   const isValid = tinNumber.trim().length >= 8;
 
   const handleSave = async () => {
@@ -74,16 +74,15 @@ export default function TaxInfoScreen() {
       return;
     }
     setAlreadySubmitted(true);
-    Alert.alert('Details saved', 'Thank you — your tax information has been recorded.', [
+    Alert.alert('Details saved', 'Your tax information has been recorded.', [
       { text: 'Done', onPress: () => router.back() },
     ]);
   };
 
-  const styles = useMemo(() => getStyles(colors), [colors]);
-
   if (loading) {
     return (
       <ScreenWrapper>
+        <Header title="Tax information" showBack />
         <View style={styles.center}>
           <ActivityIndicator color={colors.primary} />
         </View>
@@ -93,196 +92,202 @@ export default function TaxInfoScreen() {
 
   return (
     <ScreenWrapper>
-      <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + Spacing.xl }]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <Header title="Tax information" showBack />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={80}
       >
-        {/* Header */}
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} hitSlop={12}>
-          <Ionicons name="close" size={22} color={colors.textSecondary} />
-        </TouchableOpacity>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Explanation */}
+          <Text style={styles.body}>
+            UK law requires us to collect and report seller tax details to HMRC once you reach
+            30 sales or £1,700 in a calendar year. This is a legal requirement under the UK
+            Platform Information Reporting Regulations 2023.
+          </Text>
 
-        <View style={styles.iconWrap}>
-          <Ionicons name="document-text-outline" size={32} color={colors.primary} />
-        </View>
-        <Text style={styles.heading}>Tax information</Text>
-        <Text style={styles.subheading}>
-          UK law requires us to collect and report seller tax details to HMRC once you reach 30 sales
-          or £1,700 in a calendar year. This is a legal requirement under the UK Platform Information
-          Reporting Regulations 2023.
-        </Text>
+          {alreadySubmitted && (
+            <View style={[styles.successBanner, { backgroundColor: '#F0FDF4' }]}>
+              <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+              <Text style={styles.successText}>Details on file — you can update them below.</Text>
+            </View>
+          )}
 
-        {alreadySubmitted && (
-          <View style={styles.successBanner}>
-            <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
-            <Text style={styles.successText}>Details on file — you can update them below.</Text>
+          {/* Legal name (read-only) */}
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <Text style={styles.fieldLabel}>Legal name</Text>
+            <Text style={[styles.fieldValue, { color: legalName ? colors.textPrimary : colors.textSecondary }]}>
+              {legalName || 'Not set — update your profile first'}
+            </Text>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              To change your legal name, update your profile.
+            </Text>
           </View>
-        )}
 
-        {/* Legal name (read-only) */}
-        <Text style={styles.label}>Legal name</Text>
-        <View style={[styles.readonlyField, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-          <Text style={[styles.readonlyText, { color: colors.textSecondary }]}>
-            {legalName || 'Not set — update your profile first'}
+          {/* TIN type toggle */}
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Tax identifier type</Text>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            {(['NI', 'UTR'] as TinType[]).map((t, i) => (
+              <View key={t}>
+                <TouchableOpacity
+                  style={styles.optionRow}
+                  onPress={() => setTinType(t)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.optionLabel, { color: colors.textPrimary }]}>
+                    {t === 'NI' ? 'National Insurance number' : 'Unique Taxpayer Reference (UTR)'}
+                  </Text>
+                  <View style={[
+                    styles.radio,
+                    { borderColor: tinType === t ? colors.primary : colors.border },
+                    tinType === t && { backgroundColor: colors.primary },
+                  ]}>
+                    {tinType === t && <View style={styles.radioDot} />}
+                  </View>
+                </TouchableOpacity>
+                {i === 0 && <Divider />}
+              </View>
+            ))}
+          </View>
+
+          {/* TIN number input */}
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+            {tinType === 'NI' ? 'National Insurance number' : 'UTR number'}
           </Text>
-        </View>
-        <Text style={styles.hint}>To change your legal name, update your profile.</Text>
-
-        {/* TIN type toggle */}
-        <Text style={[styles.label, { marginTop: Spacing.lg }]}>Tax identifier type</Text>
-        <View style={styles.toggleRow}>
-          {(['NI', 'UTR'] as TinType[]).map(t => (
-            <TouchableOpacity
-              key={t}
-              style={[
-                styles.toggleOption,
-                { borderColor: tinType === t ? colors.primary : colors.border },
-                tinType === t && { backgroundColor: colors.primary },
-              ]}
-              onPress={() => setTinType(t)}
-              activeOpacity={0.8}
-            >
-              <Text style={[
-                styles.toggleLabel,
-                { color: tinType === t ? '#fff' : colors.textSecondary },
-              ]}>
-                {t === 'NI' ? 'National Insurance number' : 'Unique Taxpayer Reference (UTR)'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* TIN input */}
-        <Text style={[styles.label, { marginTop: Spacing.lg }]}>
-          {tinType === 'NI' ? 'National Insurance number' : 'UTR number'}
-        </Text>
-        <TextInput
-          style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.textPrimary }]}
-          value={tinNumber}
-          onChangeText={setTinNumber}
-          placeholder={tinType === 'NI' ? niPlaceholder : utrPlaceholder}
-          placeholderTextColor={colors.textSecondary}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          keyboardType={tinType === 'UTR' ? 'number-pad' : 'default'}
-        />
-        <Text style={styles.hint}>
-          {tinType === 'NI'
-            ? 'Your NI number is on your payslips, P60, or HMRC letters. It looks like AB 12 34 56 C.'
-            : 'Your UTR is on your Self Assessment returns or HMRC correspondence. It is 10 digits long.'}
-        </Text>
-
-        {/* Legal note */}
-        <View style={[styles.legalBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.legalText, { color: colors.textSecondary }]}>
-            This information is stored securely and will only be disclosed to HMRC if you meet the
-            reporting threshold. See our Privacy Policy for details.
+          <TextInput
+            style={[styles.input, {
+              borderColor: colors.border,
+              backgroundColor: colors.surface,
+              color: colors.textPrimary,
+            }]}
+            value={tinNumber}
+            onChangeText={setTinNumber}
+            placeholder={tinType === 'NI' ? 'e.g. AB 12 34 56 C' : 'e.g. 1234567890'}
+            placeholderTextColor={colors.textSecondary}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            keyboardType={tinType === 'UTR' ? 'number-pad' : 'default'}
+          />
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            {tinType === 'NI'
+              ? 'Your NI number is on your payslips, P60, or HMRC letters. It looks like AB 12 34 56 C.'
+              : 'Your UTR is on your Self Assessment returns or HMRC correspondence. It is 10 digits long.'}
           </Text>
-        </View>
 
-        <Button
-          label={saving ? 'Saving…' : alreadySubmitted ? 'Update details' : 'Save details'}
-          onPress={handleSave}
-          disabled={!isValid || saving}
-          style={{ marginTop: Spacing.xl }}
-        />
-      </ScrollView>
+          {/* Legal note */}
+          <View style={[styles.legalBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              This information is stored securely and will only be disclosed to HMRC if you meet
+              the reporting threshold. See our Privacy Policy for details.
+            </Text>
+          </View>
+
+          <Button
+            label={saving ? 'Saving…' : alreadySubmitted ? 'Update details' : 'Save details'}
+            onPress={handleSave}
+            disabled={!isValid || saving}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </ScreenWrapper>
   );
 }
 
-function getStyles(colors: ReturnType<typeof useThemeColors>) {
+function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
+    flex: { flex: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    scroll: { paddingTop: Spacing.base },
-    closeBtn: { alignSelf: 'flex-end', marginBottom: Spacing.base },
-    iconWrap: {
-      width: 56,
-      height: 56,
-      borderRadius: BorderRadius.full,
-      backgroundColor: colors.surface,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: Spacing.base,
+    content: {
+      paddingTop: Spacing.lg,
+      paddingBottom: Spacing['3xl'],
+      gap: Spacing.lg,
     },
-    heading: {
-      ...Typography.heading,
-      color: colors.textPrimary,
-      marginBottom: Spacing.sm,
-    },
-    subheading: {
+    body: {
       ...Typography.body,
       color: colors.textSecondary,
       lineHeight: 22,
-      marginBottom: Spacing.xl,
     },
     successBanner: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      backgroundColor: '#F0FDF4',
+      gap: Spacing.sm,
       borderRadius: BorderRadius.medium,
       padding: Spacing.base,
-      marginBottom: Spacing.xl,
     },
     successText: {
       ...Typography.caption,
       color: '#15803D',
       fontFamily: FontFamily.medium,
     },
-    label: {
-      ...Typography.caption,
-      color: colors.textSecondary,
+    sectionLabel: {
+      fontSize: 11,
       fontFamily: FontFamily.semibold,
-      marginBottom: Spacing.xs,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      marginBottom: -Spacing.sm,
+    },
+    card: {
+      borderRadius: BorderRadius.large,
+      paddingHorizontal: Spacing.base,
+    },
+    fieldLabel: {
+      fontSize: 11,
+      fontFamily: FontFamily.semibold,
+      color: colors.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
+      marginTop: Spacing.base,
+      marginBottom: Spacing.xs,
     },
-    readonlyField: {
-      borderWidth: 1,
-      borderRadius: BorderRadius.medium,
-      paddingHorizontal: Spacing.base,
-      paddingVertical: 14,
-    },
-    readonlyText: {
+    fieldValue: {
       ...Typography.body,
+      paddingBottom: Spacing.xs,
     },
     hint: {
       ...Typography.caption,
-      color: colors.textSecondary,
-      marginTop: Spacing.xs,
       lineHeight: 18,
+      paddingVertical: Spacing.sm,
     },
-    toggleRow: {
-      gap: Spacing.sm,
+    optionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: Spacing.base,
     },
-    toggleOption: {
-      borderWidth: 1.5,
-      borderRadius: BorderRadius.medium,
-      paddingHorizontal: Spacing.base,
-      paddingVertical: 12,
-    },
-    toggleLabel: {
-      ...Typography.body,
+    optionLabel: {
+      flex: 1,
+      fontSize: 15,
       fontFamily: FontFamily.medium,
+    },
+    radio: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: '#fff',
     },
     input: {
       borderWidth: 1,
-      borderRadius: BorderRadius.medium,
+      borderRadius: BorderRadius.large,
       paddingHorizontal: Spacing.base,
       paddingVertical: 14,
-      ...Typography.body,
+      fontSize: 15,
+      fontFamily: FontFamily.regular,
     },
     legalBox: {
       borderWidth: 1,
-      borderRadius: BorderRadius.medium,
-      padding: Spacing.base,
-      marginTop: Spacing.xl,
-    },
-    legalText: {
-      ...Typography.caption,
-      lineHeight: 18,
+      borderRadius: BorderRadius.large,
+      paddingHorizontal: Spacing.base,
     },
   });
 }

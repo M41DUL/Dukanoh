@@ -14,6 +14,8 @@ import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { useTaxStatus } from '@/hooks/useTaxStatus';
+import { TaxHoldBanner } from '@/components/TaxHoldBanner';
 import { HUB, HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
 import { consumePaywallOpen } from '@/lib/paywallTrigger';
 
@@ -30,6 +32,7 @@ const STALE_MS = 30_000;
 
 export default function ProfileScreen() {
   const { user, username, isVerified, isOfficial, sellerTier, refreshProfile } = useAuth();
+  const { taxStatus } = useTaxStatus(user?.id);
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
   const [ratingCount, setRatingCount] = useState(0);
@@ -151,6 +154,11 @@ export default function ProfileScreen() {
           >
             <Text style={styles.editBtnText}>Edit Profile</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* ── Tax hold banner ── */}
+        <View style={styles.padded}>
+          <TaxHoldBanner taxStatus={taxStatus} />
         </View>
 
         {/* ── Quick action icons ── */}
