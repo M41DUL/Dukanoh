@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
   const piParams = new URLSearchParams({
     amount: String(totalPence),
     currency: 'gbp',
-    'payment_method_types[]': 'card',
+    'automatic_payment_methods[enabled]': 'true',
     'metadata[listing_id]': listing_id,
     'metadata[buyer_id]': buyerId,
     'metadata[seller_id]': listing.seller_id,
