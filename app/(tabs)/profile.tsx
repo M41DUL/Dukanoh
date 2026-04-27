@@ -225,6 +225,7 @@ export default function ProfileScreen() {
         isVerified={isVerified}
         hadFreeTrial={hadFreeTrial}
         proExpired={proExpired}
+        userId={user?.id ?? ''}
       />
       <WalletSheet
         visible={walletVisible}

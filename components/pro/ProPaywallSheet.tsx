@@ -20,8 +20,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Spacing, BorderRadius, FontFamily, proColorsDark } from '@/constants/theme';
-import { supabase } from '@/lib/supabase';
-import { ENTITLEMENT_ID } from '@/lib/revenuecat';
+import { ENTITLEMENT_ID, syncProEntitlement } from '@/lib/revenuecat';
 import { HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
 
 // Paywall always uses the dark Pro palette — it's a premium destination
@@ -35,6 +34,7 @@ interface ProPaywallSheetProps {
   isVerified: boolean;
   hadFreeTrial: boolean;
   proExpired: boolean;
+  userId: string;
 }
 
 export function ProPaywallSheet({
@@ -44,6 +44,7 @@ export function ProPaywallSheet({
   isVerified,
   hadFreeTrial,
   proExpired,
+  userId,
 }: ProPaywallSheetProps) {
   const insets = useSafeAreaInsets();
   const [founderCount, setFounderCount] = useState<number | null>(null);
@@ -119,12 +120,7 @@ export function ProPaywallSheet({
       const { customerInfo } = await Purchases.purchasePackage(pkgToUse);
       const isActive = customerInfo.entitlements.active[ENTITLEMENT_ID] != null;
       if (isActive) {
-        const expiryDate = customerInfo.entitlements.active[ENTITLEMENT_ID]?.expirationDate;
-        await supabase.from('users').update({
-          seller_tier: 'pro',
-          pro_expires_at: expiryDate ?? null,
-          had_free_trial: true,
-        }).eq('id', (await supabase.auth.getUser()).data.user?.id ?? '');
+        await syncProEntitlement(userId);
         await onSuccess();
         onClose();
       }
