@@ -100,6 +100,12 @@ export function useAuth() {
       await GoogleSignin.signOut();
     } catch {}
 
+    // Reset RevenueCat so the next user doesn't inherit this user's entitlements
+    try {
+      const Purchases = await import('react-native-purchases');
+      await Purchases.default.logOut();
+    } catch {}
+
     await supabase.auth.signOut();
   };
 
