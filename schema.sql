@@ -981,6 +981,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- Atomically adds an amount back to available_balance (used to restore a
+-- failed payout without overwriting earnings that arrived concurrently)
+CREATE OR REPLACE FUNCTION public.restore_available_balance(p_seller_id UUID, p_amount NUMERIC)
+RETURNS void AS $$
+BEGIN
+  UPDATE public.seller_wallet
+  SET available_balance = available_balance + p_amount
+  WHERE seller_id = p_seller_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 -- Auto-release function (called by Edge Function cron every hour)
 CREATE OR REPLACE FUNCTION public.auto_release_orders()
 RETURNS void AS $$

@@ -92,10 +92,7 @@ Deno.serve(async (req) => {
 
   if (!payoutRes.ok) {
     const err = await payoutRes.json();
-    await supabase
-      .from('seller_wallet')
-      .update({ available_balance: availableBalance })
-      .eq('seller_id', userId);
+    await supabase.rpc('restore_available_balance', { p_seller_id: userId, p_amount: availableBalance });
 
     return new Response(JSON.stringify({ error: err?.error?.message ?? 'Payout failed' }), {
       status: 500,
