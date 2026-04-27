@@ -53,6 +53,7 @@ export function ProPaywallSheet({
   const [standardMonthlyPrice, setStandardMonthlyPrice] = useState('£9.99');
   const [founderPkg, setFounderPkg] = useState<PurchasesPackage | null>(null);
   const [standardPkg, setStandardPkg] = useState<PurchasesPackage | null>(null);
+  const [packagesLoading, setPackagesLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
 
   useEffect(() => {
@@ -63,7 +64,7 @@ export function ProPaywallSheet({
       setStandardPkg(standard);
       if (standard) setStandardMonthlyPrice(standard.product.priceString);
       if (founder) setFounderMonthlyPrice(founder.product.priceString);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setPackagesLoading(false));
   }, []);
 
   const seeAllOpacity = useRef(new Animated.Value(1)).current;
@@ -290,13 +291,13 @@ export function ProPaywallSheet({
           />
         </Animated.View>
         <Button
-          label={purchasing ? 'Processing...' : ctaLabel}
+          label={purchasing ? 'Processing...' : packagesLoading ? 'Loading...' : ctaLabel}
           onPress={handleCta}
           size="lg"
           style={{ width: '100%' }}
           backgroundColor={P.primary}
           textColor={P.gradientBottom}
-          disabled={purchasing}
+          disabled={purchasing || packagesLoading}
         />
         {ctaNote ? <Text style={styles.trialNote}>{ctaNote}</Text> : null}
       </LinearGradient>
