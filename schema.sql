@@ -1048,7 +1048,9 @@ INSERT INTO public.platform_settings (key, value) VALUES
   ('admin_user_ids', '[]'),
   ('founder_annual_price', '59.99'),
   ('pro_monthly_price', '9.99'),
-  ('pro_annual_price', '84.99');
+  ('pro_annual_price', '84.99'),
+  ('protection_fee_percent', '6.5'),
+  ('protection_fee_flat', '0.80');
 
 -- Cancellation strikes (seller accountability)
 CREATE TABLE public.cancellation_strikes (

@@ -1,16 +1,22 @@
-/**
- * Pure payment calculation helpers.
- * Extracted here so they can be unit-tested independently of the UI.
- */
+export const DEFAULT_FEE_PERCENT = 6.5;
+export const DEFAULT_FEE_FLAT = 0.80;
 
-/** Dukanoh Safe Checkout charge: 6.5% of item price + £0.80 flat, rounded to 2dp */
-export function calcProtectionFee(itemPrice: number): number {
-  return Math.round((itemPrice * 0.065 + 0.8) * 100) / 100;
+/** Dukanoh Safe Checkout charge: feePercent% of item price + feeFlat flat, rounded to 2dp */
+export function calcProtectionFee(
+  itemPrice: number,
+  feePercent = DEFAULT_FEE_PERCENT,
+  feeFlat = DEFAULT_FEE_FLAT,
+): number {
+  return Math.round((itemPrice * (feePercent / 100) + feeFlat) * 100) / 100;
 }
 
 /** Total the buyer pays: item price + Safe Checkout charge */
-export function calcOrderTotal(itemPrice: number): number {
-  return Math.round((itemPrice + calcProtectionFee(itemPrice)) * 100) / 100;
+export function calcOrderTotal(
+  itemPrice: number,
+  feePercent = DEFAULT_FEE_PERCENT,
+  feeFlat = DEFAULT_FEE_FLAT,
+): number {
+  return Math.round((itemPrice + calcProtectionFee(itemPrice, feePercent, feeFlat)) * 100) / 100;
 }
 
 /** Seller payout: item price only (Safe Checkout charge goes to platform) */

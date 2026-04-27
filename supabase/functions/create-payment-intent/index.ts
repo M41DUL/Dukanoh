@@ -3,9 +3,8 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 
-/** Dukanoh Safe Checkout charge: 6.5% of item price + £0.80 flat, in pence */
-function calcProtectionFeePence(itemPricePence: number): number {
-  return Math.round(itemPricePence * 0.065 + 80);
+function calcProtectionFeePence(itemPricePence: number, feePercent: number, feeFlatPence: number): number {
+  return Math.round(itemPricePence * (feePercent / 100) + feeFlatPence);
 }
 
 Deno.serve(async (req) => {
@@ -54,11 +53,17 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
-  const { data: listing } = await supabase
-    .from('listings')
-    .select('id, price, status, seller_id')
-    .eq('id', listing_id)
-    .single();
+  const [{ data: listing }, { data: feeSettings }] = await Promise.all([
+    supabase
+      .from('listings')
+      .select('id, price, status, seller_id')
+      .eq('id', listing_id)
+      .single(),
+    supabase
+      .from('platform_settings')
+      .select('key, value')
+      .in('key', ['protection_fee_percent', 'protection_fee_flat']),
+  ]);
 
   if (!listing) {
     return new Response(JSON.stringify({ error: 'Listing not found' }), {
@@ -89,8 +94,12 @@ Deno.serve(async (req) => {
 
   const sellerVerified = !!(seller?.stripe_account_id && seller?.stripe_onboarding_complete);
 
+  const feeRow = (k: string) => feeSettings?.find((r: { key: string; value: string }) => r.key === k)?.value;
+  const feePercent = parseFloat(feeRow('protection_fee_percent') ?? '6.5');
+  const feeFlatPence = Math.round(parseFloat(feeRow('protection_fee_flat') ?? '0.80') * 100);
+
   const itemPricePence = Math.round(listing.price * 100);
-  const protectionFeePence = calcProtectionFeePence(itemPricePence);
+  const protectionFeePence = calcProtectionFeePence(itemPricePence, feePercent, feeFlatPence);
   const totalPence = itemPricePence + protectionFeePence;
 
   const piParams = new URLSearchParams({

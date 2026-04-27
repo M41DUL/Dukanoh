@@ -18,6 +18,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { getImageUrl } from '@/lib/imageUtils';
 import { calcOrderTotal, calcProtectionFee } from '@/lib/paymentHelpers';
+import { useFeeConfig } from '@/context/FeeConfigContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Crypto from 'expo-crypto';
@@ -111,6 +112,7 @@ export default function ListingDetailScreen() {
   const isSeller = !!user && !!listing && user.id === listing.seller_id;
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
+  const { feePercent, feeFlat } = useFeeConfig();
 
   useEffect(() => {
     if (!id) return;
@@ -664,7 +666,7 @@ export default function ListingDetailScreen() {
             <View style={styles.priceBlock}>
               <Text style={styles.itemPrice}>£{listing.price?.toFixed(2)}</Text>
               <TouchableOpacity style={styles.totalPriceRow} onPress={() => setPriceBreakdownVisible(true)} activeOpacity={0.7}>
-                <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price).toFixed(2)} Includes Safe Checkout</Text>
+                <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price, feePercent, feeFlat).toFixed(2)} Includes Safe Checkout</Text>
                 <Ionicons name="shield-checkmark-outline" size={13} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
@@ -856,7 +858,7 @@ export default function ListingDetailScreen() {
           </View>
           <View style={styles.breakdownInfo}>
             <Text style={styles.breakdownLabel}>Dukanoh Safe Checkout</Text>
-            <Text style={styles.breakdownValue}>£{calcProtectionFee(listing.price).toFixed(2)}</Text>
+            <Text style={styles.breakdownValue}>£{calcProtectionFee(listing.price, feePercent, feeFlat).toFixed(2)}</Text>
           </View>
         </View>
 
@@ -866,7 +868,7 @@ export default function ListingDetailScreen() {
         <View style={[styles.breakdownRow, { marginTop: Spacing.md }]}>
           <View style={styles.breakdownInfo}>
             <Text style={[styles.breakdownLabel, { fontFamily: FontFamily.semibold }]}>Total Including Safe Checkout</Text>
-            <Text style={[styles.breakdownValue, { fontFamily: FontFamily.semibold }]}>£{calcOrderTotal(listing.price).toFixed(2)}</Text>
+            <Text style={[styles.breakdownValue, { fontFamily: FontFamily.semibold }]}>£{calcOrderTotal(listing.price, feePercent, feeFlat).toFixed(2)}</Text>
           </View>
         </View>
 

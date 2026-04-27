@@ -24,6 +24,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { SavedProvider } from '@/context/SavedContext';
 import { BlockedProvider } from '@/context/BlockedContext';
+import { FeeConfigProvider } from '@/context/FeeConfigContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
 import { ConsentModal } from '@/components/ConsentModal';
 
@@ -233,11 +234,13 @@ export default function RootLayout() {
         merchantIdentifier="merchant.com.m41dul.dukanoh"
       >
         <ThemeProvider>
-          <SavedProvider>
-            <BlockedProvider>
-              <RootNavigator />
-            </BlockedProvider>
-          </SavedProvider>
+          <FeeConfigProvider>
+            <SavedProvider>
+              <BlockedProvider>
+                <RootNavigator />
+              </BlockedProvider>
+            </SavedProvider>
+          </FeeConfigProvider>
         </ThemeProvider>
       </StripeProvider>
     </GestureHandlerRootView>

@@ -1,5 +1,6 @@
 import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 import { calcOrderTotal } from '@/lib/paymentHelpers';
+import { useFeeConfig } from '@/context/FeeConfigContext';
 import { getImageUrl } from '@/lib/imageUtils';
 import { useSaved } from '@/context/SavedContext';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -78,6 +79,7 @@ export function ListingCard({
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const { isSaved, toggleSave } = useSaved();
+  const { feePercent, feeFlat } = useFeeConfig();
   const isGrid = variant === 'grid';
   const meta = [listing.condition, listing.size].filter(Boolean).join(' · ');
   const saved = isSaved(listing.id);
@@ -146,7 +148,7 @@ export function ListingCard({
           )}
         </View>
         <View style={styles.totalRow}>
-          <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price).toFixed(2)} incl.</Text>
+          <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price, feePercent, feeFlat).toFixed(2)} incl.</Text>
           <Ionicons name="shield-checkmark-outline" size={13} color={colors.textPrimary} />
         </View>
         {listing.price_dropped_at && (

@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { calcProtectionFee, calcOrderTotal, formatGBP } from '@/lib/paymentHelpers';
+import { useFeeConfig } from '@/context/FeeConfigContext';
 import { edgeFetch } from '@/lib/edgeFetch';
 
 type PaymentMethod = 'apple_pay' | 'google_pay' | 'card';
@@ -64,6 +65,7 @@ export default function CheckoutScreen() {
   const { listingId } = useLocalSearchParams<{ listingId: string }>();
   const { user } = useAuth();
   const colors = useThemeColors();
+  const { feePercent, feeFlat } = useFeeConfig();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -123,8 +125,8 @@ export default function CheckoutScreen() {
     }, [user, listingId])
   );
 
-  const protectionFee = listing ? calcProtectionFee(listing.price) : 0;
-  const total = listing ? calcOrderTotal(listing.price) : 0;
+  const protectionFee = listing ? calcProtectionFee(listing.price, feePercent, feeFlat) : 0;
+  const total = listing ? calcOrderTotal(listing.price, feePercent, feeFlat) : 0;
 
   const handlePlaceOrder = async () => {
     if (!listing || !user) return;
