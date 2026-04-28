@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { recordView } from '@/hooks/useRecentlyViewed';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import Purchases from 'react-native-purchases';
 import { getImageUrl } from '@/lib/imageUtils';
 import { calcOrderTotal, calcProtectionFee } from '@/lib/paymentHelpers';
 import { useFeeConfig } from '@/context/FeeConfigContext';
@@ -295,6 +296,23 @@ export default function ListingDetailScreen() {
 
   const handleCloseBoost = () => setBoostVisible(false);
 
+  const purchaseBoostConsumable = async (): Promise<boolean> => {
+    try {
+      const products = await Purchases.getProducts(['boost_single']);
+      if (products.length === 0) {
+        Alert.alert('Purchase unavailable', 'Please try again later.');
+        return false;
+      }
+      await Purchases.purchaseStoreProduct(products[0]);
+      return true;
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert('Purchase failed', 'Something went wrong. Please try again.');
+      }
+      return false;
+    }
+  };
+
   const handleBoost = async () => {
     if (!user || !id) return;
 
@@ -310,6 +328,8 @@ export default function ListingDetailScreen() {
       );
       return;
     }
+
+    let amountPaid = 0;
 
     if (sellerTier === 'pro') {
       const now = new Date();
@@ -330,15 +350,19 @@ export default function ListingDetailScreen() {
         await supabase.from('users').update({ boosts_used: currentUsed + 1 }).eq('id', user.id);
         setBoostsUsed(currentUsed + 1);
       } else {
-        // TODO: RevenueCat consumable purchase for £0.99 — proceed free during beta
+        const purchased = await purchaseBoostConsumable();
+        if (!purchased) return;
+        amountPaid = 0.99;
       }
     } else {
-      // Non-Pro: TODO: RevenueCat consumable purchase for £0.99 — proceed free during beta
+      const purchased = await purchaseBoostConsumable();
+      if (!purchased) return;
+      amountPaid = 0.99;
     }
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     await supabase.from('boosts').upsert(
-      { listing_id: id, seller_id: user.id, expires_at: expiresAt, amount_paid: 0 },
+      { listing_id: id, seller_id: user.id, expires_at: expiresAt, amount_paid: amountPaid },
       { onConflict: 'listing_id' }
     );
     setBoostExpiry(new Date(expiresAt));
