@@ -22,6 +22,7 @@ import { DukanohLogo } from '@/components/DukanohLogo';
 import { Spacing, BorderRadius, FontFamily, proColorsDark } from '@/constants/theme';
 import { ENTITLEMENT_ID, syncProEntitlement } from '@/lib/revenuecat';
 import { HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
+import { supabase } from '@/lib/supabase';
 
 // Paywall always uses the dark Pro palette — it's a premium destination
 // regardless of the user's system theme preference.

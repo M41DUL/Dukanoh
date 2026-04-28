@@ -978,12 +978,7 @@ export default function ListingDetailScreen() {
                 </View>
               </>
             ) : (
-              <>
-                <Text style={[styles.boostDetailVal, { textDecorationLine: 'line-through', color: colors.textSecondary }]}>£0.99</Text>
-                <View style={styles.betaBadge}>
-                  <Text style={styles.betaBadgeText}>Free during beta</Text>
-                </View>
-              </>
+              <Text style={[styles.boostDetailVal, { color: colors.textPrimary }]}>£0.99</Text>
             )}
           </View>
         </View>

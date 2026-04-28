@@ -20,8 +20,8 @@ import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme
 
 // Pro users get 3 story boosts per calendar month (matches HUB_FEATURES copy)
 const MONTHLY_BOOST_LIMIT = 3;
-// Each boost lasts 7 days
-const BOOST_DURATION_DAYS = 7;
+// Each boost lasts 24 hours
+const BOOST_DURATION_HOURS = 24;
 
 interface BoostListing {
   id: string;
@@ -135,15 +135,14 @@ export default function BoostsScreen() {
 
     Alert.alert(
       'Boost this listing?',
-      `"${listing.title}" will be featured in Stories for ${BOOST_DURATION_DAYS} days. This uses 1 of your ${boostsRemaining} remaining boost${boostsRemaining === 1 ? '' : 's'}.`,
+      `"${listing.title}" will be featured in Stories for 24 hours. This uses 1 of your ${boostsRemaining} remaining boost${boostsRemaining === 1 ? '' : 's'}.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Boost',
           onPress: async () => {
             setTogglingId(listing.id);
-            const expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + BOOST_DURATION_DAYS);
+            const expiresAt = new Date(Date.now() + BOOST_DURATION_HOURS * 60 * 60 * 1000);
 
             const { error } = await supabase.from('boosts').insert({
               listing_id: listing.id,
@@ -214,7 +213,7 @@ export default function BoostsScreen() {
                   {boostsRemaining} of {MONTHLY_BOOST_LIMIT} boosts remaining
                 </Text>
                 <Text style={[styles.quotaNote, { color: P.textSecondary }]}>
-                  Boosted listings are featured in Stories for {BOOST_DURATION_DAYS} days.
+                  Boosted listings are featured in Stories for 24 hours.
                   {resetDate ? ` Resets ${resetDate}.` : ' Resets at the start of each month.'}
                 </Text>
               </View>
