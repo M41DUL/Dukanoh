@@ -29,7 +29,7 @@ try {
 
 export function usePushNotifications() {
   const { user } = useAuth();
-  const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
+  const responseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener> | undefined>(undefined);
 
   // Clear badge when app comes to foreground
   useEffect(() => {
@@ -55,7 +55,7 @@ export function usePushNotifications() {
         { user_id: user.id, token, updated_at: new Date().toISOString() },
         { onConflict: 'user_id,token' }
       );
-    });
+    }).catch(() => {});
 
     // Navigate when user taps a notification
     responseListener.current =
