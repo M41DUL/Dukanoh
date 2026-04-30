@@ -35,17 +35,28 @@ export function WalletSheet({ visible, onClose, hideBalances = false }: WalletSh
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [pendingPayout, setPendingPayout] = useState(0);
   const [loading, setLoading] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
-      .from('seller_wallet')
-      .select('available_balance, pending_balance, lifetime_earned')
-      .eq('seller_id', user.id)
-      .maybeSingle();
+
+    const [{ data }, { data: pendingOrders }] = await Promise.all([
+      supabase
+        .from('seller_wallet')
+        .select('available_balance, pending_balance, lifetime_earned')
+        .eq('seller_id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('orders')
+        .select('item_price')
+        .eq('seller_id', user.id)
+        .not('seller_verify_deadline', 'is', null)
+        .not('status', 'in', '("cancelled","refunded")'),
+    ]);
+
     setWallet(
       data
         ? {
@@ -54,6 +65,9 @@ export function WalletSheet({ visible, onClose, hideBalances = false }: WalletSh
             lifetime: data.lifetime_earned ?? 0,
           }
         : { available: 0, pending: 0, lifetime: 0 }
+    );
+    setPendingPayout(
+      (pendingOrders ?? []).reduce((sum, o) => sum + (o.item_price ?? 0), 0)
     );
     setLoading(false);
   }, [user]);
@@ -157,12 +171,28 @@ export function WalletSheet({ visible, onClose, hideBalances = false }: WalletSh
               size="lg"
             />
           ) : (
-            <Button
-              label="Complete Dukanoh Verify"
-              onPress={() => { onClose(); router.push('/stripe-onboarding'); }}
-              variant="outline"
-              size="lg"
-            />
+            <>
+              {pendingPayout > 0 && (
+                <View style={[styles.pendingPayoutCard, { backgroundColor: colors.surface }]}>
+                  <View style={[styles.pendingPayoutIcon, { backgroundColor: colors.primaryLight }]}>
+                    <Ionicons name="wallet-outline" size={22} color={colors.primary} />
+                  </View>
+                  <View style={styles.pendingPayoutText}>
+                    <Text style={[styles.pendingPayoutAmount, { color: colors.textPrimary }]}>
+                      £{pendingPayout.toFixed(2)} waiting for you
+                    </Text>
+                    <Text style={[styles.pendingPayoutSub, { color: colors.textSecondary }]}>
+                      Get verified to receive your earnings
+                    </Text>
+                  </View>
+                </View>
+              )}
+              <Button
+                label="Get verified"
+                onPress={() => { onClose(); router.push('/stripe-onboarding'); }}
+                size="lg"
+              />
+            </>
           )}
         </View>
       )}
@@ -229,7 +259,35 @@ function getStyles(_colors: ColorTokens) {
       fontFamily: FontFamily.bold,
     },
 
-    // Pending note
+    // Pending payout card (unverified sellers)
+    pendingPayoutCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+      borderRadius: BorderRadius.large,
+      padding: Spacing.base,
+    },
+    pendingPayoutIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pendingPayoutText: {
+      flex: 1,
+      gap: 2,
+    },
+    pendingPayoutAmount: {
+      fontSize: 15,
+      fontFamily: FontFamily.semibold,
+    },
+    pendingPayoutSub: {
+      ...Typography.caption,
+      lineHeight: 17,
+    },
+
+    // Pending escrow note
     infoRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
