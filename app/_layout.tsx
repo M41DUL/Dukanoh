@@ -26,7 +26,6 @@ import { SavedProvider } from '@/context/SavedContext';
 import { BlockedProvider } from '@/context/BlockedContext';
 import { FeeConfigProvider } from '@/context/FeeConfigContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
-import { ConsentModal } from '@/components/ConsentModal';
 
 initErrorReporting();
 
@@ -216,9 +215,6 @@ function RootNavigator() {
         />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      {session && !splashVisible && (
-        <ConsentModal userId={session.user.id} />
-      )}
       {splashVisible && (
         <SplashAnimation
           onAnimationDone={() => setSplashDone(true)}
