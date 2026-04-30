@@ -168,7 +168,7 @@ async function fetchSuggestedSection(
       .select(SUGGESTED_SELECT)
       .eq('status', 'available')
       .neq('seller_id', userId)
-      .order('published_at', { ascending: false })
+      .order('published_at', { ascending: false, nullsFirst: false })
       .limit(25); // fetch extra to allow for diversity filtering
     if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
     return q;
@@ -224,11 +224,11 @@ async function fetchNewArrivals(
     .select(SUGGESTED_SELECT)
     .eq('status', 'available')
     .neq('seller_id', userId)
-    .order('published_at', { ascending: false })
+    .order('published_at', { ascending: false, nullsFirst: false })
     .limit(25); // fetch extra to allow for diversity filtering
 
   if (blockedIds.length > 0) query = query.not('seller_id', 'in', `(${blockedIds.join(',')})`);
-  if (gender) query = query.eq('category', gender);
+  if (gender) query = query.in('category', [gender, 'Casualwear', 'Partywear', 'Festive', 'Formal', 'Achkan', 'Wedding', 'Pathani Suit', 'Shoes']);
 
   const { data } = await query;
   const listings = ((data ?? []) as unknown as Listing[]).filter(
