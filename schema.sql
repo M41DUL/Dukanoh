@@ -1407,11 +1407,18 @@ CREATE POLICY "Users can update their own listing views"
   USING ((select auth.uid()) = user_id)
   WITH CHECK ((select auth.uid()) = user_id);
 
--- ─── Cleanup: expired boosts (runs weekly, Sunday 03:00 UTC) ──────────────────
+-- ─── Cleanup: expired boosts (runs hourly) ────────────────────────────────────
 SELECT cron.schedule(
   'cleanup-expired-boosts',
-  '0 3 * * 0',
-  'DELETE FROM public.boosts WHERE expires_at < now()'
+  '0 * * * *',
+  $$
+    WITH deleted AS (
+      DELETE FROM public.boosts WHERE expires_at < now() RETURNING listing_id
+    )
+    UPDATE public.listings
+    SET is_boosted = false, boost_expires_at = null
+    WHERE id IN (SELECT listing_id FROM deleted)
+  $$
 );
 
 -- ─── Cleanup: abandoned draft listings + storage (runs weekly, Sunday 04:00 UTC)

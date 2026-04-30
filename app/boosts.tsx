@@ -177,8 +177,13 @@ export default function BoostsScreen() {
     );
   }, [user, meta, boostsRemaining, resetDate, fetchData]);
 
-  const activeBoosted = listings.filter(l => l.is_boosted);
-  const unboosted = listings.filter(l => !l.is_boosted);
+  const now = new Date();
+  const activeBoosted = listings.filter(
+    l => l.is_boosted && l.boost_expires_at && new Date(l.boost_expires_at) > now
+  );
+  const unboosted = listings.filter(
+    l => !l.is_boosted || !l.boost_expires_at || new Date(l.boost_expires_at) <= now
+  );
 
   return (
     <LinearGradient
