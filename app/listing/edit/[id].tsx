@@ -34,7 +34,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
-import { compressImage } from '@/lib/imageUtils';
+import { compressImage, extractStoragePath } from '@/lib/imageUtils';
 import { useAuth } from '@/hooks/useAuth';
 import {
   ListingForm,
@@ -54,6 +54,7 @@ export default function EditListingScreen() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [status, setStatus] = useState<'draft' | 'available' | 'sold'>('draft');
   const [form, setForm] = useState<ListingForm>({
     title: '', description: '', price: '', gender: '', category: '',
@@ -151,6 +152,50 @@ export default function EditListingScreen() {
 
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const deleteListing = () => {
+    Alert.alert(
+      'Delete listing',
+      'This will permanently remove your listing. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (!id) return;
+            setDeleting(true);
+            try {
+              if (status !== 'draft') {
+                const { count } = await supabase
+                  .from('orders')
+                  .select('id', { count: 'exact', head: true })
+                  .eq('listing_id', id)
+                  .not('status', 'in', '(cancelled,completed,resolved)');
+                if (count && count > 0) {
+                  Alert.alert('Cannot delete', 'This listing has an active order in progress.');
+                  setDeleting(false);
+                  return;
+                }
+              }
+              const storagePaths = images
+                .map(url => extractStoragePath(url, 'listings'))
+                .filter((p): p is string => p !== null);
+              if (storagePaths.length > 0) {
+                await supabase.storage.from('listings').remove(storagePaths);
+              }
+              const { error } = await supabase.from('listings').delete().eq('id', id);
+              if (error) throw error;
+              router.back();
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Failed to delete listing.');
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const validate = (): boolean => {
@@ -418,6 +463,19 @@ export default function EditListingScreen() {
             />
           )}
         </View>
+
+        {status !== 'sold' && (
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={deleteListing}
+            disabled={deleting || saving}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.deleteBtnText}>
+              {deleting ? 'Deleting…' : 'Delete listing'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </ScreenWrapper>
   );
@@ -478,5 +536,14 @@ function getStyles(colors: ColorTokens) {
     submitRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
     draftBtn: { flex: 1 },
     listBtn: { flex: 2 },
+    deleteBtn: {
+      alignItems: 'center',
+      paddingVertical: Spacing.sm,
+      marginTop: Spacing.xs,
+    },
+    deleteBtnText: {
+      ...Typography.body,
+      color: colors.error,
+    },
   });
 }

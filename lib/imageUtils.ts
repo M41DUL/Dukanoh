@@ -17,6 +17,17 @@ const SIZE_PARAMS: Record<ImageSize, string> = {
 };
 
 /**
+ * Extract the file path within a Supabase storage bucket from a public URL.
+ * Returns null for non-storage or local URIs (e.g. file:// from ImagePicker).
+ */
+export function extractStoragePath(url: string, bucket: string): string | null {
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  return url.slice(idx + marker.length).split('?')[0];
+}
+
+/**
  * Append Supabase image transform params to a storage URL.
  * Non-Supabase URLs (local assets, external) are returned unchanged.
  */

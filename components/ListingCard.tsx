@@ -48,6 +48,7 @@ interface ListingCardProps {
   variant?: 'grid' | 'featured';
   highlightTerm?: string;
   onPress?: () => void;
+  onLongPress?: () => void;
   style?: ViewStyle;
 }
 
@@ -74,6 +75,7 @@ export function ListingCard({
   variant = 'grid',
   highlightTerm,
   onPress,
+  onLongPress,
   style,
 }: ListingCardProps) {
   const colors = useThemeColors();
@@ -88,6 +90,8 @@ export function ListingCard({
     <TouchableOpacity
       style={[isGrid ? styles.grid : styles.featured, style]}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={350}
       activeOpacity={0.9}
       accessibilityRole="button"
       accessibilityLabel={`View ${listing.title}, £${listing.price.toFixed(2)}${listing.status === 'sold' ? ', sold' : ''}`}

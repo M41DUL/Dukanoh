@@ -280,19 +280,7 @@ export default function ListingDetailScreen() {
     Alert.alert('Published!', 'Your listing is now live on the feed.');
   };
 
-  const handleDeleteDraft = () => {
-    Alert.alert('Delete draft', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await supabase.from('listings').delete().eq('id', id ?? '');
-          router.back();
-        },
-      },
-    ], { cancelable: true });
-  };
+
 
   const handleCloseBoost = () => setBoostVisible(false);
 
@@ -425,14 +413,6 @@ export default function ListingDetailScreen() {
     ], { cancelable: true });
   };
 
-  const handleSellerOptions = () => {
-    Alert.alert('Manage listing', undefined, [
-      { text: 'Share', onPress: handleShare },
-      { text: 'Delete draft', style: 'destructive', onPress: handleDeleteDraft },
-      { text: 'Cancel', style: 'cancel' },
-    ], { cancelable: true });
-  };
-
   const handleDuplicate = async () => {
     if (!user || !listing) return;
     const { data, error } = await supabase.from('listings').insert({
@@ -519,27 +499,21 @@ export default function ListingDetailScreen() {
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.headerBtnRight}
-            onPress={
-              isSeller && listing.status === 'draft'
-                ? handleSellerOptions
-                : isSeller
-                ? handleShare
-                : handleMoreOptions
-            }
+            onPress={isSeller ? handleShare : handleMoreOptions}
             activeOpacity={0.8}
             hitSlop={{ top: 8, bottom: 8, left: 12 }}
           >
             <View style={styles.headerBtnIcon}>
               <Animated.View style={[styles.iconLayer, { opacity: btnBackdropOpacity }]}>
                 <Ionicons
-                  name={isSeller && listing.status !== 'draft' ? 'share-outline' : 'ellipsis-horizontal'}
+                  name={isSeller ? 'share-outline' : 'ellipsis-horizontal'}
                   size={22}
                   color="#FFFFFF"
                 />
               </Animated.View>
               <Animated.View style={[styles.iconLayer, { opacity: headerBgOpacity }]}>
                 <Ionicons
-                  name={isSeller && listing.status !== 'draft' ? 'share-outline' : 'ellipsis-horizontal'}
+                  name={isSeller ? 'share-outline' : 'ellipsis-horizontal'}
                   size={22}
                   color={colors.textPrimary}
                 />
@@ -705,17 +679,11 @@ export default function ListingDetailScreen() {
 
 
           {/* Seller status indicators */}
-          {user?.id === listing.seller_id && (
-            listing.status === 'draft' ? (
-              <TouchableOpacity onPress={handleDeleteDraft} activeOpacity={0.7}>
-                <Text style={styles.dangerLink}>Delete draft</Text>
-              </TouchableOpacity>
-            ) : listing.status === 'sold' ? (
-              <View style={styles.soldForRow}>
-                <Ionicons name="checkmark-circle" size={16} color={colors.textSecondary} />
-                <Text style={styles.soldForText}>Sold for £{listing.price.toFixed(2)}</Text>
-              </View>
-            ) : null
+          {user?.id === listing.seller_id && listing.status === 'sold' && (
+            <View style={styles.soldForRow}>
+              <Ionicons name="checkmark-circle" size={16} color={colors.textSecondary} />
+              <Text style={styles.soldForText}>Sold for £{listing.price.toFixed(2)}</Text>
+            </View>
           )}
 
           <View style={styles.hairline} />
@@ -1181,7 +1149,6 @@ function getStyles(colors: ColorTokens) {
     // CTAs
     ctaBtn: { flex: 1 },
     ctaSection: { gap: Spacing.sm, alignItems: 'center' },
-    dangerLink: { ...Typography.body, color: colors.error },
     soldForRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
     soldForText: { ...Typography.subheading, color: colors.textSecondary },
 

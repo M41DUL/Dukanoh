@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { Alert, View, Text, FlatList, StyleSheet } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
@@ -10,6 +10,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { extractStoragePath } from '@/lib/imageUtils';
 import {
   Spacing,
   BorderRadius,
@@ -85,6 +86,54 @@ export default function MyItemsScreen() {
 
   useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
 
+  const handleLongPress = useCallback((item: Listing) => {
+    if (activeTab === 'bought') return;
+    Alert.alert(
+      item.title,
+      undefined,
+      [
+        { text: 'Edit', onPress: () => router.push(`/listing/edit/${item.id}`) },
+        {
+          text: 'Delete listing',
+          style: 'destructive',
+          onPress: () => Alert.alert(
+            'Delete listing',
+            'This will permanently remove your listing. This cannot be undone.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                  if (item.status === 'available') {
+                    const { count } = await supabase
+                      .from('orders')
+                      .select('id', { count: 'exact', head: true })
+                      .eq('listing_id', item.id)
+                      .not('status', 'in', '(cancelled,completed,resolved)');
+                    if (count && count > 0) {
+                      Alert.alert('Cannot delete', 'This listing has an active order in progress.');
+                      return;
+                    }
+                  }
+                  const storagePaths = (item.images ?? [])
+                    .map((url: string) => extractStoragePath(url, 'listings'))
+                    .filter((p): p is string => p !== null);
+                  if (storagePaths.length > 0) {
+                    await supabase.storage.from('listings').remove(storagePaths);
+                  }
+                  await supabase.from('listings').delete().eq('id', item.id);
+                  fetchAll();
+                },
+              },
+            ]
+          ),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }, [activeTab, fetchAll]);
+
   const data = activeTab === 'selling' ? selling : activeTab === 'drafts' ? drafts : bought;
   const empty = EMPTY[activeTab];
 
@@ -118,6 +167,7 @@ export default function MyItemsScreen() {
                   if (activeTab === 'drafts') return router.push(`/listing/edit/${item.id}`);
                   router.push(`/listing/${item.id}`);
                 }}
+                onLongPress={() => handleLongPress(item)}
               />
               {activeTab === 'selling' && (
                 <View style={[
