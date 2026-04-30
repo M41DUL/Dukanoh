@@ -26,6 +26,7 @@ import { SavedProvider } from '@/context/SavedContext';
 import { BlockedProvider } from '@/context/BlockedContext';
 import { FeeConfigProvider } from '@/context/FeeConfigContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
+import { proColors } from '@/constants/theme';
 
 initErrorReporting();
 
@@ -167,7 +168,7 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="seller-hub"
-          options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
+          options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal', contentStyle: { backgroundColor: proColors.background } }}
         />
         <Stack.Screen
           name="settings/privacy"
