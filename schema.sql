@@ -288,12 +288,7 @@ CREATE POLICY "Buyers can create conversations"
 CREATE POLICY "Participants can update conversations"
   ON public.conversations FOR UPDATE
   USING ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id)
-  WITH CHECK (
-    ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id)
-    AND buyer_id   = (SELECT c.buyer_id   FROM public.conversations c WHERE c.id = conversations.id)
-    AND seller_id  = (SELECT c.seller_id  FROM public.conversations c WHERE c.id = conversations.id)
-    AND listing_id = (SELECT c.listing_id FROM public.conversations c WHERE c.id = conversations.id)
-  );
+  WITH CHECK ((select auth.uid()) = buyer_id OR (select auth.uid()) = seller_id);
 
 -- Messages
 CREATE POLICY "Participants can view messages"
