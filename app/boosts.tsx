@@ -17,6 +17,7 @@ import { useProColors } from '@/hooks/useProColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme';
+import { isBoostActive } from '@/utils/boostHelpers';
 
 // Pro users get 3 story boosts per calendar month (matches HUB_FEATURES copy)
 const MONTHLY_BOOST_LIMIT = 3;
@@ -177,13 +178,8 @@ export default function BoostsScreen() {
     );
   }, [user, meta, boostsRemaining, resetDate, fetchData]);
 
-  const now = new Date();
-  const activeBoosted = listings.filter(
-    l => l.is_boosted && l.boost_expires_at && new Date(l.boost_expires_at) > now
-  );
-  const unboosted = listings.filter(
-    l => !l.is_boosted || !l.boost_expires_at || new Date(l.boost_expires_at) <= now
-  );
+  const activeBoosted = listings.filter(l => isBoostActive(l));
+  const unboosted = listings.filter(l => !isBoostActive(l));
 
   return (
     <LinearGradient
