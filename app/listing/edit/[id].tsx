@@ -47,7 +47,7 @@ const ALL_CATEGORIES = (Categories as unknown as string[]).filter(c => c !== 'Al
 
 export default function EditListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user, isVerified } = useAuth();
+  const { user } = useAuth();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -442,14 +442,8 @@ export default function EditListingScreen() {
                 style={styles.draftBtn}
               />
               <Button
-                label={isVerified ? 'Publish' : 'Verify to publish'}
-                onPress={() => {
-                  if (!isVerified) {
-                    router.push('/stripe-onboarding');
-                    return;
-                  }
-                  save('available');
-                }}
+                label="Publish"
+                onPress={() => save('available')}
                 loading={saving}
                 style={styles.listBtn}
               />

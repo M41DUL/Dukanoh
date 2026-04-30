@@ -275,10 +275,11 @@ export default function CheckoutScreen() {
     }
 
     // Step 4 — Payment succeeded: insert the order record
-    // If seller isn't verified yet, set a 7-day deadline for them to complete onboarding
-    const sellerVerifyDeadline = seller_verified
+    // For unverified sellers, set a far-future sentinel so stripe-connect-status
+    // can find and transfer these funds once they complete onboarding.
+    const payoutPendingSentinel = seller_verified
       ? null
-      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      : '2099-01-01T00:00:00.000Z';
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -291,7 +292,7 @@ export default function CheckoutScreen() {
         protection_fee: protectionFee,
         total_paid: total,
         stripe_payment_id: payment_intent_id,
-        seller_verify_deadline: sellerVerifyDeadline,
+        seller_verify_deadline: payoutPendingSentinel,
         delivery_address_line1: address?.address_line1,
         delivery_address_line2: address?.address_line2 ?? null,
         delivery_city: address?.city,

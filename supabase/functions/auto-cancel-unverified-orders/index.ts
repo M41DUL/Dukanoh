@@ -96,20 +96,7 @@ Deno.serve(async (req) => {
 
   let cancelledCount = 0;
 
-  // 1. Seller verification timeout
-  const { data: unverifiedOrders } = await supabase
-    .from('orders')
-    .select('id, listing_id, seller_id, stripe_payment_id, total_paid')
-    .not('seller_verify_deadline', 'is', null)
-    .lt('seller_verify_deadline', now)
-    .in('status', ['paid', 'shipped']);
-
-  for (const order of unverifiedOrders ?? []) {
-    const ok = await cancelAndRefund(order, 'seller_verification_timeout', { seller_verify_deadline: null });
-    if (ok) cancelledCount++;
-  }
-
-  // 2. Dispatch deadline expired — seller did not ship within 5 days of payment
+  // Dispatch deadline expired — seller did not ship within 5 days of payment
   const { data: undispatchedOrders } = await supabase
     .from('orders')
     .select('id, listing_id, seller_id, stripe_payment_id, total_paid')

@@ -109,7 +109,6 @@ Deno.serve(async (req) => {
     'metadata[listing_id]': listing_id,
     'metadata[buyer_id]': buyerId,
     'metadata[seller_id]': listing.seller_id,
-    'metadata[seller_verified]': String(sellerVerified),
     'metadata[item_price_pence]': String(itemPricePence),
     'metadata[protection_fee_pence]': String(protectionFeePence),
   });

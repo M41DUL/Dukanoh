@@ -98,10 +98,17 @@ Deno.serve(async (req) => {
       listing_id,
       buyer_id,
       seller_id,
-      seller_verified,
       item_price_pence,
       protection_fee_pence,
     } = (pi.metadata ?? {}) as Record<string, string>;
+
+    const { data: sellerData } = await supabase
+      .from('users')
+      .select('stripe_account_id, stripe_onboarding_complete')
+      .eq('id', seller_id)
+      .single();
+    const sellerVerified = !!(sellerData?.stripe_account_id && sellerData?.stripe_onboarding_complete);
+    const payoutPendingSentinel = sellerVerified ? null : '2099-01-01T00:00:00.000Z';
 
     // Skip if not an order payment (e.g. a future subscription charge)
     if (!listing_id || !buyer_id || !seller_id) {
@@ -125,10 +132,6 @@ Deno.serve(async (req) => {
 
     const itemPricePence = parseInt(item_price_pence ?? '0', 10);
     const protectionFeePence = parseInt(protection_fee_pence ?? '0', 10);
-    const sellerVerifyDeadline =
-      seller_verified === 'true'
-        ? null
-        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
     // Upsert order — idempotent via listing_id unique constraint.
     // If the client already created the row, ignoreDuplicates means we do nothing.
@@ -142,7 +145,7 @@ Deno.serve(async (req) => {
         protection_fee: protectionFeePence / 100,
         total_paid: (itemPricePence + protectionFeePence) / 100,
         stripe_payment_id: pi.id,
-        seller_verify_deadline: sellerVerifyDeadline,
+        seller_verify_deadline: payoutPendingSentinel,
         delivery_address_line1: buyer?.address_line1 ?? null,
         delivery_address_line2: buyer?.address_line2 ?? null,
         delivery_city: buyer?.city ?? null,

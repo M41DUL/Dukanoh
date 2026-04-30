@@ -7,7 +7,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  Animated,
   Keyboard,
   KeyboardAvoidingView,
   ActivityIndicator,
@@ -28,28 +27,23 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SellerOnboarding } from '@/components/SellerOnboarding';
-import { VerificationNudgeSheet } from '@/components/VerificationNudgeSheet';
 import { CelebrationView } from '@/components/CelebrationView';
 import { Select, SelectHandle } from '@/components/Select';
-import { Typography, Spacing, BorderRadius, BorderWidth, Genders, Categories, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens, FontFamily } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, Genders, Categories, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { compressImage, compressImageForAnalysis } from '@/lib/imageUtils';
 import { validateListing, buildMeasurements, isFormDirty as checkFormDirty, ListingForm, CATEGORY_TO_GENDER } from '@/lib/sellHelpers';
 import { useAuth } from '@/hooks/useAuth';
 import { useTaxStatus } from '@/hooks/useTaxStatus';
 import { TaxHoldBanner } from '@/components/TaxHoldBanner';
 
-const NUDGE_SEEN_KEY = 'has_seen_verification_nudge';
-
-
 const ALL_CATEGORIES = Categories.filter(c => c !== 'All') as string[];
 
 export default function SellScreen() {
-  const { user, isSeller, isVerified, loading: authLoading, refreshProfile } = useAuth();
+  const { user, isSeller, loading: authLoading, refreshProfile } = useAuth();
   const { taxStatus, reloadTaxStatus } = useTaxStatus(isSeller ? user?.id : undefined);
   const isFocused = useIsFocused();
   const emptyForm: ListingForm = {
@@ -66,8 +60,6 @@ export default function SellScreen() {
   const [coverWarnings, setCoverWarnings] = useState<string[]>([]);
   const [analysingImages, setAnalysingImages] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [showNudge, setShowNudge] = useState(false);
-  const successAnim = useRef(new Animated.Value(0)).current;;
   const colors = useThemeColors();
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -385,10 +377,7 @@ export default function SellScreen() {
     if (!validate(status === 'draft') || !user) return;
     Keyboard.dismiss();
 
-    // Unverified sellers always save as draft regardless of intent
-    const effectiveStatus = !isVerified && status === 'available' ? 'draft' : status;
-
-    setSubmitting(effectiveStatus);
+    setSubmitting(status);
     try {
       const imageUrls = await uploadImages();
 
@@ -407,28 +396,21 @@ export default function SellScreen() {
         measurements: buildMeasurements(measurementsNote),
         worn_at: form.worn_at.trim() || null,
         images: imageUrls,
-        status: effectiveStatus,
-        published_at: effectiveStatus === 'available' ? new Date().toISOString() : null,
+        status: status,
+        published_at: status === 'available' ? new Date().toISOString() : null,
       });
 
       if (error) throw error;
 
-      if (effectiveStatus === 'available') {
+      if (status === 'available') {
         setShowSuccess(true);
-        successAnim.setValue(0);
-        Animated.spring(successAnim, { toValue: 1, speed: 8, bounciness: 10, useNativeDriver: true }).start();
-      } else if (status === 'available' && !isVerified) {
-        // User tapped "List Piece" but isn't verified — show success then nudge
-        setShowSuccess(true);
-        successAnim.setValue(0);
-        Animated.spring(successAnim, { toValue: 1, speed: 8, bounciness: 10, useNativeDriver: true }).start();
       } else {
         Alert.alert('Draft saved', 'Find it in your profile to publish when ready.', [
           { text: 'OK', onPress: resetForm },
         ]);
       }
     } catch (err: unknown) {
-      const action = effectiveStatus === 'draft' ? 'save draft' : 'create listing';
+      const action = status === 'draft' ? 'save draft' : 'create listing';
       Alert.alert('Error', err instanceof Error ? err.message : `Failed to ${action}.`);
     } finally {
       setSubmitting(null);
@@ -458,71 +440,23 @@ export default function SellScreen() {
     );
   }
 
-  const handleSuccessDismiss = async (action: 'profile' | 'another') => {
+  const handleSuccessDismiss = (action: 'profile' | 'another') => {
     setShowSuccess(false);
     resetForm();
-    if (!isVerified) {
-      const seen = await AsyncStorage.getItem(NUDGE_SEEN_KEY);
-      if (!seen) {
-        await AsyncStorage.setItem(NUDGE_SEEN_KEY, 'true');
-        setShowNudge(true);
-      }
-    }
     if (action === 'profile') router.push('/(tabs)/profile');
   };
 
   if (showSuccess) {
-    const isDraft = !isVerified;
-    if (!isDraft) {
-      return (
-        <ScreenWrapper>
-          <CelebrationView
-            icon="checkmark-circle"
-            title="You're live!"
-            subtitle="Your piece is now listed and visible to members."
-            actions={[
-              { label: 'View profile', variant: 'outline', onPress: () => handleSuccessDismiss('profile') },
-              { label: 'List another', onPress: () => handleSuccessDismiss('another') },
-            ]}
-          />
-        </ScreenWrapper>
-      );
-    }
     return (
       <ScreenWrapper>
-        <View style={styles.successContainer}>
-          <Animated.View style={[styles.successCircle, {
-            transform: [{ scale: successAnim }],
-            opacity: successAnim,
-            backgroundColor: colors.surface,
-          }]}>
-            <Ionicons name="bookmark" size={48} color={colors.primary} />
-          </Animated.View>
-          <Animated.Text style={[styles.successTitle, { opacity: successAnim, color: colors.textPrimary }]}>
-            Listing saved
-          </Animated.Text>
-          <Animated.Text style={[styles.successSubtitle, { opacity: successAnim, color: colors.textSecondary }]}>
-            Complete verification to publish it. We'll release it to buyers once you're verified.
-          </Animated.Text>
-          <View style={styles.successActions}>
-            <Button
-              label="Verify now"
-              variant="outline"
-              onPress={() => router.push('/stripe-onboarding')}
-              style={styles.successBtn}
-              borderColor={colors.border}
-              textColor={colors.textPrimary}
-            />
-            <Button
-              label="List another"
-              onPress={() => handleSuccessDismiss('another')}
-              style={styles.successBtn}
-            />
-          </View>
-        </View>
-        <VerificationNudgeSheet
-          visible={showNudge}
-          onDismiss={() => setShowNudge(false)}
+        <CelebrationView
+          icon="checkmark-circle"
+          title="You're live!"
+          subtitle="Your piece is now listed and visible to members."
+          actions={[
+            { label: 'View profile', variant: 'outline', onPress: () => handleSuccessDismiss('profile') },
+            { label: 'List another', onPress: () => handleSuccessDismiss('another') },
+          ]}
         />
       </ScreenWrapper>
     );
@@ -539,21 +473,6 @@ export default function SellScreen() {
         <View style={styles.padded}>
           <TaxHoldBanner taxStatus={taxStatus} />
         </View>
-      )}
-
-      {/* Verification nudge banner */}
-      {isSeller && !isVerified && (
-        <TouchableOpacity
-          style={[styles.verifyBanner, { backgroundColor: colors.primaryLight }]}
-          onPress={() => router.push('/stripe-onboarding')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="shield-outline" size={16} color={colors.primary} />
-          <Text style={[styles.verifyBannerText, { color: colors.primary }]}>
-            Get verified to get paid
-          </Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-        </TouchableOpacity>
       )}
 
       {/* Progress bar */}
@@ -864,18 +783,6 @@ export default function SellScreen() {
 
 function getStyles(colors: ColorTokens, isDark: boolean) {
   return StyleSheet.create({
-    verifyBanner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.xs,
-      paddingHorizontal: Spacing.base,
-      paddingVertical: Spacing.sm,
-    },
-    verifyBannerText: {
-      flex: 1,
-      fontSize: 13,
-      fontFamily: FontFamily.semibold,
-    },
     progressBar: {
       height: 2,
       backgroundColor: colors.border,
@@ -990,37 +897,5 @@ function getStyles(colors: ColorTokens, isDark: boolean) {
     warningText: { ...Typography.caption, color: colors.textSecondary, flex: 1 },
     progressText: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' as const },
     submitBtn: { marginTop: Spacing.sm },
-    successContainer: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: Spacing.xl,
-    },
-    successCircle: {
-      width: 88,
-      height: 88,
-      borderRadius: 44,
-      backgroundColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: Spacing.xl,
-    },
-    successTitle: {
-      ...Typography.heading,
-      color: colors.textPrimary,
-      marginBottom: Spacing.sm,
-    },
-    successSubtitle: {
-      ...Typography.body,
-      color: colors.textSecondary,
-      textAlign: 'center' as const,
-      marginBottom: Spacing['2xl'],
-    },
-    successActions: {
-      flexDirection: 'row',
-      gap: Spacing.sm,
-      width: '100%',
-    },
-    successBtn: { flex: 1 },
   });
 }
