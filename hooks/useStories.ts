@@ -65,7 +65,7 @@ export interface StoryListing {
 }
 
 const LISTING_SELECT =
-  'id, title, price, images, category, condition, status, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)';
+  'id, title, price, images, category, condition, status, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)';
 
 export function useStories() {
   const { user } = useAuth();
@@ -152,6 +152,7 @@ export function useStories() {
     const merged: StoryListing[] = [];
     for (const l of [...(boostedListings ?? []), ...(organicListings ?? [])]) {
       if (seenIds.has(l.id)) continue;
+      if ((l as any).seller?.tax_hold) continue;
       seenIds.add(l.id);
       merged.push({ ...(l as unknown as StoryListing), is_boosted: boostedIdSet.has(l.id) });
     }
