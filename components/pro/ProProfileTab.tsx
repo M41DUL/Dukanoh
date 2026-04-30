@@ -29,6 +29,7 @@ import { HubOccasionRow } from '@/components/hub/HubOccasionRow';
 import { useProColors } from '@/hooks/useProColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { edgeFetch } from '@/lib/edgeFetch';
 import { getImageUrl } from '@/lib/imageUtils';
 import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { TaxHoldBanner } from '@/components/TaxHoldBanner';
@@ -92,6 +93,7 @@ export function ProProfileTab() {
   const [renameText, setRenameText] = useState('');
   const [assignSheetListing, setAssignSheetListing] = useState<HubListing | null>(null);
   const [bulkEditVisible, setBulkEditVisible] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const lastFetchedRef = useRef<number>(0);
 
@@ -433,12 +435,29 @@ export function ProProfileTab() {
             P={P}
             onWithdraw={() => {
               const available = balance?.available ?? 0;
-              if (available <= 0) return;
+              if (available <= 0 || withdrawing) return;
               Alert.alert(
                 `Withdraw £${available.toFixed(2)}`,
                 'Funds will be sent to your connected bank account within 3–5 business days.',
                 [
-                  { text: 'Confirm', onPress: () => {} },
+                  {
+                    text: 'Confirm',
+                    onPress: async () => {
+                      setWithdrawing(true);
+                      try {
+                        const res = await edgeFetch('stripe-payout');
+                        const data = await res.json();
+                        if (!res.ok) {
+                          Alert.alert('Withdrawal failed', data?.error ?? 'Please try again.');
+                        } else {
+                          Alert.alert('Withdrawal requested', `£${available.toFixed(2)} is on its way to your bank.`);
+                          fetchBalance();
+                        }
+                      } finally {
+                        setWithdrawing(false);
+                      }
+                    },
+                  },
                   { text: 'Cancel', style: 'cancel' },
                 ]
               );
