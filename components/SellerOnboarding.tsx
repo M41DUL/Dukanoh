@@ -4,6 +4,7 @@ import {
   Easing,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   StyleSheet,
   Text,
@@ -208,7 +209,7 @@ export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps)
           </TouchableOpacity>
           <Text style={styles.terms}>
             By continuing you agree to our{' '}
-            <Text style={styles.termsLink} onPress={() => {/* TODO: link to terms */}}>
+            <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}>
               Terms of Service
             </Text>
           </Text>
