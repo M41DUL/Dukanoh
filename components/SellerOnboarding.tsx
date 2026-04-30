@@ -210,7 +210,7 @@ export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps)
           <Text style={styles.terms}>
             By continuing you agree to our{' '}
             <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}>
-              Terms of Service
+              Terms & Conditions
             </Text>
           </Text>
         </Animated.View>
@@ -279,6 +279,7 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
+    marginTop: Spacing.md,
   },
   termsLink: {
     color: '#FFFFFF',
