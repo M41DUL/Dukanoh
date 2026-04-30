@@ -3,6 +3,13 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 
+function toE164GB(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('44')) return `+${digits}`;
+  if (digits.startsWith('0'))  return `+44${digits.slice(1)}`;
+  return `+${digits}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -70,7 +77,7 @@ Deno.serve(async (req) => {
 
     if (userRow?.first_name) createParams['individual[first_name]'] = userRow.first_name;
     if (userRow?.last_name)  createParams['individual[last_name]']  = userRow.last_name;
-    if (userRow?.phone)      createParams['individual[phone]']      = userRow.phone;
+    if (userRow?.phone)      createParams['individual[phone]']      = toE164GB(userRow.phone);
     if (userRow?.dob) {
       const [y, m, d] = (userRow.dob as string).split('-');
       createParams['individual[dob][year]']  = y;
