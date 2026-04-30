@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useCallback } from 'react';
-import { ScrollView, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -28,45 +28,53 @@ export function ScrollTabs({ tabs, activeTab, onTabChange }: ScrollTabsProps) {
   }, [activeTab, onTabChange]);
 
   return (
-    <ScrollView
-      ref={scrollRef}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-      style={styles.scroll}
-    >
-      {tabs.map(tab => {
-        const isActive = activeTab === tab;
-        return (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, isActive && styles.tabActive]}
-            onPress={() => handlePress(tab)}
-            activeOpacity={0.7}
-            onLayout={(e) => {
-              layoutsRef.current[tab] = {
-                x: e.nativeEvent.layout.x,
-                width: e.nativeEvent.layout.width,
-              };
-            }}
-          >
-            <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
+    <View style={styles.wrapper}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+        style={styles.scroll}
+      >
+        {tabs.map(tab => {
+          const isActive = activeTab === tab;
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={styles.tab}
+              onPress={() => handlePress(tab)}
+              activeOpacity={0.7}
+              onLayout={(e) => {
+                layoutsRef.current[tab] = {
+                  x: e.nativeEvent.layout.x,
+                  width: e.nativeEvent.layout.width,
+                };
+              }}
+            >
+              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                {tab}
+              </Text>
+              {isActive && <View style={styles.indicator} />}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+      <View style={styles.separator} />
+    </View>
   );
 }
 
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
+    wrapper: {
+      marginHorizontal: -Spacing.base,
+    },
     scroll: {
       flexGrow: 0,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-      marginHorizontal: -Spacing.base,
+    },
+    separator: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
     },
     row: {
       gap: Spacing.xl,
@@ -76,11 +84,15 @@ function getStyles(colors: ColorTokens) {
     },
     tab: {
       paddingBottom: Spacing.sm,
-      borderBottomWidth: 2,
-      borderBottomColor: 'transparent',
     },
-    tabActive: {
-      borderBottomColor: colors.textPrimary,
+    indicator: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: 2,
+      backgroundColor: colors.textPrimary,
+      borderRadius: 1,
     },
     tabLabel: {
       fontSize: 14,

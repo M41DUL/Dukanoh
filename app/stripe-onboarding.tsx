@@ -50,6 +50,7 @@ export default function StripeOnboardingScreen() {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
+  const topPad = Math.max(insets.top, 16);
   const [loading, setLoading] = useState(false);
 
   const handleStartOnboarding = async () => {
@@ -93,7 +94,7 @@ export default function StripeOnboardingScreen() {
   // ── Verified state ──────────────────────────────────────────────────────────
   if (isVerified) {
     return (
-      <ScreenWrapper>
+      <ScreenWrapper edges={[]} style={{ paddingTop: topPad }}>
         <Header title="Dukanoh Verify" />
         <CelebrationView
           icon="shield-checkmark"
@@ -108,7 +109,7 @@ export default function StripeOnboardingScreen() {
 
   // ── Unverified state ────────────────────────────────────────────────────────
   return (
-    <ScreenWrapper>
+    <ScreenWrapper edges={[]} style={{ paddingTop: topPad }}>
       <Header title="Dukanoh Verify" showBack />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing['2xl'] }]}

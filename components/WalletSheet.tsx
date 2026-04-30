@@ -121,57 +121,58 @@ export function WalletSheet({ visible, onClose, hideBalances = false }: WalletSh
         <LoadingSpinner />
       ) : (
         <View style={styles.content}>
-          {/* ── Balances — standard users only ── */}
-          {!hideBalances && (
-            <>
-              <View style={styles.balanceRow}>
-                <View style={[styles.balanceMain, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.balanceMainLabel}>Available</Text>
-                  <Text style={styles.balanceMainAmount}>£{available.toFixed(2)}</Text>
-                </View>
-                <View style={styles.balanceSide}>
-                  <View style={[styles.balanceSideCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.balanceSideLabel, { color: colors.textSecondary }]}>
-                      Pending
-                    </Text>
-                    <Text style={[styles.balanceSideAmount, { color: colors.textPrimary }]}>
-                      £{pending.toFixed(2)}
-                    </Text>
-                  </View>
-                  <View style={[styles.balanceSideCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.balanceSideLabel, { color: colors.textSecondary }]}>
-                      Lifetime
-                    </Text>
-                    <Text style={[styles.balanceSideAmount, { color: colors.textPrimary }]}>
-                      £{lifetime.toFixed(2)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Pending escrow note */}
-              {pending > 0 && (
-                <View style={[styles.infoRow, { backgroundColor: colors.surface }]}>
-                  <Ionicons name="time-outline" size={15} color={colors.amber} />
-                  <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                    £{pending.toFixed(2)} is held in escrow and released once buyers confirm delivery.
-                  </Text>
-                </View>
-              )}
-            </>
-          )}
-
-          {/* ── CTA ── */}
           {isVerified ? (
-            <Button
-              label={available > 0 ? `Withdraw £${available.toFixed(2)}` : 'Nothing to withdraw'}
-              onPress={handleWithdraw}
-              disabled={available === 0 || withdrawing}
-              loading={withdrawing}
-              size="lg"
-            />
+            <>
+              {/* ── Balances ── */}
+              {!hideBalances && (
+                <>
+                  <View style={styles.balanceRow}>
+                    <View style={[styles.balanceMain, { backgroundColor: colors.primary }]}>
+                      <Text style={styles.balanceMainLabel}>Available</Text>
+                      <Text style={styles.balanceMainAmount}>£{available.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.balanceSide}>
+                      <View style={[styles.balanceSideCard, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.balanceSideLabel, { color: colors.textSecondary }]}>
+                          Pending
+                        </Text>
+                        <Text style={[styles.balanceSideAmount, { color: colors.textPrimary }]}>
+                          £{pending.toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={[styles.balanceSideCard, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.balanceSideLabel, { color: colors.textSecondary }]}>
+                          Lifetime
+                        </Text>
+                        <Text style={[styles.balanceSideAmount, { color: colors.textPrimary }]}>
+                          £{lifetime.toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {pending > 0 && (
+                    <View style={[styles.infoRow, { backgroundColor: colors.surface }]}>
+                      <Ionicons name="time-outline" size={15} color={colors.amber} />
+                      <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                        £{pending.toFixed(2)} is held in escrow and released once buyers confirm delivery.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+
+              <Button
+                label={available > 0 ? `Withdraw £${available.toFixed(2)}` : 'Nothing to withdraw'}
+                onPress={handleWithdraw}
+                disabled={available === 0 || withdrawing}
+                loading={withdrawing}
+                size="lg"
+              />
+            </>
           ) : (
             <>
+              {/* Pending payout card — only if they have sales waiting */}
               {pendingPayout > 0 && (
                 <View style={[styles.pendingPayoutCard, { backgroundColor: colors.surface }]}>
                   <View style={[styles.pendingPayoutIcon, { backgroundColor: colors.primaryLight }]}>
@@ -187,6 +188,20 @@ export function WalletSheet({ visible, onClose, hideBalances = false }: WalletSh
                   </View>
                 </View>
               )}
+
+              {/* Unlock hero */}
+              <View style={styles.unlockHero}>
+                <View style={[styles.unlockIcon, { backgroundColor: colors.primary }]}>
+                  <Ionicons name="wallet-outline" size={28} color="#FFFFFF" />
+                </View>
+                <Text style={[styles.unlockTitle, { color: colors.textPrimary }]}>
+                  Unlock your earnings
+                </Text>
+                <Text style={[styles.unlockBody, { color: colors.textSecondary }]}>
+                  Verify your identity to start receiving payouts from your sales. Takes around 5 minutes.
+                </Text>
+              </View>
+
               <Button
                 label="Get verified"
                 onPress={() => { onClose(); router.push('/stripe-onboarding'); }}
@@ -257,6 +272,32 @@ function getStyles(_colors: ColorTokens) {
     balanceSideAmount: {
       fontSize: 16,
       fontFamily: FontFamily.bold,
+    },
+
+    // Unlock hero (unverified sellers)
+    unlockHero: {
+      alignItems: 'center',
+      gap: Spacing.sm,
+      paddingVertical: Spacing.lg,
+    },
+    unlockIcon: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: Spacing.xs,
+    },
+    unlockTitle: {
+      fontSize: 20,
+      fontFamily: FontFamily.bold,
+      textAlign: 'center',
+    },
+    unlockBody: {
+      fontSize: 14,
+      fontFamily: FontFamily.regular,
+      textAlign: 'center',
+      lineHeight: 20,
     },
 
     // Pending payout card (unverified sellers)

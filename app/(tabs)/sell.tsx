@@ -411,7 +411,10 @@ export default function SellScreen() {
       }
     } catch (err: unknown) {
       const action = status === 'draft' ? 'save draft' : 'create listing';
-      Alert.alert('Error', err instanceof Error ? err.message : `Failed to ${action}.`);
+      const message = err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message ?? `Failed to ${action}.`;
+      Alert.alert('Error', message);
     } finally {
       setSubmitting(null);
     }

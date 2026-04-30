@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, ViewStyle, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, Edge } from 'react-native-safe-area-context';
 import { Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 
@@ -9,6 +9,7 @@ interface ScreenWrapperProps {
   scrollable?: boolean;
   style?: ViewStyle;
   contentStyle?: ViewStyle;
+  edges?: Edge[];
 }
 
 export function ScreenWrapper({
@@ -16,13 +17,14 @@ export function ScreenWrapper({
   scrollable = false,
   style,
   contentStyle,
+  edges = ['top'],
 }: ScreenWrapperProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   if (scrollable) {
     return (
-      <SafeAreaView style={[styles.safe, style]} edges={['top']}>
+      <SafeAreaView style={[styles.safe, style]} edges={edges}>
         <ScrollView
           contentContainerStyle={[styles.scrollContent, contentStyle]}
           showsVerticalScrollIndicator={false}
@@ -35,7 +37,7 @@ export function ScreenWrapper({
   }
 
   return (
-    <SafeAreaView style={[styles.safe, style]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, style]} edges={edges}>
       <View style={[styles.content, contentStyle]}>{children}</View>
     </SafeAreaView>
   );
