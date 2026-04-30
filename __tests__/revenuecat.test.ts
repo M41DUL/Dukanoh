@@ -21,7 +21,7 @@ const mockSelect = jest.fn();
 const mockSingle = jest.fn();
 
 // Build a chainable mock: .from().select().eq().single() and .from().update().eq()
-const mockFrom = jest.fn(() => ({
+const mockFrom = jest.fn((_table: string) => ({
   select: mockSelect.mockReturnValue({
     eq: mockEq.mockReturnValue({
       single: mockSingle,
@@ -33,7 +33,7 @@ const mockFrom = jest.fn(() => ({
 }));
 
 jest.mock('../lib/supabase', () => ({
-  supabase: { from: (...args: unknown[]) => mockFrom(...args) },
+  supabase: { from: (table: string) => mockFrom(table) },
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
