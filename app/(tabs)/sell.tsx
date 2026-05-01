@@ -27,7 +27,7 @@ import { Input } from '@/components/Input';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SellerOnboarding } from '@/components/SellerOnboarding';
-import { CelebrationView } from '@/components/CelebrationView';
+import { ListingSuccessView } from '@/components/ListingSuccessView';
 import { Select, SelectHandle } from '@/components/Select';
 import { Typography, Spacing, BorderRadius, BorderWidth, Genders, Categories, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,7 +43,7 @@ import { TaxHoldBanner } from '@/components/TaxHoldBanner';
 const ALL_CATEGORIES = Categories.filter(c => c !== 'All') as string[];
 
 export default function SellScreen() {
-  const { user, isSeller, loading: authLoading, refreshProfile } = useAuth();
+  const { user, isSeller, loading: authLoading, refreshProfile, username } = useAuth();
   const { taxStatus, reloadTaxStatus } = useTaxStatus(isSeller ? user?.id : undefined);
   const isFocused = useIsFocused();
   const emptyForm: ListingForm = {
@@ -60,6 +60,7 @@ export default function SellScreen() {
   const [coverWarnings, setCoverWarnings] = useState<string[]>([]);
   const [analysingImages, setAnalysingImages] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successListing, setSuccessListing] = useState<import('@/components/ListingCard').Listing | null>(null);
   const colors = useThemeColors();
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -381,7 +382,7 @@ export default function SellScreen() {
     try {
       const imageUrls = await uploadImages();
 
-      const { error } = await supabase.from('listings').insert({
+      const { data: insertedRow, error } = await supabase.from('listings').insert({
         seller_id: user.id,
         title: form.title.trim(),
         description: form.description.trim() || null,
@@ -398,11 +399,24 @@ export default function SellScreen() {
         images: imageUrls,
         status: status,
         published_at: status === 'available' ? new Date().toISOString() : null,
-      });
+      }).select('id').single();
 
       if (error) throw error;
 
       if (status === 'available') {
+        setSuccessListing({
+          id: insertedRow?.id ?? '',
+          seller_id: user.id,
+          title: form.title.trim(),
+          price: parseFloat(form.price),
+          gender: form.gender,
+          category: form.category,
+          condition: form.condition,
+          size: form.size || undefined,
+          images: imageUrls,
+          status: 'available',
+          seller: { username },
+        });
         setShowSuccess(true);
       } else {
         Alert.alert('Draft saved', 'Find it in your profile to publish when ready.', [
@@ -449,17 +463,13 @@ export default function SellScreen() {
     if (action === 'profile') router.push('/(tabs)/profile');
   };
 
-  if (showSuccess) {
+  if (showSuccess && successListing) {
     return (
       <ScreenWrapper>
-        <CelebrationView
-          icon="checkmark-circle"
-          title="You're live!"
-          subtitle="Your piece is now listed and visible to members."
-          actions={[
-            { label: 'View profile', variant: 'outline', onPress: () => handleSuccessDismiss('profile') },
-            { label: 'List another', onPress: () => handleSuccessDismiss('another') },
-          ]}
+        <ListingSuccessView
+          listing={successListing}
+          onViewProfile={() => handleSuccessDismiss('profile')}
+          onListAnother={() => handleSuccessDismiss('another')}
         />
       </ScreenWrapper>
     );
