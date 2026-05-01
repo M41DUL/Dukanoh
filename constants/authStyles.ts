@@ -46,12 +46,11 @@ const TIMEOUT_MS = 30000;
 
 /** Wraps a promise with a timeout */
 export function withTimeout<T>(promise: Promise<T>, ms = TIMEOUT_MS): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('__TIMEOUT__')), ms),
-    ),
-  ]);
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('__TIMEOUT__')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 /** Returns a user-friendly error message, detecting network and timeout failures */

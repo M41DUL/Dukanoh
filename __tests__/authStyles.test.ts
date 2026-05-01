@@ -161,7 +161,7 @@ describe('withTimeout', () => {
   });
 
   test('rejects with timeout error when promise is too slow', async () => {
-    const slow = new Promise((resolve) => setTimeout(resolve, 5000));
+    const slow = new Promise<void>(() => {}); // never resolves — no timer to leak
     await expect(withTimeout(slow, 50)).rejects.toThrow('__TIMEOUT__');
   });
 

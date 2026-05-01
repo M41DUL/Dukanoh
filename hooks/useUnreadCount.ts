@@ -1,54 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { AppState } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
-/**
- * Returns the number of conversations where the most recent message
- * was NOT sent by the current user (i.e. they have an unread reply).
- * Subscribes to realtime updates on the conversations table.
- */
 export function useUnreadCount() {
   const { user } = useAuth();
   const [count, setCount] = useState(0);
 
+  const fetchCount = useCallback(async () => {
+    if (!user) return;
+    const { count: unread } = await supabase
+      .from('conversations')
+      .select('id', { count: 'exact', head: true })
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .not('last_message_sender_id', 'is', null)
+      .neq('last_message_sender_id', user.id);
+    setCount(unread ?? 0);
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
 
-    const fetchCount = async () => {
-      const { count: unread } = await supabase
-        .from('conversations')
-        .select('id', { count: 'exact', head: true })
-        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-        .not('last_message_sender_id', 'is', null)
-        .neq('last_message_sender_id', user.id);
-
-      setCount(unread ?? 0);
-    };
-
     fetchCount();
 
-    // Re-check when conversations are updated (trigger fires on new message)
-    // Debounce to avoid multiple rapid refetches when several messages arrive at once
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedFetch = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchCount(), 500);
-    };
+    // Refresh when app comes to foreground
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') fetchCount();
+    });
 
-    const channel = supabase
-      .channel(`unread-count:${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'conversations' },
-        debouncedFetch
-      )
-      .subscribe();
+    // Refresh when a message notification arrives while the app is open
+    const notifSub = Notifications.addNotificationReceivedListener((notification) => {
+      if (notification.request.content.data?.conversation_id) fetchCount();
+    });
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(channel);
+      appStateSub.remove();
+      notifSub.remove();
     };
-  }, [user]);
+  }, [user, fetchCount]);
 
-  return count;
+  return { count, refresh: fetchCount };
 }
