@@ -116,9 +116,15 @@ function HubPaywall({ isVerified, hadFreeTrial, hadFounderSub, proExpired }: { i
         const price = pkg.product.priceString;
         setStandardMonthlyPrice(price);
         setFounderMonthlyPrice(price);
+      } else {
+        // TODO: remove after diagnosing RC offering issue
+        const info = `current=${offerings.current?.identifier ?? 'null'} pkgs=${offerings.current?.availablePackages?.length ?? 0}`;
+        Alert.alert('RC Debug', info);
       }
-    }).catch(() => {
-      // fall back to hardcoded prices — paywall still usable
+    }).catch((e: unknown) => {
+      // TODO: remove after diagnosing RC offering issue
+      const msg = e instanceof Error ? e.message : JSON.stringify(e);
+      Alert.alert('RC Error', msg);
     });
   }, []);
 
