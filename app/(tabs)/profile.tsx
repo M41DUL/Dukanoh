@@ -219,16 +219,15 @@ export default function ProfileScreen() {
         {/* ── Invite friends card — buyers only ── */}
         {!isSeller && (
           <TouchableOpacity style={styles.inviteCard} onPress={handleInvite} activeOpacity={0.8}>
-            <View style={styles.inviteCardIcon}>
-              <Ionicons name="people-outline" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.inviteCardBody}>
-              <Text style={styles.inviteCardTitle}>Know someone who'd love Dukanoh?</Text>
-              <Text style={styles.inviteCardSubtitle}>Invite friends and grow the community.</Text>
-            </View>
-            <View style={styles.inviteCardBtn}>
-              <Text style={styles.inviteCardBtnText}>Share</Text>
-            </View>
+            <LinearGradient
+              colors={[colors.primaryLight, colors.surface]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <Ionicons name="share-outline" size={36} color={colors.primary} />
+            <Text style={styles.inviteCardTitle}>Spread the word.</Text>
+            <Text style={styles.inviteCardSubtitle}>The best pieces sell fast. More members means more to discover. Share Dukanoh with anyone who knows their South Asian fashion.</Text>
           </TouchableOpacity>
         )}
 
@@ -462,48 +461,25 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.large,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.surface,
-      padding: Spacing.base,
-      flexDirection: 'row',
+      overflow: 'hidden',
+      paddingVertical: Spacing['2xl'],
+      paddingHorizontal: Spacing.xl,
       alignItems: 'center',
       gap: Spacing.md,
     },
-    inviteCardIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: BorderRadius.large,
-      backgroundColor: colors.primaryLight,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-    },
-    inviteCardBody: {
-      flex: 1,
-      gap: 2,
-    },
     inviteCardTitle: {
-      fontSize: 14,
+      fontSize: 16,
       fontFamily: FontFamily.semibold,
       color: colors.textPrimary,
-      lineHeight: 19,
+      lineHeight: 22,
+      textAlign: 'center',
     },
     inviteCardSubtitle: {
-      fontSize: 13,
+      fontSize: 14,
       fontFamily: FontFamily.regular,
-      color: colors.textSecondary,
-      lineHeight: 18,
-    },
-    inviteCardBtn: {
-      backgroundColor: colors.primary,
-      borderRadius: BorderRadius.full,
-      paddingHorizontal: Spacing.md,
-      paddingVertical: Spacing.sm,
-      flexShrink: 0,
-    },
-    inviteCardBtnText: {
-      fontSize: 13,
-      fontFamily: FontFamily.semibold,
-      color: '#FFFFFF',
+      color: colors.textPrimary,
+      lineHeight: 21,
+      textAlign: 'center',
     },
     settingsFooter: {
       marginHorizontal: Spacing.base,
