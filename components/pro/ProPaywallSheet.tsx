@@ -35,7 +35,6 @@ interface ProPaywallSheetProps {
   onSuccess: () => Promise<void>;
   isVerified: boolean;
   hadFreeTrial: boolean;
-  proExpired: boolean;
   userId: string;
 }
 
@@ -45,7 +44,6 @@ export function ProPaywallSheet({
   onSuccess,
   isVerified,
   hadFreeTrial,
-  proExpired,
   userId,
 }: ProPaywallSheetProps) {
   const insets = useSafeAreaInsets();
@@ -104,7 +102,7 @@ export function ProPaywallSheet({
   const ctaNote = !isVerified
     ? 'Verify your account first, then enjoy a 14-day free trial.'
     : hadFreeTrial
-      ? `Cancel anytime. Billed via the ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}.`
+      ? `Billed via the ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}. By subscribing, you confirm you want immediate access and waive your 14-day right to withdraw.`
       : 'Free for 14 days. No charge until your trial ends. Cancel anytime.';
 
   const handleCta = async () => {
@@ -185,16 +183,6 @@ export function ProPaywallSheet({
           <DukanohLogo width={80} height={14} color={P.primary} />
           <View style={styles.closeBtnPlaceholder} />
         </View>
-
-        {/* Expired notice */}
-        {proExpired && (
-          <View style={[styles.expiredBanner, { borderColor: P.amber + '40' }]}>
-            <Ionicons name="warning-outline" size={16} color={P.amber} />
-            <Text style={[styles.expiredBannerText, { color: P.amber }]}>
-              Your Pro subscription has expired. Resubscribe to restore access.
-            </Text>
-          </View>
-        )}
 
         <Text style={styles.subheading}>
           Sell more. Know more. Earn more. On Dukanoh Pro.
@@ -427,21 +415,6 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.regular,
     color: P.textSecondary,
     lineHeight: 19,
-  },
-  expiredBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    backgroundColor: P.amber + '1A',
-    borderRadius: BorderRadius.medium,
-    borderWidth: 1,
-    padding: Spacing.md,
-  },
-  expiredBannerText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: FontFamily.regular,
-    lineHeight: 18,
   },
   footer: {
     position: 'absolute',

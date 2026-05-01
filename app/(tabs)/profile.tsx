@@ -201,7 +201,14 @@ export default function ProfileScreen() {
             style={styles.hubCardGradient}
           >
             <View style={styles.hubCardHeader}>
-              <Text style={styles.hubPlanName}>Dukanoh Pro</Text>
+              <View style={styles.hubPlanNameRow}>
+                <Text style={styles.hubPlanName}>Dukanoh Pro</Text>
+                {proExpired && (
+                  <View style={styles.expiredPill}>
+                    <Text style={styles.expiredPillText}>Expired</Text>
+                  </View>
+                )}
+              </View>
               <Ionicons name="chevron-forward" size={18} color={HUB.textSecondary} />
             </View>
             <View style={styles.hubFeatureList}>
@@ -248,7 +255,6 @@ export default function ProfileScreen() {
         onSuccess={async () => { lastFetchedRef.current = 0; await Promise.all([refreshProfile(), fetchProfile()]); }}
         isVerified={isVerified}
         hadFreeTrial={hadFreeTrial}
-        proExpired={proExpired}
         userId={user?.id ?? ''}
       />
       <WalletSheet
@@ -428,12 +434,30 @@ function getStyles(colors: ColorTokens) {
       color: HUB.accent,
       fontFamily: FontFamily.medium,
     },
+    hubPlanNameRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: Spacing.sm,
+    },
     hubPlanName: {
       fontSize: 20,
       fontFamily: FontFamily.black,
       color: HUB.textPrimary,
       letterSpacing: -0.3,
       lineHeight: 26,
+    },
+    expiredPill: {
+      backgroundColor: '#F59E0B20',
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderWidth: 1,
+      borderColor: '#F59E0B50',
+    },
+    expiredPillText: {
+      fontSize: 11,
+      fontFamily: FontFamily.semibold,
+      color: '#F59E0B',
     },
     hubFeatureList: {
       gap: Spacing.xl,
