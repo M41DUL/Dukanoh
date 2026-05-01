@@ -521,13 +521,13 @@ function getStyles(colors: ColorTokens) {
     hubBenefitLine: {
       fontSize: 15,
       fontFamily: FontFamily.regular,
-      color: HUB.textSecondary,
+      color: HUB.textPrimary,
       lineHeight: 21,
     },
     hubCardPrice: {
       fontSize: 13,
       fontFamily: FontFamily.semibold,
-      color: HUB.textPrimary,
+      color: HUB.textSecondary,
     },
     hubFounderSuffix: {
       fontSize: 13,

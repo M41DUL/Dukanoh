@@ -393,10 +393,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   benefitLine: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: FontFamily.regular,
-    color: P.textSecondary,
-    lineHeight: 20,
+    color: P.textPrimary,
+    lineHeight: 21,
     marginBottom: Spacing.sm,
   },
   planName: {
