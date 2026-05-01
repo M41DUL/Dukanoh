@@ -190,11 +190,28 @@ export function ProPaywallSheet({
 
         {/* Hero card */}
         <View style={[styles.card, styles.heroCard]}>
-          <Text style={styles.planName}>Dukanoh Pro</Text>
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>{monthlyPrice}</Text>
-            <Text style={styles.pricePer}>/month</Text>
+          <View style={styles.heroCardHeader}>
+            <Text style={styles.planName}>Dukanoh Pro</Text>
+            {!isVerified ? (
+              <View style={styles.verifyPill}>
+                <Text style={styles.verifyPillText}>Verify to unlock</Text>
+              </View>
+            ) : !hadFreeTrial ? (
+              <View style={styles.trialPill}>
+                <Text style={styles.trialPillText}>14-day free trial</Text>
+              </View>
+            ) : null}
           </View>
+          <View>
+            <View style={styles.priceRow}>
+              <Text style={styles.price}>{monthlyPrice}</Text>
+              <Text style={styles.pricePer}>/month</Text>
+            </View>
+            {isFounderAvailable && (
+              <Text style={styles.founderSuffix}>for founders only</Text>
+            )}
+          </View>
+          <Text style={styles.benefitLine}>Built for serious sellers.</Text>
           <View style={styles.featureList}>
             {coreFeatures.map(f => (
               <View key={f.label} style={styles.featureRow}>
@@ -335,7 +352,52 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   heroCard: {
-    gap: Spacing.lg,
+    gap: Spacing.md,
+    padding: Spacing.lg,
+  },
+  heroCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  verifyPill: {
+    backgroundColor: P.border,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: P.textSecondary + '50',
+  },
+  verifyPillText: {
+    fontSize: 11,
+    fontFamily: FontFamily.semibold,
+    color: P.textSecondary,
+  },
+  trialPill: {
+    backgroundColor: P.primary + '25',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: P.primary,
+  },
+  trialPillText: {
+    fontSize: 11,
+    fontFamily: FontFamily.semibold,
+    color: P.primary,
+  },
+  founderSuffix: {
+    fontSize: 12,
+    fontFamily: FontFamily.semibold,
+    color: P.primary,
+    marginTop: 2,
+  },
+  benefitLine: {
+    fontSize: 14,
+    fontFamily: FontFamily.regular,
+    color: P.textSecondary,
+    lineHeight: 20,
+    marginBottom: Spacing.sm,
   },
   planName: {
     fontSize: 26,
@@ -360,7 +422,7 @@ const styles = StyleSheet.create({
     color: P.textSecondary,
   },
   featureList: {
-    gap: Spacing.xl,
+    gap: Spacing.md,
   },
   featureRow: {
     flexDirection: 'row',

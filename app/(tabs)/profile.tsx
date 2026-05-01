@@ -57,6 +57,7 @@ export default function ProfileScreen() {
   const [hadFreeTrial, setHadFreeTrial] = useState(false);
   const [proExpired, setProExpired] = useState(false);
   const [proCardPrice, setProCardPrice] = useState<string | null>(null);
+  const [proFounderAvailable, setProFounderAvailable] = useState(false);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -105,9 +106,10 @@ export default function ProfileScreen() {
     const count = parseInt(row('founder_count') ?? '0', 10);
     const limit = parseInt(row('founder_limit') ?? '150', 10);
     const founderAvail = count < limit;
+    setProFounderAvailable(founderAvail);
     setProCardPrice(founderAvail
-      ? `£${row('founder_monthly_price') ?? '6.99'}/mo for founders only`
-      : `£${row('pro_monthly_price') ?? '9.99'}/mo`
+      ? `£${row('founder_monthly_price') ?? '6.99'}/month`
+      : `£${row('pro_monthly_price') ?? '9.99'}/month`
     );
   }, []);
 
@@ -228,16 +230,22 @@ export default function ProfileScreen() {
                 <View style={styles.trialPill}>
                   <Text style={styles.trialPillText}>14-day free trial</Text>
                 </View>
+              ) : !isVerified ? (
+                <View style={styles.verifyPill}>
+                  <Text style={styles.verifyPillText}>Verify to unlock</Text>
+                </View>
               ) : null}
             </View>
             {proCardPrice !== null && isVerified && (
-              <Text style={styles.hubCardPrice}>{proCardPrice}</Text>
+              <Text style={styles.hubCardPrice}>
+                {proCardPrice}{proFounderAvailable && <Text style={styles.hubFounderSuffix}> for founders only</Text>}
+              </Text>
             )}
             <Text style={styles.hubBenefitLine}>Built for serious sellers.</Text>
             <View style={styles.hubFeatureList}>
               {HUB_FEATURES.filter(f => (CORE_FEATURE_LABELS as readonly string[]).includes(f.label)).map(f => (
                 <View key={f.label} style={styles.hubFeatureRow}>
-                  <Ionicons name={f.icon} size={16} color={HUB.textSecondary} />
+                  <Ionicons name={f.icon} size={16} color={HUB.accent} />
                   <Text style={styles.hubFeatureLabel}>{f.label}</Text>
                 </View>
               ))}
@@ -484,13 +492,26 @@ function getStyles(colors: ColorTokens) {
       fontFamily: FontFamily.semibold,
       color: '#F59E0B',
     },
+    verifyPill: {
+      backgroundColor: HUB.border,
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderWidth: 1,
+      borderColor: HUB.textSecondary + '50',
+    },
+    verifyPillText: {
+      fontSize: 11,
+      fontFamily: FontFamily.semibold,
+      color: HUB.textSecondary,
+    },
     trialPill: {
       backgroundColor: HUB.accent + '25',
       borderRadius: BorderRadius.full,
       paddingHorizontal: Spacing.sm,
       paddingVertical: 2,
       borderWidth: 1,
-      borderColor: HUB.accent + '50',
+      borderColor: HUB.accent,
     },
     trialPillText: {
       fontSize: 11,
@@ -507,6 +528,11 @@ function getStyles(colors: ColorTokens) {
       fontSize: 13,
       fontFamily: FontFamily.semibold,
       color: HUB.textPrimary,
+    },
+    hubFounderSuffix: {
+      fontSize: 13,
+      fontFamily: FontFamily.semibold,
+      color: HUB.accent,
     },
     hubMoreChip: {
       borderWidth: 1,
