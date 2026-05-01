@@ -56,6 +56,7 @@ export default function ProfileScreen() {
   ];
   const [hadFreeTrial, setHadFreeTrial] = useState(false);
   const [proExpired, setProExpired] = useState(false);
+  const [proCardPrice, setProCardPrice] = useState<string | null>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -94,21 +95,38 @@ export default function ProfileScreen() {
     lastFetchedRef.current = Date.now();
   }, [user]);
 
+  const fetchPricing = useCallback(async () => {
+    const { data } = await supabase
+      .from('platform_settings')
+      .select('key, value')
+      .in('key', ['founder_count', 'founder_limit', 'founder_monthly_price', 'pro_monthly_price']);
+    if (!data) return;
+    const row = (k: string) => data.find(r => r.key === k)?.value;
+    const count = parseInt(row('founder_count') ?? '0', 10);
+    const limit = parseInt(row('founder_limit') ?? '150', 10);
+    const founderAvail = count < limit;
+    setProCardPrice(founderAvail
+      ? `£${row('founder_monthly_price') ?? '6.99'}`
+      : `£${row('pro_monthly_price') ?? '9.99'}`
+    );
+  }, []);
+
   useFocusEffect(useCallback(() => {
     refreshProfile();
     reloadTaxStatus();
+    fetchPricing();
     const now = Date.now();
     if (now - lastFetchedRef.current > STALE_MS) {
       fetchProfile();
     }
-  }, [fetchProfile, refreshProfile, reloadTaxStatus]));
+  }, [fetchProfile, fetchPricing, refreshProfile, reloadTaxStatus]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     lastFetchedRef.current = 0;
-    await Promise.all([refreshProfile(), fetchProfile()]);
+    await Promise.all([refreshProfile(), fetchProfile(), fetchPricing()]);
     setRefreshing(false);
-  }, [fetchProfile, refreshProfile]);
+  }, [fetchProfile, fetchPricing, refreshProfile]);
 
   // Pro users get a dedicated business dashboard UI
   if (sellerTier === 'pro' || sellerTier === 'founder') {
@@ -203,14 +221,22 @@ export default function ProfileScreen() {
             <View style={styles.hubCardHeader}>
               <View style={styles.hubPlanNameRow}>
                 <Text style={styles.hubPlanName}>Dukanoh Pro</Text>
-                {proExpired && (
+                {proExpired ? (
                   <View style={styles.expiredPill}>
                     <Text style={styles.expiredPillText}>Expired</Text>
                   </View>
-                )}
+                ) : isVerified && !hadFreeTrial ? (
+                  <View style={styles.trialPill}>
+                    <Text style={styles.trialPillText}>14-day free trial</Text>
+                  </View>
+                ) : null}
               </View>
               <Ionicons name="chevron-forward" size={18} color={HUB.textSecondary} />
             </View>
+            <Text style={styles.hubBenefitLine}>Built for serious sellers.</Text>
+            {proCardPrice !== null && isVerified && (
+              <Text style={styles.hubCardPrice}>From {proCardPrice}/mo</Text>
+            )}
             <View style={styles.hubFeatureList}>
               {HUB_FEATURES.filter(f => (CORE_FEATURE_LABELS as readonly string[]).includes(f.label)).map(f => (
                 <View key={f.label} style={styles.hubFeatureRow}>
@@ -219,7 +245,10 @@ export default function ProfileScreen() {
                 </View>
               ))}
             </View>
-            <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - CORE_FEATURE_LABELS.length} more features</Text>
+            <View style={styles.hubMoreChip}>
+              <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - CORE_FEATURE_LABELS.length} more features</Text>
+              <Ionicons name="chevron-forward" size={12} color={HUB.accent} />
+            </View>
           </LinearGradient>
         </TouchableOpacity>}
 
@@ -458,6 +487,35 @@ function getStyles(colors: ColorTokens) {
       fontSize: 11,
       fontFamily: FontFamily.semibold,
       color: '#F59E0B',
+    },
+    trialPill: {
+      backgroundColor: HUB.accent + '25',
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: 2,
+      borderWidth: 1,
+      borderColor: HUB.accent + '50',
+    },
+    trialPillText: {
+      fontSize: 11,
+      fontFamily: FontFamily.semibold,
+      color: HUB.accent,
+    },
+    hubBenefitLine: {
+      fontSize: 14,
+      fontFamily: FontFamily.regular,
+      color: HUB.textSecondary,
+      lineHeight: 20,
+    },
+    hubCardPrice: {
+      fontSize: 15,
+      fontFamily: FontFamily.semibold,
+      color: HUB.textPrimary,
+    },
+    hubMoreChip: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 4,
     },
     hubFeatureList: {
       gap: Spacing.xl,
