@@ -13,10 +13,15 @@ function dismissStackOnTabPress(e: { target?: string; preventDefault: () => void
 
 export default function TabLayout() {
   const colors = useThemeColors();
-  const unreadCount = useUnreadCount();
+  const { count: unreadCount, refresh: refreshUnreadCount } = useUnreadCount();
 
   const tabListeners = {
     tabPress: dismissStackOnTabPress,
+  };
+
+  const inboxListeners = {
+    tabPress: dismissStackOnTabPress,
+    focus: refreshUnreadCount,
   };
 
   return (
@@ -78,7 +83,7 @@ export default function TabLayout() {
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.error, fontSize: 10, fontFamily: 'Inter_600SemiBold' },
         }}
-        listeners={tabListeners}
+        listeners={inboxListeners}
       />
       <Tabs.Screen
         name="profile"
