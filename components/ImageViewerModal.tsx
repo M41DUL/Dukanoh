@@ -34,6 +34,10 @@ interface ImageViewerModalProps {
 function ZoomableImage({ uri }: { uri: string }) {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
 
   const pinch = Gesture.Pinch()
     .onUpdate((e) => {
@@ -43,19 +47,38 @@ function ZoomableImage({ uri }: { uri: string }) {
       savedScale.value = scale.value;
     });
 
+  const pan = Gesture.Pan()
+    .averageTouches(true)
+    .onUpdate((e) => {
+      translateX.value = savedTranslateX.value + e.translationX;
+      translateY.value = savedTranslateY.value + e.translationY;
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .onEnd(() => {
       scale.value = withSpring(1);
       savedScale.value = 1;
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
     });
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
   }));
 
   return (
-    <GestureDetector gesture={Gesture.Simultaneous(doubleTap, pinch)}>
+    <GestureDetector gesture={Gesture.Simultaneous(doubleTap, pinch, pan)}>
       <AnimatedImage
         source={{ uri }}
         style={[styles.image, animatedStyle]}
