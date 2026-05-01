@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, ComponentProps } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Share, Platform } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '@/components/Button';
@@ -31,7 +31,7 @@ const STALE_MS = 30_000;
 
 
 export default function ProfileScreen() {
-  const { user, username, isVerified, isOfficial, sellerTier, refreshProfile } = useAuth();
+  const { user, username, isSeller, isVerified, isOfficial, sellerTier, refreshProfile } = useAuth();
   const { taxStatus, reloadTaxStatus } = useTaxStatus(user?.id);
   const [refreshing, setRefreshing] = useState(false);
   const [ratingAvg, setRatingAvg] = useState(0);
@@ -60,6 +60,15 @@ export default function ProfileScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const lastFetchedRef = useRef<number>(0);
+
+  const handleInvite = useCallback(() => {
+    Share.share({
+      message: Platform.OS === 'android'
+        ? "Dukanoh is where I discover and sell South Asian fashion. You'd love it. https://apps.apple.com/app/dukanoh/id6744942741"
+        : "Dukanoh is where I discover and sell South Asian fashion. You'd love it.",
+      url: 'https://apps.apple.com/app/dukanoh/id6744942741',
+    });
+  }, []);
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
@@ -179,8 +188,8 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* ── Dukanoh Pro entry card — verified sellers only ── */}
-        {isVerified && <TouchableOpacity
+        {/* ── Dukanoh Pro entry card — sellers only (paywall handles verified gate internally) ── */}
+        {isSeller && <TouchableOpacity
           style={styles.hubCard}
           onPress={() => setPaywallVisible(true)}
           activeOpacity={0.85}
@@ -206,6 +215,22 @@ export default function ProfileScreen() {
             <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - CORE_FEATURE_LABELS.length} more features</Text>
           </LinearGradient>
         </TouchableOpacity>}
+
+        {/* ── Invite friends card — buyers only ── */}
+        {!isSeller && (
+          <TouchableOpacity style={styles.inviteCard} onPress={handleInvite} activeOpacity={0.8}>
+            <View style={styles.inviteCardIcon}>
+              <Ionicons name="people-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={styles.inviteCardBody}>
+              <Text style={styles.inviteCardTitle}>Know someone who'd love Dukanoh?</Text>
+              <Text style={styles.inviteCardSubtitle}>Invite friends and grow the community.</Text>
+            </View>
+            <View style={styles.inviteCardBtn}>
+              <Text style={styles.inviteCardBtnText}>Share</Text>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* ── Settings — secondary footer CTA ── */}
         <Button
@@ -430,6 +455,55 @@ function getStyles(colors: ColorTokens) {
       fontSize: 13,
       fontFamily: FontFamily.semibold,
       color: HUB.accent,
+    },
+    inviteCard: {
+      marginHorizontal: Spacing.base,
+      marginBottom: Spacing.xl,
+      borderRadius: BorderRadius.large,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: Spacing.base,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.md,
+    },
+    inviteCardIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: BorderRadius.large,
+      backgroundColor: colors.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    inviteCardBody: {
+      flex: 1,
+      gap: 2,
+    },
+    inviteCardTitle: {
+      fontSize: 14,
+      fontFamily: FontFamily.semibold,
+      color: colors.textPrimary,
+      lineHeight: 19,
+    },
+    inviteCardSubtitle: {
+      fontSize: 13,
+      fontFamily: FontFamily.regular,
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+    inviteCardBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: BorderRadius.full,
+      paddingHorizontal: Spacing.md,
+      paddingVertical: Spacing.sm,
+      flexShrink: 0,
+    },
+    inviteCardBtnText: {
+      fontSize: 13,
+      fontFamily: FontFamily.semibold,
+      color: '#FFFFFF',
     },
     settingsFooter: {
       marginHorizontal: Spacing.base,

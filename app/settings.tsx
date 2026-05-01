@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, Share, Linking } from 'react-native';
+import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, Share, Linking, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -213,6 +213,17 @@ export default function SettingsScreen() {
       title: 'Send Feedback',
       subtitle: 'Report a bug or suggest a feature',
       onPress: () => router.push('/feedback'),
+    },
+    {
+      icon: 'people-outline',
+      title: 'Invite Friends',
+      subtitle: 'Share Dukanoh with friends',
+      onPress: () => Share.share({
+        message: Platform.OS === 'android'
+          ? "Dukanoh is where I discover and sell South Asian fashion. You'd love it. https://apps.apple.com/app/dukanoh/id6744942741"
+          : "Dukanoh is where I discover and sell South Asian fashion. You'd love it.",
+        url: 'https://apps.apple.com/app/dukanoh/id6744942741',
+      }),
     },
   ];
 
