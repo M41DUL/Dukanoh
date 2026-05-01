@@ -106,8 +106,8 @@ export default function ProfileScreen() {
     const limit = parseInt(row('founder_limit') ?? '150', 10);
     const founderAvail = count < limit;
     setProCardPrice(founderAvail
-      ? `£${row('founder_monthly_price') ?? '6.99'}`
-      : `£${row('pro_monthly_price') ?? '9.99'}`
+      ? `£${row('founder_monthly_price') ?? '6.99'}/mo for founders only`
+      : `£${row('pro_monthly_price') ?? '9.99'}/mo`
     );
   }, []);
 
@@ -219,35 +219,31 @@ export default function ProfileScreen() {
             style={styles.hubCardGradient}
           >
             <View style={styles.hubCardHeader}>
-              <View style={styles.hubPlanNameRow}>
-                <Text style={styles.hubPlanName}>Dukanoh Pro</Text>
-                {proExpired ? (
-                  <View style={styles.expiredPill}>
-                    <Text style={styles.expiredPillText}>Expired</Text>
-                  </View>
-                ) : isVerified && !hadFreeTrial ? (
-                  <View style={styles.trialPill}>
-                    <Text style={styles.trialPillText}>14-day free trial</Text>
-                  </View>
-                ) : null}
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={HUB.textSecondary} />
+              <Text style={styles.hubPlanName}>Dukanoh Pro</Text>
+              {proExpired ? (
+                <View style={styles.expiredPill}>
+                  <Text style={styles.expiredPillText}>Expired</Text>
+                </View>
+              ) : isVerified && !hadFreeTrial ? (
+                <View style={styles.trialPill}>
+                  <Text style={styles.trialPillText}>14-day free trial</Text>
+                </View>
+              ) : null}
             </View>
-            <Text style={styles.hubBenefitLine}>Built for serious sellers.</Text>
             {proCardPrice !== null && isVerified && (
-              <Text style={styles.hubCardPrice}>From {proCardPrice}/mo</Text>
+              <Text style={styles.hubCardPrice}>{proCardPrice}</Text>
             )}
+            <Text style={styles.hubBenefitLine}>Built for serious sellers.</Text>
             <View style={styles.hubFeatureList}>
               {HUB_FEATURES.filter(f => (CORE_FEATURE_LABELS as readonly string[]).includes(f.label)).map(f => (
                 <View key={f.label} style={styles.hubFeatureRow}>
-                  <Ionicons name={f.icon} size={20} color={HUB.textSecondary} />
+                  <Ionicons name={f.icon} size={16} color={HUB.textSecondary} />
                   <Text style={styles.hubFeatureLabel}>{f.label}</Text>
                 </View>
               ))}
             </View>
             <View style={styles.hubMoreChip}>
               <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - CORE_FEATURE_LABELS.length} more features</Text>
-              <Ionicons name="chevron-forward" size={12} color={HUB.accent} />
             </View>
           </LinearGradient>
         </TouchableOpacity>}
@@ -405,8 +401,8 @@ function getStyles(colors: ColorTokens) {
       borderColor: proColors.border,
     },
     hubCardGradient: {
-      padding: Spacing.xl,
-      gap: Spacing.lg,
+      padding: Spacing.lg,
+      gap: Spacing.md,
     },
     hubCardHeader: {
       flexDirection: 'row',
@@ -502,23 +498,27 @@ function getStyles(colors: ColorTokens) {
       color: HUB.accent,
     },
     hubBenefitLine: {
-      fontSize: 14,
+      fontSize: 15,
       fontFamily: FontFamily.regular,
       color: HUB.textSecondary,
-      lineHeight: 20,
+      lineHeight: 21,
     },
     hubCardPrice: {
-      fontSize: 15,
+      fontSize: 13,
       fontFamily: FontFamily.semibold,
       color: HUB.textPrimary,
     },
     hubMoreChip: {
-      flexDirection: 'row' as const,
+      borderWidth: 1,
+      borderColor: HUB.accent + '60',
+      borderRadius: BorderRadius.full,
+      paddingVertical: Spacing.sm,
+      paddingHorizontal: Spacing.md,
       alignItems: 'center' as const,
-      gap: 4,
+      marginTop: Spacing.md,
     },
     hubFeatureList: {
-      gap: Spacing.xl,
+      gap: Spacing.lg,
     },
     hubFeatureRow: {
       flexDirection: 'row',
@@ -526,11 +526,11 @@ function getStyles(colors: ColorTokens) {
       gap: Spacing.md,
     },
     hubFeatureLabel: {
-      fontSize: 15,
+      fontSize: 13,
       fontFamily: FontFamily.semibold,
       color: HUB.textPrimary,
       flex: 1,
-      lineHeight: 21,
+      lineHeight: 18,
     },
     hubMoreText: {
       fontSize: 13,
