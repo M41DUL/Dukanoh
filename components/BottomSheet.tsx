@@ -143,10 +143,13 @@ export function BottomSheet({ visible, onClose, children, fullScreen = false, us
               flex: 1,
               borderTopLeftRadius: BorderRadius.large,
               borderTopRightRadius: BorderRadius.large,
+              paddingTop: 0,
             },
           ]}
         >
-          <View style={[styles.handle, { backgroundColor: handleColor ?? colors.border }]} />
+          <Animated.View {...(fullScreen ? panResponder.panHandlers : {})}>
+            <View style={[styles.handle, { backgroundColor: handleColor ?? colors.border }]} />
+          </Animated.View>
           {children}
         </Animated.View>
       </Animated.View>
@@ -178,6 +181,7 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    overflow: 'hidden',
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.base,
   },

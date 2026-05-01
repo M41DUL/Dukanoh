@@ -179,8 +179,8 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* ── Dukanoh Pro entry card ── */}
-        <TouchableOpacity
+        {/* ── Dukanoh Pro entry card — verified sellers only ── */}
+        {isVerified && <TouchableOpacity
           style={styles.hubCard}
           onPress={() => setPaywallVisible(true)}
           activeOpacity={0.85}
@@ -205,7 +205,7 @@ export default function ProfileScreen() {
             </View>
             <Text style={styles.hubMoreText}>+{HUB_FEATURES.length - CORE_FEATURE_LABELS.length} more features</Text>
           </LinearGradient>
-        </TouchableOpacity>
+        </TouchableOpacity>}
 
         {/* ── Settings — secondary footer CTA ── */}
         <Button

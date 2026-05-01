@@ -11,6 +11,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -160,22 +161,14 @@ export function ProPaywallSheet({
       fullScreen
       useModal
       backgroundColor="transparent"
-      handleColor="transparent"
+      handleColor={P.border}
     >
+      <StatusBar style="light" />
       {/* Full-screen gradient fills the sheet */}
       <LinearGradient
         colors={[P.gradientTop, P.gradientBottom]}
         style={StyleSheet.absoluteFillObject}
       />
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: Spacing.sm }]}>
-        <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={16}>
-          <Ionicons name="close" size={22} color={P.textSecondary} />
-        </TouchableOpacity>
-        <DukanohLogo width={80} height={14} color={P.primary} />
-        <View style={styles.closeBtnPlaceholder} />
-      </View>
 
       <ScrollView
         ref={scrollRef}
@@ -184,6 +177,15 @@ export function ProPaywallSheet({
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: Spacing.xl }]}>
+          <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={16}>
+            <Ionicons name="close" size={22} color={P.textSecondary} />
+          </TouchableOpacity>
+          <DukanohLogo width={80} height={14} color={P.primary} />
+          <View style={styles.closeBtnPlaceholder} />
+        </View>
+
         {/* Expired notice */}
         {proExpired && (
           <View style={[styles.expiredBanner, { borderColor: P.amber + '40' }]}>
@@ -335,7 +337,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 30,
     letterSpacing: -0.3,
-    paddingVertical: Spacing.sm,
+    paddingBottom: Spacing.sm,
   },
   card: {
     backgroundColor: P.surface,
@@ -345,7 +347,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   heroCard: {
-    gap: Spacing['2xl'],
+    gap: Spacing.lg,
   },
   planName: {
     fontSize: 26,
