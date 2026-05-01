@@ -180,7 +180,8 @@ function HubPaywall({ isVerified, hadFreeTrial, hadFounderSub, proExpired }: { i
       }
     } catch (e: any) {
       if (!e.userCancelled) {
-        Alert.alert('Something went wrong', 'Your subscription could not be processed. Please try again.');
+        const msg = e?.message ?? e?.underlyingErrorMessage ?? 'Your subscription could not be processed. Please try again.';
+        Alert.alert('Something went wrong', msg);
       }
     } finally {
       setPurchasing(false);
