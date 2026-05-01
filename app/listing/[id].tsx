@@ -122,14 +122,15 @@ export default function ListingDetailScreen() {
       // Primary fetch — must complete first so we have seller_id + category for secondary queries
       const { data } = await supabase
         .from('listings')
-        .select('id, title, description, price, original_price, price_dropped_at, images, status, category, gender, condition, occasion, size, colour, fabric, worn_at, measurements, created_at, seller_id, save_count, view_count, collection_id, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier)')
+        .select('id, title, description, price, original_price, price_dropped_at, images, status, category, gender, condition, occasion, size, colour, fabric, worn_at, measurements, created_at, seller_id, save_count, view_count, collection_id, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier, tax_hold)')
         .eq('id', id)
         .single();
 
       if (!data) { setLoading(false); return; }
 
-      setListing(data as unknown as Listing);
-      setSaveCount((data as any).save_count ?? 0);
+      const listing = data as unknown as Listing;
+      setListing(listing);
+      setSaveCount(listing.save_count ?? 0);
 
       // Track view (fire-and-forget, non-blocking)
       if (data.status !== 'draft') {
@@ -190,8 +191,8 @@ export default function ListingDetailScreen() {
         // Prioritise occasion matches, then fill with remaining — both groups already ordered by save_count
         const occasion = data.occasion as string | undefined;
         const all = similar as unknown as Listing[];
-        const occasionMatches = occasion ? all.filter(l => (l as any).occasion === occasion) : [];
-        const rest = occasion ? all.filter(l => (l as any).occasion !== occasion) : all;
+        const occasionMatches = occasion ? all.filter(l => l.occasion === occasion) : [];
+        const rest = occasion ? all.filter(l => l.occasion !== occasion) : all;
         setSimilarListings([...occasionMatches, ...rest].slice(0, 4));
       }
       setOfferCount(msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0);
@@ -700,8 +701,8 @@ export default function ListingDetailScreen() {
               <View style={styles.hairline} />
               <View style={styles.descriptionBlock}>
                 <Text style={styles.sectionLabel}>Measurements</Text>
-                {(listing.measurements as any).note ? (
-                  <Text style={styles.description}>{(listing.measurements as any).note}</Text>
+                {listing.measurements.note ? (
+                  <Text style={styles.description}>{listing.measurements.note}</Text>
                 ) : (
                   <View style={styles.measureBody}>
                     {listing.measurements.chest ? (
@@ -789,10 +790,15 @@ export default function ListingDetailScreen() {
       </Animated.ScrollView>
 
       {/* STICKY BOTTOM CTA — buyers only */}
-      {user?.id !== listing.seller_id && listing.status === 'available' && (
+      {user?.id !== listing.seller_id && listing.status === 'available' && !listing.seller?.tax_hold && (
         <BottomBar absolute>
           <Button label="Message" variant="outline" onPress={handleMessage} style={styles.ctaBtn} />
           <Button label="Buy Now" onPress={() => router.push(`/checkout/${id}`)} style={styles.ctaBtn} />
+        </BottomBar>
+      )}
+      {user?.id !== listing.seller_id && listing.status === 'available' && listing.seller?.tax_hold && (
+        <BottomBar absolute>
+          <Button label="Temporarily unavailable" variant="outline" disabled onPress={() => {}} style={{ flex: 1 }} />
         </BottomBar>
       )}
       {user?.id !== listing.seller_id && listing.status === 'sold' && (

@@ -326,7 +326,7 @@ export default function ListingsScreen() {
 
     setFetchError(false);
     const rawData = ((data ?? []) as unknown as Listing[]).filter(
-      l => !myListings && (l as any).seller?.tax_hold ? false : true
+      l => !myListings && l.seller?.tax_hold ? false : true
     );
     const filtered = applyClientFilters(rawData, trimmedQuery);
     // Only apply Pro ranking when not doing a text search (text search should respect relevance)
@@ -340,7 +340,7 @@ export default function ListingsScreen() {
       pageRef.current = pageNum + 1;
     }
     setHasMore(!isTextSearch && (data ?? []).length === PAGE_SIZE);
-  }, [buildQuery, applyClientFilters]);
+  }, [buildQuery, applyClientFilters, myListings]);
 
   useEffect(() => {
     setLoading(true);

@@ -78,15 +78,18 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   cancelled: 'Cancelled',
 };
 
-const STATUS_COLOR: Record<OrderStatus, string> = {
-  created: '#F59E0B',
-  paid: '#3735C5',
-  shipped: '#3735C5',
-  delivered: '#22C55E',
-  completed: '#22C55E',
-  disputed: '#FF4444',
-  cancelled: '#9B9B9B',
-};
+function getStatusColor(status: OrderStatus, colors: ColorTokens): string {
+  const map: Record<OrderStatus, string> = {
+    created: colors.amber,
+    paid: colors.primary,
+    shipped: colors.primary,
+    delivered: colors.success,
+    completed: colors.success,
+    disputed: colors.error,
+    cancelled: colors.textSecondary,
+  };
+  return map[status] ?? colors.textSecondary;
+}
 
 // Statuses where the user needs to take action
 const SELLER_ACTION: OrderStatus[] = ['paid', 'disputed'];
@@ -254,7 +257,7 @@ interface OrderRowProps {
 }
 
 function OrderRow({ order, tab, actionRequired, colors, styles }: OrderRowProps) {
-  const statusColor = STATUS_COLOR[order.status] ?? colors.textSecondary;
+  const statusColor = getStatusColor(order.status, colors);
   const needsAction = actionRequired.includes(order.status);
   const counterparty = tab === 'sold'
     ? order.buyer?.username

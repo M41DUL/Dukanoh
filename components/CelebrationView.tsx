@@ -79,6 +79,7 @@ export function CelebrationView({ icon, title, subtitle, actions, iconColor, tex
 
     actionsOpacity.value = withDelay(1000, withTiming(1, { duration: 400 }));
     actionsY.value = withDelay(1000, withSpring(0, { damping: 14, stiffness: 120 }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const iconStyle = useAnimatedStyle(() => ({

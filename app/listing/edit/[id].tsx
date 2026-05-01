@@ -88,7 +88,7 @@ export default function EditListingScreen() {
           worn_at: data.worn_at ?? '',
         });
         // Handle both old structured measurements {chest, waist, length} and new note format
-        const m = data.measurements as any;
+        const m = data.measurements;
         if (m?.note) {
           setMeasurementsNote(m.note);
         } else if (m?.chest || m?.waist || m?.length) {

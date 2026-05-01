@@ -131,20 +131,20 @@ export default function DukanohFitScreen() {
       .map(l => ({
         listing: l,
         score: scoreMatch(input, {
-          category: (l as any).category,
-          colour: (l as any).colour,
-          occasion: (l as any).occasion,
-          fabricWeight: (l as any).fabric_weight,
-          save_count: (l as any).save_count,
+          category: l.category,
+          colour: l.colour,
+          occasion: l.occasion,
+          fabricWeight: l.fabric_weight as FabricWeight | undefined,
+          save_count: l.save_count,
         }),
-        save_count: (l as any).save_count ?? 0,
+        save_count: l.save_count ?? 0,
       }))
       .sort((a, b) => b.score - a.score || b.save_count - a.save_count)
       .map(s => s.listing);
 
     const sellerCount = new Map<string, number>();
     const diverse = scored.filter(l => {
-      const sid = (l as any).seller_id as string;
+      const sid = l.seller_id;
       const count = sellerCount.get(sid) ?? 0;
       if (count >= 2) return false;
       sellerCount.set(sid, count + 1);

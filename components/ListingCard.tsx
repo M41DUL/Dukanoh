@@ -22,7 +22,8 @@ export interface Listing {
   occasion?: string;
   colour?: string;
   fabric?: string;
-  measurements?: { chest?: number; waist?: number; length?: number };
+  fabric_weight?: string;
+  measurements?: { chest?: number; waist?: number; length?: number; note?: string };
   description?: string;
   worn_at?: string;
   status: 'available' | 'sold' | 'draft';
@@ -40,6 +41,7 @@ export interface Listing {
     created_at?: string;
     seller_tier?: string;
     is_verified?: boolean;
+    tax_hold?: boolean;
   };
 }
 

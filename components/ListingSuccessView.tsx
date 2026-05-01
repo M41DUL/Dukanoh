@@ -51,6 +51,7 @@ export function ListingSuccessView({ listing, onViewProfile, onListAnother }: Pr
 
     // Actions fade in after card lands
     actionsOpacity.value = withDelay(500, withTiming(1, { duration: 320, easing: Easing.out(Easing.ease) }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cardStyle = useAnimatedStyle(() => ({

@@ -906,6 +906,50 @@ CREATE TRIGGER order_wallet_update
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_order_wallet_update();
 
+-- Tax threshold trigger — auto-sets tax_hold when a seller crosses DAC7 limits on order completion
+CREATE OR REPLACE FUNCTION public.handle_order_tax_threshold()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_year_start  TIMESTAMPTZ := DATE_TRUNC('year', NOW());
+  v_year_count  INT;
+  v_year_sales  NUMERIC;
+  v_has_tin     BOOLEAN;
+BEGIN
+  -- Only fire when an order transitions to completed
+  IF NOT (OLD.status IN ('shipped', 'delivered') AND NEW.status = 'completed') THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COUNT(*), COALESCE(SUM(item_price), 0)
+    INTO v_year_count, v_year_sales
+    FROM public.orders
+   WHERE seller_id = NEW.seller_id
+     AND status    = 'completed'
+     AND created_at >= v_year_start;
+
+  IF v_year_count >= 29 OR v_year_sales >= 1690 THEN
+    SELECT (tax_id_collected_at IS NOT NULL)
+      INTO v_has_tin
+      FROM public.users
+     WHERE id = NEW.seller_id;
+
+    IF NOT v_has_tin THEN
+      UPDATE public.users
+         SET tax_hold = TRUE
+       WHERE id = NEW.seller_id AND tax_hold = FALSE;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS order_tax_threshold ON public.orders;
+CREATE TRIGGER order_tax_threshold
+  AFTER UPDATE ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_order_tax_threshold();
+
 -- mark_order_shipped RPC — uses server time, enforces paid→shipped guard
 CREATE OR REPLACE FUNCTION public.mark_order_shipped(
   p_order_id  UUID,

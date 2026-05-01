@@ -785,7 +785,7 @@ export default function SellScreen() {
           label="List Piece"
           onPress={handleSubmit}
           loading={submitting === 'available'}
-          disabled={!!submitting}
+          disabled={!!submitting || taxStatus?.taxHold === true}
           style={styles.submitBtn}
         />
       </ScrollView>
