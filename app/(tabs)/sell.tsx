@@ -703,7 +703,7 @@ export default function SellScreen() {
                 label="Gender"
                 placeholder="Select gender"
                 value={form.gender}
-                options={Genders as unknown as string[]}
+                options={Genders}
                 onSelect={val => {
                   setForm(f => ({ ...f, gender: val }));
                 }}

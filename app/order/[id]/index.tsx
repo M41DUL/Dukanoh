@@ -147,7 +147,7 @@ export default function OrderDetailScreen() {
       p_order_id:  order.id,
       p_seller_id: user.id,
       p_tracking:  trackingNumber.trim(),
-      p_courier:   courier.trim() || null,
+      p_courier:   courier.trim() || undefined,
     });
     if (error) {
       setSubmitting(false);

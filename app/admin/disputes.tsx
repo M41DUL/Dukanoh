@@ -36,16 +36,16 @@ interface DisputedOrder {
   dispute_reason: string | null;
   dispute_description: string | null;
   disputed_at: string | null;
-  created_at: string;
+  created_at: string | null;
   listing_id: string | null;
-  seller_id: string;
-  buyer_id: string;
+  seller_id: string | null;
+  buyer_id: string | null;
   appeal_reason: string | null;
   appeal_by: string | null;
   appealed_at: string | null;
-  listing: { title: string; images: string[] } | null;
-  buyer: { username: string } | null;
-  seller: { username: string } | null;
+  listing: { title: string; images: string[] | null } | null;
+  buyer: { username: string | null } | null;
+  seller: { username: string | null } | null;
 }
 
 function formatDate(d: string) {
@@ -98,7 +98,7 @@ export default function AdminDisputesScreen() {
       .eq('status', 'disputed')
       .order('disputed_at', { ascending: true });
 
-    setDisputes((data ?? []) as unknown as DisputedOrder[]);
+    setDisputes(data ?? []);
     setLoading(false);
   }, [user]);
 

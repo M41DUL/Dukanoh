@@ -325,7 +325,7 @@ export default function ListingsScreen() {
     }
 
     setFetchError(false);
-    const rawData = ((data ?? []) as unknown as Listing[]).filter(
+    const rawData = (data ?? []).filter(
       l => !myListings && l.seller?.tax_hold ? false : true
     );
     const filtered = applyClientFilters(rawData, trimmedQuery);

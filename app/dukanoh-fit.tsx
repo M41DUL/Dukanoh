@@ -106,7 +106,7 @@ export default function DukanohFitScreen() {
 
     let q = supabase
       .from('listings')
-      .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, fabric_weight, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
+      .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
       .eq('status', 'available')
       .in('category', complementary)
       .neq('seller_id', user.id);
@@ -125,16 +125,16 @@ export default function DukanohFitScreen() {
       return;
     }
 
-    const listings = (data ?? []) as unknown as Listing[];
+    const listings = data ?? [];
 
     const scored = listings
       .map(l => ({
         listing: l,
         score: scoreMatch(input, {
-          category: l.category,
+          category: l.category ?? '',
           colour: l.colour,
           occasion: l.occasion,
-          fabricWeight: l.fabric_weight as FabricWeight | undefined,
+          fabricWeight: undefined,
           save_count: l.save_count,
         }),
         save_count: l.save_count ?? 0,

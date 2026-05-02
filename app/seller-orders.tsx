@@ -16,12 +16,12 @@ type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 
 
 interface Order {
   id: string;
-  buyer_id: string;
+  buyer_id: string | null;
   status: OrderStatus;
   item_price: number;
-  created_at: string;
-  listing: { title: string; images: string[] } | null;
-  buyer: { username: string } | null;
+  created_at: string | null;
+  listing: { title: string; images: string[] | null } | null;
+  buyer: { username: string | null } | null;
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
@@ -69,7 +69,7 @@ export default function SellerOrdersScreen() {
       `)
       .eq('seller_id', user.id)
       .order('created_at', { ascending: false });
-    setOrders((data ?? []) as unknown as Order[]);
+    setOrders((data ?? []).map(o => ({ ...o, status: o.status as OrderStatus })));
     setLoading(false);
   }, [user]);
 
@@ -102,7 +102,7 @@ export default function SellerOrdersScreen() {
             {item.listing?.title ?? 'Listing removed'}
           </Text>
           <Text style={[styles.meta, { color: colors.textSecondary }]}>
-            @{item.buyer?.username ?? '—'} · £{item.item_price.toFixed(2)} · {new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            @{item.buyer?.username ?? '—'} · £{item.item_price.toFixed(2)}{item.created_at ? ` · ${new Date(item.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
           </Text>
           <Text style={[styles.statusText, { color: statusColor }]}>
             {STATUS_LABEL[item.status]}

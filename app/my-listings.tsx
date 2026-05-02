@@ -78,9 +78,9 @@ export default function MyItemsScreen() {
         .eq('buyer_id', user.id)
         .order('sold_at', { ascending: false }),
     ]);
-    setSelling((sellingRes.data ?? []) as unknown as Listing[]);
-    setDrafts((draftsRes.data ?? []) as unknown as Listing[]);
-    setBought((boughtRes.data ?? []) as unknown as Listing[]);
+    setSelling(sellingRes.data ?? []);
+    setDrafts(draftsRes.data ?? []);
+    setBought(boughtRes.data ?? []);
     setLoading(false);
   }, [user]);
 

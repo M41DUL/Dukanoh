@@ -50,7 +50,7 @@ interface FeedCache {
 
 // ── Profile cache — avoids re-fetching on every 30s feed refresh ────
 const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-type ProfileData = { preferred_categories: string[]; avatar_url: string | null; bio: string | null; full_name: string } | null;
+type ProfileData = { preferred_categories: string[] | null; avatar_url: string | null; bio: string | null; full_name: string } | null;
 const profileCache: Record<string, { data: ProfileData; ts: number }> = {};
 
 // ── Private data helpers ────────────────────────────────────────────
@@ -186,7 +186,7 @@ async function fetchSuggestedSection(
   const seen = new Set<string>();
   const merged: Listing[] = [];
   for (const { data } of results) {
-    for (const item of (data ?? []) as Listing[]) {
+    for (const item of data ?? []) {
       if (!seen.has(item.id) && !(item as any).seller?.tax_hold) {
         seen.add(item.id);
         merged.push(item);
@@ -231,7 +231,7 @@ async function fetchNewArrivals(
   if (gender) query = query.in('category', [gender, 'Casualwear', 'Partywear', 'Festive', 'Formal', 'Achkan', 'Wedding', 'Pathani Suit', 'Shoes']);
 
   const { data } = await query;
-  const listings = ((data ?? []) as unknown as Listing[]).filter(
+  const listings = (data ?? []).filter(
     l => !(l as any).seller?.tax_hold
   );
   if (listings.length === 0) return listings;
@@ -400,14 +400,14 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
 
       const drops: PriceDrop[] = (savedPrices.data ?? [])
         .filter(s => {
-          const l = s.listings as unknown as { price: number; status: string } | null;
+          const l = s.listings as { price: number; status: string } | null;
           if (!l || l.status !== 'available') return false;
           const savedPrice = s.price_at_save as number;
           const pctDrop = (savedPrice - l.price) / savedPrice;
           return pctDrop >= PRICE_DROP_THRESHOLD;
         })
         .map(s => {
-          const l = s.listings as unknown as { id: string; title: string; price: number; images: string[] };
+          const l = s.listings as { id: string; title: string; price: number; images: string[] };
           return {
             listingId: s.listing_id as string,
             title: l.title,

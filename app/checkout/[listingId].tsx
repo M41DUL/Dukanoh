@@ -33,9 +33,9 @@ interface ListingSummary {
   id: string;
   title: string;
   price: number;
-  images: string[];
+  images: string[] | null;
   seller_id: string;
-  status: string;
+  status: string | null;
   size: string | null;
   condition: string | null;
 }
@@ -118,8 +118,16 @@ export default function CheckoutScreen() {
           return;
         }
 
-        setListing(listingData as unknown as ListingSummary);
-        if (userData?.address_line1) setAddress(userData);
+        setListing(listingData);
+        if (userData?.address_line1) {
+          setAddress({
+            address_line1: userData.address_line1,
+            address_line2: userData.address_line2,
+            city: userData.city ?? '',
+            postcode: userData.postcode ?? '',
+            country: userData.country ?? '',
+          });
+        }
         setLoading(false);
       })();
     }, [user, listingId])

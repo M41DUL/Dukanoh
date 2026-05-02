@@ -128,9 +128,8 @@ export default function ListingDetailScreen() {
 
       if (!data) { setLoading(false); return; }
 
-      const listing = data as unknown as Listing;
-      setListing(listing);
-      setSaveCount(listing.save_count ?? 0);
+      setListing(data as Listing);
+      setSaveCount(data.save_count ?? 0);
 
       // Track view (fire-and-forget, non-blocking)
       if (data.status !== 'draft') {
@@ -148,7 +147,7 @@ export default function ListingDetailScreen() {
       // Build similar listings query — fetch 20, then prioritise by occasion match + save_count
       let simQ = supabase
         .from('listings')
-        .select('id, title, price, original_price, price_dropped_at, images, status, category, save_count, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)')
+        .select('id, title, price, original_price, price_dropped_at, images, status, category, occasion, save_count, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)')
         .eq('category', data.category)
         .eq('status', 'available')
         .neq('id', id)
@@ -171,7 +170,7 @@ export default function ListingDetailScreen() {
       ] = await Promise.all([
         supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }),
         supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', data.seller_id).eq('status', 'sold'),
-        supabase.from('listings').select('id, title, price, original_price, price_dropped_at, images, status, condition, size, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)').eq('seller_id', data.seller_id).eq('status', 'available').neq('id', id).order('created_at', { ascending: false }).limit(4),
+        supabase.from('listings').select('id, title, price, original_price, price_dropped_at, images, status, condition, size, occasion, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)').eq('seller_id', data.seller_id).eq('status', 'available').neq('id', id).order('created_at', { ascending: false }).limit(4),
         simQ,
         supabase.from('messages').select('content').eq('listing_id', id),
         supabase.from('boosts').select('expires_at').eq('listing_id', id).gte('expires_at', new Date().toISOString()).maybeSingle(),
@@ -186,11 +185,11 @@ export default function ListingDetailScreen() {
 
       if (rate !== null) setResponseRate(rate as number);
       setSoldCount(sold ?? 0);
-      if (others) setSellerListings(others as unknown as Listing[]);
+      if (others) setSellerListings(others);
       if (similar) {
         // Prioritise occasion matches, then fill with remaining — both groups already ordered by save_count
         const occasion = data.occasion as string | undefined;
-        const all = similar as unknown as Listing[];
+        const all = similar;
         const occasionMatches = occasion ? all.filter(l => l.occasion === occasion) : [];
         const rest = occasion ? all.filter(l => l.occasion !== occasion) : all;
         setSimilarListings([...occasionMatches, ...rest].slice(0, 4));
@@ -415,7 +414,7 @@ export default function ListingDetailScreen() {
   };
 
   const handleDuplicate = async () => {
-    if (!user || !listing) return;
+    if (!user || !listing || !listing.category || !listing.condition) return;
     const { data, error } = await supabase.from('listings').insert({
       seller_id: user.id,
       title: listing.title,
@@ -533,7 +532,7 @@ export default function ListingDetailScreen() {
 
         {/* IMAGE CAROUSEL */}
         <View style={styles.imageContainer}>
-          {listing.images?.length > 0 ? (
+          {(listing.images?.length ?? 0) > 0 ? (
             <ScrollView
               ref={imageScrollRef}
               horizontal
@@ -541,7 +540,7 @@ export default function ListingDetailScreen() {
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={e => setImageIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
             >
-              {listing.images.map((uri, i) => (
+              {(listing.images ?? []).map((uri, i) => (
                 <TouchableOpacity key={i} activeOpacity={0.95} onPress={() => { setViewerIndex(i); setViewerVisible(true); }}>
                   <Image source={{ uri: getImageUrl(uri, 'detail') }} style={styles.image} contentFit="cover" transition={200} />
                 </TouchableOpacity>
@@ -565,7 +564,7 @@ export default function ListingDetailScreen() {
             )}
             {(listing.images?.length ?? 0) > 1 ? (
               <View style={styles.dotsRow}>
-                {listing.images.map((_, i) => (
+                {(listing.images ?? []).map((_, i) => (
                   <View key={i} style={[styles.dot, i === imageIndex && styles.dotActive]} />
                 ))}
               </View>
@@ -733,7 +732,7 @@ export default function ListingDetailScreen() {
 
           {/* Seller row */}
           <TouchableOpacity style={styles.sellerRow} activeOpacity={0.8} onPress={() => router.push(`/user/${listing.seller_id}`)}>
-            <Avatar uri={listing.seller?.avatar_url} initials={listing.seller?.username?.[0]?.toUpperCase()} size="small" />
+            <Avatar uri={listing.seller?.avatar_url ?? undefined} initials={listing.seller?.username?.[0]?.toUpperCase()} size="small" />
             <View style={styles.sellerInfo}>
               <View style={styles.sellerNameRow}>
                 <Text style={styles.sellerName}>@{listing.seller?.username}</Text>

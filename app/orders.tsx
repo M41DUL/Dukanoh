@@ -37,14 +37,14 @@ type OrderStatus =
 
 interface Order {
   id: string;
-  buyer_id: string;
-  seller_id: string;
+  buyer_id: string | null;
+  seller_id: string | null;
   status: OrderStatus;
   item_price: number;
-  created_at: string;
-  listing: { title: string; images: string[] } | null;
-  buyer: { username: string } | null;
-  seller: { username: string } | null;
+  created_at: string | null;
+  listing: { title: string; images: string[] | null } | null;
+  buyer: { username: string | null } | null;
+  seller: { username: string | null } | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────
@@ -148,8 +148,8 @@ export default function OrdersScreen() {
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false }),
     ]);
-    setSold((soldRes.data ?? []) as unknown as Order[]);
-    setBought((boughtRes.data ?? []) as unknown as Order[]);
+    setSold((soldRes.data ?? []).map(o => ({ ...o, status: o.status as OrderStatus })));
+    setBought((boughtRes.data ?? []).map(o => ({ ...o, status: o.status as OrderStatus })));
     setLoading(false);
   }, [user]);
 
@@ -289,7 +289,7 @@ function OrderRow({ order, tab, actionRequired, colors, styles }: OrderRowProps)
           </Text>
         )}
         <Text style={[styles.meta, { color: colors.textSecondary }]}>
-          £{order.item_price.toFixed(2)} · {new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          £{order.item_price.toFixed(2)}{order.created_at ? ` · ${new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
         </Text>
       </View>
 

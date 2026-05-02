@@ -26,7 +26,10 @@ export function useRecentlyViewed(currentUserId?: string) {
 
     if (error || !views || views.length === 0) { setItems([]); return; }
 
-    const ids = views.map(row => row.listing_id);
+    const ids = views
+      .map(row => row.listing_id)
+      .filter((id): id is string => id !== null);
+    if (ids.length === 0) { setItems([]); return; }
 
     const { data, error: listingError } = await supabase
       .from('listings')
@@ -38,8 +41,8 @@ export function useRecentlyViewed(currentUserId?: string) {
     if (listingError || !data) { setItems([]); return; }
 
     // Preserve view-recency order
-    const map = new Map((data as unknown as Listing[]).map(l => [l.id, l]));
-    setItems(ids.map(id => map.get(id)).filter(Boolean) as Listing[]);
+    const map = new Map(data.map(l => [l.id, l]));
+    setItems(ids.map(id => map.get(id)).filter((l): l is NonNullable<typeof l> => l != null));
   }, [currentUserId]);
 
   useEffect(() => { load(); }, [load]);

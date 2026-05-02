@@ -14,19 +14,18 @@ import { supabase } from '@/lib/supabase';
 
 interface FeedbackRow {
   id: string;
-  type: 'bug' | 'feature' | 'general' | 'support';
+  type: string;
   message: string;
-  source: 'app' | 'website';
+  source: string;
   name: string | null;
   email: string | null;
-  created_at: string;
+  created_at: string | null;
   user: {
-    username: string;
-    email: string;
-    is_seller: boolean;
-    is_verified: boolean;
-    seller_tier: string;
-    created_at: string;
+    username: string | null;
+    is_seller: boolean | null;
+    is_verified: boolean | null;
+    seller_tier: string | null;
+    created_at: string | null;
   } | null;
 }
 
@@ -79,11 +78,11 @@ export default function AdminFeedbackScreen() {
       .from('feedback')
       .select(`
         id, type, message, source, name, email, created_at,
-        user:users!feedback_user_id_fkey(username, email, is_seller, is_verified, seller_tier, created_at)
+        user:users!feedback_user_id_fkey(username, is_seller, is_verified, seller_tier, created_at)
       `)
       .order('created_at', { ascending: false });
 
-    setRows((data ?? []) as unknown as FeedbackRow[]);
+    setRows(data ?? []);
     setLoading(false);
   }, [user]);
 
@@ -134,7 +133,7 @@ export default function AdminFeedbackScreen() {
                   </View>
                 )}
               </View>
-              <Text style={styles.date}>{formatDate(item.created_at)}</Text>
+              <Text style={styles.date}>{item.created_at && formatDate(item.created_at)}</Text>
             </View>
             <Text style={styles.message}>{item.message}</Text>
             {item.source === 'website' && item.name ? (
@@ -151,7 +150,7 @@ export default function AdminFeedbackScreen() {
                 <View style={styles.userRow}>
                   <Ionicons name="person-outline" size={13} color={colors.textSecondary} />
                   <Text style={styles.userText}>
-                    @{item.user.username}{item.user.email ? `  ·  ${item.user.email}` : ''}
+                    @{item.user.username}{item.email ? `  ·  ${item.email}` : ''}
                   </Text>
                 </View>
                 <View style={styles.trustRow}>
@@ -165,16 +164,18 @@ export default function AdminFeedbackScreen() {
                       <Text style={styles.trustPillText}>✓ Verified</Text>
                     </View>
                   )}
-                  {item.user.is_seller && item.user.seller_tier !== 'free' && (
+                  {item.user.is_seller && item.user.seller_tier && item.user.seller_tier !== 'free' && (
                     <View style={styles.trustPill}>
                       <Text style={styles.trustPillText}>
                         {item.user.seller_tier.charAt(0).toUpperCase() + item.user.seller_tier.slice(1)}
                       </Text>
                     </View>
                   )}
-                  <Text style={styles.joinDate}>
-                    Joined {formatDate(item.user.created_at)}
-                  </Text>
+                  {item.user.created_at && (
+                    <Text style={styles.joinDate}>
+                      Joined {formatDate(item.user.created_at)}
+                    </Text>
+                  )}
                 </View>
               </View>
             )}

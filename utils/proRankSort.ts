@@ -15,8 +15,8 @@
  */
 export function proRankSort<T extends {
   seller_id?: string;
-  seller?: { seller_tier?: string } | null;
-  created_at?: string;
+  seller?: { seller_tier?: string | null } | null;
+  created_at?: string | null;
 }>(listings: T[], maxProFraction = 0.25): T[] {
   if (listings.length === 0) return listings;
 
