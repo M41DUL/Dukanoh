@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AppState, type AppStateStatus, Platform } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -16,6 +17,9 @@ import {
   Inter_900Black,
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
+import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
+import NetInfo from '@react-native-community/netinfo';
+import { useReactQueryDevTools } from '@dev-plugins/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { configureGoogleSignIn } from '@/lib/socialAuth';
 import { initErrorReporting } from '@/lib/errorReporting';
@@ -26,6 +30,16 @@ import { SavedProvider } from '@/context/SavedContext';
 import { BlockedProvider } from '@/context/BlockedContext';
 import { FeeConfigProvider } from '@/context/FeeConfigContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
+import { queryClient } from '@/lib/queryClient';
+
+// React Query's built-in browser focus/online events don't fire on RN —
+// these managers bridge AppState + NetInfo so queries refetch on resume
+// and pause while offline.
+onlineManager.setEventListener((setOnline) =>
+  NetInfo.addEventListener((state) => {
+    setOnline(!!state.isConnected);
+  })
+);
 
 initErrorReporting();
 
@@ -46,8 +60,19 @@ function RootNavigator() {
 
   const { session, loading, onboardingCompleted, needsUsername } = useAuth();
   usePushNotifications();
+  if (__DEV__) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useReactQueryDevTools(queryClient);
+  }
 
   useEffect(() => { configureGoogleSignIn(); }, []);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (status: AppStateStatus) => {
+      // Web's onFocus already covers this; only bridge on native.
+      if (Platform.OS !== 'web') focusManager.setFocused(status === 'active');
+    });
+    return () => sub.remove();
+  }, []);
   useEffect(() => {
     if (!session?.user.id) return;
     initRevenueCat(session.user.id);
@@ -225,20 +250,22 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StripeProvider
-        publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
-        merchantIdentifier="merchant.com.m41dul.dukanoh"
-      >
-        <ThemeProvider>
-          <FeeConfigProvider>
-            <SavedProvider>
-              <BlockedProvider>
-                <RootNavigator />
-              </BlockedProvider>
-            </SavedProvider>
-          </FeeConfigProvider>
-        </ThemeProvider>
-      </StripeProvider>
+      <QueryClientProvider client={queryClient}>
+        <StripeProvider
+          publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
+          merchantIdentifier="merchant.com.m41dul.dukanoh"
+        >
+          <ThemeProvider>
+            <FeeConfigProvider>
+              <SavedProvider>
+                <BlockedProvider>
+                  <RootNavigator />
+                </BlockedProvider>
+              </SavedProvider>
+            </FeeConfigProvider>
+          </ThemeProvider>
+        </StripeProvider>
+      </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }

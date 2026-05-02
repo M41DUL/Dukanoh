@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
+import { queryClient } from '@/lib/queryClient';
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
@@ -107,6 +108,10 @@ export function useAuth() {
     } catch {}
 
     await supabase.auth.signOut();
+
+    // Drop all React Query cache so the next user doesn't see the previous
+    // user's data while their own queries refetch.
+    queryClient.clear();
   };
 
   return { session, user, loading, signOut, onboardingCompleted, isSeller, isVerified, isOfficial, sellerTier, needsUsername, username, refreshProfile };
