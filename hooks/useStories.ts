@@ -83,7 +83,7 @@ export function useStories() {
     const [
       { data: organicListings },
       { data: activeBoosts },
-      { data: basketItems },
+      { data: savedItems },
       { data: viewedListings },
       { data: viewedStories },
     ] = await Promise.all([
@@ -103,9 +103,9 @@ export function useStories() {
         .select('listing_id')
         .gt('expires_at', now),
 
-      // Personalisation: basket categories
+      // Personalisation: categories from the user's saved items
       supabase
-        .from('basket_items')
+        .from('saved_items')
         .select('listing:listings(category)')
         .eq('user_id', user.id),
 
@@ -141,7 +141,7 @@ export function useStories() {
     const viewedIds = new Set(viewedStories?.map(s => s.listing_id) ?? []);
 
     const preferredCategories = new Set<string>([
-      ...(basketItems?.map((b: any) => b.listing?.category).filter(Boolean) ?? []),
+      ...(savedItems?.map((s: any) => s.listing?.category).filter(Boolean) ?? []),
       ...(viewedListings?.map((v: any) => v.listing?.category).filter(Boolean) ?? []),
     ]);
 

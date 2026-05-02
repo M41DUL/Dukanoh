@@ -119,7 +119,15 @@ export default function CheckoutScreen() {
         }
 
         setListing(listingData as unknown as ListingSummary);
-        if (userData?.address_line1) setAddress(userData);
+        if (userData?.address_line1) {
+          setAddress({
+            address_line1: userData.address_line1,
+            address_line2: userData.address_line2,
+            city: userData.city ?? '',
+            postcode: userData.postcode ?? '',
+            country: userData.country ?? '',
+          });
+        }
         setLoading(false);
       })();
     }, [user, listingId])

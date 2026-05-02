@@ -103,7 +103,7 @@ export default function SellerProfileScreen() {
       supabase.rpc('get_seller_response_rate', { p_seller_id: id }),
       supabase
         .from('reviews')
-        .select('*, reviewer:users(username, avatar_url)')
+        .select('*, reviewer:users!reviews_reviewer_id_fkey(username, avatar_url)')
         .eq('seller_id', id)
         .order('created_at', { ascending: false }),
       supabase

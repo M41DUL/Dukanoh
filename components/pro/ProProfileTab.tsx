@@ -196,6 +196,7 @@ export function ProProfileTab() {
         buckets[d.toDateString()] = 0;
       }
       (tx30d.data ?? []).forEach(t => {
+        if (!t.created_at) return;
         const key = new Date(t.created_at).toDateString();
         if (key in buckets) buckets[key] += t.amount ?? 0;
       });
@@ -249,7 +250,7 @@ export function ProProfileTab() {
         collections,
         occasionPerformance,
         availableListings: allListings.filter(l => l.status === 'available'),
-        accountStatus: userRes.data?.account_status ?? 'active',
+        accountStatus: (userRes.data?.account_status as DashData['accountStatus']) ?? 'active',
         strikeCount: userRes.data?.cancellation_strike_count ?? 0,
         pendingOrders: ordersRes.count ?? 0,
       });

@@ -50,7 +50,7 @@ interface FeedCache {
 
 // ── Profile cache — avoids re-fetching on every 30s feed refresh ────
 const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-type ProfileData = { preferred_categories: string[]; avatar_url: string | null; bio: string | null; full_name: string } | null;
+type ProfileData = { preferred_categories: string[] | null; avatar_url: string | null; bio: string | null; full_name: string } | null;
 const profileCache: Record<string, { data: ProfileData; ts: number }> = {};
 
 // ── Private data helpers ────────────────────────────────────────────

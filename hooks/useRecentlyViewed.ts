@@ -26,7 +26,10 @@ export function useRecentlyViewed(currentUserId?: string) {
 
     if (error || !views || views.length === 0) { setItems([]); return; }
 
-    const ids = views.map(row => row.listing_id);
+    const ids = views
+      .map(row => row.listing_id)
+      .filter((id): id is string => id !== null);
+    if (ids.length === 0) { setItems([]); return; }
 
     const { data, error: listingError } = await supabase
       .from('listings')

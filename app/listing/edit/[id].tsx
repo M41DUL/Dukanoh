@@ -73,7 +73,7 @@ export default function EditListingScreen() {
       .single()
       .then(({ data }) => {
         if (!data) { router.back(); return; }
-        setStatus(data.status);
+        setStatus((data.status as 'draft' | 'available' | 'sold' | null) ?? 'draft');
         setForm({
           title: data.title ?? '',
           description: data.description ?? '',
@@ -88,7 +88,7 @@ export default function EditListingScreen() {
           worn_at: data.worn_at ?? '',
         });
         // Handle both old structured measurements {chest, waist, length} and new note format
-        const m = data.measurements;
+        const m = data.measurements as { note?: string; chest?: string; waist?: string; length?: string | number } | null;
         if (m?.note) {
           setMeasurementsNote(m.note);
         } else if (m?.chest || m?.waist || m?.length) {
@@ -240,7 +240,7 @@ export default function EditListingScreen() {
           title: form.title.trim(),
           description: form.description.trim() || null,
           price: parseFloat(form.price),
-          gender: form.gender || null,
+          gender: form.gender || undefined,
           category: form.category,
           condition: form.condition,
           size: form.size || null,

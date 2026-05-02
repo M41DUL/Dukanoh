@@ -77,3 +77,57 @@ CREATE POLICY "Sellers can create boosts for their listings"
   ON public.boosts FOR INSERT TO authenticated
   WITH CHECK (auth.uid() = seller_id);
 ```
+
+---
+
+## After applying: always verify the DDL actually ran
+
+Recording a migration in `supabase_migrations.schema_migrations` is **not the same** as executing its SQL. Always sanity-check the live DB before trusting that a migration "applied":
+
+```bash
+# Regenerate types — if the new column/table appears, the DDL ran
+supabase gen types typescript --project-id <project-id> > lib/database.types.ts
+
+# Or query directly
+psql $DATABASE_URL -c "\d public.<table>"
+```
+
+If `apply_migration` (MCP) returned `{"success": true}` but the column still isn't there, something rolled back silently — investigate before continuing.
+
+---
+
+## Never run `supabase migration repair --status applied` on a NEW local migration
+
+This is the trap that produced the 2026-04-21 ghost-migration incident.
+
+`supabase migration repair --status applied <version>` inserts a row into `schema_migrations` (with the file's SQL stored verbatim) **without executing anything**. Once a version is in that table, every future `supabase db push` skips it forever.
+
+**Only safe use case:** acknowledging a migration that *already ran* through another channel (dashboard SQL editor, MCP `apply_migration`, manual `psql`). In other words: bringing local tracking in line with reality, never the other way around.
+
+**Unsafe use case:** "supabase db push complains about my new migration, let me just mark it applied so it stops complaining." The DDL never runs and the column you wanted will never exist. The local file looks correct, the migration table looks correct, and the bug only surfaces at runtime when code tries to read the missing column — usually months later.
+
+If `db push` is failing on a new migration, fix the underlying push error. Don't repair around it.
+
+---
+
+## TypeScript safety — the second line of defence
+
+The Supabase client in `lib/supabase.ts` is typed via `createClient<Database>(...)` using the generated types in `lib/database.types.ts`. **Always regenerate types after any DDL change**:
+
+```bash
+supabase gen types typescript --project-id <project-id> > lib/database.types.ts
+npx tsc --noEmit
+```
+
+If a column you're trying to read doesn't exist in production, `tsc` will catch it (the field is missing from the generated row type). This is the safety net the `as unknown as Listing[]` casts used to bypass — keep new code free of `as unknown as` against DB query results so the typed client can do its job.
+
+---
+
+## Recovery: re-applying a ghost migration
+
+If you discover a migration row that was repaired but never executed (columns missing despite being recorded as applied), the cleanest fix is:
+
+1. Re-run the original DDL via MCP `apply_migration` with a `reapply_<original_name>` name. The original migration's `IF NOT EXISTS` guards make it idempotent.
+2. Leave the original `supabase_migrations.schema_migrations` row in place — it now claims correct state.
+3. Regenerate types and run typecheck.
+4. The local migration file keeps its original timestamp; the new "reapply_" row is the audit trail of when the actual execution happened.
