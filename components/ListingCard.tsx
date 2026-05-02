@@ -9,40 +9,44 @@ import { Image } from 'expo-image';
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 
+// Aligned with the Supabase row shape. Only id/seller_id/title/price are
+// always present (every query selects them, all are NOT NULL in the DB).
+// Everything else is optional so partial-column SELECTs can satisfy this
+// shape without casts. Consumers must use `?.` / `??` defaults.
 export interface Listing {
   id: string;
   seller_id: string;
   title: string;
   price: number;
-  gender: string;
-  category: string;
-  images: string[];
-  condition: string;
-  size?: string;
-  occasion?: string;
-  colour?: string;
-  fabric?: string;
-  fabric_weight?: string;
-  measurements?: { chest?: number; waist?: number; length?: number; note?: string };
-  description?: string;
-  worn_at?: string;
-  status: 'available' | 'sold' | 'draft';
-  view_count?: number;
+  gender?: string;
+  category?: string;
+  condition?: string;
   save_count?: number;
-  created_at?: string;
+  images?: string[] | null;
+  size?: string | null;
+  occasion?: string | null;
+  colour?: string | null;
+  fabric?: string | null;
+  measurements?: { chest?: number; waist?: number; length?: number; note?: string } | null;
+  description?: string | null;
+  worn_at?: string | null;
+  status?: 'available' | 'sold' | 'draft' | string | null;
+  view_count?: number | null;
+  created_at?: string | null;
   isBoosted?: boolean;
+  is_boosted?: boolean | null;
   price_dropped_at?: string | null;
   original_price?: number | null;
-  seller: {
-    username: string;
-    avatar_url?: string;
-    rating_avg?: number;
-    rating_count?: number;
-    created_at?: string;
-    seller_tier?: string;
-    is_verified?: boolean;
-    tax_hold?: boolean;
-  };
+  seller?: {
+    username?: string | null;
+    avatar_url?: string | null;
+    rating_avg?: number | null;
+    rating_count?: number | null;
+    created_at?: string | null;
+    seller_tier?: string | null;
+    is_verified?: boolean | null;
+    tax_hold?: boolean | null;
+  } | null;
 }
 
 interface ListingCardProps {

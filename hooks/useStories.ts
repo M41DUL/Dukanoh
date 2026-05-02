@@ -50,18 +50,21 @@ export interface StoryListing {
   id: string;
   title: string;
   price: number;
-  category: string;
-  condition: string;
-  images: string[];
-  status: 'available' | 'sold';
+  category?: string;
+  condition?: string;
+  images?: string[] | null;
+  status?: string | null;
   viewed: boolean;
   is_boosted?: boolean;
-  published_at?: string;
+  published_at?: string | null;
   seller_id?: string;
-  seller: {
-    username: string;
-    avatar_url?: string;
-  };
+  seller?: {
+    username?: string | null;
+    avatar_url?: string | null;
+    seller_tier?: string | null;
+    is_verified?: boolean | null;
+    tax_hold?: boolean | null;
+  } | null;
 }
 
 const LISTING_SELECT =
@@ -154,7 +157,7 @@ export function useStories() {
       if (seenIds.has(l.id)) continue;
       if ((l as any).seller?.tax_hold) continue;
       seenIds.add(l.id);
-      merged.push({ ...(l as unknown as StoryListing), is_boosted: boostedIdSet.has(l.id) });
+      merged.push({ ...(l as StoryListing), is_boosted: boostedIdSet.has(l.id), viewed: false });
     }
 
     // Dedup to one listing per seller (keep most recently created — already ordered desc)
@@ -179,8 +182,8 @@ export function useStories() {
       if (aBoosted !== bBoosted) return aBoosted - bBoosted;
 
       // Then preferred category
-      const aPref = preferredCategories.has(a.category) ? 0 : 1;
-      const bPref = preferredCategories.has(b.category) ? 0 : 1;
+      const aPref = a.category && preferredCategories.has(a.category) ? 0 : 1;
+      const bPref = b.category && preferredCategories.has(b.category) ? 0 : 1;
       return aPref - bPref;
     });
 

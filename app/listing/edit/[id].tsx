@@ -43,7 +43,7 @@ import {
   CATEGORY_TO_GENDER,
 } from '@/lib/sellHelpers';
 
-const ALL_CATEGORIES = (Categories as unknown as string[]).filter(c => c !== 'All');
+const ALL_CATEGORIES = Categories.filter(c => c !== 'All');
 
 export default function EditListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -386,7 +386,7 @@ export default function EditListingScreen() {
           label="Gender"
           placeholder="Select gender"
           value={form.gender}
-          options={Genders as unknown as string[]}
+          options={Genders}
           onSelect={val => setForm(f => ({ ...f, gender: val }))}
         />
 

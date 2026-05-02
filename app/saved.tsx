@@ -37,8 +37,8 @@ export default function SavedScreen() {
     if (data) {
       setItems(
         data
-          .map(d => d.listing as unknown as Listing)
-          .filter(Boolean)
+          .map(d => d.listing as Listing | null)
+          .filter((l): l is Listing => l !== null)
           .filter(item => !blockedIds.includes(item.seller_id))
       );
     }

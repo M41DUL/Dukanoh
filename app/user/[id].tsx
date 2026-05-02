@@ -127,7 +127,7 @@ export default function SellerProfileScreen() {
       { data: collectionListings },
     ]) => {
       if (sellerData) setSeller(sellerData as Seller);
-      setListings((listingsData ?? []) as unknown as Listing[]);
+      setListings(listingsData ?? []);
       setSoldCount(sold ?? 0);
       if (rate !== null) setResponseRate(rate as number);
       setReviews((reviewsData ?? []) as Review[]);

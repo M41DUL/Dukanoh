@@ -44,7 +44,7 @@ export function SellerCollectionSheet({
       .eq('status', 'available')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        setListings((data ?? []) as unknown as Listing[]);
+        setListings(data ?? []);
         setLoading(false);
       });
   }, [visible, collectionId]);
