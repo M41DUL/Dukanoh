@@ -1167,10 +1167,10 @@ CREATE TABLE IF NOT EXISTS public.boosts (
   id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   listing_id  UUID REFERENCES public.listings (id) ON DELETE CASCADE NOT NULL,
   seller_id   UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
+  boosted_at  TIMESTAMPTZ DEFAULT NOW(),
   expires_at  TIMESTAMPTZ NOT NULL,
   amount_paid NUMERIC(10,2) DEFAULT 0,
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (listing_id)
+  UNIQUE (listing_id, boosted_at)
 );
 
 ALTER TABLE public.boosts ENABLE ROW LEVEL SECURITY;
@@ -1184,14 +1184,8 @@ CREATE POLICY "Sellers can create boosts"
   ON public.boosts FOR INSERT TO authenticated
   WITH CHECK ((select auth.uid()) = seller_id);
 
--- Sellers can delete (cancel) their own boosts
-CREATE POLICY "Sellers can delete their own boosts"
-  ON public.boosts FOR DELETE TO authenticated
-  USING ((select auth.uid()) = seller_id);
-
-CREATE INDEX idx_boosts_listing   ON public.boosts (listing_id);
-CREATE INDEX idx_boosts_seller    ON public.boosts (seller_id);
-CREATE INDEX idx_boosts_expires   ON public.boosts (expires_at);
+CREATE INDEX idx_boosts_listing_id ON public.boosts (listing_id);
+CREATE INDEX idx_boosts_seller_id  ON public.boosts (seller_id);
 
 CREATE INDEX idx_dispute_evidence_order ON public.dispute_evidence (order_id);
 
@@ -1578,3 +1572,68 @@ CREATE POLICY "Admins can read all feedback"
         AND value::jsonb @> to_jsonb(auth.uid()::text)
     )
   );
+
+-- =============================================================
+-- ADMIN TABLES
+-- Service-role access only. RLS is enabled with NO permissive policies,
+-- so anon and authenticated users have zero access.
+-- =============================================================
+
+-- Admin finance: monthly expense ledger
+CREATE TABLE IF NOT EXISTS public.admin_expenses (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date        DATE NOT NULL,
+  category    TEXT NOT NULL CHECK (category IN (
+                'stripe_fees',
+                'hosting_vercel',
+                'hosting_supabase',
+                'legal',
+                'marketing',
+                'subscriptions',
+                'other'
+              )),
+  description TEXT NOT NULL,
+  amount      NUMERIC(10, 2) NOT NULL CHECK (amount > 0),
+  receipt_url TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.admin_expenses ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS admin_expenses_date_idx     ON public.admin_expenses (date DESC);
+CREATE INDEX IF NOT EXISTS admin_expenses_category_idx ON public.admin_expenses (category);
+
+-- Admin compliance: each time admin re-confirms moderation rules
+CREATE TABLE IF NOT EXISTS public.admin_compliance_log (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rules_summary TEXT NOT NULL,
+  confirmed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.admin_compliance_log ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS admin_compliance_log_confirmed_at_idx ON public.admin_compliance_log (confirmed_at DESC);
+
+-- Admin dispute audit log
+CREATE TABLE IF NOT EXISTS public.admin_dispute_log (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id    UUID NOT NULL,
+  action      TEXT NOT NULL CHECK (action IN ('release_seller', 'refund_buyer')),
+  resolved_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.admin_dispute_log ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS admin_dispute_log_order_id_idx    ON public.admin_dispute_log (order_id);
+CREATE INDEX IF NOT EXISTS admin_dispute_log_resolved_at_idx ON public.admin_dispute_log (resolved_at DESC);
+
+-- Admin failed-login attempts: persistent rate limiting for the admin UI
+CREATE TABLE IF NOT EXISTS public.admin_login_attempts (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  ip           TEXT        NOT NULL,
+  attempted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.admin_login_attempts ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS admin_login_attempts_ip_time_idx ON public.admin_login_attempts (ip, attempted_at);
