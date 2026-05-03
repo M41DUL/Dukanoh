@@ -300,6 +300,9 @@ export function ProProfileTab() {
   }, [user, newColName]);
 
   const handleAssignCollection = useCallback(async (listingId: string, collectionId: string | null) => {
+    // TODO(tanstack-migrate): when this component migrates, wrap this update
+    // in a useAssignListingCollection hook in lib/mutations.ts that
+    // invalidates queryKeys.myListings.all.
     await supabase.from('listings').update({ collection_id: collectionId }).eq('id', listingId);
     setAssignSheetListing(null);
     setDash(prev => {

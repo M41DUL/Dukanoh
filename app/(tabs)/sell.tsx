@@ -382,6 +382,9 @@ export default function SellScreen() {
     try {
       const imageUrls = await uploadImages();
 
+      // TODO(tanstack-migrate): when this screen migrates, wrap the insert
+      // in a useCreateListing hook in lib/mutations.ts that invalidates
+      // queryKeys.myListings.all so the new draft/listing appears in My items.
       const { data: insertedRow, error } = await supabase.from('listings').insert({
         seller_id: user.id,
         title: form.title.trim(),

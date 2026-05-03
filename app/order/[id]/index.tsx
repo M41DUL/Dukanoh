@@ -211,8 +211,9 @@ export default function OrderDetailScreen() {
             // TODO(tanstack-migrate): when this screen migrates, wrap the
             // cancel flow (refund + orders update + listing reset +
             // cancellation_strikes insert) in a useCancelOrder hook in
-            // lib/mutations.ts that invalidates queryKeys.orders.all
-            // (and queryKeys.listings.all once that exists).
+            // lib/mutations.ts that invalidates queryKeys.orders.all and
+            // queryKeys.myListings.all (the listing returns to the seller's
+            // Selling tab).
             await supabase.from('orders').update({
               status: 'cancelled',
               cancelled_at: new Date().toISOString(),

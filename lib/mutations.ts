@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Listing } from '@/components/ListingCard';
+import { extractStoragePath } from './imageUtils';
 import { supabase } from './supabase';
 import { queryKeys } from './queryKeys';
 
@@ -214,5 +215,59 @@ export function useAppealDispute() {
       if (error) throw error;
     },
     onSuccess: () => invalidateOrders(queryClient),
+  });
+}
+
+// ─── Listings ─────────────────────────────────────────────────
+
+interface DeleteListingArgs {
+  listingId: string;
+  status: Listing['status'];
+  images: string[] | null | undefined;
+}
+
+// Sentinel error so callers can show a specific alert instead of a generic one
+// when a published listing still has an in-flight order.
+export class ActiveOrderExistsError extends Error {
+  constructor() {
+    super('Listing has an active order in progress');
+    this.name = 'ActiveOrderExistsError';
+  }
+}
+
+/**
+ * Deletes a listing: checks for active orders (only for published listings),
+ * removes storage files, then deletes the row. Invalidates `myListings.all`
+ * on success so the My items lists refetch.
+ *
+ * NOTE: app/listing/edit/[id].tsx still deletes inline. It will switch to
+ * this hook when that screen is migrated.
+ */
+export function useDeleteListing() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ listingId, status, images }: DeleteListingArgs) => {
+      if (status === 'available') {
+        const { count, error: countError } = await supabase
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('listing_id', listingId)
+          .not('status', 'in', '(cancelled,completed,resolved)');
+        if (countError) throw countError;
+        if (count && count > 0) throw new ActiveOrderExistsError();
+      }
+      const storagePaths = (images ?? [])
+        .map(url => extractStoragePath(url, 'listings'))
+        .filter((p): p is string => p !== null);
+      if (storagePaths.length > 0) {
+        await supabase.storage.from('listings').remove(storagePaths);
+      }
+      const { error } = await supabase.from('listings').delete().eq('id', listingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+    },
   });
 }
