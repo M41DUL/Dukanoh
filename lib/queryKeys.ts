@@ -6,13 +6,12 @@
  *   invalidateQueries({ queryKey: queryKeys.<feature>.all })
  * clears every cached entry under that feature.
  *
- * Real keys are added per migration — this file is intentionally a skeleton.
+ * Real keys are added per migration — extend as new screens are migrated.
  */
 export const queryKeys = {
-  // Example shape (commented out until savedItems is migrated):
-  // savedItems: {
-  //   all: ['saved-items'] as const,
-  //   list: (userId?: string) =>
-  //     [...queryKeys.savedItems.all, 'list', userId] as const,
-  // },
+  savedItems: {
+    all: ['saved-items'] as const,
+    list: (userId?: string) =>
+      [...queryKeys.savedItems.all, 'list', userId] as const,
+  },
 } as const;
