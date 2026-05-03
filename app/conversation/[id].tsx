@@ -100,6 +100,8 @@ export default function ConversationScreen() {
           listing_status: c.listing?.status ?? 'available',
         });
         // Mark as read if the last message was from the other person
+        // TODO(tanstack-migrate): wrap this update in a useMarkConversationRead hook
+        // in lib/mutations.ts that invalidates queryKeys.inbox.all on success.
         if (c.last_message_sender_id && c.last_message_sender_id !== user.id) {
           supabase
             .from('conversations')
@@ -123,6 +125,8 @@ export default function ConversationScreen() {
         payload => {
           setMessages(prev => [payload.new as Message, ...prev]);
           // Mark as read immediately since the user is viewing the conversation
+          // TODO(tanstack-migrate): wrap this update in a useMarkConversationRead hook
+          // in lib/mutations.ts that invalidates queryKeys.inbox.all on success.
           const msg = payload.new as Message;
           if (user && msg.sender_id !== user.id) {
             supabase
@@ -147,6 +151,10 @@ export default function ConversationScreen() {
     const receiverId = user.id === meta.buyer_id ? meta.seller_id : meta.buyer_id;
     const content = accepted ? `__OFFER_ACCEPTED__:${offerId}:${amount}` : `__OFFER_DECLINED__:${offerId}:${amount}`;
 
+    // TODO(tanstack-migrate): wrap this messages.insert in a useSendMessage hook
+    // in lib/mutations.ts. The DB trigger updates conversations.last_message, so
+    // realtime catches it for inbox; on conversation/[id].tsx migration, the hook
+    // should also invalidate that screen's per-conversation message-list key.
     const { error } = await supabase.from('messages').insert({
       id: Crypto.randomUUID(),
       conversation_id: id,
@@ -169,6 +177,10 @@ export default function ConversationScreen() {
 
     const receiverId = user.id === meta.buyer_id ? meta.seller_id : meta.buyer_id;
 
+    // TODO(tanstack-migrate): wrap this messages.insert in a useSendMessage hook
+    // in lib/mutations.ts. The DB trigger updates conversations.last_message, so
+    // realtime catches it for inbox; on conversation/[id].tsx migration, the hook
+    // should also invalidate that screen's per-conversation message-list key.
     const { error } = await supabase.from('messages').insert({
       id: Crypto.randomUUID(),
       conversation_id: id,
