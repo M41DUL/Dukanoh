@@ -218,6 +218,62 @@ export function useAppealDispute() {
   });
 }
 
+// ─── Conversations ────────────────────────────────────────────
+
+interface DeleteConversationArgs {
+  conversationId: string;
+  isBuyer: boolean;
+  userId: string;
+}
+
+/**
+ * Soft-deletes a conversation for the current user (sets either
+ * `deleted_by_buyer` or `deleted_by_seller` to true depending on role).
+ *
+ * Optimistically removes the row from the cached inbox list, rolls back on
+ * error, and invalidates `inbox.all` on success. The other party still sees
+ * the conversation — this is a per-side hide, not a true delete.
+ *
+ * NOTE: callers in app/listing/[id].tsx (conversation insert), app/conversation/[id].tsx
+ * (mark-as-read updates), and message inserts in app/listing/[id].tsx +
+ * app/conversation/[id].tsx all affect inbox data via DB triggers and the
+ * realtime subscription. They carry TODO(tanstack-migrate) breadcrumbs.
+ */
+export function useDeleteConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ conversationId, isBuyer }: DeleteConversationArgs) => {
+      const field = isBuyer ? 'deleted_by_buyer' : 'deleted_by_seller';
+      const { error } = await supabase
+        .from('conversations')
+        .update({ [field]: true })
+        .eq('id', conversationId);
+      if (error) throw error;
+    },
+    onMutate: async ({ conversationId, userId }) => {
+      const listKey = queryKeys.inbox.list(userId);
+      await queryClient.cancelQueries({ queryKey: listKey });
+      const previous = queryClient.getQueryData<{ id: string }[]>(listKey);
+      if (previous) {
+        queryClient.setQueryData(
+          listKey,
+          previous.filter(c => c.id !== conversationId),
+        );
+      }
+      return { previous, listKey };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.listKey, context.previous);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inbox.all });
+    },
+  });
+}
+
 // ─── Listings ─────────────────────────────────────────────────
 
 interface DeleteListingArgs {

@@ -29,4 +29,9 @@ export const queryKeys = {
     detail: (id?: string) =>
       [...queryKeys.listings.all, 'detail', id] as const,
   },
+  inbox: {
+    all: ['inbox'] as const,
+    list: (userId?: string) =>
+      [...queryKeys.inbox.all, 'list', userId] as const,
+  },
 } as const;

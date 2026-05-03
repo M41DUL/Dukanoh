@@ -227,6 +227,8 @@ export default function ListingDetailScreen() {
       .eq('buyer_id', user.id)
       .maybeSingle();
     if (existing) return existing.id as string;
+    // TODO(tanstack-migrate): wrap this insert in a useCreateConversation hook
+    // in lib/mutations.ts that invalidates queryKeys.inbox.all on success.
     const { data: created, error } = await supabase
       .from('conversations')
       .insert({ listing_id: id, buyer_id: user.id, seller_id: listing.seller_id })
@@ -466,6 +468,10 @@ export default function ListingDetailScreen() {
       setOfferSending(false);
       return;
     }
+    // TODO(tanstack-migrate): wrap this messages.insert in a useSendMessage hook
+    // in lib/mutations.ts. The DB trigger updates conversations.last_message, so
+    // realtime catches it for inbox; on conversation/[id].tsx migration, the hook
+    // should also invalidate that screen's per-conversation message-list key.
     const { error } = await supabase.from('messages').insert({
       id: Crypto.randomUUID(),
       conversation_id: convId,

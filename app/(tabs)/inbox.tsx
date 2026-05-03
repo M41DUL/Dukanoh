@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, View, FlatList, Text, TouchableOpacity, StyleSheet, RefreshControl, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
 import { Swipeable } from 'react-native-gesture-handler';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Avatar } from '@/components/Avatar';
@@ -11,7 +11,10 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Divider } from '@/components/Divider';
 import { Typography, Spacing, BorderRadius, FontFamily, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { supabase } from '@/lib/supabase';
+import { queryKeys } from '@/lib/queryKeys';
+import { useDeleteConversation } from '@/lib/mutations';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlocked } from '@/context/BlockedContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,86 +33,124 @@ interface Conversation {
 export default function InboxScreen() {
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
-  const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastFetchedAt = useRef<number>(0);
-  const INBOX_STALE_MS = 30_000;
 
-  const fetchConversations = useCallback(async () => {
+  const conversationsQuery = useQuery({
+    queryKey: queryKeys.inbox.list(user?.id),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select(`
+          id,
+          listing_id,
+          buyer_id,
+          seller_id,
+          last_message,
+          last_message_sender_id,
+          updated_at,
+          deleted_by_buyer,
+          deleted_by_seller,
+          buyer:users!conversations_buyer_id_fkey ( username, avatar_url, is_official ),
+          seller:users!conversations_seller_id_fkey ( username, avatar_url, is_official ),
+          listing:listings!conversations_listing_id_fkey ( title )
+        `)
+        .or(`buyer_id.eq.${user!.id},seller_id.eq.${user!.id}`)
+        .order('updated_at', { ascending: false })
+        .limit(50)
+        .abortSignal(signal);
+      if (error) throw error;
+      return (data ?? []).map((c: any) => {
+        const isBuyer = c.buyer_id === user!.id;
+        const other = isBuyer ? c.seller : c.buyer;
+        return {
+          id: c.id,
+          listing_id: c.listing_id,
+          buyer_id: c.buyer_id,
+          seller_id: c.seller_id,
+          listing_title: c.listing?.title ?? '',
+          is_buyer: isBuyer,
+          other_user: { username: other?.username ?? 'Unknown', avatar_url: other?.avatar_url, is_official: other?.is_official ?? false },
+          last_message: c.last_message ?? '',
+          updated_at: c.updated_at,
+          unread: !!c.last_message_sender_id && c.last_message_sender_id !== user!.id,
+          deleted_by_buyer: c.deleted_by_buyer,
+          deleted_by_seller: c.deleted_by_seller,
+        };
+      });
+    },
+    enabled: !!user,
+  });
+
+  useRefreshOnFocus(conversationsQuery.refetch);
+
+  // Realtime: any change to a conversation involving this user invalidates the
+  // inbox cache so the query refetches. Payload row shape (raw conversations
+  // row) does not match the cached, mapped shape, so invalidate-and-refetch is
+  // safer than setQueryData.
+  useEffect(() => {
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from('conversations')
-      .select(`
-        id,
-        listing_id,
-        buyer_id,
-        seller_id,
-        last_message,
-        last_message_sender_id,
-        updated_at,
-        deleted_by_buyer,
-        deleted_by_seller,
-        buyer:users!conversations_buyer_id_fkey ( username, avatar_url, is_official ),
-        seller:users!conversations_seller_id_fkey ( username, avatar_url, is_official ),
-        listing:listings!conversations_listing_id_fkey ( title )
-      `)
-      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-      .order('updated_at', { ascending: false })
-      .limit(50);
+    const handleChange = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inbox.all });
+    };
 
-    if (error) {
-      Alert.alert('Error', 'Could not load conversations.');
-    } else if (data) {
-      const mapped: Conversation[] = data
-        .filter((c: any) => {
-          const otherId = c.buyer_id === user.id ? c.seller_id : c.buyer_id;
-          if (blockedIds.includes(otherId)) return false;
-          // Filter soft-deleted
-          if (c.buyer_id === user.id && c.deleted_by_buyer) return false;
-          if (c.seller_id === user.id && c.deleted_by_seller) return false;
-          return true;
-        })
-        .map((c: any) => {
-          const isBuyer = c.buyer_id === user.id;
-          const other = isBuyer ? c.seller : c.buyer;
-          return {
-            id: c.id,
-            listing_id: c.listing_id,
-            listing_title: c.listing?.title ?? '',
-            is_buyer: isBuyer,
-            other_user: { username: other?.username ?? 'Unknown', avatar_url: other?.avatar_url, is_official: other?.is_official ?? false },
-            last_message: c.last_message ?? '',
-            updated_at: c.updated_at,
-            unread: !!c.last_message_sender_id && c.last_message_sender_id !== user.id,
-          };
-        });
-      setConversations(mapped);
-      lastFetchedAt.current = Date.now();
-    }
+    const channel = supabase
+      .channel(`inbox:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversations', filter: `buyer_id=eq.${user.id}` },
+        handleChange
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversations', filter: `seller_id=eq.${user.id}` },
+        handleChange
+      )
+      .subscribe();
 
-    setLoading(false);
-  }, [user, blockedIds]);
+    return () => {
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
 
-  const deleteConversation = useCallback(async (conv: Conversation) => {
+  const conversations = useMemo<Conversation[]>(() => {
+    if (!user || !conversationsQuery.data) return [];
+    return conversationsQuery.data
+      .filter(c => {
+        const otherId = c.buyer_id === user.id ? c.seller_id : c.buyer_id;
+        if (blockedIds.includes(otherId)) return false;
+        if (c.buyer_id === user.id && c.deleted_by_buyer) return false;
+        if (c.seller_id === user.id && c.deleted_by_seller) return false;
+        return true;
+      })
+      .map(c => ({
+        id: c.id,
+        listing_id: c.listing_id,
+        listing_title: c.listing_title,
+        is_buyer: c.is_buyer,
+        other_user: c.other_user,
+        last_message: c.last_message,
+        updated_at: c.updated_at,
+        unread: c.unread,
+      }));
+  }, [user, conversationsQuery.data, blockedIds]);
+
+  const deleteConversationMutation = useDeleteConversation();
+
+  const deleteConversation = useCallback((conv: Conversation) => {
     if (!user) return;
-    const field = conv.is_buyer ? 'deleted_by_buyer' : 'deleted_by_seller';
-    const { error } = await supabase
-      .from('conversations')
-      .update({ [field]: true })
-      .eq('id', conv.id);
-    if (error) {
-      Alert.alert('Error', 'Could not delete conversation.');
-      return;
-    }
-    setConversations(prev => prev.filter(c => c.id !== conv.id));
-  }, [user]);
+    deleteConversationMutation.mutate(
+      { conversationId: conv.id, isBuyer: conv.is_buyer, userId: user.id },
+      {
+        onError: () => Alert.alert('Error', 'Could not delete conversation.'),
+      }
+    );
+  }, [user, deleteConversationMutation]);
 
   const confirmDelete = useCallback((conv: Conversation) => {
     Alert.alert(
@@ -122,73 +163,6 @@ export default function InboxScreen() {
       { cancelable: true }
     );
   }, [deleteConversation]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchConversations();
-    setRefreshing(false);
-  }, [fetchConversations]);
-
-  useFocusEffect(useCallback(() => {
-    if (Date.now() - lastFetchedAt.current > INBOX_STALE_MS) {
-      fetchConversations();
-    }
-  }, [fetchConversations]));
-
-  // Realtime: listen for conversation updates (new messages update last_message + updated_at)
-  const handleRealtimeChange = useCallback((payload: any) => {
-    if (!user) return;
-    const { eventType, new: row } = payload;
-
-    const debouncedFetch = () => {
-      if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
-      fetchDebounceRef.current = setTimeout(() => { fetchConversations(); }, 300);
-    };
-
-    if (eventType === 'UPDATE' && row) {
-      setConversations(prev => {
-        const idx = prev.findIndex(c => c.id === row.id);
-        if (idx === -1) {
-          debouncedFetch();
-          return prev;
-        }
-        const updated = [...prev];
-        updated[idx] = {
-          ...updated[idx],
-          last_message: row.last_message ?? '',
-          updated_at: row.updated_at,
-          unread: !!row.last_message_sender_id && row.last_message_sender_id !== user.id,
-        };
-        updated.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-        return updated;
-      });
-    } else {
-      debouncedFetch();
-    }
-  }, [user, fetchConversations]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel(`inbox:${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations', filter: `buyer_id=eq.${user.id}` },
-        handleRealtimeChange
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations', filter: `seller_id=eq.${user.id}` },
-        handleRealtimeChange
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-      supabase.removeChannel(channel);
-    };
-  }, [user, handleRealtimeChange]);
 
   // Android: toggle selection
   const toggleSelect = useCallback((id: string) => {
@@ -315,11 +289,26 @@ export default function InboxScreen() {
     return rowContent;
   };
 
-  if (loading) {
+  if (conversationsQuery.isLoading) {
     return (
       <ScreenWrapper>
         <Header title="Inbox" />
         <LoadingSpinner />
+      </ScreenWrapper>
+    );
+  }
+
+  if (conversationsQuery.isError) {
+    return (
+      <ScreenWrapper>
+        <Header title="Inbox" />
+        <EmptyState
+          icon={<Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />}
+          heading="Couldn't load conversations"
+          subtext="Check your connection and try again."
+          ctaLabel="Retry"
+          onCta={() => conversationsQuery.refetch()}
+        />
       </ScreenWrapper>
     );
   }
@@ -346,7 +335,13 @@ export default function InboxScreen() {
         ItemSeparatorComponent={() => <Divider style={styles.separator} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textSecondary} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={conversationsQuery.isRefetching}
+            onRefresh={() => conversationsQuery.refetch()}
+            tintColor={colors.textSecondary}
+          />
+        }
         ListEmptyComponent={
           <EmptyState
             icon={<Ionicons name="chatbubbles-outline" size={48} color={colors.textSecondary} />}
