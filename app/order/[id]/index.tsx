@@ -143,6 +143,8 @@ export default function OrderDetailScreen() {
       return;
     }
     setSubmitting(true);
+    // TODO(tanstack-migrate): replace with useMarkOrderShipped from
+    // lib/mutations.ts — invalidates queryKeys.orders.all
     const { error } = await supabase.rpc('mark_order_shipped', {
       p_order_id:  order.id,
       p_seller_id: user.id,
@@ -171,6 +173,8 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             if (!user) return;
             setSubmitting(true);
+            // TODO(tanstack-migrate): replace with useConfirmOrderReceipt
+            // from lib/mutations.ts — invalidates queryKeys.orders.all
             await supabase.rpc('confirm_order_receipt', {
               p_order_id: order.id,
               p_buyer_id: user.id,
@@ -204,6 +208,11 @@ export default function OrderDetailScreen() {
               return;
             }
             const cancelledBy = isBuyer ? 'buyer' : 'seller';
+            // TODO(tanstack-migrate): when this screen migrates, wrap the
+            // cancel flow (refund + orders update + listing reset +
+            // cancellation_strikes insert) in a useCancelOrder hook in
+            // lib/mutations.ts that invalidates queryKeys.orders.all
+            // (and queryKeys.listings.all once that exists).
             await supabase.from('orders').update({
               status: 'cancelled',
               cancelled_at: new Date().toISOString(),
@@ -235,6 +244,8 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             if (!user || !order) return;
             setSubmitting(true);
+            // TODO(tanstack-migrate): replace with useWithdrawDispute from
+            // lib/mutations.ts — invalidates queryKeys.orders.all
             await supabase.from('orders').update({
               status: 'completed',
               delivered_at: new Date().toISOString(),

@@ -121,6 +121,10 @@ export default function AdminDisputesScreen() {
     const now = new Date().toISOString();
     const appealDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    // TODO(tanstack-migrate): when this screen migrates, wrap the
+    // resolve flow (optional refund + orders update + listing reset)
+    // in a useResolveDispute hook in lib/mutations.ts that invalidates
+    // queryKeys.orders.all (and queryKeys.listings.all once that exists).
     if (outcome === 'refund_buyer') {
       // Refund fires immediately; seller can appeal but financial reversal requires manual admin action
       const refundRes = await edgeFetch('stripe-refund', { order_id: modalOrder.id });
