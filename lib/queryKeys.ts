@@ -24,6 +24,11 @@ export const queryKeys = {
     list: (userId?: string, tab?: 'selling' | 'drafts' | 'bought') =>
       [...queryKeys.myListings.all, 'list', userId, tab] as const,
   },
+  listings: {
+    all: ['listings'] as const,
+    detail: (id?: string) =>
+      [...queryKeys.listings.all, 'detail', id] as const,
+  },
   inbox: {
     all: ['inbox'] as const,
     list: (userId?: string) =>

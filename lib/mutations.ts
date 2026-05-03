@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Listing } from '@/components/ListingCard';
-import { extractStoragePath } from './imageUtils';
+import { compressImage, extractStoragePath } from './imageUtils';
 import { supabase } from './supabase';
 import { queryKeys } from './queryKeys';
 
@@ -294,10 +294,8 @@ export class ActiveOrderExistsError extends Error {
 /**
  * Deletes a listing: checks for active orders (only for published listings),
  * removes storage files, then deletes the row. Invalidates `myListings.all`
- * on success so the My items lists refetch.
- *
- * NOTE: app/listing/edit/[id].tsx still deletes inline. It will switch to
- * this hook when that screen is migrated.
+ * and `listings.all` on success so the My items lists and any cached detail
+ * view refetch.
  */
 export function useDeleteListing() {
   const queryClient = useQueryClient();
@@ -323,6 +321,85 @@ export function useDeleteListing() {
       if (error) throw error;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+    },
+  });
+}
+
+interface UpdateListingPatch {
+  title: string;
+  description: string | null;
+  price: number;
+  gender: string | undefined;
+  category: string;
+  condition: string;
+  size: string | null;
+  occasion: string | null;
+  colour: string | null;
+  fabric: string | null;
+  measurements: { note: string } | null;
+  worn_at: string | null;
+}
+
+interface UpdateListingArgs {
+  listingId: string;
+  userId: string;
+  patch: UpdateListingPatch;
+  images: string[];
+  newStatus: 'draft' | 'available';
+}
+
+// Compress + upload any local image URIs in `images`; pass through existing
+// http(s) URLs unchanged. Returns the final ordered list of public URLs.
+async function uploadListingImages(images: string[], userId: string): Promise<string[]> {
+  const result: string[] = [];
+  for (const uri of images) {
+    if (uri.startsWith('http')) {
+      result.push(uri);
+      continue;
+    }
+    const compressed = await compressImage(uri);
+    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+    const response = await fetch(compressed);
+    const arrayBuffer = await response.arrayBuffer();
+    const { error } = await supabase.storage
+      .from('listings')
+      .upload(fileName, arrayBuffer, {
+        contentType: 'image/jpeg',
+        cacheControl: '31536000',
+      });
+    if (error) throw new Error(`Failed to upload photo: ${error.message}`);
+    const { data } = supabase.storage.from('listings').getPublicUrl(fileName);
+    result.push(data.publicUrl);
+  }
+  return result;
+}
+
+/**
+ * Saves an edited listing: uploads any newly-added local images, then writes
+ * the patch + status (and bumps `published_at` when publishing) to the row.
+ * Invalidates `listings.all` and `myListings.all` on success.
+ */
+export function useUpdateListing() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ listingId, userId, patch, images, newStatus }: UpdateListingArgs) => {
+      const imageUrls = await uploadListingImages(images, userId);
+      const { error } = await supabase
+        .from('listings')
+        .update({
+          ...patch,
+          images: imageUrls,
+          status: newStatus,
+          ...(newStatus === 'available' ? { published_at: new Date().toISOString() } : {}),
+        })
+        .eq('id', listingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
     },
   });
