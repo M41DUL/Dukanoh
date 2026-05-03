@@ -185,6 +185,9 @@ export default function EditListingScreen() {
               if (storagePaths.length > 0) {
                 await supabase.storage.from('listings').remove(storagePaths);
               }
+              // TODO(tanstack-migrate): replace this whole try block with useDeleteListing
+              // from lib/mutations.ts — it owns the active-order check + storage cleanup +
+              // delete and invalidates queryKeys.myListings.all on success.
               const { error } = await supabase.from('listings').delete().eq('id', id);
               if (error) throw error;
               router.back();

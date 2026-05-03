@@ -265,6 +265,10 @@ export default function ListingDetailScreen() {
           text: 'Mark as sold',
           style: 'destructive',
           onPress: async () => {
+            // TODO(tanstack-migrate): when this screen migrates, wrap this
+            // status update in a useUpdateListingStatus hook in lib/mutations.ts
+            // that invalidates queryKeys.myListings.all (status flips Active→Sold
+            // in the seller's Selling tab).
             await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id ?? '');
             setListing(prev => prev ? { ...prev, status: 'sold' } : prev);
           },
@@ -275,6 +279,10 @@ export default function ListingDetailScreen() {
   };
 
   const handlePublish = async () => {
+    // TODO(tanstack-migrate): when this screen migrates, wrap this status
+    // update in a useUpdateListingStatus hook in lib/mutations.ts that
+    // invalidates queryKeys.myListings.all (draft→available moves the
+    // listing from the Drafts tab to the Selling tab).
     await supabase.from('listings').update({ status: 'available' }).eq('id', id ?? '');
     setListing(prev => prev ? { ...prev, status: 'available' } : prev);
     Alert.alert('Published!', 'Your listing is now live on the feed.');
@@ -415,6 +423,10 @@ export default function ListingDetailScreen() {
 
   const handleDuplicate = async () => {
     if (!user || !listing || !listing.category || !listing.condition) return;
+    // TODO(tanstack-migrate): when this screen migrates, wrap this insert
+    // in a useDuplicateListing (or shared useCreateListing) hook in
+    // lib/mutations.ts that invalidates queryKeys.myListings.all so the
+    // new draft appears in the Drafts tab.
     const { data, error } = await supabase.from('listings').insert({
       seller_id: user.id,
       title: listing.title,
