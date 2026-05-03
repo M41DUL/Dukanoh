@@ -40,10 +40,14 @@ export function SavedProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     if (savedIds.has(listingId)) {
       setSavedIds(prev => { const s = new Set(prev); s.delete(listingId); return s; });
+      // TODO(tanstack-migrate): replace with useToggleSavedItem from
+      // lib/mutations.ts — invalidates queryKeys.savedItems.all
       const { error } = await supabase.from('saved_items').delete().eq('user_id', user.id).eq('listing_id', listingId);
       if (error) setSavedIds(prev => new Set([...prev, listingId]));
     } else {
       setSavedIds(prev => new Set([...prev, listingId]));
+      // TODO(tanstack-migrate): replace with useToggleSavedItem from
+      // lib/mutations.ts — invalidates queryKeys.savedItems.all
       const { error } = await supabase.from('saved_items').insert({
         user_id: user.id,
         listing_id: listingId,
