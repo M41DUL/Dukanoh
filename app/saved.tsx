@@ -6,8 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { ListingCard, Listing } from '@/components/ListingCard';
-import { EmptyState } from '@/components/EmptyState';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { QueryStateView } from '@/components/QueryStateView';
 import { Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useBlocked } from '@/context/BlockedContext';
@@ -53,23 +52,16 @@ export default function SavedScreen() {
   return (
     <ScreenWrapper>
       <Header title="Saved" showBack />
-      {query.isLoading ? (
-        <LoadingSpinner />
-      ) : query.isError ? (
-        <EmptyState
-          icon={<Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />}
-          heading="Couldn't load saved items"
-          subtext="Check your connection and try again."
-          ctaLabel="Retry"
-          onCta={() => query.refetch()}
-        />
-      ) : items.length === 0 ? (
-        <EmptyState
-          icon={<Ionicons name="heart-outline" size={48} color={colors.textSecondary} />}
-          heading="Nothing saved yet"
-          subtext="Tap the heart on any piece to save it here."
-        />
-      ) : (
+      <QueryStateView
+        query={query}
+        isEmpty={items.length === 0}
+        errorHeading="Couldn't load saved items"
+        empty={{
+          icon: <Ionicons name="heart-outline" size={48} color={colors.textSecondary} />,
+          heading: 'Nothing saved yet',
+          subtext: 'Tap the heart on any piece to save it here.',
+        }}
+      >
         <FlatList
           data={items}
           keyExtractor={item => item.id}
@@ -85,7 +77,7 @@ export default function SavedScreen() {
             />
           )}
         />
-      )}
+      </QueryStateView>
     </ScreenWrapper>
   );
 }

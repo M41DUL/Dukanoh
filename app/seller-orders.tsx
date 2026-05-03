@@ -3,12 +3,10 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
-import { EmptyState } from '@/components/EmptyState';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { QueryStateView } from '@/components/QueryStateView';
 import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -126,22 +124,15 @@ export default function SellerOrdersScreen() {
     <ScreenWrapper>
       <Header title="Orders received" showBack />
 
-      {ordersQuery.isLoading ? (
-        <LoadingSpinner />
-      ) : ordersQuery.isError ? (
-        <EmptyState
-          icon={<Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />}
-          heading="Couldn't load orders"
-          subtext="Check your connection and try again."
-          ctaLabel="Retry"
-          onCta={() => ordersQuery.refetch()}
-        />
-      ) : orders.length === 0 ? (
-        <EmptyState
-          heading="No orders yet"
-          subtext="When buyers purchase your listings, their orders will appear here."
-        />
-      ) : (
+      <QueryStateView
+        query={ordersQuery}
+        isEmpty={orders.length === 0}
+        errorHeading="Couldn't load orders"
+        empty={{
+          heading: 'No orders yet',
+          subtext: 'When buyers purchase your listings, their orders will appear here.',
+        }}
+      >
         <FlatList
           data={[...active, ...past]}
           keyExtractor={item => item.id}
@@ -155,7 +146,7 @@ export default function SellerOrdersScreen() {
             ) : null
           }
         />
-      )}
+      </QueryStateView>
     </ScreenWrapper>
   );
 }

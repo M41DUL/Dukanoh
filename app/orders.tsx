@@ -9,13 +9,11 @@ import {
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { TabBar } from '@/components/TabBar';
-import { EmptyState } from '@/components/EmptyState';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { QueryStateView } from '@/components/QueryStateView';
 import { getImageUrl } from '@/lib/imageUtils';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
@@ -227,24 +225,12 @@ export default function OrdersScreen() {
         })}
       </View>
 
-      {activeQuery.isLoading ? (
-        <LoadingSpinner />
-      ) : activeQuery.isError ? (
-        <EmptyState
-          icon={<Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />}
-          heading="Couldn't load orders"
-          subtext="Check your connection and try again."
-          ctaLabel="Retry"
-          onCta={() => activeQuery.refetch()}
-        />
-      ) : data.length === 0 ? (
-        <EmptyState
-          heading={empty.heading}
-          subtext={empty.subtext}
-          ctaLabel={empty.ctaLabel}
-          onCta={empty.onCta}
-        />
-      ) : (
+      <QueryStateView
+        query={activeQuery}
+        isEmpty={data.length === 0}
+        errorHeading="Couldn't load orders"
+        empty={empty}
+      >
         <FlatList
           key={activeTab}
           data={data}
@@ -262,7 +248,7 @@ export default function OrdersScreen() {
             />
           )}
         />
-      )}
+      </QueryStateView>
     </ScreenWrapper>
   );
 }
