@@ -1,8 +1,10 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { EmptyState } from '@/components/EmptyState';
@@ -10,7 +12,9 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { supabase } from '@/lib/supabase';
+import { queryKeys } from '@/lib/queryKeys';
 
 type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
 
@@ -54,27 +58,29 @@ export default function SellerOrdersScreen() {
   const { user } = useAuth();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchOrders = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    const { data } = await supabase
-      .from('orders')
-      .select(`
-        id, buyer_id, status, item_price, created_at,
-        listing:listings(title, images),
-        buyer:users!orders_buyer_id_fkey(username)
-      `)
-      .eq('seller_id', user.id)
-      .order('created_at', { ascending: false });
-    setOrders((data ?? []).map(o => ({ ...o, status: o.status as OrderStatus })));
-    setLoading(false);
-  }, [user]);
+  const ordersQuery = useQuery({
+    queryKey: queryKeys.orders.list(user?.id, 'sold'),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id, buyer_id, status, item_price, created_at,
+          listing:listings(title, images),
+          buyer:users!orders_buyer_id_fkey(username)
+        `)
+        .eq('seller_id', user!.id)
+        .order('created_at', { ascending: false })
+        .abortSignal(signal);
+      if (error) throw error;
+      return (data ?? []).map(o => ({ ...o, status: o.status as OrderStatus })) as Order[];
+    },
+    enabled: !!user,
+  });
 
-  useFocusEffect(useCallback(() => { fetchOrders(); }, [fetchOrders]));
+  useRefreshOnFocus(ordersQuery.refetch);
 
+  const orders = ordersQuery.data ?? [];
   const active = orders.filter(o => !['completed', 'cancelled'].includes(o.status));
   const past = orders.filter(o => ['completed', 'cancelled'].includes(o.status));
 
@@ -120,8 +126,16 @@ export default function SellerOrdersScreen() {
     <ScreenWrapper>
       <Header title="Orders received" showBack />
 
-      {loading ? (
+      {ordersQuery.isLoading ? (
         <LoadingSpinner />
+      ) : ordersQuery.isError ? (
+        <EmptyState
+          icon={<Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />}
+          heading="Couldn't load orders"
+          subtext="Check your connection and try again."
+          ctaLabel="Retry"
+          onCta={() => ordersQuery.refetch()}
+        />
       ) : orders.length === 0 ? (
         <EmptyState
           heading="No orders yet"
