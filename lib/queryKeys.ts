@@ -14,4 +14,9 @@ export const queryKeys = {
     list: (userId?: string) =>
       [...queryKeys.savedItems.all, 'list', userId] as const,
   },
+  orders: {
+    all: ['orders'] as const,
+    list: (userId?: string, role?: 'sold' | 'bought') =>
+      [...queryKeys.orders.all, 'list', userId, role] as const,
+  },
 } as const;

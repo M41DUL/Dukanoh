@@ -45,6 +45,8 @@ export default function AppealScreen() {
       .maybeSingle()
       .then(({ data }) => data?.buyer_id === user.id);
 
+    // TODO(tanstack-migrate): replace with useAppealDispute from
+    // lib/mutations.ts — invalidates queryKeys.orders.all
     const { error } = await supabase
       .from('orders')
       .update({

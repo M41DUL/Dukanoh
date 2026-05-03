@@ -289,6 +289,10 @@ export default function CheckoutScreen() {
       ? null
       : '2099-01-01T00:00:00.000Z';
 
+    // TODO(tanstack-migrate): when this screen migrates, wrap the
+    // post-payment order insert (and the listing-status update below)
+    // in a useCreateOrder hook in lib/mutations.ts that invalidates
+    // queryKeys.orders.all (and queryKeys.listings.all once that exists).
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({

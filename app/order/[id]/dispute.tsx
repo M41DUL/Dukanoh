@@ -52,6 +52,8 @@ export default function DisputeScreen() {
 
     setSubmitting(true);
 
+    // TODO(tanstack-migrate): replace with useRaiseDispute from
+    // lib/mutations.ts — invalidates queryKeys.orders.all
     const { error } = await supabase
       .from('orders')
       .update({
