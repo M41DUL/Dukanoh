@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { router } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import { Listing } from '@/components/ListingCard';
 import { proRankSort } from '@/utils/proRankSort';
+import { queryKeys } from '@/lib/queryKeys';
 import type { ComponentProps } from 'react';
 import type { Ionicons } from '@expo/vector-icons';
 
@@ -11,7 +13,6 @@ import type { Ionicons } from '@expo/vector-icons';
 const nudgeKey = (uid: string) => `@dukanoh/profile_nudge_dismissed/${uid}`;
 const sellNudgeKey = (uid: string) => `@dukanoh/sell_nudge_dismissed/${uid}`;
 const fitSeenKey = (uid: string) => `@dukanoh/fit_sheet_seen/${uid}`;
-const FEED_CACHE_KEY = (uid: string) => `@dukanoh/feed_cache/${uid}`;
 const TRENDING_CACHE_KEY = (gender: 'Men' | 'Women' | null) =>
   `@dukanoh/trending_categories/${gender ?? 'all'}`;
 const TRENDING_TTL_MS = 30 * 60 * 1000; // 30 min
@@ -37,7 +38,7 @@ export interface NudgeSlide {
   iconBg?: string;
 }
 
-interface FeedCache {
+interface FeedData {
   suggested: Listing[];
   newArrivals: Listing[];
   trending: string[];
@@ -45,49 +46,39 @@ interface FeedCache {
   preferredCategories: string[];
   hasListings: boolean;
   profileComplete: boolean;
-  timestamp: number;
 }
-
-// ── Profile cache — avoids re-fetching on every 30s feed refresh ────
-const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-type ProfileData = { preferred_categories: string[] | null; avatar_url: string | null; bio: string | null; full_name: string } | null;
-const profileCache: Record<string, { data: ProfileData; ts: number }> = {};
 
 // ── Private data helpers ────────────────────────────────────────────
-async function getViewedCategories(userId: string): Promise<string[]> {
-  try {
-    const { data } = await supabase
-      .from('listing_views')
-      .select('listings(category)')
-      .eq('user_id', userId)
-      .order('viewed_at', { ascending: false })
-      .limit(50);
-    if (!data) return [];
-    return [...new Set(
-      data
-        .map(d => (d.listings as any)?.category)
-        .filter(Boolean) as string[]
-    )];
-  } catch {
-    return [];
-  }
+async function getViewedCategories(userId: string, signal: AbortSignal): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('listing_views')
+    .select('listings(category)')
+    .eq('user_id', userId)
+    .order('viewed_at', { ascending: false })
+    .limit(50)
+    .abortSignal(signal);
+  if (error) throw error;
+  if (!data) return [];
+  return [...new Set(
+    data
+      .map(d => (d.listings as any)?.category)
+      .filter(Boolean) as string[]
+  )];
 }
 
-async function getSavedSignals(userId: string): Promise<{ categories: string[]; occasions: string[] }> {
-  try {
-    const { data } = await supabase
-      .from('saved_items')
-      .select('listings(category, occasion)')
-      .eq('user_id', userId)
-      .limit(20);
-    if (!data) return { categories: [], occasions: [] };
-    return {
-      categories: [...new Set(data.map(d => (d.listings as any)?.category).filter(Boolean) as string[])],
-      occasions:  [...new Set(data.map(d => (d.listings as any)?.occasion).filter(Boolean) as string[])],
-    };
-  } catch {
-    return { categories: [], occasions: [] };
-  }
+async function getSavedSignals(userId: string, signal: AbortSignal): Promise<{ categories: string[]; occasions: string[] }> {
+  const { data, error } = await supabase
+    .from('saved_items')
+    .select('listings(category, occasion)')
+    .eq('user_id', userId)
+    .limit(20)
+    .abortSignal(signal);
+  if (error) throw error;
+  if (!data) return { categories: [], occasions: [] };
+  return {
+    categories: [...new Set(data.map(d => (d.listings as any)?.category).filter(Boolean) as string[])],
+    occasions:  [...new Set(data.map(d => (d.listings as any)?.occasion).filter(Boolean) as string[])],
+  };
 }
 
 interface ActiveSeason {
@@ -95,21 +86,24 @@ interface ActiveSeason {
   weight: number;
 }
 
-async function fetchActiveSeason(): Promise<ActiveSeason | null> {
+async function fetchActiveSeason(signal: AbortSignal): Promise<ActiveSeason | null> {
   const today = new Date().toISOString().split('T')[0];
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('seasonal_weights')
     .select('categories, weight')
     .lte('start_date', today)
     .gte('end_date', today)
     .limit(1)
+    .abortSignal(signal)
     .maybeSingle();
+  if (error) throw error;
   return data ?? null;
 }
 
 async function fetchTrendingCategories(
   gender: 'Men' | 'Women' | null,
   season: ActiveSeason | null,
+  signal: AbortSignal,
 ): Promise<string[]> {
   const cacheKey = TRENDING_CACHE_KEY(gender);
   try {
@@ -122,12 +116,14 @@ async function fetchTrendingCategories(
 
   // Count saves per category in the last 7 days — measures buyer demand, not seller supply
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('saved_items')
     .select('listings(category, status)')
     .gte('created_at', since)
-    .limit(100);
+    .limit(100)
+    .abortSignal(signal);
 
+  if (error) throw error;
   if (!data || data.length === 0) return [];
 
   const counts = data.reduce<Record<string, number>>((acc, row) => {
@@ -160,7 +156,8 @@ async function fetchSuggestedSection(
   userId: string,
   categories: string[],
   occasions: string[],
-  blockedIds: string[] = [],
+  blockedIds: string[],
+  signal: AbortSignal,
 ): Promise<Listing[]> {
   const buildBase = () => {
     let q = supabase
@@ -171,16 +168,19 @@ async function fetchSuggestedSection(
       .order('published_at', { ascending: false, nullsFirst: false })
       .limit(25); // fetch extra to allow for diversity filtering
     if (blockedIds.length > 0) q = q.not('seller_id', 'in', `(${blockedIds.join(',')})`);
-    return q;
+    return q.abortSignal(signal);
   };
 
   // Run category and occasion queries in parallel, then merge
-  const queries: Promise<{ data: any[] | null }>[] = [];
+  const queries: Promise<{ data: any[] | null; error: any }>[] = [];
   if (categories.length > 0) queries.push(buildBase().in('category', categories) as any);
   if (occasions.length > 0) queries.push(buildBase().in('occasion', occasions) as any);
   if (queries.length === 0) return [];
 
   const results = await Promise.all(queries);
+  for (const r of results) {
+    if (r.error) throw r.error;
+  }
 
   // Merge and deduplicate by listing id; exclude tax-held sellers
   const seen = new Set<string>();
@@ -217,7 +217,8 @@ async function fetchSuggestedSection(
 async function fetchNewArrivals(
   userId: string,
   gender: 'Men' | 'Women' | null,
-  blockedIds: string[] = [],
+  blockedIds: string[],
+  signal: AbortSignal,
 ): Promise<Listing[]> {
   let query = supabase
     .from('listings')
@@ -230,7 +231,8 @@ async function fetchNewArrivals(
   if (blockedIds.length > 0) query = query.not('seller_id', 'in', `(${blockedIds.join(',')})`);
   if (gender) query = query.in('category', [gender, 'Casualwear', 'Partywear', 'Festive', 'Formal', 'Achkan', 'Wedding', 'Pathani Suit', 'Shoes']);
 
-  const { data } = await query;
+  const { data, error } = await query.abortSignal(signal);
+  if (error) throw error;
   const listings = (data ?? []).filter(
     l => !(l as any).seller?.tax_hold
   );
@@ -249,38 +251,126 @@ async function fetchNewArrivals(
   return proRankSort(diverse).slice(0, 10);
 }
 
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good Morning';
-  if (h < 17) return 'Good Afternoon';
-  return 'Good Evening';
+async function fetchFeedData(
+  userId: string,
+  blockedIds: string[],
+  signal: AbortSignal,
+): Promise<FeedData> {
+  const profilePromise = supabase
+    .from('users')
+    .select('preferred_categories, avatar_url, bio, full_name')
+    .eq('id', userId)
+    .abortSignal(signal)
+    .maybeSingle();
+
+  const [profileRes, viewedCats, savedSignals, activeSeason] = await Promise.all([
+    profilePromise,
+    getViewedCategories(userId, signal),
+    getSavedSignals(userId, signal),
+    fetchActiveSeason(signal),
+  ]);
+
+  if (profileRes.error) throw profileRes.error;
+  const profile = profileRes.data;
+
+  const onboardingCats: string[] = profile?.preferred_categories ?? [];
+  const allCats = [...new Set([...onboardingCats, ...viewedCats, ...savedSignals.categories])];
+  const allOccasions = [...new Set(savedSignals.occasions)];
+  const isComplete = !!(profile?.avatar_url && profile?.bio);
+
+  // Derive gender for New Arrivals + Trending filters
+  const prefersWomen = onboardingCats.includes('Women');
+  const prefersMen = onboardingCats.includes('Men');
+  const gender: 'Men' | 'Women' | null =
+    prefersWomen && !prefersMen ? 'Women' :
+    prefersMen && !prefersWomen ? 'Men' :
+    null;
+
+  // Trending now uses gender, save-count signal, and seasonal weights
+  const trendingCats = await fetchTrendingCategories(gender, activeSeason, signal);
+
+  // New-user fallback: if no category or occasion signal yet, use trending categories
+  // Merge seasonal categories so Suggested for You surfaces them during active seasons
+  const seasonalCats = activeSeason?.categories ?? [];
+  const effectiveCats = [
+    ...new Set([
+      ...(allCats.length > 0 ? allCats : trendingCats),
+      ...seasonalCats,
+    ]),
+  ];
+  const hasSignal = effectiveCats.length > 0 || allOccasions.length > 0;
+
+  const [suggestedItems, newArrivalItems, listingCountResult, savedPrices] = await Promise.all([
+    hasSignal ? fetchSuggestedSection(userId, effectiveCats, allOccasions, blockedIds, signal) : Promise.resolve([]),
+    fetchNewArrivals(userId, gender, blockedIds, signal),
+    supabase
+      .from('listings')
+      .select('id', { count: 'exact', head: true })
+      .eq('seller_id', userId)
+      .abortSignal(signal),
+    supabase
+      .from('saved_items')
+      .select('listing_id, price_at_save, listings(id, title, price, images, status)')
+      .eq('user_id', userId)
+      .not('price_at_save', 'is', null)
+      .abortSignal(signal),
+  ]);
+
+  if (listingCountResult.error) throw listingCountResult.error;
+  if (savedPrices.error) throw savedPrices.error;
+
+  const userHasListings = (listingCountResult.count ?? 0) > 0;
+
+  const PRICE_DROP_THRESHOLD = 0.10; // 10% minimum drop to surface
+
+  const drops: PriceDrop[] = (savedPrices.data ?? [])
+    .filter(s => {
+      const l = s.listings as { price: number; status: string } | null;
+      if (!l || l.status !== 'available') return false;
+      const savedPrice = s.price_at_save as number;
+      const pctDrop = (savedPrice - l.price) / savedPrice;
+      return pctDrop >= PRICE_DROP_THRESHOLD;
+    })
+    .map(s => {
+      const l = s.listings as { id: string; title: string; price: number; images: string[] };
+      return {
+        listingId: s.listing_id as string,
+        title: l.title,
+        images: l.images,
+        currentPrice: l.price,
+        savedPrice: s.price_at_save as number,
+      };
+    })
+    // Sort by biggest percentage drop first
+    .sort((a, b) => {
+      const pctA = (a.savedPrice - a.currentPrice) / a.savedPrice;
+      const pctB = (b.savedPrice - b.currentPrice) / b.savedPrice;
+      return pctB - pctA;
+    });
+
+  return {
+    suggested: suggestedItems,
+    newArrivals: newArrivalItems,
+    trending: trendingCats,
+    priceDrops: drops,
+    preferredCategories: effectiveCats,
+    hasListings: userHasListings,
+    profileComplete: isComplete,
+  };
 }
 
 // ── Hook ────────────────────────────────────────────────────────────
 interface UseFeedOptions {
   userId?: string;
   blockedIds?: string[];
-  reloadRecent: () => void;
 }
 
-export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOptions) {
-  const [suggested, setSuggested] = useState<Listing[]>([]);
-  const [newArrivals, setNewArrivals] = useState<Listing[]>([]);
-  const [preferredCategories, setPreferredCategories] = useState<string[]>([]);
-  const [trending, setTrending] = useState<string[]>([]);
-  const [priceDrops, setPriceDrops] = useState<PriceDrop[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [profileComplete, setProfileComplete] = useState(true);
-  const [displayName, setDisplayName] = useState('');
+export function useFeed({ userId, blockedIds = [] }: UseFeedOptions) {
   const [nudgeDismissed, setNudgeDismissed] = useState(true);
   const [sellNudgeDismissed, setSellNudgeDismissed] = useState(true);
   const [fitSheetSeen, setFitSheetSeen] = useState(true);
-  const [hasListings, setHasListings] = useState(true);
-  const hasMounted = useRef(false);
-  const lastLoadedAt = useRef(0);
 
-  // Load nudge dismissed state
+  // Load nudge dismissed state — UX local state, not server state
   useEffect(() => {
     if (!userId) return;
     Promise.all([
@@ -312,179 +402,18 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
     setFitSheetSeen(true);
   }, [userId]);
 
-  const applyFeedData = useCallback((data: Omit<FeedCache, 'timestamp'>) => {
-    setSuggested(data.suggested);
-    setNewArrivals(data.newArrivals);
-    setTrending(data.trending);
-    setPriceDrops(data.priceDrops);
-    setPreferredCategories(data.preferredCategories);
-    setHasListings(data.hasListings);
-    setProfileComplete(data.profileComplete);
-  }, []);
+  const query = useQuery({
+    queryKey: queryKeys.home.feed(userId, blockedIds),
+    queryFn: ({ signal }) => fetchFeedData(userId!, blockedIds, signal),
+    enabled: !!userId,
+  });
 
-  const loadData = useCallback(async () => {
-    if (!userId) return;
-
-    try {
-      const now = Date.now();
-      const cachedProfile = profileCache[userId];
-      const profilePromise: Promise<ProfileData> =
-        cachedProfile && now - cachedProfile.ts < PROFILE_CACHE_TTL
-          ? Promise.resolve(cachedProfile.data)
-          : Promise.resolve(
-              supabase
-                .from('users')
-                .select('preferred_categories, avatar_url, bio, full_name')
-                .eq('id', userId)
-                .maybeSingle()
-                .then(r => {
-                  profileCache[userId] = { data: r.data, ts: now };
-                  return r.data;
-                })
-            );
-
-      const [profile, viewedCats, savedSignals, activeSeason] = await Promise.all([
-        profilePromise,
-        getViewedCategories(userId),
-        getSavedSignals(userId),
-        fetchActiveSeason(),
-      ]);
-
-      const onboardingCats: string[] = profile?.preferred_categories ?? [];
-      const allCats = [...new Set([...onboardingCats, ...viewedCats, ...savedSignals.categories])];
-      const allOccasions = [...new Set(savedSignals.occasions)];
-      const isComplete = !!(profile?.avatar_url && profile?.bio);
-      const rawName = profile?.full_name ?? '';
-      const firstName = rawName === 'New User' ? '' : rawName.split(' ')[0];
-      setDisplayName(firstName);
-
-      // Derive gender for New Arrivals + Trending filters
-      const prefersWomen = onboardingCats.includes('Women');
-      const prefersMen = onboardingCats.includes('Men');
-      const gender: 'Men' | 'Women' | null =
-        prefersWomen && !prefersMen ? 'Women' :
-        prefersMen && !prefersWomen ? 'Men' :
-        null;
-
-      // Trending now uses gender, save-count signal, and seasonal weights
-      const trendingCats = await fetchTrendingCategories(gender, activeSeason);
-
-      // New-user fallback: if no category or occasion signal yet, use trending categories
-      // Merge seasonal categories so Suggested for You surfaces them during active seasons
-      const seasonalCats = activeSeason?.categories ?? [];
-      const effectiveCats = [
-        ...new Set([
-          ...(allCats.length > 0 ? allCats : trendingCats),
-          ...seasonalCats,
-        ]),
-      ];
-      const hasSignal = effectiveCats.length > 0 || allOccasions.length > 0;
-
-      const [suggestedItems, newArrivalItems, listingCountResult, savedPrices] = await Promise.all([
-        hasSignal ? fetchSuggestedSection(userId, effectiveCats, allOccasions, blockedIds) : Promise.resolve([]),
-        fetchNewArrivals(userId, gender, blockedIds),
-        supabase
-          .from('listings')
-          .select('id', { count: 'exact', head: true })
-          .eq('seller_id', userId),
-        supabase
-          .from('saved_items')
-          .select('listing_id, price_at_save, listings(id, title, price, images, status)')
-          .eq('user_id', userId)
-          .not('price_at_save', 'is', null),
-      ]);
-
-      const userHasListings = (listingCountResult.count ?? 0) > 0;
-
-      const PRICE_DROP_THRESHOLD = 0.10; // 10% minimum drop to surface
-
-      const drops: PriceDrop[] = (savedPrices.data ?? [])
-        .filter(s => {
-          const l = s.listings as { price: number; status: string } | null;
-          if (!l || l.status !== 'available') return false;
-          const savedPrice = s.price_at_save as number;
-          const pctDrop = (savedPrice - l.price) / savedPrice;
-          return pctDrop >= PRICE_DROP_THRESHOLD;
-        })
-        .map(s => {
-          const l = s.listings as { id: string; title: string; price: number; images: string[] };
-          return {
-            listingId: s.listing_id as string,
-            title: l.title,
-            images: l.images,
-            currentPrice: l.price,
-            savedPrice: s.price_at_save as number,
-          };
-        })
-        // Sort by biggest percentage drop first
-        .sort((a, b) => {
-          const pctA = (a.savedPrice - a.currentPrice) / a.savedPrice;
-          const pctB = (b.savedPrice - b.currentPrice) / b.savedPrice;
-          return pctB - pctA;
-        });
-
-      const feedData: Omit<FeedCache, 'timestamp'> = {
-        suggested: suggestedItems,
-        newArrivals: newArrivalItems,
-        trending: trendingCats,
-        priceDrops: drops,
-        preferredCategories: effectiveCats,
-        hasListings: userHasListings,
-        profileComplete: isComplete,
-      };
-
-      applyFeedData(feedData);
-      lastLoadedAt.current = Date.now();
-
-      try {
-        await AsyncStorage.setItem(
-          FEED_CACHE_KEY(userId),
-          JSON.stringify({ ...feedData, timestamp: Date.now() }),
-        );
-      } catch {}
-    } catch {
-      // Prevent infinite skeleton — fall back to empty state
-      setLoading(false);
-    }
-  }, [userId, applyFeedData, blockedIds]);
-
-  // On mount: load cache instantly, then refresh from network
-  useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(FEED_CACHE_KEY(userId));
-        if (raw && !cancelled) {
-          const cached: FeedCache = JSON.parse(raw);
-          applyFeedData(cached);
-          setLoading(false);
-        }
-      } catch {}
-
-      await loadData();
-      if (!cancelled) setLoading(false);
-    })();
-
-    return () => { cancelled = true; };
-  }, [userId, loadData, applyFeedData]);
-
-  const STALE_MS = 30_000; // 30 seconds
-
-  const loadDataIfStale = useCallback(async () => {
-    if (Date.now() - lastLoadedAt.current < STALE_MS) return;
-    await loadData();
-  }, [loadData]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await Promise.all([loadData(), reloadRecent()]);
-    setRefreshing(false);
-  }, [loadData, reloadRecent]);
+  const data = query.data;
 
   const nudgeSlides = useMemo<NudgeSlide[]>(() => {
     const slides: NudgeSlide[] = [];
+    const profileComplete = data?.profileComplete ?? true;
+    const hasListings = data?.hasListings ?? true;
     if (!profileComplete && !nudgeDismissed) {
       slides.push({
         key: 'profile',
@@ -506,23 +435,19 @@ export function useFeed({ userId, blockedIds = [], reloadRecent }: UseFeedOption
       });
     }
     return slides;
-  }, [profileComplete, nudgeDismissed, hasListings, sellNudgeDismissed, dismissNudge, dismissSellNudge]);
+  }, [data, nudgeDismissed, sellNudgeDismissed, dismissNudge, dismissSellNudge]);
 
   return {
-    suggested,
-    newArrivals,
-    trending,
-    priceDrops,
-    preferredCategories,
-    loading,
-    refreshing,
-    displayName,
-    greeting: getGreeting(),
+    suggested: data?.suggested ?? [],
+    newArrivals: data?.newArrivals ?? [],
+    trending: data?.trending ?? [],
+    priceDrops: data?.priceDrops ?? [],
+    preferredCategories: data?.preferredCategories ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    refetch: query.refetch,
     nudgeSlides,
     showFitNudge: !fitSheetSeen,
     markFitSeen,
-    onRefresh,
-    loadDataIfStale,
-    hasMounted,
   };
 }

@@ -91,6 +91,9 @@ export function useToggleSavedItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.savedItems.all });
+      // Save activity feeds Suggested-for-you, Trending categories, and
+      // price-drop tracking on home, so the feed needs to refresh too.
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
     },
   });
 }
@@ -338,6 +341,8 @@ export function useDeleteListing() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+      // Deletion can drop a row from Suggested / New arrivals on home.
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
     },
   });
 }
@@ -416,6 +421,8 @@ export function useUpdateListing() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+      // Edits / publishing affect Suggested / New arrivals on home.
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
     },
   });
 }

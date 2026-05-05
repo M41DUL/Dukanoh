@@ -83,12 +83,13 @@ export function useAuth() {
       } catch {}
     }
 
-    // Clear all app-level AsyncStorage cache so stale data
-    // doesn't bleed into the next session (e.g. a different user)
+    // Clear local-state AsyncStorage so the next user doesn't inherit
+    // theme/recently-viewed UI state. The home feed cache used to live
+    // here too but is now in TanStack Query; queryClient.clear() below
+    // handles it.
     try {
       const keys = await AsyncStorage.getAllKeys();
       const appKeys = keys.filter(k =>
-        k.startsWith('feed_') ||
         k.startsWith('recently_viewed_') ||
         k.startsWith('theme_')
       );

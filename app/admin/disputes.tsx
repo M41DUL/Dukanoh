@@ -124,7 +124,8 @@ export default function AdminDisputesScreen() {
     // TODO(tanstack-migrate): when this screen migrates, wrap the
     // resolve flow (optional refund + orders update + listing reset)
     // in a useResolveDispute hook in lib/mutations.ts that invalidates
-    // queryKeys.orders.all (and queryKeys.listings.all once that exists).
+    // queryKeys.orders.all, queryKeys.listings.all, and queryKeys.home.all
+    // (when refund_buyer relists the item, it returns to the home feed).
     if (outcome === 'refund_buyer') {
       // Refund fires immediately; seller can appeal but financial reversal requires manual admin action
       const refundRes = await edgeFetch('stripe-refund', { order_id: modalOrder.id });

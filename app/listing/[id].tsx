@@ -132,6 +132,10 @@ export default function ListingDetailScreen() {
       setSaveCount(data.save_count ?? 0);
 
       // Track view (fire-and-forget, non-blocking)
+      // TODO(tanstack-migrate): recordView writes to listing_views, which
+      // feeds queryKeys.home.recentlyViewed. When this screen migrates,
+      // wrap recordView in a useRecordView mutation that invalidates
+      // queryKeys.home.all so Recently viewed picks up the new entry.
       if (data.status !== 'draft') {
         if (user) recordView(id, user.id);
         const cacheKey = `${user?.id ?? 'anon'}:${id}`;
@@ -270,7 +274,8 @@ export default function ListingDetailScreen() {
             // TODO(tanstack-migrate): when this screen migrates, wrap this
             // status update in a useUpdateListingStatus hook in lib/mutations.ts
             // that invalidates queryKeys.myListings.all (status flips Active→Sold
-            // in the seller's Selling tab).
+            // in the seller's Selling tab) and queryKeys.home.all (so the
+            // sold item drops out of Suggested / New arrivals).
             await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id ?? '');
             setListing(prev => prev ? { ...prev, status: 'sold' } : prev);
           },
@@ -284,7 +289,8 @@ export default function ListingDetailScreen() {
     // TODO(tanstack-migrate): when this screen migrates, wrap this status
     // update in a useUpdateListingStatus hook in lib/mutations.ts that
     // invalidates queryKeys.myListings.all (draft→available moves the
-    // listing from the Drafts tab to the Selling tab).
+    // listing from the Drafts tab to the Selling tab) and queryKeys.home.all
+    // (so the newly-published listing surfaces in Suggested / New arrivals).
     await supabase.from('listings').update({ status: 'available' }).eq('id', id ?? '');
     setListing(prev => prev ? { ...prev, status: 'available' } : prev);
     Alert.alert('Published!', 'Your listing is now live on the feed.');

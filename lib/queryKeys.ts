@@ -39,4 +39,13 @@ export const queryKeys = {
     list: (userId?: string) =>
       [...queryKeys.inbox.all, 'list', userId] as const,
   },
+  home: {
+    all: ['home'] as const,
+    feed: (userId?: string, blockedIds: string[] = []) =>
+      [...queryKeys.home.all, 'feed', userId, [...blockedIds].sort()] as const,
+    stories: (userId?: string) =>
+      [...queryKeys.home.all, 'stories', userId] as const,
+    recentlyViewed: (userId?: string) =>
+      [...queryKeys.home.all, 'recently-viewed', userId] as const,
+  },
 } as const;
