@@ -225,7 +225,7 @@ function EditListingForm({ listing, listingId }: EditListingFormProps) {
             deleteListingMutation.mutate(
               { listingId, status, images },
               {
-                onSuccess: () => router.back(),
+                onSuccess: () => router.dismissTo('/my-listings'),
                 onError: err => {
                   if (err instanceof ActiveOrderExistsError) {
                     Alert.alert('Cannot delete', 'This listing has an active order in progress.');
@@ -271,7 +271,7 @@ function EditListingForm({ listing, listingId }: EditListingFormProps) {
         newStatus,
       },
       {
-        onSuccess: () => router.back(),
+        onSuccess: () => router.dismissTo('/my-listings'),
         onError: err => {
           Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save listing.');
         },
@@ -338,10 +338,25 @@ function EditListingForm({ listing, listingId }: EditListingFormProps) {
         onSelect={val => {
           const inferredGender = CATEGORY_TO_GENDER[val];
           setForm(f => ({ ...f, category: val, gender: inferredGender ?? f.gender }));
-          setErrors(e => ({ ...e, category: undefined }));
+          setErrors(e => ({ ...e, category: undefined, gender: inferredGender ? undefined : e.gender }));
         }}
         error={errors.category}
       />
+
+      {form.category && !CATEGORY_TO_GENDER[form.category] && (
+        <Select
+          label="Gender"
+          required
+          placeholder="Select gender"
+          value={form.gender}
+          options={Genders}
+          onSelect={val => {
+            setForm(f => ({ ...f, gender: val }));
+            setErrors(e => ({ ...e, gender: undefined }));
+          }}
+          error={errors.gender}
+        />
+      )}
 
       <Input
         label="Description"
@@ -394,14 +409,6 @@ function EditListingForm({ listing, listingId }: EditListingFormProps) {
       />
 
       {/* Optional details */}
-      <Select
-        label="Gender"
-        placeholder="Select gender"
-        value={form.gender}
-        options={Genders}
-        onSelect={val => setForm(f => ({ ...f, gender: val }))}
-      />
-
       <Select
         label="Colour"
         placeholder="Select a colour"

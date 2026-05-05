@@ -18,7 +18,7 @@ import { Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { useRaiseDispute } from '@/lib/mutations';
 
 const DISPUTE_REASONS = [
   'Item not received',
@@ -38,6 +38,7 @@ export default function DisputeScreen() {
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const raiseDispute = useRaiseDispute();
 
   const handleSubmit = async () => {
     if (!reason) {
@@ -51,33 +52,23 @@ export default function DisputeScreen() {
     if (!user || !id) return;
 
     setSubmitting(true);
-
-    // TODO(tanstack-migrate): replace with useRaiseDispute from
-    // lib/mutations.ts — invalidates queryKeys.orders.all
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        status: 'disputed',
-        dispute_reason: reason,
-        dispute_description: description.trim(),
-        disputed_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .eq('buyer_id', user.id)                    // safety: only the buyer can dispute
-      .in('status', ['shipped', 'delivered']);    // valid from shipped or delivered (48h window)
-
-    setSubmitting(false);
-
-    if (error) {
+    try {
+      await raiseDispute.mutateAsync({
+        orderId: id,
+        buyerId: user.id,
+        reason,
+        description: description.trim(),
+      });
+      Alert.alert(
+        'Dispute raised',
+        'Our team has been notified and will review your dispute. We aim to resolve disputes within 7 days.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch {
       Alert.alert('Error', 'Could not raise dispute. Please try again.');
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    Alert.alert(
-      'Dispute raised',
-      'Our team has been notified and will review your dispute. We aim to resolve disputes within 7 days.',
-      [{ text: 'OK', onPress: () => router.back() }]
-    );
   };
 
   return (

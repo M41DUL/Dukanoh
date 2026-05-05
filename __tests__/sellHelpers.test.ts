@@ -140,8 +140,30 @@ describe('validateListing', () => {
       expect(validateListing({ ...validForm, price: '2000' }, 1, false).price).toBeUndefined();
     });
 
-    test('does not require gender (auto-inferred for most categories)', () => {
-      const errors = validateListing({ ...validForm, gender: '' }, 1, false);
+    test('does not require gender when category auto-infers it (e.g. Saree → Women)', () => {
+      const errors = validateListing(
+        { ...validForm, category: 'Saree', gender: '' },
+        1,
+        false,
+      );
+      expect(errors.gender).toBeUndefined();
+    });
+
+    test('requires gender when category does not auto-infer (e.g. Kurta)', () => {
+      const errors = validateListing(
+        { ...validForm, category: 'Kurta', gender: '' },
+        1,
+        false,
+      );
+      expect(errors.gender).toBe('Select a gender');
+    });
+
+    test('does not require gender when both category and gender are explicitly set', () => {
+      const errors = validateListing(
+        { ...validForm, category: 'Kurta', gender: 'Men' },
+        1,
+        false,
+      );
       expect(errors.gender).toBeUndefined();
     });
 
