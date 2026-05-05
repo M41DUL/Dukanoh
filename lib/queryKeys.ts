@@ -13,6 +13,11 @@ export const queryKeys = {
     all: ['saved-items'] as const,
     list: (userId?: string) =>
       [...queryKeys.savedItems.all, 'list', userId] as const,
+    // Lightweight set of saved listing IDs — used by SavedContext so cards
+    // across the app can render heart state without fetching full Listing
+    // rows. Sibling of `list` so invalidating `savedItems.all` refreshes both.
+    ids: (userId?: string) =>
+      [...queryKeys.savedItems.all, 'ids', userId] as const,
   },
   orders: {
     all: ['orders'] as const,

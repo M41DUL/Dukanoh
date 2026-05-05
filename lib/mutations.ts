@@ -20,15 +20,11 @@ interface ToggleSavedItemArgs {
 /**
  * Toggles a saved_items row for (userId, listingId).
  *
- * Optimistically removes the listing from any cached saved-items list while
- * the network call is in flight, and rolls back on error. After success it
- * invalidates the parent `savedItems.all` key so any list/detail variant
- * refetches.
- *
- * NOTE: as of the saved.tsx migration, the heart-toggle UI in
- * components/ListingCard, app/listing/[id], and components/StoriesRow still
- * goes through context/SavedContext.toggleSave. Those callers should switch
- * to this hook when their respective screens are migrated.
+ * Updates two caches optimistically: the lightweight ID set
+ * (queryKeys.savedItems.ids) used by SavedContext to drive heart UI on every
+ * card across the app, and the full saved-items list (queryKeys.savedItems.list)
+ * used by the saved tab. Both roll back on error. After success, both
+ * variants are invalidated via savedItems.all so they refetch fresh.
  */
 export function useToggleSavedItem() {
   const queryClient = useQueryClient();
@@ -55,23 +51,42 @@ export function useToggleSavedItem() {
     },
     onMutate: async ({ userId, listingId, isCurrentlySaved }) => {
       const listKey = queryKeys.savedItems.list(userId);
-      await queryClient.cancelQueries({ queryKey: listKey });
-      const previous = queryClient.getQueryData<Listing[]>(listKey);
+      const idsKey = queryKeys.savedItems.ids(userId);
+      await queryClient.cancelQueries({ queryKey: queryKeys.savedItems.all });
 
-      if (isCurrentlySaved && previous) {
-        queryClient.setQueryData<Listing[]>(
-          listKey,
-          previous.filter(item => item.id !== listingId),
+      const previousList = queryClient.getQueryData<Listing[]>(listKey);
+      const previousIds = queryClient.getQueryData<string[]>(idsKey);
+
+      // Optimistic update for the IDs set — both add & remove, since we
+      // know the listingId regardless of which direction the toggle goes.
+      if (previousIds) {
+        queryClient.setQueryData<string[]>(
+          idsKey,
+          isCurrentlySaved
+            ? previousIds.filter(id => id !== listingId)
+            : [...previousIds, listingId],
         );
       }
-      // For un-save → save we don't have the full listing row to insert,
-      // so we leave the cache and rely on invalidation after success.
 
-      return { previous, listKey };
+      // Optimistic update for the full list — only the un-save direction,
+      // because for save → un-save we don't have the full Listing row to
+      // insert. The post-success invalidation refetches it.
+      if (isCurrentlySaved && previousList) {
+        queryClient.setQueryData<Listing[]>(
+          listKey,
+          previousList.filter(item => item.id !== listingId),
+        );
+      }
+
+      return { previousList, previousIds, listKey, idsKey };
     },
     onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(context.listKey, context.previous);
+      if (!context) return;
+      if (context.previousList !== undefined) {
+        queryClient.setQueryData(context.listKey, context.previousList);
+      }
+      if (context.previousIds !== undefined) {
+        queryClient.setQueryData(context.idsKey, context.previousIds);
       }
     },
     onSuccess: () => {

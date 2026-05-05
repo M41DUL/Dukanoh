@@ -27,6 +27,11 @@ import { supabase } from '@/lib/supabase';
 import { formatGBP } from '@/lib/paymentHelpers';
 import { getOrderActions } from '@/lib/orderHelpers';
 import { edgeFetch } from '@/lib/edgeFetch';
+import {
+  useMarkOrderShipped,
+  useConfirmOrderReceipt,
+  useWithdrawDispute,
+} from '@/lib/mutations';
 
 type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'resolved' | 'cancelled';
 
@@ -109,6 +114,10 @@ export default function OrderDetailScreen() {
   const [courier, setCourier] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const markShipped = useMarkOrderShipped();
+  const confirmReceipt = useConfirmOrderReceipt();
+  const withdrawDispute = useWithdrawDispute();
+
   const fetchOrder = useCallback(async () => {
     if (!id || !user) return;
     const { data } = await supabase
@@ -143,19 +152,17 @@ export default function OrderDetailScreen() {
       return;
     }
     setSubmitting(true);
-    // TODO(tanstack-migrate): replace with useMarkOrderShipped from
-    // lib/mutations.ts — invalidates queryKeys.orders.all
-    const { error } = await supabase.rpc('mark_order_shipped', {
-      p_order_id:  order.id,
-      p_seller_id: user.id,
-      p_tracking:  trackingNumber.trim(),
-      p_courier:   courier.trim() || undefined,
-    });
-    if (error) {
-      setSubmitting(false);
-      Alert.alert('Error', 'Could not update order. Please try again.');
-    } else {
+    try {
+      await markShipped.mutateAsync({
+        orderId: order.id,
+        sellerId: user.id,
+        trackingNumber: trackingNumber.trim(),
+        courier: courier.trim() || undefined,
+      });
       await fetchOrder();
+    } catch {
+      Alert.alert('Error', 'Could not update order. Please try again.');
+    } finally {
       setSubmitting(false);
     }
   };
@@ -173,14 +180,15 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             if (!user) return;
             setSubmitting(true);
-            // TODO(tanstack-migrate): replace with useConfirmOrderReceipt
-            // from lib/mutations.ts — invalidates queryKeys.orders.all
-            await supabase.rpc('confirm_order_receipt', {
-              p_order_id: order.id,
-              p_buyer_id: user.id,
-            });
-            await fetchOrder();
-            setSubmitting(false);
+            try {
+              await confirmReceipt.mutateAsync({
+                orderId: order.id,
+                buyerId: user.id,
+              });
+              await fetchOrder();
+            } finally {
+              setSubmitting(false);
+            }
           },
         },
       ]
@@ -245,15 +253,15 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             if (!user || !order) return;
             setSubmitting(true);
-            // TODO(tanstack-migrate): replace with useWithdrawDispute from
-            // lib/mutations.ts — invalidates queryKeys.orders.all
-            await supabase.from('orders').update({
-              status: 'completed',
-              delivered_at: new Date().toISOString(),
-              completed_at: new Date().toISOString(),
-            }).eq('id', order.id).eq('buyer_id', user.id);
-            await fetchOrder();
-            setSubmitting(false);
+            try {
+              await withdrawDispute.mutateAsync({
+                orderId: order.id,
+                buyerId: user.id,
+              });
+              await fetchOrder();
+            } finally {
+              setSubmitting(false);
+            }
           },
         },
       ]

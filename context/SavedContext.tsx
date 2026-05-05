@@ -1,61 +1,63 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { queryKeys } from '@/lib/queryKeys';
+import { useToggleSavedItem } from '@/lib/mutations';
 
 interface SavedContextValue {
   savedIds: Set<string>;
   isSaved: (id: string) => boolean;
-  toggleSave: (listingId: string, price?: number) => Promise<void>;
+  toggleSave: (listingId: string, price?: number) => void;
   reload: () => Promise<void>;
 }
 
 const SavedContext = createContext<SavedContextValue>({
   savedIds: new Set(),
   isSaved: () => false,
-  toggleSave: async () => {},
+  toggleSave: () => {},
   reload: async () => {},
 });
 
 export function SavedProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const userId = user?.id;
 
-  const reload = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('saved_items')
-      .select('listing_id')
-      .eq('user_id', user.id)
-      .limit(1000);
-    if (data) {
-      setSavedIds(new Set(data.map(d => d.listing_id as string)));
-    }
-  }, [user]);
+  const { data: ids = [], refetch } = useQuery({
+    queryKey: queryKeys.savedItems.ids(userId),
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } = await supabase
+        .from('saved_items')
+        .select('listing_id')
+        .eq('user_id', userId)
+        .limit(1000);
+      if (error) throw error;
+      return data?.map(d => d.listing_id as string) ?? [];
+    },
+    enabled: !!userId,
+  });
 
-  useEffect(() => { reload(); }, [reload]);
-
+  const savedIds = useMemo(() => new Set(ids), [ids]);
   const isSaved = useCallback((id: string) => savedIds.has(id), [savedIds]);
 
-  const toggleSave = useCallback(async (listingId: string, price?: number) => {
-    if (!user) return;
-    if (savedIds.has(listingId)) {
-      setSavedIds(prev => { const s = new Set(prev); s.delete(listingId); return s; });
-      // TODO(tanstack-migrate): replace with useToggleSavedItem from
-      // lib/mutations.ts — invalidates queryKeys.savedItems.all
-      const { error } = await supabase.from('saved_items').delete().eq('user_id', user.id).eq('listing_id', listingId);
-      if (error) setSavedIds(prev => new Set([...prev, listingId]));
-    } else {
-      setSavedIds(prev => new Set([...prev, listingId]));
-      // TODO(tanstack-migrate): replace with useToggleSavedItem from
-      // lib/mutations.ts — invalidates queryKeys.savedItems.all
-      const { error } = await supabase.from('saved_items').insert({
-        user_id: user.id,
-        listing_id: listingId,
-        price_at_save: price ?? null,
-      });
-      if (error) setSavedIds(prev => { const s = new Set(prev); s.delete(listingId); return s; });
-    }
-  }, [user, savedIds]);
+  const toggleMutation = useToggleSavedItem();
+
+  // Fire-and-forget. The hook owns optimistic updates + rollback; callers
+  // (heart buttons on cards, listing detail, etc.) don't await.
+  const toggleSave = useCallback((listingId: string, price?: number) => {
+    if (!userId) return;
+    toggleMutation.mutate({
+      userId,
+      listingId,
+      isCurrentlySaved: savedIds.has(listingId),
+      price,
+    });
+  }, [userId, savedIds, toggleMutation]);
+
+  const reload = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   return (
     <SavedContext.Provider value={{ savedIds, isSaved, toggleSave, reload }}>
