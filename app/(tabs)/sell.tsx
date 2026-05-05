@@ -598,13 +598,31 @@ export default function SellScreen() {
             onSelect={val => {
               const inferredGender = CATEGORY_TO_GENDER[val];
               setForm(f => ({ ...f, category: val, gender: inferredGender ?? f.gender }));
-              setErrors(e => ({ ...e, category: undefined }));
+              setErrors(e => ({ ...e, category: undefined, gender: inferredGender ? undefined : e.gender }));
               scrollToField('description');
               setTimeout(() => descRef.current?.focus(), 300);
             }}
             error={errors.category}
           />
         </View>
+
+        {form.category && !CATEGORY_TO_GENDER[form.category] && (
+          <View onLayout={e => { fieldPositions.current.gender = e.nativeEvent.layout.y; }}>
+            <Select
+              ref={genderRef}
+              label="Gender"
+              required
+              placeholder="Select gender"
+              value={form.gender}
+              options={Genders}
+              onSelect={val => {
+                setForm(f => ({ ...f, gender: val }));
+                setErrors(e => ({ ...e, gender: undefined }));
+              }}
+              error={errors.gender}
+            />
+          </View>
+        )}
 
         <View onLayout={e => { fieldPositions.current.description = e.nativeEvent.layout.y; }}>
           <Input
@@ -700,19 +718,6 @@ export default function SellScreen() {
         {/* ── Optional details ──────────────────────────────── */}
         {showDetails && (
           <>
-            <View onLayout={e => { fieldPositions.current.gender = e.nativeEvent.layout.y; }}>
-              <Select
-                ref={genderRef}
-                label="Gender"
-                placeholder="Select gender"
-                value={form.gender}
-                options={Genders}
-                onSelect={val => {
-                  setForm(f => ({ ...f, gender: val }));
-                }}
-              />
-            </View>
-
             <View onLayout={e => { fieldPositions.current.colour = e.nativeEvent.layout.y; }}>
               <Select
                 ref={colourRef}

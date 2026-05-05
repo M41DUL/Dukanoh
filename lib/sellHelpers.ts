@@ -36,8 +36,10 @@ export function validateListing(
     if (!form.price.trim() || isNaN(price) || price < 1) errors.price = 'Enter a price of at least £1';
     else if (price > 2000) errors.price = 'Maximum price is £2,000';
 
-    // gender is optional — auto-inferred for most categories; unisex items may omit it
     if (!form.category) errors.category = 'Select a category';
+    else if (!CATEGORY_TO_GENDER[form.category] && !form.gender) {
+      errors.gender = 'Select a gender';
+    }
     if (!form.condition) errors.condition = 'Select a condition';
     if (!form.size) errors.size = 'Select a size';
   }
