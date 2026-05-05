@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { queryKeys } from '@/lib/queryKeys';
 import { useAuth } from './useAuth';
 
 export interface AppStory {
@@ -70,152 +72,170 @@ export interface StoryListing {
 const LISTING_SELECT =
   'id, title, price, images, category, condition, status, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)';
 
+async function fetchStories(userId: string, signal: AbortSignal): Promise<StoryListing[]> {
+  // Organic window: 5 hours
+  const since5h = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  const [
+    organicRes,
+    boostsRes,
+    savedRes,
+    viewedRes,
+    viewedStoriesRes,
+  ] = await Promise.all([
+    // Organic: published in last 5 hours, exclude own
+    supabase
+      .from('listings')
+      .select(LISTING_SELECT)
+      .eq('status', 'available')
+      .neq('seller_id', userId)
+      .gte('published_at', since5h)
+      .order('published_at', { ascending: false })
+      .limit(50)
+      .abortSignal(signal),
+
+    // Active boosts from boosts table — source of truth
+    supabase
+      .from('boosts')
+      .select('listing_id')
+      .gt('expires_at', now)
+      .abortSignal(signal),
+
+    // Personalisation: categories from the user's saved items
+    supabase
+      .from('saved_items')
+      .select('listing:listings(category)')
+      .eq('user_id', userId)
+      .abortSignal(signal),
+
+    // Personalisation: recently viewed categories
+    supabase
+      .from('listing_views')
+      .select('listing:listings(category)')
+      .eq('user_id', userId)
+      .order('viewed_at', { ascending: false })
+      .limit(30)
+      .abortSignal(signal),
+
+    // Already viewed stories
+    supabase
+      .from('story_views')
+      .select('listing_id')
+      .eq('user_id', userId)
+      .abortSignal(signal),
+  ]);
+
+  if (organicRes.error) throw organicRes.error;
+  if (boostsRes.error) throw boostsRes.error;
+  if (savedRes.error) throw savedRes.error;
+  if (viewedRes.error) throw viewedRes.error;
+  if (viewedStoriesRes.error) throw viewedStoriesRes.error;
+
+  // Fetch boosted listings by ID (exclude own)
+  const boostedIds = (boostsRes.data ?? []).map(b => b.listing_id);
+  let boostedListings: any[] = [];
+  if (boostedIds.length > 0) {
+    const { data, error } = await supabase
+      .from('listings')
+      .select(LISTING_SELECT)
+      .in('id', boostedIds)
+      .eq('status', 'available')
+      .neq('seller_id', userId)
+      .order('published_at', { ascending: false })
+      .limit(20)
+      .abortSignal(signal);
+    if (error) throw error;
+    boostedListings = data ?? [];
+  }
+
+  const viewedIds = new Set(viewedStoriesRes.data?.map(s => s.listing_id) ?? []);
+
+  const preferredCategories = new Set<string>([
+    ...(savedRes.data?.map((s: any) => s.listing?.category).filter(Boolean) ?? []),
+    ...(viewedRes.data?.map((v: any) => v.listing?.category).filter(Boolean) ?? []),
+  ]);
+
+  // Merge boosted + organic, dedup by id
+  // Mark boosted listings with is_boosted flag for sort/display
+  const boostedIdSet = new Set(boostedIds);
+  const seenIds = new Set<string>();
+  const merged: StoryListing[] = [];
+  for (const l of [...boostedListings, ...(organicRes.data ?? [])]) {
+    if (seenIds.has(l.id)) continue;
+    if ((l as any).seller?.tax_hold) continue;
+    seenIds.add(l.id);
+    merged.push({ ...(l as StoryListing), is_boosted: boostedIdSet.has(l.id), viewed: false });
+  }
+
+  // Dedup to one listing per seller (keep most recently created — already ordered desc)
+  const seenSellers = new Set<string>();
+  const deduped: StoryListing[] = [];
+  for (const l of merged) {
+    const sellerId = l.seller_id ?? '';
+    if (seenSellers.has(sellerId)) continue;
+    seenSellers.add(sellerId);
+    deduped.push(l);
+  }
+
+  // Sort: boosted unviewed → unviewed + preferred → unviewed → viewed
+  const sorted = [...deduped].sort((a, b) => {
+    const aViewed = viewedIds.has(a.id) ? 1 : 0;
+    const bViewed = viewedIds.has(b.id) ? 1 : 0;
+    if (aViewed !== bViewed) return aViewed - bViewed;
+
+    // Both unviewed — boosted first
+    const aBoosted = a.is_boosted ? 0 : 1;
+    const bBoosted = b.is_boosted ? 0 : 1;
+    if (aBoosted !== bBoosted) return aBoosted - bBoosted;
+
+    // Then preferred category
+    const aPref = a.category && preferredCategories.has(a.category) ? 0 : 1;
+    const bPref = b.category && preferredCategories.has(b.category) ? 0 : 1;
+    return aPref - bPref;
+  });
+
+  return sorted.map(l => ({
+    ...l,
+    viewed: viewedIds.has(l.id),
+  }));
+}
+
 export function useStories() {
   const { user } = useAuth();
-  const [stories, setStories] = useState<StoryListing[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const userId = user?.id;
 
-  const fetch = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
+  const query = useQuery({
+    queryKey: queryKeys.home.stories(userId),
+    queryFn: ({ signal }) => fetchStories(userId!, signal),
+    enabled: !!userId,
+  });
 
-    // Organic window: 5 hours
-    const since5h = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
-    const now = new Date().toISOString();
-
-    const [
-      { data: organicListings },
-      { data: activeBoosts },
-      { data: savedItems },
-      { data: viewedListings },
-      { data: viewedStories },
-    ] = await Promise.all([
-      // Organic: published in last 5 hours, exclude own
-      supabase
-        .from('listings')
-        .select(LISTING_SELECT)
-        .eq('status', 'available')
-        .neq('seller_id', user.id)
-        .gte('published_at', since5h)
-        .order('published_at', { ascending: false })
-        .limit(50),
-
-      // Active boosts from boosts table — source of truth
-      supabase
-        .from('boosts')
-        .select('listing_id')
-        .gt('expires_at', now),
-
-      // Personalisation: categories from the user's saved items
-      supabase
-        .from('saved_items')
-        .select('listing:listings(category)')
-        .eq('user_id', user.id),
-
-      // Personalisation: recently viewed categories
-      supabase
-        .from('listing_views')
-        .select('listing:listings(category)')
-        .eq('user_id', user.id)
-        .order('viewed_at', { ascending: false })
-        .limit(30),
-
-      // Already viewed stories
-      supabase
-        .from('story_views')
-        .select('listing_id')
-        .eq('user_id', user.id),
-    ]);
-
-    // Fetch boosted listings by ID (exclude own)
-    const boostedIds = (activeBoosts ?? []).map(b => b.listing_id);
-    const boostedListings = boostedIds.length > 0
-      ? (await supabase
-          .from('listings')
-          .select(LISTING_SELECT)
-          .in('id', boostedIds)
-          .eq('status', 'available')
-          .neq('seller_id', user.id)
-          .order('published_at', { ascending: false })
-          .limit(20)
-        ).data
-      : [];
-
-    const viewedIds = new Set(viewedStories?.map(s => s.listing_id) ?? []);
-
-    const preferredCategories = new Set<string>([
-      ...(savedItems?.map((s: any) => s.listing?.category).filter(Boolean) ?? []),
-      ...(viewedListings?.map((v: any) => v.listing?.category).filter(Boolean) ?? []),
-    ]);
-
-    // Merge boosted + organic, dedup by id
-    // Mark boosted listings with is_boosted flag for sort/display
-    const boostedIdSet = new Set(boostedIds);
-    const seenIds = new Set<string>();
-    const merged: StoryListing[] = [];
-    for (const l of [...(boostedListings ?? []), ...(organicListings ?? [])]) {
-      if (seenIds.has(l.id)) continue;
-      if ((l as any).seller?.tax_hold) continue;
-      seenIds.add(l.id);
-      merged.push({ ...(l as StoryListing), is_boosted: boostedIdSet.has(l.id), viewed: false });
-    }
-
-    // Dedup to one listing per seller (keep most recently created — already ordered desc)
-    const seenSellers = new Set<string>();
-    const deduped: StoryListing[] = [];
-    for (const l of merged) {
-      const sellerId = l.seller_id ?? '';
-      if (seenSellers.has(sellerId)) continue;
-      seenSellers.add(sellerId);
-      deduped.push(l);
-    }
-
-    // Sort: boosted unviewed → unviewed + preferred → unviewed → viewed
-    const sorted = [...deduped].sort((a, b) => {
-      const aViewed = viewedIds.has(a.id) ? 1 : 0;
-      const bViewed = viewedIds.has(b.id) ? 1 : 0;
-      if (aViewed !== bViewed) return aViewed - bViewed;
-
-      // Both unviewed — boosted first
-      const aBoosted = a.is_boosted ? 0 : 1;
-      const bBoosted = b.is_boosted ? 0 : 1;
-      if (aBoosted !== bBoosted) return aBoosted - bBoosted;
-
-      // Then preferred category
-      const aPref = a.category && preferredCategories.has(a.category) ? 0 : 1;
-      const bPref = b.category && preferredCategories.has(b.category) ? 0 : 1;
-      return aPref - bPref;
-    });
-
-    setStories(
-      sorted.map(l => ({
-        ...l,
-        viewed: viewedIds.has(l.id),
-      }))
+  // Optimistically flip viewed=true in cache, then persist to DB.
+  // The accompanying listing_views insert is fire-and-forget — it doesn't
+  // affect the visible badge but feeds the recently-viewed signal.
+  const markViewed = useCallback(async (listingId: string) => {
+    if (!userId) return;
+    queryClient.setQueryData<StoryListing[]>(
+      queryKeys.home.stories(userId),
+      prev => prev?.map(s => (s.id === listingId ? { ...s, viewed: true } : s)),
     );
-    setLoading(false);
-  }, [user]);
-
-  useEffect(() => {
-    fetch();
-  }, [fetch]);
-
-  const markViewed = async (listingId: string) => {
-    if (!user) return;
-
-    setStories(prev =>
-      prev.map(s => (s.id === listingId ? { ...s, viewed: true } : s))
-    );
-
     await Promise.all([
       supabase
         .from('story_views')
-        .upsert({ user_id: user.id, listing_id: listingId }),
+        .upsert({ user_id: userId, listing_id: listingId }),
       supabase
         .from('listing_views')
-        .insert({ user_id: user.id, listing_id: listingId }),
+        .insert({ user_id: userId, listing_id: listingId }),
     ]);
-  };
+  }, [userId, queryClient]);
 
-  return { stories, loading, markViewed, refresh: fetch };
+  return {
+    stories: query.data ?? [],
+    loading: query.isLoading,
+    isError: query.isError,
+    refetch: query.refetch,
+    markViewed,
+  };
 }

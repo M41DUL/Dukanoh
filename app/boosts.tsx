@@ -97,6 +97,11 @@ export default function BoostsScreen() {
             style: 'destructive',
             onPress: async () => {
               setTogglingId(listing.id);
+              // TODO(tanstack-migrate): when this screen migrates, wrap the
+              // boost remove flow (boosts delete + listings flag reset +
+              // users counter decrement) in a useRemoveBoost hook in
+              // lib/mutations.ts that invalidates queryKeys.home.all so
+              // the listing drops out of the Stories row.
               const { error } = await supabase
                 .from('boosts')
                 .delete()
@@ -145,6 +150,11 @@ export default function BoostsScreen() {
             setTogglingId(listing.id);
             const expiresAt = new Date(Date.now() + BOOST_DURATION_HOURS * 60 * 60 * 1000);
 
+            // TODO(tanstack-migrate): when this screen migrates, wrap the
+            // boost insert flow (boosts insert + listings flag set +
+            // users counter increment) in a useAddBoost hook in
+            // lib/mutations.ts that invalidates queryKeys.home.all so the
+            // newly-boosted listing surfaces in the Stories row.
             const { error } = await supabase.from('boosts').insert({
               listing_id: listing.id,
               seller_id: user.id,

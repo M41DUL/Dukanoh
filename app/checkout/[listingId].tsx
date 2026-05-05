@@ -292,7 +292,8 @@ export default function CheckoutScreen() {
     // TODO(tanstack-migrate): when this screen migrates, wrap the
     // post-payment order insert (and the listing-status update below)
     // in a useCreateOrder hook in lib/mutations.ts that invalidates
-    // queryKeys.orders.all (and queryKeys.listings.all once that exists).
+    // queryKeys.orders.all, queryKeys.listings.all, and queryKeys.home.all
+    // (so the sold listing drops out of Suggested / New arrivals).
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({

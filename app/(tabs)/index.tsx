@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { searchFocusRequest } from '@/lib/searchFocusRequest';
 import { View, ScrollView, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { EmptyState } from '@/components/EmptyState';
@@ -24,21 +24,23 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useFeed } from '@/hooks/useFeed';
 import { useBlocked } from '@/context/BlockedContext';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { JustSoldToast } from '@/components/JustSoldToast';
 import { JUST_SOLD_TOAST_ENABLED } from '@/lib/featureFlags';
 import { DukanohFitSheet } from '@/components/DukanohFitSheet';
 
 export default function HomeScreen() {
   const [fitSheetVisible, setFitSheetVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
   const colors = useThemeColors();
   const { isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const { stories, loading: storiesLoading, markViewed } = useStories();
+  const { stories, loading: storiesLoading, markViewed, refetch: refetchStories } = useStories();
   const allStories = [getAppStory(), ...stories];
-  const { items: recentItems, reload: reloadRecent } = useRecentlyViewed(user?.id);
+  const { items: recentItems, refetch: refetchRecent } = useRecentlyViewed(user?.id);
 
   const {
     suggested,
@@ -46,15 +48,13 @@ export default function HomeScreen() {
     trending,
     priceDrops,
     preferredCategories,
-    loading,
-    refreshing,
+    isLoading,
+    isError,
+    refetch: refetchFeed,
     nudgeSlides,
     showFitNudge,
     markFitSeen,
-    onRefresh,
-    loadDataIfStale,
-    hasMounted,
-  } = useFeed({ userId: user?.id, blockedIds, reloadRecent });
+  } = useFeed({ userId: user?.id, blockedIds });
 
   const allNudgeSlides = useMemo(() => {
     if (!showFitNudge) return nudgeSlides;
@@ -73,16 +73,15 @@ export default function HomeScreen() {
     ];
   }, [showFitNudge, nudgeSlides, markFitSeen, isDark, colors]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (hasMounted.current) {
-        loadDataIfStale();
-        reloadRecent();
-      } else {
-        hasMounted.current = true;
-      }
-    }, [loadDataIfStale, reloadRecent, hasMounted])
-  );
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refetchFeed(), refetchRecent(), refetchStories()]);
+    setRefreshing(false);
+  }, [refetchFeed, refetchRecent, refetchStories]);
+
+  useRefreshOnFocus(refetchFeed);
+  useRefreshOnFocus(refetchRecent);
+  useRefreshOnFocus(refetchStories);
 
   return (
     <ScreenWrapper contentStyle={{ paddingHorizontal: 0 }}>
@@ -98,13 +97,23 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {loading ? (
+        {isLoading ? (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.feedContent}>
             <View style={styles.padded}>
               <SkeletonSection />
               <SkeletonSection />
             </View>
           </ScrollView>
+        ) : isError ? (
+          <View style={styles.padded}>
+            <EmptyState
+              icon={<Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />}
+              heading="Couldn't load your feed"
+              subtext="Check your connection and try again."
+              ctaLabel="Retry"
+              onCta={() => refetchFeed()}
+            />
+          </View>
         ) : (
           <ScrollView
             showsVerticalScrollIndicator={false}
