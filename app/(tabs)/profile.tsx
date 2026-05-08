@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useMemo, useRef, ComponentProps } from 'react';
+import React, { useState, useCallback, useMemo, ComponentProps } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Share, Platform } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/Button';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -15,6 +16,8 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useTaxStatus } from '@/hooks/useTaxStatus';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
+import { queryKeys } from '@/lib/queryKeys';
 import { TaxHoldBanner } from '@/components/TaxHoldBanner';
 import { HUB, HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
 import { consumePaywallOpen } from '@/lib/paywallTrigger';
@@ -27,19 +30,67 @@ interface QuickAction {
   onPress: () => void;
 }
 
-const STALE_MS = 30_000;
-
 
 export default function ProfileScreen() {
   const { user, username, isSeller, isVerified, isOfficial, sellerTier, refreshProfile } = useAuth();
   const { taxStatus, reloadTaxStatus } = useTaxStatus(user?.id);
   const [refreshing, setRefreshing] = useState(false);
-  const [ratingAvg, setRatingAvg] = useState(0);
-  const [ratingCount, setRatingCount] = useState(0);
-  const [profileName, setProfileName] = useState('');
-  const [profileAvatar, setProfileAvatar] = useState<string | undefined>();
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [walletVisible, setWalletVisible] = useState(false);
+
+  const profileQuery = useQuery({
+    queryKey: queryKeys.profile.overview(user?.id),
+    enabled: !!user?.id,
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('full_name, avatar_url, rating_avg, rating_count, had_free_trial, pro_expires_at')
+        .eq('id', user!.id)
+        .abortSignal(signal)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const pricingQuery = useQuery({
+    queryKey: queryKeys.profile.pricing(),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['founder_count', 'founder_limit', 'founder_monthly_price', 'pro_monthly_price'])
+        .abortSignal(signal);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const profileData = profileQuery.data;
+  const profileName = profileData?.full_name === 'New User' ? '' : (profileData?.full_name ?? '');
+  const profileAvatar = profileData?.avatar_url ?? undefined;
+  const ratingAvg = profileData?.rating_avg ?? 0;
+  const ratingCount = profileData?.rating_count ?? 0;
+  const hadFreeTrial = profileData?.had_free_trial ?? false;
+  const proExpired = useMemo(() => {
+    if (!profileData?.pro_expires_at) return false;
+    return new Date(profileData.pro_expires_at) < new Date();
+  }, [profileData?.pro_expires_at]);
+
+  const { proCardPrice, proFounderAvailable } = useMemo(() => {
+    const rows = pricingQuery.data;
+    if (!rows) return { proCardPrice: null as string | null, proFounderAvailable: false };
+    const row = (k: string) => rows.find(r => r.key === k)?.value;
+    const count = parseInt(row('founder_count') ?? '0', 10);
+    const limit = parseInt(row('founder_limit') ?? '150', 10);
+    const founderAvail = count < limit;
+    return {
+      proCardPrice: founderAvail
+        ? `£${row('founder_monthly_price') ?? '6.99'}/month`
+        : `£${row('pro_monthly_price') ?? '9.99'}/month`,
+      proFounderAvailable: founderAvail,
+    };
+  }, [pricingQuery.data]);
 
   // Auto-open paywall if stripe-onboarding signalled it
   useFocusEffect(useCallback(() => {
@@ -48,20 +99,25 @@ export default function ProfileScreen() {
     }
   }, [refreshProfile]));
 
+  // Re-pull useAuth-backed flags + tax status whenever the tab regains focus.
+  // Profile + pricing queries refetch via useRefreshOnFocus below.
+  useFocusEffect(useCallback(() => {
+    refreshProfile();
+    reloadTaxStatus();
+  }, [refreshProfile, reloadTaxStatus]));
+
+  useRefreshOnFocus(profileQuery.refetch);
+  useRefreshOnFocus(pricingQuery.refetch);
+
+  const colors = useThemeColors();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   const quickActions: QuickAction[] = [
     { icon: 'bag-outline', label: 'My listings', onPress: () => router.push('/my-listings') },
     { icon: 'receipt-outline', label: 'Orders', onPress: () => router.push('/orders') },
     { icon: 'wallet-outline', label: 'Wallet', onPress: () => setWalletVisible(true) },
     { icon: 'heart-outline', label: 'Saved', onPress: () => router.push('/saved') },
   ];
-  const [hadFreeTrial, setHadFreeTrial] = useState(false);
-  const [proExpired, setProExpired] = useState(false);
-  const [proCardPrice, setProCardPrice] = useState<string | null>(null);
-  const [proFounderAvailable, setProFounderAvailable] = useState(false);
-  const colors = useThemeColors();
-  const styles = useMemo(() => getStyles(colors), [colors]);
-
-  const lastFetchedRef = useRef<number>(0);
 
   const handleInvite = useCallback(() => {
     Share.share({
@@ -72,63 +128,16 @@ export default function ProfileScreen() {
     });
   }, []);
 
-  const fetchProfile = useCallback(async () => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from('users')
-      .select('full_name, avatar_url, rating_avg, rating_count, had_free_trial, pro_expires_at')
-      .eq('id', user.id)
-      .maybeSingle();
-    if (error) {
-      // fetchProfile failed silently
-      return;
-    }
-    if (data) {
-      const name = data.full_name === 'New User' ? '' : (data.full_name ?? '');
-      setProfileName(name);
-      setProfileAvatar(data.avatar_url ?? undefined);
-      setRatingAvg(data.rating_avg ?? 0);
-      setRatingCount(data.rating_count ?? 0);
-      setHadFreeTrial(data.had_free_trial ?? false);
-      const expiresAt = data.pro_expires_at ? new Date(data.pro_expires_at) : null;
-      setProExpired(expiresAt !== null && expiresAt < new Date());
-    }
-    lastFetchedRef.current = Date.now();
-  }, [user]);
-
-  const fetchPricing = useCallback(async () => {
-    const { data } = await supabase
-      .from('platform_settings')
-      .select('key, value')
-      .in('key', ['founder_count', 'founder_limit', 'founder_monthly_price', 'pro_monthly_price']);
-    if (!data) return;
-    const row = (k: string) => data.find(r => r.key === k)?.value;
-    const count = parseInt(row('founder_count') ?? '0', 10);
-    const limit = parseInt(row('founder_limit') ?? '150', 10);
-    const founderAvail = count < limit;
-    setProFounderAvailable(founderAvail);
-    setProCardPrice(founderAvail
-      ? `£${row('founder_monthly_price') ?? '6.99'}/month`
-      : `£${row('pro_monthly_price') ?? '9.99'}/month`
-    );
-  }, []);
-
-  useFocusEffect(useCallback(() => {
-    refreshProfile();
-    reloadTaxStatus();
-    fetchPricing();
-    const now = Date.now();
-    if (now - lastFetchedRef.current > STALE_MS) {
-      fetchProfile();
-    }
-  }, [fetchProfile, fetchPricing, refreshProfile, reloadTaxStatus]));
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    lastFetchedRef.current = 0;
-    await Promise.all([refreshProfile(), fetchProfile(), fetchPricing()]);
+    await Promise.all([
+      refreshProfile(),
+      reloadTaxStatus(),
+      profileQuery.refetch(),
+      pricingQuery.refetch(),
+    ]);
     setRefreshing(false);
-  }, [fetchProfile, fetchPricing, refreshProfile]);
+  }, [refreshProfile, reloadTaxStatus, profileQuery, pricingQuery]);
 
   // Pro users get a dedicated business dashboard UI
   if (sellerTier === 'pro' || sellerTier === 'founder') {
@@ -285,7 +294,7 @@ export default function ProfileScreen() {
       <ProPaywallSheet
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
-        onSuccess={async () => { lastFetchedRef.current = 0; await Promise.all([refreshProfile(), fetchProfile()]); }}
+        onSuccess={async () => { await Promise.all([refreshProfile(), profileQuery.refetch()]); }}
         isVerified={isVerified}
         hadFreeTrial={hadFreeTrial}
         userId={user?.id ?? ''}

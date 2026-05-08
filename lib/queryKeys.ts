@@ -53,4 +53,16 @@ export const queryKeys = {
     preferences: (userId?: string) =>
       [...queryKeys.users.all, 'preferences', userId] as const,
   },
+  profile: {
+    all: ['profile'] as const,
+    // Own profile row read by the profile tab (full_name, avatar_url,
+    // rating_avg/count, had_free_trial, pro_expires_at). Distinct from
+    // useAuth's profile fetch, which selects a different set of fields.
+    overview: (userId?: string) =>
+      [...queryKeys.profile.all, 'overview', userId] as const,
+    // Global platform_settings rows that drive the Pro entry card's
+    // price + founder-tier availability. No userId — same for everyone.
+    pricing: () =>
+      [...queryKeys.profile.all, 'pricing'] as const,
+  },
 } as const;
