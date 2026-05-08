@@ -274,6 +274,76 @@ export function useCancelOrder() {
   });
 }
 
+interface ResolveDisputeArgs {
+  orderId: string;
+  listingId: string | null;
+  outcome: 'release_seller' | 'refund_buyer';
+  note: string;
+}
+
+/**
+ * Admin resolution of a disputed order.
+ *
+ * For `refund_buyer`, fires the Stripe refund edge function first and
+ * relists the item (status → available, buyer_id null, sold_at null) so
+ * it returns to the home feed. For `release_seller`, only writes the
+ * resolution fields — the wallet credit is deferred until the 7-day
+ * appeal window closes (handled by the auto_release_orders job).
+ *
+ * Both branches stamp `appeal_deadline_at` 7 days out and gate the orders
+ * update on `status = 'disputed'` so a double-tap can't double-resolve.
+ *
+ * Invalidates adminDisputes.all (this screen), orders.all (buyer + seller
+ * order lists, order detail), listings.all + home.all + myListings.all
+ * (refunded path relists the item).
+ */
+export function useResolveDispute() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ orderId, listingId, outcome, note }: ResolveDisputeArgs) => {
+      const now = new Date().toISOString();
+      const appealDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      if (outcome === 'refund_buyer') {
+        const refundRes = await edgeFetch('stripe-refund', { order_id: orderId });
+        if (!refundRes.ok) {
+          const err = await refundRes.json().catch(() => ({}));
+          throw new Error(err?.error ?? 'Could not process refund. Please try again.');
+        }
+      }
+
+      const { error: orderErr } = await supabase
+        .from('orders')
+        .update({
+          status: 'resolved',
+          resolution_outcome: outcome,
+          resolution_note: note,
+          resolved_at: now,
+          appeal_deadline_at: appealDeadline,
+        })
+        .eq('id', orderId)
+        .eq('status', 'disputed');
+      if (orderErr) throw orderErr;
+
+      if (outcome === 'refund_buyer' && listingId) {
+        const { error: listingErr } = await supabase
+          .from('listings')
+          .update({ status: 'available', buyer_id: null, sold_at: null })
+          .eq('id', listingId);
+        if (listingErr) throw listingErr;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminDisputes.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+    },
+  });
+}
+
 interface AppealDisputeArgs {
   orderId: string;
   appealedBy: 'buyer' | 'seller';

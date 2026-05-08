@@ -109,4 +109,8 @@ export const queryKeys = {
     pricing: () =>
       [...queryKeys.profile.all, 'pricing'] as const,
   },
+  adminDisputes: {
+    all: ['admin-disputes'] as const,
+    list: () => [...queryKeys.adminDisputes.all, 'list'] as const,
+  },
 } as const;
