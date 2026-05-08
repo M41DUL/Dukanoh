@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Listing } from '@/components/ListingCard';
 import { compressImage, extractStoragePath } from './imageUtils';
+import { edgeFetch } from './edgeFetch';
 import { supabase } from './supabase';
 import { queryKeys } from './queryKeys';
 
@@ -206,6 +207,71 @@ export function useWithdrawDispute() {
       if (error) throw error;
     },
     onSuccess: () => invalidateOrders(queryClient),
+  });
+}
+
+interface CancelOrderArgs {
+  orderId: string;
+  listingId: string | null;
+  cancelledBy: 'buyer' | 'seller';
+  // Required when cancelledBy === 'seller' so we can record the strike.
+  sellerId?: string;
+}
+
+/**
+ * Cancels an order: refunds the buyer via the stripe-refund edge function,
+ * marks the order cancelled, returns the listing to `available`, and (for
+ * seller-cancelled orders) inserts a row into `cancellation_strikes`.
+ *
+ * All four steps must succeed — any failure throws and the caller's catch
+ * runs. The mutation is not transactional across the edge function and the
+ * three Supabase writes, so a refund could conceivably succeed while a
+ * later step fails; that's the same shape the inline flow had pre-migration.
+ *
+ * Invalidates orders.all (refreshing both list + detail under the hierarchical
+ * key) and myListings.all (so the listing returns to the seller's Selling tab).
+ */
+export function useCancelOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ orderId, listingId, cancelledBy, sellerId }: CancelOrderArgs) => {
+      const refundRes = await edgeFetch('stripe-refund', { order_id: orderId });
+      if (!refundRes.ok) {
+        const err = await refundRes.json().catch(() => ({}));
+        throw new Error(err?.error ?? 'Refund failed');
+      }
+      const { error: orderErr } = await supabase
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: cancelledBy,
+        })
+        .eq('id', orderId);
+      if (orderErr) throw orderErr;
+      if (listingId) {
+        const { error: listingErr } = await supabase
+          .from('listings')
+          .update({ status: 'available', buyer_id: null, sold_at: null })
+          .eq('id', listingId);
+        if (listingErr) throw listingErr;
+      }
+      if (cancelledBy === 'seller' && sellerId) {
+        const { error: strikeErr } = await supabase
+          .from('cancellation_strikes')
+          .insert({ seller_id: sellerId, order_id: orderId });
+        if (strikeErr) throw strikeErr;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+      // Cancelled listing returns to Suggested / New arrivals on home and to
+      // browse/search caches.
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+    },
   });
 }
 
