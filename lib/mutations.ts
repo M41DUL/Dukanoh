@@ -103,15 +103,12 @@ export function useToggleSavedItem() {
 
 // ─── Orders ───────────────────────────────────────────────────
 //
-// These are clean single-call wrappers around the order state-transition
-// mutations. They all invalidate `queryKeys.orders.all` so any cached
-// sold/bought list refetches after the transition.
-//
-// Multi-step flows (cancel-with-refund in app/order/[id]/index.tsx, the
-// admin resolve-with-refund flow in app/admin/disputes.tsx, and the
-// checkout insert in app/checkout/[listingId].tsx) are NOT wrapped here —
-// their final shape depends on how their owner screens migrate. Those
-// sites carry TODO(tanstack-migrate) breadcrumbs that point back here.
+// Single-call state-transition wrappers (mark shipped, confirm receipt,
+// raise/withdraw dispute, appeal) plus the multi-step flows that compose
+// edge-function calls with row writes (useCancelOrder, useResolveDispute,
+// useCreateOrder). All invalidate `queryKeys.orders.all` and any other
+// caches the underlying writes touch (listings.all, myListings.all,
+// home.all where relevant).
 
 interface MarkOrderShippedArgs {
   orderId: string;
@@ -341,6 +338,88 @@ export function useResolveDispute() {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+    },
+  });
+}
+
+interface CreateOrderArgs {
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+  itemPrice: number;
+  protectionFee: number;
+  totalPaid: number;
+  stripePaymentId: string;
+  // Far-future sentinel ('2099-01-01...') for unverified-seller payouts so
+  // stripe-connect-status can sweep them once onboarding completes; null when
+  // the seller is already verified.
+  sellerVerifyDeadline: string | null;
+  deliveryAddressLine1: string;
+  deliveryAddressLine2: string | null;
+  deliveryCity: string;
+  deliveryPostcode: string;
+  deliveryCountry: string;
+}
+
+/**
+ * Post-payment write for the checkout flow. Stripe (PaymentIntent +
+ * presentPaymentSheet) STAYS imperative — this hook owns only what happens
+ * AFTER the payment succeeds: insert the `orders` row, then flip the listing
+ * to `sold` (mirroring the inline pre-migration sequence — sequential, not
+ * transactional, so a partial failure leaves the listing as `available` until
+ * a refund + cleanup runs).
+ *
+ * The mutationFn rejects with the raw Supabase error so callers can inspect
+ * `error.code === '23505'` to recover the existing order id when the
+ * listing_id unique constraint fires (the buyer double-tapped Pay).
+ *
+ * Invalidates orders.all (buyer + seller order lists, order detail), listings.all
+ * (browse / search / detail caches see the new `sold` status) and myListings.all
+ * (listing leaves seller's Selling tab; appears in buyer's Bought tab).
+ */
+export function useCreateOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: CreateOrderArgs): Promise<{ id: string }> => {
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          listing_id: args.listingId,
+          buyer_id: args.buyerId,
+          seller_id: args.sellerId,
+          status: 'paid',
+          item_price: args.itemPrice,
+          protection_fee: args.protectionFee,
+          total_paid: args.totalPaid,
+          stripe_payment_id: args.stripePaymentId,
+          seller_verify_deadline: args.sellerVerifyDeadline,
+          delivery_address_line1: args.deliveryAddressLine1,
+          delivery_address_line2: args.deliveryAddressLine2,
+          delivery_city: args.deliveryCity,
+          delivery_postcode: args.deliveryPostcode,
+          delivery_country: args.deliveryCountry,
+        })
+        .select('id')
+        .single();
+      if (orderError || !order) throw orderError ?? new Error('Order insert returned no row');
+
+      // Mirror the inline flow: best-effort listing flip — its error was not
+      // surfaced pre-migration. Cancellation / refund paths reset this back
+      // to `available`.
+      await supabase
+        .from('listings')
+        .update({ status: 'sold', buyer_id: args.buyerId, sold_at: new Date().toISOString() })
+        .eq('id', args.listingId);
+
+      return { id: order.id as string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+      // Sold listing should drop out of Suggested / New arrivals on home.
       queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
     },
   });
