@@ -217,15 +217,13 @@ export default function OrderDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             if (!user) return;
-            const cancelledBy: 'buyer' | 'seller' = isBuyer ? 'buyer' : 'seller';
             setSubmitting(true);
             try {
-              await cancelOrder.mutateAsync({
-                orderId: order.id,
-                listingId: order.listing_id,
-                cancelledBy,
-                sellerId: cancelledBy === 'seller' ? user.id : undefined,
-              });
+              await cancelOrder.mutateAsync(
+                isBuyer
+                  ? { orderId: order.id, listingId: order.listing_id, cancelledBy: 'buyer' }
+                  : { orderId: order.id, listingId: order.listing_id, cancelledBy: 'seller', sellerId: user.id },
+              );
             } catch (err) {
               const message =
                 err instanceof Error && err.message

@@ -210,13 +210,11 @@ export function useWithdrawDispute() {
   });
 }
 
-interface CancelOrderArgs {
-  orderId: string;
-  listingId: string | null;
-  cancelledBy: 'buyer' | 'seller';
-  // Required when cancelledBy === 'seller' so we can record the strike.
-  sellerId?: string;
-}
+// Discriminated on `cancelledBy` so the seller branch requires `sellerId` —
+// otherwise the strike insert would silently skip with no compile error.
+type CancelOrderArgs =
+  | { orderId: string; listingId: string | null; cancelledBy: 'buyer' }
+  | { orderId: string; listingId: string | null; cancelledBy: 'seller'; sellerId: string };
 
 /**
  * Cancels an order: refunds the buyer via the stripe-refund edge function,
@@ -235,7 +233,8 @@ export function useCancelOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ orderId, listingId, cancelledBy, sellerId }: CancelOrderArgs) => {
+    mutationFn: async (args: CancelOrderArgs) => {
+      const { orderId, listingId, cancelledBy } = args;
       const refundRes = await edgeFetch('stripe-refund', { order_id: orderId });
       if (!refundRes.ok) {
         const err = await refundRes.json().catch(() => ({}));
@@ -257,10 +256,10 @@ export function useCancelOrder() {
           .eq('id', listingId);
         if (listingErr) throw listingErr;
       }
-      if (cancelledBy === 'seller' && sellerId) {
+      if (args.cancelledBy === 'seller') {
         const { error: strikeErr } = await supabase
           .from('cancellation_strikes')
-          .insert({ seller_id: sellerId, order_id: orderId });
+          .insert({ seller_id: args.sellerId, order_id: orderId });
         if (strikeErr) throw strikeErr;
       }
     },
