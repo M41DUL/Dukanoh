@@ -5,6 +5,7 @@ import * as Crypto from 'expo-crypto';
 import type { Listing } from '@/components/ListingCard';
 import { compressImage, extractStoragePath } from './imageUtils';
 import { edgeFetch } from './edgeFetch';
+import { buildMeasurements, type ListingForm } from './sellHelpers';
 import { supabase } from './supabase';
 import { queryKeys } from './queryKeys';
 
@@ -557,6 +558,95 @@ export function useDeleteConversation() {
 }
 
 // ─── Listings ─────────────────────────────────────────────────
+
+interface CreateListingArgs {
+  userId: string;
+  form: ListingForm;
+  measurementsNote: string;
+  images: string[];
+  newStatus: 'available' | 'draft';
+  // Per-image upload progress so the sell screen can render the
+  // "Uploading photos… 2/8" text. Called once with (0, total) up-front
+  // and once per successful upload with the running done count.
+  onUploadProgress?: (done: number, total: number) => void;
+}
+
+/**
+ * Creates a new listing: uploads images concurrently to the `listings` storage
+ * bucket, then inserts the row with status set to either 'available' (publish)
+ * or 'draft' (save for later). Returns the new listing's id along with the
+ * uploaded public image URLs so the caller can render the success view
+ * without re-fetching.
+ *
+ * Invalidates myListings.all (Selling/Drafts tabs), listings.all (browse,
+ * search, detail caches), and home.all (Suggested / New arrivals) so the new
+ * listing surfaces everywhere it should without a manual refresh.
+ */
+export function useCreateListing() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      form,
+      measurementsNote,
+      images,
+      newStatus,
+      onUploadProgress,
+    }: CreateListingArgs): Promise<{ id: string; images: string[] }> => {
+      onUploadProgress?.(0, images.length);
+      let completed = 0;
+      const uploads = images.map(async (uri) => {
+        const compressed = await compressImage(uri);
+        const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+        const response = await fetch(compressed);
+        const arrayBuffer = await response.arrayBuffer();
+        const { error } = await supabase.storage
+          .from('listings')
+          .upload(fileName, arrayBuffer, {
+            contentType: 'image/jpeg',
+            cacheControl: '31536000',
+          });
+        if (error) throw new Error(`Failed to upload photo: ${error.message}`);
+        completed += 1;
+        onUploadProgress?.(completed, images.length);
+        const { data } = supabase.storage.from('listings').getPublicUrl(fileName);
+        return data.publicUrl;
+      });
+      const imageUrls = await Promise.all(uploads);
+
+      const { data, error } = await supabase
+        .from('listings')
+        .insert({
+          seller_id: userId,
+          title: form.title.trim(),
+          description: form.description.trim() || null,
+          price: parseFloat(form.price),
+          gender: form.gender,
+          category: form.category,
+          condition: form.condition,
+          size: form.size || null,
+          occasion: form.occasion || null,
+          colour: form.colour || null,
+          fabric: form.fabric || null,
+          measurements: buildMeasurements(measurementsNote),
+          worn_at: form.worn_at.trim() || null,
+          images: imageUrls,
+          status: newStatus,
+          published_at: newStatus === 'available' ? new Date().toISOString() : null,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      return { id: data.id as string, images: imageUrls };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+    },
+  });
+}
 
 interface DeleteListingArgs {
   listingId: string;
