@@ -83,6 +83,13 @@ export const queryKeys = {
     list: (userId?: string) =>
       [...queryKeys.inbox.all, 'list', userId] as const,
   },
+  conversations: {
+    all: ['conversations'] as const,
+    detail: (conversationId?: string) =>
+      [...queryKeys.conversations.all, 'detail', conversationId] as const,
+    messages: (conversationId?: string) =>
+      [...queryKeys.conversations.all, 'messages', conversationId] as const,
+  },
   home: {
     all: ['home'] as const,
     feed: (userId?: string, blockedIds: string[] = []) =>
