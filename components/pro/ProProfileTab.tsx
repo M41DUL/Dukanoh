@@ -29,6 +29,7 @@ import { HubOccasionRow } from '@/components/hub/HubOccasionRow';
 import { useProColors } from '@/hooks/useProColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { useAssignListingCollection } from '@/lib/mutations';
 import { edgeFetch } from '@/lib/edgeFetch';
 import { getImageUrl } from '@/lib/imageUtils';
 import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme';
@@ -82,6 +83,7 @@ export function ProProfileTab() {
   const [dashLoading, setDashLoading] = useState(true);
 
   const { taxStatus } = useTaxStatus(user?.id);
+  const assignListingCollection = useAssignListingCollection();
 
   // Sheet state
   const [manageColVisible, setManageColVisible] = useState(false);
@@ -300,10 +302,7 @@ export function ProProfileTab() {
   }, [user, newColName]);
 
   const handleAssignCollection = useCallback(async (listingId: string, collectionId: string | null) => {
-    // TODO(tanstack-migrate): when this component migrates, wrap this update
-    // in a useAssignListingCollection hook in lib/mutations.ts that
-    // invalidates queryKeys.myListings.all.
-    await supabase.from('listings').update({ collection_id: collectionId }).eq('id', listingId);
+    await assignListingCollection.mutateAsync({ listingId, collectionId });
     setAssignSheetListing(null);
     setDash(prev => {
       if (!prev) return prev;
@@ -320,7 +319,7 @@ export function ProProfileTab() {
         }),
       };
     });
-  }, []);
+  }, [assignListingCollection]);
 
   const handleRenameCollection = useCallback(async (id: string, name: string) => {
     const trimmed = name.trim();

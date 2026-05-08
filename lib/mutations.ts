@@ -1009,6 +1009,87 @@ export function useRecordListingView() {
   });
 }
 
+interface AssignListingCollectionArgs {
+  listingId: string;
+  collectionId: string | null;
+}
+
+/**
+ * Assigns (or un-assigns) a listing to a Pro collection. Only invalidates
+ * `myListings.all` because the collection_id field is consumed exclusively
+ * by the seller's Pro dashboard — browse, search, listing detail, and home
+ * don't surface it.
+ */
+export function useAssignListingCollection() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ listingId, collectionId }: AssignListingCollectionArgs) => {
+      const { error } = await supabase
+        .from('listings')
+        .update({ collection_id: collectionId })
+        .eq('id', listingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+    },
+  });
+}
+
+interface BulkUpdatePricesArgs {
+  // One entry per listing whose price actually changed. The hook recomputes
+  // isPriceDrop server-side from currentPrice → newPrice so the price-drop
+  // badge fields (`original_price`, `price_dropped_at`) stay in lockstep with
+  // the price write.
+  updates: {
+    listingId: string;
+    currentPrice: number;
+    newPrice: number;
+  }[];
+}
+
+/**
+ * Bulk price update from the Pro BulkEditSheet. Mirrors the inline flow:
+ * runs N independent updates in parallel (Promise.all), one per listing, so
+ * each row's price-drop fields can diverge based on its own old vs new price.
+ *
+ * For drops, sets `original_price` to the previous price and stamps
+ * `price_dropped_at = now` so cards can render the strikethrough + "Reduced"
+ * badge. For increases or restores, clears both fields.
+ *
+ * Invalidates myListings.all (seller's Selling tab), listings.all (browse +
+ * search caches show prices, including price-asc/desc sort variants), and
+ * home.all (Suggested / New arrivals price tags).
+ */
+export function useBulkUpdatePrices() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ updates }: BulkUpdatePricesArgs) => {
+      const now = new Date().toISOString();
+      await Promise.all(
+        updates.map(async ({ listingId, currentPrice, newPrice }) => {
+          const isPriceDrop = newPrice < currentPrice;
+          const patch = isPriceDrop
+            ? { price: newPrice, original_price: currentPrice, price_dropped_at: now }
+            : { price: newPrice, original_price: null, price_dropped_at: null };
+          const { error } = await supabase
+            .from('listings')
+            .update(patch)
+            .eq('id', listingId);
+          if (error) throw error;
+        }),
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+    },
+  });
+}
+
 // ─── Boosts ───────────────────────────────────────────────────
 //
 // Pro Story Boosts. Each boost is a row in `boosts` (listing_id, seller_id,
