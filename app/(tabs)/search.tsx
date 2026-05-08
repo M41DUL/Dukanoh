@@ -12,7 +12,9 @@ import { DukanohFitSheet } from '@/components/DukanohFitSheet';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchHistory } from '@/hooks/useSearchHistory';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { queryKeys } from '@/lib/queryKeys';
 import { supabase } from '@/lib/supabase';
+import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -148,28 +150,45 @@ export default function SearchScreen() {
   const { saveSearch } = useSearchHistory();
   const { user } = useAuth();
 
-  // Set default tab: last used tab takes priority, falls back to onboarding preference
+  // Default tab is driven by AsyncStorage (last used) when present, otherwise
+  // by onboarding preferred_categories. The supabase lookup runs through
+  // useQuery so the result is cached and can be invalidated when the user
+  // edits their categories elsewhere.
+  const [storageState, setStorageState] = useState<'unread' | 'hit' | 'miss'>('unread');
+
   useEffect(() => {
     if (!user) return;
     AsyncStorage.getItem(LAST_TAB_KEY).then(stored => {
       if (stored === 'Women' || stored === 'Men' || stored === 'All') {
         setActiveTab(stored);
-        return;
+        setStorageState('hit');
+      } else {
+        setStorageState('miss');
       }
-      Promise.resolve(
-        supabase
-          .from('users')
-          .select('preferred_categories')
-          .eq('id', user.id)
-          .maybeSingle()
-      ).then(({ data }) => {
-        const cats: string[] = data?.preferred_categories ?? [];
-        if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
-        else if (cats.includes('Women')) setActiveTab('Women');
-        else setActiveTab('All');
-      }).catch(() => {});
-    }).catch(() => {});
+    }).catch(() => setStorageState('miss'));
   }, [user]);
+
+  const preferencesQuery = useQuery({
+    queryKey: queryKeys.users.preferences(user?.id),
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('preferred_categories')
+        .eq('id', user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.preferred_categories ?? [];
+    },
+    enabled: !!user && storageState === 'miss',
+  });
+
+  useEffect(() => {
+    if (storageState !== 'miss' || !preferencesQuery.data) return;
+    const cats = preferencesQuery.data;
+    if (cats.includes('Men') && !cats.includes('Women')) setActiveTab('Men');
+    else if (cats.includes('Women')) setActiveTab('Women');
+    else setActiveTab('All');
+  }, [storageState, preferencesQuery.data]);
 
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);

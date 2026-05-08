@@ -48,4 +48,9 @@ export const queryKeys = {
     recentlyViewed: (userId?: string) =>
       [...queryKeys.home.all, 'recently-viewed', userId] as const,
   },
+  users: {
+    all: ['users'] as const,
+    preferences: (userId?: string) =>
+      [...queryKeys.users.all, 'preferences', userId] as const,
+  },
 } as const;
