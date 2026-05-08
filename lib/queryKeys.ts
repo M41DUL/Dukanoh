@@ -136,4 +136,13 @@ export const queryKeys = {
     all: ['admin-disputes'] as const,
     list: () => [...queryKeys.adminDisputes.all, 'list'] as const,
   },
+  // Pro-only Story Boosts management screen. The single `list` query bundles
+  // the user's monthly boost meta (boosts_used / boosts_reset_at on the
+  // users row) with their available listings so the screen renders quota +
+  // rows from one cache entry.
+  boosts: {
+    all: ['boosts'] as const,
+    list: (userId?: string) =>
+      [...queryKeys.boosts.all, 'list', userId] as const,
+  },
 } as const;

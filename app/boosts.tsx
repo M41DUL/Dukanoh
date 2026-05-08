@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -13,16 +13,19 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import { useProColors } from '@/hooks/useProColors';
 import { useAuth } from '@/hooks/useAuth';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { supabase } from '@/lib/supabase';
+import { queryKeys } from '@/lib/queryKeys';
+import { useAddBoost, useRemoveBoost } from '@/lib/mutations';
+import { QueryStateView } from '@/components/QueryStateView';
 import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { isBoostActive } from '@/utils/boostHelpers';
 
 // Pro users get 3 story boosts per calendar month (matches HUB_FEATURES copy)
 const MONTHLY_BOOST_LIMIT = 3;
-// Each boost lasts 24 hours
-const BOOST_DURATION_HOURS = 24;
 
 interface BoostListing {
   id: string;
@@ -38,51 +41,68 @@ interface UserBoostMeta {
   boosts_reset_at: string | null;
 }
 
+interface BoostsData {
+  listings: BoostListing[];
+  meta: UserBoostMeta;
+}
+
 export default function BoostsScreen() {
   const P = useProColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
-  const [listings, setListings] = useState<BoostListing[]>([]);
-  const [meta, setMeta] = useState<UserBoostMeta>({ boosts_used: 0, boosts_reset_at: null });
-  const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const styles = useMemo(() => getStyles(P), [P]);
 
-  const fetchData = useCallback(async () => {
-    if (!user) return;
-    const [{ data: userData }, { data: listingsData }] = await Promise.all([
-      supabase
-        .from('users')
-        .select('boosts_used, boosts_reset_at')
-        .eq('id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('listings')
-        .select('id, title, price, images, is_boosted, boost_expires_at')
-        .eq('seller_id', user.id)
-        .eq('status', 'available')
-        .order('created_at', { ascending: false }),
-    ]);
-    if (userData) {
-      // Reset counter if we've passed the reset date (server-side cron may lag)
-      const resetAt = userData.boosts_reset_at ? new Date(userData.boosts_reset_at) : null;
-      const used = resetAt && resetAt < new Date() ? 0 : (userData.boosts_used ?? 0);
-      setMeta({ boosts_used: used, boosts_reset_at: userData.boosts_reset_at });
-    }
-    setListings((listingsData ?? []) as BoostListing[]);
-    setLoading(false);
-  }, [user]);
+  const boostsQuery = useQuery({
+    queryKey: queryKeys.boosts.list(user?.id),
+    queryFn: async ({ signal }): Promise<BoostsData> => {
+      const [{ data: userData, error: userErr }, { data: listingsData, error: listingsErr }] =
+        await Promise.all([
+          supabase
+            .from('users')
+            .select('boosts_used, boosts_reset_at')
+            .eq('id', user!.id)
+            .abortSignal(signal)
+            .maybeSingle(),
+          supabase
+            .from('listings')
+            .select('id, title, price, images, is_boosted, boost_expires_at')
+            .eq('seller_id', user!.id)
+            .eq('status', 'available')
+            .order('created_at', { ascending: false })
+            .abortSignal(signal),
+        ]);
+      if (userErr) throw userErr;
+      if (listingsErr) throw listingsErr;
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+      // Reset counter if we've passed the reset date (server-side cron may lag)
+      const resetAt = userData?.boosts_reset_at ? new Date(userData.boosts_reset_at) : null;
+      const used = resetAt && resetAt < new Date() ? 0 : (userData?.boosts_used ?? 0);
+
+      return {
+        listings: (listingsData ?? []) as BoostListing[],
+        meta: { boosts_used: used, boosts_reset_at: userData?.boosts_reset_at ?? null },
+      };
+    },
+    enabled: !!user?.id,
+  });
+
+  useRefreshOnFocus(boostsQuery.refetch);
+
+  const addBoost = useAddBoost();
+  const removeBoost = useRemoveBoost();
+
+  const listings = boostsQuery.data?.listings ?? [];
+  const meta = boostsQuery.data?.meta ?? { boosts_used: 0, boosts_reset_at: null };
 
   const boostsRemaining = Math.max(0, MONTHLY_BOOST_LIMIT - meta.boosts_used);
   const resetDate = meta.boosts_reset_at
     ? new Date(meta.boosts_reset_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     : null;
 
-  const handleToggleBoost = useCallback(async (listing: BoostListing) => {
+  const handleToggleBoost = (listing: BoostListing) => {
     if (!user) return;
 
     if (listing.is_boosted) {
@@ -97,30 +117,17 @@ export default function BoostsScreen() {
             style: 'destructive',
             onPress: async () => {
               setTogglingId(listing.id);
-              // TODO(tanstack-migrate): when this screen migrates, wrap the
-              // boost remove flow (boosts delete + listings flag reset +
-              // users counter decrement) in a useRemoveBoost hook in
-              // lib/mutations.ts that invalidates queryKeys.home.all so
-              // the listing drops out of the Stories row.
-              const { error } = await supabase
-                .from('boosts')
-                .delete()
-                .eq('listing_id', listing.id)
-                .eq('seller_id', user.id);
-              if (error) {
+              try {
+                await removeBoost.mutateAsync({
+                  listingId: listing.id,
+                  sellerId: user.id,
+                  currentBoostsUsed: meta.boosts_used,
+                });
+              } catch {
                 Alert.alert('Something went wrong', 'Please try again.');
-              } else {
-                await supabase
-                  .from('listings')
-                  .update({ is_boosted: false, boost_expires_at: null })
-                  .eq('id', listing.id);
-                await supabase
-                  .from('users')
-                  .update({ boosts_used: Math.max(0, meta.boosts_used - 1) })
-                  .eq('id', user.id);
-                fetchData();
+              } finally {
+                setTogglingId(null);
               }
-              setTogglingId(null);
             },
           },
         ]
@@ -148,45 +155,23 @@ export default function BoostsScreen() {
           text: 'Boost',
           onPress: async () => {
             setTogglingId(listing.id);
-            const expiresAt = new Date(Date.now() + BOOST_DURATION_HOURS * 60 * 60 * 1000);
-
-            // TODO(tanstack-migrate): when this screen migrates, wrap the
-            // boost insert flow (boosts insert + listings flag set +
-            // users counter increment) in a useAddBoost hook in
-            // lib/mutations.ts that invalidates queryKeys.home.all so the
-            // newly-boosted listing surfaces in the Stories row.
-            const { error } = await supabase.from('boosts').insert({
-              listing_id: listing.id,
-              seller_id: user.id,
-              expires_at: expiresAt.toISOString(),
-              amount_paid: 0,
-            });
-
-            if (error) {
+            try {
+              await addBoost.mutateAsync({
+                listingId: listing.id,
+                sellerId: user.id,
+                currentBoostsUsed: meta.boosts_used,
+                currentBoostsResetAt: meta.boosts_reset_at,
+              });
+            } catch {
               Alert.alert('Something went wrong', 'Please try again.');
-            } else {
-              await supabase
-                .from('listings')
-                .update({ is_boosted: true, boost_expires_at: expiresAt.toISOString() })
-                .eq('id', listing.id);
-              const nextReset = new Date();
-              nextReset.setMonth(nextReset.getMonth() + 1, 1);
-              nextReset.setHours(0, 0, 0, 0);
-              await supabase
-                .from('users')
-                .update({
-                  boosts_used: meta.boosts_used + 1,
-                  boosts_reset_at: meta.boosts_reset_at ?? nextReset.toISOString(),
-                })
-                .eq('id', user.id);
-              fetchData();
+            } finally {
+              setTogglingId(null);
             }
-            setTogglingId(null);
           },
         },
       ]
     );
-  }, [user, meta, boostsRemaining, resetDate, fetchData]);
+  };
 
   const activeBoosted = listings.filter(l => isBoostActive(l));
   const unboosted = listings.filter(l => !isBoostActive(l));
@@ -205,9 +190,12 @@ export default function BoostsScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      {loading ? (
-        <ActivityIndicator color={P.primary} style={{ flex: 1 }} />
-      ) : (
+      <QueryStateView
+        query={boostsQuery}
+        isEmpty={false}
+        empty={{ heading: '' }}
+        errorHeading="Couldn't load boosts"
+      >
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + Spacing['3xl'] }]}
           showsVerticalScrollIndicator={false}
@@ -275,7 +263,7 @@ export default function BoostsScreen() {
             </View>
           )}
         </ScrollView>
-      )}
+      </QueryStateView>
     </LinearGradient>
   );
 }

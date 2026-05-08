@@ -839,3 +839,145 @@ export function useRecordListingView() {
     },
   });
 }
+
+// ─── Boosts ───────────────────────────────────────────────────
+//
+// Pro Story Boosts. Each boost is a row in `boosts` (listing_id, seller_id,
+// expires_at, amount_paid) plus mirror flags on the `listings` row
+// (is_boosted, boost_expires_at) and a monthly counter on the user
+// (boosts_used, boosts_reset_at). All three writes happen sequentially to
+// match the inline flow on app/boosts.tsx — there is no transaction, but the
+// caller can refetch and reconcile after a partial failure.
+//
+// Tier-gating (free vs Pro vs founder) is NOT enforced here — this hook is
+// only called from the Pro-paywalled boosts screen and from places that have
+// already checked the tier. Server-side RLS is the real gate. The simpler
+// listing-detail boost flow at app/listing/[id].tsx mixes RevenueCat consumable
+// purchases with the same writes and is intentionally NOT migrated here — its
+// shape diverges enough that a single hook would balloon.
+
+interface AddBoostArgs {
+  listingId: string;
+  sellerId: string;
+  // Current monthly counter; the hook bumps it by 1 server-side. Passed in
+  // because the screen already has it in its query data and we'd otherwise
+  // round-trip to read-then-write.
+  currentBoostsUsed: number;
+  // Existing reset timestamp on the user row. If null, the hook seeds it to
+  // the first day of next month so the cron job knows when to zero the
+  // counter.
+  currentBoostsResetAt: string | null;
+}
+
+const BOOST_DURATION_HOURS = 24;
+
+/**
+ * Adds a Pro story boost: inserts a `boosts` row, mirrors the flags onto
+ * `listings`, and increments the monthly counter on the `users` row.
+ * Throws on any error so the caller's catch can show an alert.
+ *
+ * Invalidates boosts.all (this screen's combined list/meta query),
+ * home.all (Stories row reads `boosts` to surface boosted listings), and
+ * listings.all (listing detail extras reads the boost row + listing flags;
+ * search/browse caches carry is_boosted on each row).
+ */
+export function useAddBoost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      listingId,
+      sellerId,
+      currentBoostsUsed,
+      currentBoostsResetAt,
+    }: AddBoostArgs) => {
+      const expiresAt = new Date(
+        Date.now() + BOOST_DURATION_HOURS * 60 * 60 * 1000,
+      ).toISOString();
+      const nextReset = new Date();
+      nextReset.setMonth(nextReset.getMonth() + 1, 1);
+      nextReset.setHours(0, 0, 0, 0);
+
+      const { error: boostErr } = await supabase.from('boosts').insert({
+        listing_id: listingId,
+        seller_id: sellerId,
+        expires_at: expiresAt,
+        amount_paid: 0,
+      });
+      if (boostErr) throw boostErr;
+
+      const { error: listingErr } = await supabase
+        .from('listings')
+        .update({ is_boosted: true, boost_expires_at: expiresAt })
+        .eq('id', listingId);
+      if (listingErr) throw listingErr;
+
+      const { error: userErr } = await supabase
+        .from('users')
+        .update({
+          boosts_used: currentBoostsUsed + 1,
+          boosts_reset_at: currentBoostsResetAt ?? nextReset.toISOString(),
+        })
+        .eq('id', sellerId);
+      if (userErr) throw userErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.boosts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+    },
+  });
+}
+
+interface RemoveBoostArgs {
+  listingId: string;
+  sellerId: string;
+  // Decremented (clamped at 0) on the user row so the freed slot returns to
+  // the seller's monthly quota immediately.
+  currentBoostsUsed: number;
+}
+
+/**
+ * Removes a Pro story boost: deletes the `boosts` row, clears the mirror
+ * flags on `listings`, and decrements the monthly counter (clamped at 0).
+ * Throws on any error.
+ *
+ * Invalidates boosts.all, home.all (so the listing drops out of the Stories
+ * row), and listings.all (so listing detail / search caches see the cleared
+ * is_boosted flag).
+ */
+export function useRemoveBoost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      listingId,
+      sellerId,
+      currentBoostsUsed,
+    }: RemoveBoostArgs) => {
+      const { error: boostErr } = await supabase
+        .from('boosts')
+        .delete()
+        .eq('listing_id', listingId)
+        .eq('seller_id', sellerId);
+      if (boostErr) throw boostErr;
+
+      const { error: listingErr } = await supabase
+        .from('listings')
+        .update({ is_boosted: false, boost_expires_at: null })
+        .eq('id', listingId);
+      if (listingErr) throw listingErr;
+
+      const { error: userErr } = await supabase
+        .from('users')
+        .update({ boosts_used: Math.max(0, currentBoostsUsed - 1) })
+        .eq('id', sellerId);
+      if (userErr) throw userErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.boosts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+    },
+  });
+}
