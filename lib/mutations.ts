@@ -374,6 +374,60 @@ export function useAppealDispute() {
 
 // ─── Conversations ────────────────────────────────────────────
 
+interface CreateConversationArgs {
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+}
+
+/**
+ * Find-or-create the (listing_id, buyer_id) conversation. Returns the
+ * conversation id either way. The 23505 retry guards against a race where
+ * two near-simultaneous taps both miss the initial select and try to insert;
+ * only one wins and the other re-selects the row that just landed.
+ *
+ * Callers (handleMessage / handleOffer on the listing detail screen) chain
+ * navigation or useSendMessage on the returned id.
+ */
+export function useCreateConversation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ listingId, buyerId, sellerId }: CreateConversationArgs): Promise<string> => {
+      const { data: existing } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('listing_id', listingId)
+        .eq('buyer_id', buyerId)
+        .maybeSingle();
+      if (existing) return existing.id as string;
+
+      const { data: created, error } = await supabase
+        .from('conversations')
+        .insert({ listing_id: listingId, buyer_id: buyerId, seller_id: sellerId })
+        .select('id')
+        .single();
+
+      if (error?.code === '23505') {
+        const { data: retry, error: retryErr } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('listing_id', listingId)
+          .eq('buyer_id', buyerId)
+          .single();
+        if (retryErr) throw retryErr;
+        return retry.id as string;
+      }
+      if (error) throw error;
+      return created.id as string;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inbox.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+    },
+  });
+}
+
 interface SendMessageArgs {
   conversationId: string;
   listingId: string | null;
@@ -632,6 +686,155 @@ export function useUpdateListing() {
       queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
       // Edits / publishing affect Suggested / New arrivals on home.
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+    },
+  });
+}
+
+type UpdateListingStatusArgs =
+  | { listingId: string; status: 'sold' }
+  | { listingId: string; status: 'available' };
+
+/**
+ * Status-only flip from the listing detail screen (seller-side).
+ *   draft     → available  ("Publish")
+ *   available → sold        ("Mark as sold")
+ * The sold branch also stamps `sold_at`.
+ *
+ * Kept separate from useUpdateListing because that hook requires a heavy
+ * patch (title, description, price, etc.) and runs an image-upload step.
+ *
+ * Invalidates listings.all (browse / search / detail caches), myListings.all
+ * (the seller's Selling and Drafts tabs), and home.all (Suggested / New
+ * arrivals).
+ */
+export function useUpdateListingStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: UpdateListingStatusArgs) => {
+      const patch = args.status === 'sold'
+        ? { status: 'sold', sold_at: new Date().toISOString() }
+        : { status: 'available' };
+      const { error } = await supabase
+        .from('listings')
+        .update(patch)
+        .eq('id', args.listingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+    },
+  });
+}
+
+interface DuplicateListingArgs {
+  sellerId: string;
+  source: {
+    title: string;
+    description: string | null;
+    price: number;
+    category: string;
+    condition: string;
+    size: string | null;
+    occasion: string | null;
+    measurements: { note?: string; chest?: string; waist?: string; length?: string } | null;
+    images: string[] | null;
+    worn_at: string | null;
+  };
+}
+
+/**
+ * Inserts a new draft listing seeded from the source listing's fields.
+ * Returns the new listing id so the caller can navigate to its edit screen.
+ * Invalidates myListings.all so the new draft appears in the Drafts tab.
+ */
+export function useDuplicateListing() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ sellerId, source }: DuplicateListingArgs): Promise<string> => {
+      const { data, error } = await supabase
+        .from('listings')
+        .insert({
+          seller_id: sellerId,
+          title: source.title,
+          description: source.description,
+          price: source.price,
+          category: source.category,
+          condition: source.condition,
+          size: source.size,
+          occasion: source.occasion,
+          measurements: source.measurements,
+          images: source.images,
+          worn_at: source.worn_at,
+          status: 'draft',
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      if (!data) throw new Error('Could not duplicate listing.');
+      return data.id as string;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+    },
+  });
+}
+
+interface ReportListingArgs {
+  reporterId: string;
+  listingId: string;
+  sellerId: string;
+  reason: string;
+}
+
+/**
+ * Inserts a row into `reports`. No invalidation — the reports table isn't
+ * surfaced anywhere in the user-facing app, so no cached query depends on it.
+ */
+export function useReportListing() {
+  return useMutation({
+    mutationFn: async ({ reporterId, listingId, sellerId, reason }: ReportListingArgs) => {
+      const { error } = await supabase.from('reports').insert({
+        reporter_id: reporterId,
+        listing_id: listingId,
+        seller_id: sellerId,
+        reason,
+      });
+      if (error) throw error;
+    },
+  });
+}
+
+interface RecordListingViewArgs {
+  listingId: string;
+  userId: string;
+}
+
+/**
+ * Records that a logged-in user viewed a listing. Drives the Recently viewed
+ * row on home (queryKeys.home.recentlyViewed). Backed by an upsert on
+ * (listing_id, user_id) so repeat views just bump `viewed_at`.
+ *
+ * Analytics is non-fatal — errors are logged, not thrown, so a failed write
+ * never breaks the screen the user is actually trying to read.
+ */
+export function useRecordListingView() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ listingId, userId }: RecordListingViewArgs) => {
+      // Errors are intentionally swallowed — analytics shouldn't surface as
+      // user-visible failures, and there's no retry value here.
+      await supabase.from('listing_views').upsert(
+        { listing_id: listingId, user_id: userId, viewed_at: new Date().toISOString() },
+        { onConflict: 'listing_id,user_id' },
+      );
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
     },
   });

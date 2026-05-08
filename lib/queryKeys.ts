@@ -35,6 +35,22 @@ export const queryKeys = {
     all: ['listings'] as const,
     detail: (id?: string) =>
       [...queryKeys.listings.all, 'detail', id] as const,
+    // Bundle of supplementary data shown on the listing detail screen:
+    // similar listings, more-from-seller, offer count, current boost,
+    // seller response rate / sold count, and (seller-only) boost quota.
+    // Keyed by viewerId + blockedIds because filtering depends on both.
+    detailExtras: (
+      id?: string,
+      viewerId?: string,
+      blockedIds: string[] = [],
+    ) =>
+      [
+        ...queryKeys.listings.all,
+        'detail-extras',
+        id,
+        viewerId,
+        [...blockedIds].sort(),
+      ] as const,
     // Browse + filter + search-results screen (app/listings.tsx). The key
     // includes every dimension that affects results so each unique filter
     // combo gets its own cache entry. Arrays are sorted for determinism so
