@@ -268,6 +268,7 @@ function EditListingForm({ listing, listingId }: EditListingFormProps) {
           worn_at: form.worn_at.trim() || null,
         },
         images,
+        previousImages: listing.images ?? [],
         newStatus,
       },
       {

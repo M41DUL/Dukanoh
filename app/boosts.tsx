@@ -121,7 +121,6 @@ export default function BoostsScreen() {
                 await removeBoost.mutateAsync({
                   listingId: listing.id,
                   sellerId: user.id,
-                  currentBoostsUsed: meta.boosts_used,
                 });
               } catch {
                 Alert.alert('Something went wrong', 'Please try again.');
@@ -159,8 +158,6 @@ export default function BoostsScreen() {
               await addBoost.mutateAsync({
                 listingId: listing.id,
                 sellerId: user.id,
-                currentBoostsUsed: meta.boosts_used,
-                currentBoostsResetAt: meta.boosts_reset_at,
               });
             } catch {
               Alert.alert('Something went wrong', 'Please try again.');

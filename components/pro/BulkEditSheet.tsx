@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
-import { useBulkUpdatePrices } from '@/lib/mutations';
+import { useBulkUpdatePrices, BulkUpdatePartialFailureError } from '@/lib/mutations';
 import { FontFamily, Spacing, BorderRadius, type ProColorTokens } from '@/constants/theme';
 import type { HubListing } from '@/components/hub/hubTheme';
 
@@ -94,8 +94,18 @@ export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props)
         .filter((u): u is { listingId: string; currentPrice: number; newPrice: number } => u !== null);
       await bulkUpdatePrices.mutateAsync({ updates });
       onSaved();
-    } catch {
-      Alert.alert('Something went wrong', 'Could not save all price changes. Please try again.');
+    } catch (err) {
+      if (err instanceof BulkUpdatePartialFailureError) {
+        // Some rows did land — close out as if successful so the UI reflects
+        // partial progress, but tell the user exactly how many were saved.
+        Alert.alert(
+          'Some prices weren’t saved',
+          `Updated ${err.succeededCount} of ${err.total} listings. Please check and retry the rest.`,
+        );
+        onSaved();
+      } else {
+        Alert.alert('Something went wrong', 'Could not save your price changes. Please try again.');
+      }
     } finally {
       setSaving(false);
     }

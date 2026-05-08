@@ -62,12 +62,19 @@ export function useToggleSavedItem() {
 
       // Optimistic update for the IDs set — both add & remove, since we
       // know the listingId regardless of which direction the toggle goes.
+      // Dedupe on add: a fast double-tap can run two onMutate calls before
+      // the first mutationFn resolves, and the second sees the first's
+      // optimistic update as its "previous". Without the includes() guard
+      // the listingId would land in the array twice until the post-success
+      // invalidation refetched it.
       if (previousIds) {
         queryClient.setQueryData<string[]>(
           idsKey,
           isCurrentlySaved
             ? previousIds.filter(id => id !== listingId)
-            : [...previousIds, listingId],
+            : previousIds.includes(listingId)
+              ? previousIds
+              : [...previousIds, listingId],
         );
       }
 
@@ -109,6 +116,21 @@ export function useToggleSavedItem() {
 // useCreateOrder). All invalidate `queryKeys.orders.all` and any other
 // caches the underlying writes touch (listings.all, myListings.all,
 // home.all where relevant).
+//
+// State-gated updates (status filters in the WHERE clause) attach `.select('id')`
+// and assert a row came back — otherwise Supabase returns no error when the
+// gate matches nothing, and the UI silently advances over a stale state.
+
+// Thrown when a state-gated order update matched zero rows, i.e. the order's
+// status moved between the screen rendering and the user tapping the button.
+// Callers can catch this to show a "this order was already updated, refresh"
+// alert instead of a generic error.
+export class OrderStateChangedError extends Error {
+  constructor() {
+    super('Order state changed — please refresh and try again');
+    this.name = 'OrderStateChangedError';
+  }
+}
 
 interface MarkOrderShippedArgs {
   orderId: string;
@@ -166,7 +188,7 @@ export function useRaiseDispute() {
 
   return useMutation({
     mutationFn: async ({ orderId, buyerId, reason, description }: RaiseDisputeArgs) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('orders')
         .update({
           status: 'disputed',
@@ -176,8 +198,10 @@ export function useRaiseDispute() {
         })
         .eq('id', orderId)
         .eq('buyer_id', buyerId)
-        .in('status', ['shipped', 'delivered']);
+        .in('status', ['shipped', 'delivered'])
+        .select('id');
       if (error) throw error;
+      if (!data || data.length === 0) throw new OrderStateChangedError();
     },
     onSuccess: () => invalidateOrders(queryClient),
   });
@@ -194,7 +218,7 @@ export function useWithdrawDispute() {
   return useMutation({
     mutationFn: async ({ orderId, buyerId }: WithdrawDisputeArgs) => {
       const now = new Date().toISOString();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('orders')
         .update({
           status: 'completed',
@@ -202,8 +226,11 @@ export function useWithdrawDispute() {
           completed_at: now,
         })
         .eq('id', orderId)
-        .eq('buyer_id', buyerId);
+        .eq('buyer_id', buyerId)
+        .eq('status', 'disputed')
+        .select('id');
       if (error) throw error;
+      if (!data || data.length === 0) throw new OrderStateChangedError();
     },
     onSuccess: () => invalidateOrders(queryClient),
   });
@@ -215,15 +242,27 @@ type CancelOrderArgs =
   | { orderId: string; listingId: string | null; cancelledBy: 'buyer' }
   | { orderId: string; listingId: string | null; cancelledBy: 'seller'; sellerId: string };
 
+// Statuses from which a cancel-and-refund is valid. Anything later (delivered,
+// disputed, resolved, cancelled, completed) goes through the dispute path or
+// is already terminal — issuing a refund again would be a noop at best and a
+// double-refund attempt at worst.
+const CANCELLABLE_ORDER_STATUSES = ['paid', 'shipped'] as const;
+
 /**
- * Cancels an order: refunds the buyer via the stripe-refund edge function,
- * marks the order cancelled, returns the listing to `available`, and (for
- * seller-cancelled orders) inserts a row into `cancellation_strikes`.
+ * Cancels an order: pre-checks the order is in a cancellable state, refunds
+ * the buyer via the stripe-refund edge function, marks the order cancelled,
+ * returns the listing to `available`, and (for seller-cancelled orders)
+ * inserts a row into `cancellation_strikes`.
  *
- * All four steps must succeed — any failure throws and the caller's catch
- * runs. The mutation is not transactional across the edge function and the
- * three Supabase writes, so a refund could conceivably succeed while a
- * later step fails; that's the same shape the inline flow had pre-migration.
+ * The pre-check + status-gated update prevents a double-tap from issuing two
+ * refunds: the second tap reads `status = 'cancelled'` and short-circuits
+ * before hitting the edge function. The pre-check + post-update gate doesn't
+ * fully close the TOCTOU window (admin-resolves-and-this-tap race), but it
+ * eliminates the common case (user double-tapping the cancel button).
+ *
+ * The mutation is not transactional across the edge function and the
+ * Supabase writes, so a refund could still succeed while a later step fails;
+ * that's the same shape the inline flow had pre-migration.
  *
  * Invalidates orders.all (refreshing both list + detail under the hierarchical
  * key) and myListings.all (so the listing returns to the seller's Selling tab).
@@ -234,20 +273,34 @@ export function useCancelOrder() {
   return useMutation({
     mutationFn: async (args: CancelOrderArgs) => {
       const { orderId, listingId, cancelledBy } = args;
+
+      const { data: current, error: readErr } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', orderId)
+        .single();
+      if (readErr) throw readErr;
+      if (!current || !CANCELLABLE_ORDER_STATUSES.includes(current.status as (typeof CANCELLABLE_ORDER_STATUSES)[number])) {
+        throw new OrderStateChangedError();
+      }
+
       const refundRes = await edgeFetch('stripe-refund', { order_id: orderId });
       if (!refundRes.ok) {
         const err = await refundRes.json().catch(() => ({}));
         throw new Error(err?.error ?? 'Refund failed');
       }
-      const { error: orderErr } = await supabase
+      const { data: updated, error: orderErr } = await supabase
         .from('orders')
         .update({
           status: 'cancelled',
           cancelled_at: new Date().toISOString(),
           cancelled_by: cancelledBy,
         })
-        .eq('id', orderId);
+        .eq('id', orderId)
+        .in('status', CANCELLABLE_ORDER_STATUSES as unknown as string[])
+        .select('id');
       if (orderErr) throw orderErr;
+      if (!updated || updated.length === 0) throw new OrderStateChangedError();
       if (listingId) {
         const { error: listingErr } = await supabase
           .from('listings')
@@ -289,8 +342,13 @@ interface ResolveDisputeArgs {
  * resolution fields — the wallet credit is deferred until the 7-day
  * appeal window closes (handled by the auto_release_orders job).
  *
- * Both branches stamp `appeal_deadline_at` 7 days out and gate the orders
- * update on `status = 'disputed'` so a double-tap can't double-resolve.
+ * Both branches stamp `appeal_deadline_at` 7 days out. The orders update
+ * is gated on `status = 'disputed'` and asserts a row came back; the
+ * refund branch also pre-checks the order's status before issuing the
+ * Stripe refund so we don't refund a buyer whose dispute was already
+ * resolved on another admin's screen. (TOCTOU still possible across the
+ * read → refund window, but the post-update assertion bounds the damage
+ * to the rare race rather than the routine double-click case.)
  *
  * Invalidates adminDisputes.all (this screen), orders.all (buyer + seller
  * order lists, order detail), listings.all + home.all + myListings.all
@@ -305,6 +363,14 @@ export function useResolveDispute() {
       const appealDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
       if (outcome === 'refund_buyer') {
+        const { data: current, error: readErr } = await supabase
+          .from('orders')
+          .select('status')
+          .eq('id', orderId)
+          .single();
+        if (readErr) throw readErr;
+        if (current?.status !== 'disputed') throw new OrderStateChangedError();
+
         const refundRes = await edgeFetch('stripe-refund', { order_id: orderId });
         if (!refundRes.ok) {
           const err = await refundRes.json().catch(() => ({}));
@@ -312,7 +378,7 @@ export function useResolveDispute() {
         }
       }
 
-      const { error: orderErr } = await supabase
+      const { data: updated, error: orderErr } = await supabase
         .from('orders')
         .update({
           status: 'resolved',
@@ -322,8 +388,10 @@ export function useResolveDispute() {
           appeal_deadline_at: appealDeadline,
         })
         .eq('id', orderId)
-        .eq('status', 'disputed');
+        .eq('status', 'disputed')
+        .select('id');
       if (orderErr) throw orderErr;
+      if (!updated || updated.length === 0) throw new OrderStateChangedError();
 
       if (outcome === 'refund_buyer' && listingId) {
         const { error: listingErr } = await supabase
@@ -407,11 +475,13 @@ export function useCreateOrder() {
 
       // Mirror the inline flow: best-effort listing flip — its error was not
       // surfaced pre-migration. Cancellation / refund paths reset this back
-      // to `available`.
+      // to `available`. Status is gated so two concurrent paying buyers can't
+      // both clobber the row's buyer_id; only the first transition lands.
       await supabase
         .from('listings')
         .update({ status: 'sold', buyer_id: args.buyerId, sold_at: new Date().toISOString() })
-        .eq('id', args.listingId);
+        .eq('id', args.listingId)
+        .eq('status', 'available');
 
       return { id: order.id as string };
     },
@@ -436,7 +506,7 @@ export function useAppealDispute() {
 
   return useMutation({
     mutationFn: async ({ orderId, appealedBy, reason }: AppealDisputeArgs) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('orders')
         .update({
           status: 'disputed',
@@ -445,8 +515,10 @@ export function useAppealDispute() {
           appeal_reason: reason,
         })
         .eq('id', orderId)
-        .eq('status', 'resolved');
+        .eq('status', 'resolved')
+        .select('id');
       if (error) throw error;
+      if (!data || data.length === 0) throw new OrderStateChangedError();
     },
     onSuccess: () => invalidateOrders(queryClient),
   });
@@ -489,13 +561,19 @@ export function useCreateConversation() {
         .single();
 
       if (error?.code === '23505') {
+        // 23505 means the parallel-tap inserted while we were mid-flight, so
+        // the row should now exist for our (listing_id, buyer_id) — but use
+        // maybeSingle in case the unique violation came from somewhere
+        // unexpected. .single() would throw "no rows" instead of letting us
+        // surface a clearer error.
         const { data: retry, error: retryErr } = await supabase
           .from('conversations')
           .select('id')
           .eq('listing_id', listingId)
           .eq('buyer_id', buyerId)
-          .single();
+          .maybeSingle();
         if (retryErr) throw retryErr;
+        if (!retry) throw new Error('Could not open conversation. Please try again.');
         return retry.id as string;
       }
       if (error) throw error;
@@ -650,12 +728,48 @@ interface CreateListingArgs {
   onUploadProgress?: (done: number, total: number) => void;
 }
 
+// Compress + upload one local image URI; returns { path, publicUrl } so
+// callers can both store the URL on the row and remove the blob if a later
+// step (e.g. the row insert) fails. Throws on upload failure.
+async function uploadOneListingImage(uri: string, userId: string): Promise<{ path: string; publicUrl: string }> {
+  const compressed = await compressImage(uri);
+  const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  const response = await fetch(compressed);
+  const arrayBuffer = await response.arrayBuffer();
+  const { error } = await supabase.storage
+    .from('listings')
+    .upload(path, arrayBuffer, {
+      contentType: 'image/jpeg',
+      cacheControl: '31536000',
+    });
+  if (error) throw new Error(`Failed to upload photo: ${error.message}`);
+  const { data } = supabase.storage.from('listings').getPublicUrl(path);
+  return { path, publicUrl: data.publicUrl };
+}
+
+// Best-effort cleanup of orphaned uploads. Used when a later step in a multi-
+// step flow fails — we don't want to leave dead blobs in the bucket. Errors
+// are swallowed: by the time we're here the user is already getting a failure
+// alert, and a failed cleanup on top of that helps no one.
+async function removeListingBlobs(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  try {
+    await supabase.storage.from('listings').remove(paths);
+  } catch {
+    // Swallow — see comment above.
+  }
+}
+
 /**
  * Creates a new listing: uploads images concurrently to the `listings` storage
  * bucket, then inserts the row with status set to either 'available' (publish)
  * or 'draft' (save for later). Returns the new listing's id along with the
  * uploaded public image URLs so the caller can render the success view
  * without re-fetching.
+ *
+ * If any upload fails (so Promise.all rejects with some siblings already
+ * landed) or the row insert fails after all uploads succeeded, we best-effort
+ * remove the uploaded blobs so the bucket doesn't accumulate orphans.
  *
  * Invalidates myListings.all (Selling/Drafts tabs), listings.all (browse,
  * search, detail caches), and home.all (Suggested / New arrivals) so the new
@@ -674,25 +788,26 @@ export function useCreateListing() {
       onUploadProgress,
     }: CreateListingArgs): Promise<{ id: string; images: string[] }> => {
       onUploadProgress?.(0, images.length);
+      // Collect succeeded paths as they land so we can clean up if a sibling
+      // upload — or the row insert below — fails.
+      const succeeded: string[] = [];
       let completed = 0;
-      const uploads = images.map(async (uri) => {
-        const compressed = await compressImage(uri);
-        const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-        const response = await fetch(compressed);
-        const arrayBuffer = await response.arrayBuffer();
-        const { error } = await supabase.storage
-          .from('listings')
-          .upload(fileName, arrayBuffer, {
-            contentType: 'image/jpeg',
-            cacheControl: '31536000',
-          });
-        if (error) throw new Error(`Failed to upload photo: ${error.message}`);
-        completed += 1;
-        onUploadProgress?.(completed, images.length);
-        const { data } = supabase.storage.from('listings').getPublicUrl(fileName);
-        return data.publicUrl;
-      });
-      const imageUrls = await Promise.all(uploads);
+      let uploaded: { path: string; publicUrl: string }[];
+      try {
+        uploaded = await Promise.all(
+          images.map(async uri => {
+            const result = await uploadOneListingImage(uri, userId);
+            succeeded.push(result.path);
+            completed += 1;
+            onUploadProgress?.(completed, images.length);
+            return result;
+          }),
+        );
+      } catch (err) {
+        await removeListingBlobs(succeeded);
+        throw err;
+      }
+      const imageUrls = uploaded.map(u => u.publicUrl);
 
       const { data, error } = await supabase
         .from('listings')
@@ -716,7 +831,10 @@ export function useCreateListing() {
         })
         .select('id')
         .single();
-      if (error) throw error;
+      if (error) {
+        await removeListingBlobs(succeeded);
+        throw error;
+      }
       return { id: data.id as string, images: imageUrls };
     },
     onSuccess: () => {
@@ -766,6 +884,10 @@ export function useDeleteListing() {
         .map(url => extractStoragePath(url, 'listings'))
         .filter((p): p is string => p !== null);
       if (storagePaths.length > 0) {
+        // Best-effort: a storage failure shouldn't block the row delete (the
+        // user already confirmed and is waiting on a response). The codebase
+        // has a `no-console` rule, so the error is intentionally not logged
+        // — orphans are accepted as the failure mode here.
         await supabase.storage.from('listings').remove(storagePaths);
       }
       const { error } = await supabase.from('listings').delete().eq('id', listingId);
@@ -799,47 +921,75 @@ interface UpdateListingArgs {
   listingId: string;
   userId: string;
   patch: UpdateListingPatch;
+  // The final ordered list of image URIs the user wants on the listing.
+  // Mix of existing `https://…/storage/v1/object/public/listings/…` URLs
+  // (carry through unchanged) and local `file://` URIs from the picker
+  // (uploaded fresh).
   images: string[];
+  // The listing's previously-saved image URLs, used to compute which storage
+  // blobs to remove after a successful update — anything in `previousImages`
+  // that isn't in the final URL list is dropped from the bucket.
+  previousImages: string[];
   newStatus: 'draft' | 'available';
 }
 
-// Compress + upload any local image URIs in `images`; pass through existing
-// http(s) URLs unchanged. Returns the final ordered list of public URLs.
-async function uploadListingImages(images: string[], userId: string): Promise<string[]> {
-  const result: string[] = [];
-  for (const uri of images) {
-    if (uri.startsWith('http')) {
-      result.push(uri);
-      continue;
-    }
-    const compressed = await compressImage(uri);
-    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-    const response = await fetch(compressed);
-    const arrayBuffer = await response.arrayBuffer();
-    const { error } = await supabase.storage
-      .from('listings')
-      .upload(fileName, arrayBuffer, {
-        contentType: 'image/jpeg',
-        cacheControl: '31536000',
-      });
-    if (error) throw new Error(`Failed to upload photo: ${error.message}`);
-    const { data } = supabase.storage.from('listings').getPublicUrl(fileName);
-    result.push(data.publicUrl);
+// Compress + upload any local image URIs in `images` in parallel; pass through
+// existing http(s) URLs unchanged. Returns the final ordered list of public
+// URLs along with the storage paths of the newly-uploaded blobs (so callers
+// can clean them up if a later step fails). Preserves caller-supplied order.
+async function uploadListingImages(
+  images: string[],
+  userId: string,
+): Promise<{ urls: string[]; uploadedPaths: string[] }> {
+  const uploadedPaths: string[] = [];
+  const slots: (string | null)[] = images.map(uri => (uri.startsWith('http') ? uri : null));
+  const localIndexes = images
+    .map((uri, i) => (uri.startsWith('http') ? -1 : i))
+    .filter(i => i !== -1);
+
+  try {
+    await Promise.all(
+      localIndexes.map(async i => {
+        const result = await uploadOneListingImage(images[i], userId);
+        uploadedPaths.push(result.path);
+        slots[i] = result.publicUrl;
+      }),
+    );
+  } catch (err) {
+    await removeListingBlobs(uploadedPaths);
+    throw err;
   }
-  return result;
+
+  return { urls: slots as string[], uploadedPaths };
 }
 
 /**
- * Saves an edited listing: uploads any newly-added local images, then writes
- * the patch + status (and bumps `published_at` when publishing) to the row.
- * Invalidates `listings.all` and `myListings.all` on success.
+ * Saves an edited listing: uploads any newly-added local images in parallel,
+ * writes the patch + status (and bumps `published_at` when publishing), then
+ * removes any storage blobs the seller dropped from the photo list so the
+ * bucket doesn't accumulate orphans.
+ *
+ * If the row update fails after uploads succeeded, the new uploads are best-
+ * effort removed so a retry doesn't multiply orphans. The post-update cleanup
+ * of dropped photos is also best-effort — its failure doesn't roll the row
+ * change back, since by that point the listing is already saved.
+ *
+ * Invalidates `listings.all`, `myListings.all`, and `home.all` on success.
  */
 export function useUpdateListing() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ listingId, userId, patch, images, newStatus }: UpdateListingArgs) => {
-      const imageUrls = await uploadListingImages(images, userId);
+    mutationFn: async ({
+      listingId,
+      userId,
+      patch,
+      images,
+      previousImages,
+      newStatus,
+    }: UpdateListingArgs) => {
+      const { urls: imageUrls, uploadedPaths } = await uploadListingImages(images, userId);
+
       const { error } = await supabase
         .from('listings')
         .update({
@@ -849,7 +999,20 @@ export function useUpdateListing() {
           ...(newStatus === 'available' ? { published_at: new Date().toISOString() } : {}),
         })
         .eq('id', listingId);
-      if (error) throw error;
+      if (error) {
+        await removeListingBlobs(uploadedPaths);
+        throw error;
+      }
+
+      // Remove blobs for images the seller dropped from the photo list. Diff
+      // is on the final ordered URL list; anything in previousImages not in
+      // imageUrls is no longer referenced by this listing.
+      const finalUrlSet = new Set(imageUrls);
+      const droppedPaths = previousImages
+        .filter(url => !finalUrlSet.has(url))
+        .map(url => extractStoragePath(url, 'listings'))
+        .filter((p): p is string => p !== null);
+      await removeListingBlobs(droppedPaths);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
@@ -915,9 +1078,33 @@ interface DuplicateListingArgs {
   };
 }
 
+// Copy each source image to a fresh path under the new seller's folder so the
+// duplicate doesn't share storage objects with the source. If the source ever
+// gets deleted, useDeleteListing.remove(...) won't take the duplicate's images
+// down with it. Non-Supabase URLs (shouldn't happen for our listings, but be
+// safe) pass through unchanged.
+async function copyListingImages(sourceUrls: string[], sellerId: string): Promise<string[]> {
+  const result: string[] = [];
+  for (const url of sourceUrls) {
+    const srcPath = extractStoragePath(url, 'listings');
+    if (!srcPath) {
+      result.push(url);
+      continue;
+    }
+    const destPath = `${sellerId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+    const { error } = await supabase.storage.from('listings').copy(srcPath, destPath);
+    if (error) throw new Error(`Failed to copy photo: ${error.message}`);
+    const { data } = supabase.storage.from('listings').getPublicUrl(destPath);
+    result.push(data.publicUrl);
+  }
+  return result;
+}
+
 /**
  * Inserts a new draft listing seeded from the source listing's fields.
  * Returns the new listing id so the caller can navigate to its edit screen.
+ * Source images are copied to fresh storage paths so the duplicate is
+ * independent — deleting the source listing won't 404 the duplicate's photos.
  * Invalidates myListings.all so the new draft appears in the Drafts tab.
  */
 export function useDuplicateListing() {
@@ -925,6 +1112,10 @@ export function useDuplicateListing() {
 
   return useMutation({
     mutationFn: async ({ sellerId, source }: DuplicateListingArgs): Promise<string> => {
+      const copiedImages = source.images?.length
+        ? await copyListingImages(source.images, sellerId)
+        : source.images;
+
       const { data, error } = await supabase
         .from('listings')
         .insert({
@@ -937,7 +1128,7 @@ export function useDuplicateListing() {
           size: source.size,
           occasion: source.occasion,
           measurements: source.measurements,
-          images: source.images,
+          images: copiedImages,
           worn_at: source.worn_at,
           status: 'draft',
         })
@@ -990,6 +1181,11 @@ interface RecordListingViewArgs {
  *
  * Analytics is non-fatal — errors are logged, not thrown, so a failed write
  * never breaks the screen the user is actually trying to read.
+ *
+ * Invalidation is scoped to `home.recentlyViewed` (the only home query that
+ * actually depends on listing_views). Browsing N listings in a minute used
+ * to fire N invalidations of the entire `home.all` subtree, refetching the
+ * feed + stories on every detail view.
  */
 export function useRecordListingView() {
   const queryClient = useQueryClient();
@@ -1003,8 +1199,8 @@ export function useRecordListingView() {
         { onConflict: 'listing_id,user_id' },
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+    onSuccess: (_data, { userId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.home.recentlyViewed(userId) });
     },
   });
 }
@@ -1049,14 +1245,38 @@ interface BulkUpdatePricesArgs {
   }[];
 }
 
+// Thrown when at least one row in a bulk price update failed but others
+// succeeded. Carries counts so the caller can render a "X of N updated" toast
+// instead of all-or-nothing — important because Promise.all would short-circuit
+// on the first reject while leaving the other in-flight writes to land
+// silently in the background.
+export class BulkUpdatePartialFailureError extends Error {
+  constructor(
+    public readonly succeededCount: number,
+    public readonly failedCount: number,
+    public readonly total: number,
+  ) {
+    super(`Updated ${succeededCount} of ${total} listings`);
+    this.name = 'BulkUpdatePartialFailureError';
+  }
+}
+
 /**
- * Bulk price update from the Pro BulkEditSheet. Mirrors the inline flow:
- * runs N independent updates in parallel (Promise.all), one per listing, so
- * each row's price-drop fields can diverge based on its own old vs new price.
+ * Bulk price update from the Pro BulkEditSheet. Runs N independent updates
+ * in parallel (`Promise.allSettled`), one per listing, so each row's price-
+ * drop fields can diverge based on its own old vs new price. allSettled (vs
+ * the previous `Promise.all`) means an early failure doesn't short-circuit
+ * the others, so the user sees an accurate partial-success count instead of
+ * "all failed" while half the prices already changed in the background.
  *
  * For drops, sets `original_price` to the previous price and stamps
  * `price_dropped_at = now` so cards can render the strikethrough + "Reduced"
  * badge. For increases or restores, clears both fields.
+ *
+ * If every update succeeds, resolves normally. If at least one failed, throws
+ * `BulkUpdatePartialFailureError` carrying the counts so callers can show a
+ * specific toast (and the cache is still invalidated to reflect partial
+ * progress).
  *
  * Invalidates myListings.all (seller's Selling tab), listings.all (browse +
  * search caches show prices, including price-asc/desc sort variants), and
@@ -1068,7 +1288,7 @@ export function useBulkUpdatePrices() {
   return useMutation({
     mutationFn: async ({ updates }: BulkUpdatePricesArgs) => {
       const now = new Date().toISOString();
-      await Promise.all(
+      const results = await Promise.allSettled(
         updates.map(async ({ listingId, currentPrice, newPrice }) => {
           const isPriceDrop = newPrice < currentPrice;
           const patch = isPriceDrop
@@ -1081,8 +1301,18 @@ export function useBulkUpdatePrices() {
           if (error) throw error;
         }),
       );
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+      if (failedCount > 0) {
+        throw new BulkUpdatePartialFailureError(
+          results.length - failedCount,
+          failedCount,
+          results.length,
+        );
+      }
     },
-    onSuccess: () => {
+    onSettled: () => {
+      // Use onSettled (not onSuccess) so partial-failure paths still refresh
+      // caches — some rows did update and the UI should reflect that.
       queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
@@ -1109,21 +1339,16 @@ export function useBulkUpdatePrices() {
 interface AddBoostArgs {
   listingId: string;
   sellerId: string;
-  // Current monthly counter; the hook bumps it by 1 server-side. Passed in
-  // because the screen already has it in its query data and we'd otherwise
-  // round-trip to read-then-write.
-  currentBoostsUsed: number;
-  // Existing reset timestamp on the user row. If null, the hook seeds it to
-  // the first day of next month so the cron job knows when to zero the
-  // counter.
-  currentBoostsResetAt: string | null;
 }
 
 const BOOST_DURATION_HOURS = 24;
 
 /**
  * Adds a Pro story boost: inserts a `boosts` row, mirrors the flags onto
- * `listings`, and increments the monthly counter on the `users` row.
+ * `listings`, and increments the monthly counter on the `users` row via the
+ * `increment_boosts_used` RPC (atomic +1, also seeds `boosts_reset_at` to UTC
+ * midnight on the first of next month when null). The atomic RPC replaces the
+ * previous read-then-write pattern that under-counted under concurrent taps.
  * Throws on any error so the caller's catch can show an alert.
  *
  * Invalidates boosts.all (this screen's combined list/meta query),
@@ -1135,18 +1360,10 @@ export function useAddBoost() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      listingId,
-      sellerId,
-      currentBoostsUsed,
-      currentBoostsResetAt,
-    }: AddBoostArgs) => {
+    mutationFn: async ({ listingId, sellerId }: AddBoostArgs) => {
       const expiresAt = new Date(
         Date.now() + BOOST_DURATION_HOURS * 60 * 60 * 1000,
       ).toISOString();
-      const nextReset = new Date();
-      nextReset.setMonth(nextReset.getMonth() + 1, 1);
-      nextReset.setHours(0, 0, 0, 0);
 
       const { error: boostErr } = await supabase.from('boosts').insert({
         listing_id: listingId,
@@ -1162,13 +1379,9 @@ export function useAddBoost() {
         .eq('id', listingId);
       if (listingErr) throw listingErr;
 
-      const { error: userErr } = await supabase
-        .from('users')
-        .update({
-          boosts_used: currentBoostsUsed + 1,
-          boosts_reset_at: currentBoostsResetAt ?? nextReset.toISOString(),
-        })
-        .eq('id', sellerId);
+      const { error: userErr } = await supabase.rpc('increment_boosts_used', {
+        p_user_id: sellerId,
+      });
       if (userErr) throw userErr;
     },
     onSuccess: () => {
@@ -1182,15 +1395,12 @@ export function useAddBoost() {
 interface RemoveBoostArgs {
   listingId: string;
   sellerId: string;
-  // Decremented (clamped at 0) on the user row so the freed slot returns to
-  // the seller's monthly quota immediately.
-  currentBoostsUsed: number;
 }
 
 /**
  * Removes a Pro story boost: deletes the `boosts` row, clears the mirror
- * flags on `listings`, and decrements the monthly counter (clamped at 0).
- * Throws on any error.
+ * flags on `listings`, and decrements the monthly counter via the
+ * `decrement_boosts_used` RPC (atomic -1, clamped at 0). Throws on any error.
  *
  * Invalidates boosts.all, home.all (so the listing drops out of the Stories
  * row), and listings.all (so listing detail / search caches see the cleared
@@ -1200,11 +1410,7 @@ export function useRemoveBoost() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      listingId,
-      sellerId,
-      currentBoostsUsed,
-    }: RemoveBoostArgs) => {
+    mutationFn: async ({ listingId, sellerId }: RemoveBoostArgs) => {
       const { error: boostErr } = await supabase
         .from('boosts')
         .delete()
@@ -1218,10 +1424,9 @@ export function useRemoveBoost() {
         .eq('id', listingId);
       if (listingErr) throw listingErr;
 
-      const { error: userErr } = await supabase
-        .from('users')
-        .update({ boosts_used: Math.max(0, currentBoostsUsed - 1) })
-        .eq('id', sellerId);
+      const { error: userErr } = await supabase.rpc('decrement_boosts_used', {
+        p_user_id: sellerId,
+      });
       if (userErr) throw userErr;
     },
     onSuccess: () => {
