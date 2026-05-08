@@ -1,6 +1,7 @@
 // Custom mutation hooks — each wraps a Supabase mutation and invalidates the relevant parent queryKey on success.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Crypto from 'expo-crypto';
 import type { Listing } from '@/components/ListingCard';
 import { compressImage, extractStoragePath } from './imageUtils';
 import { edgeFetch } from './edgeFetch';
@@ -373,6 +374,80 @@ export function useAppealDispute() {
 
 // ─── Conversations ────────────────────────────────────────────
 
+interface SendMessageArgs {
+  conversationId: string;
+  listingId: string | null;
+  senderId: string;
+  receiverId: string;
+  content: string;
+}
+
+/**
+ * Inserts a row into `messages`. The DB trigger updates
+ * `conversations.last_message`, so the inbox realtime subscription picks the
+ * change up; this hook also explicitly invalidates the per-conversation
+ * messages cache + inbox.all so the canonical row replaces any optimistic
+ * stub once the round trip completes.
+ *
+ * The `__OFFER__:` / `__OFFER_ACCEPTED__:offerId:amount` /
+ * `__OFFER_DECLINED__:offerId:amount` payload format is part of the content
+ * string, not the hook signature — callers compose it themselves.
+ */
+export function useSendMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ conversationId, listingId, senderId, receiverId, content }: SendMessageArgs) => {
+      const { error } = await supabase.from('messages').insert({
+        id: Crypto.randomUUID(),
+        conversation_id: conversationId,
+        listing_id: listingId,
+        sender_id: senderId,
+        receiver_id: receiverId,
+        content,
+      });
+      // 23505 = unique constraint violation. Treat as success because the
+      // realtime echo + retry path can race a successful insert; surfacing
+      // it as an error would show a spurious "Failed to send" alert for a
+      // message that did, in fact, land.
+      if (error && error.code !== '23505') throw error;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.messages(vars.conversationId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.inbox.all });
+    },
+  });
+}
+
+interface MarkConversationReadArgs {
+  conversationId: string;
+}
+
+/**
+ * Clears `last_message_sender_id` on a conversation row, which is how the
+ * inbox computes the unread dot (unread = last_message_sender_id is set and
+ * != current user). Invalidates both inbox.all (so unread badges update) and
+ * conversations.all (so the open thread's metadata reflects the cleared
+ * state if the user backs out and returns).
+ */
+export function useMarkConversationRead() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ conversationId }: MarkConversationReadArgs) => {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ last_message_sender_id: null })
+        .eq('id', conversationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.inbox.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+    },
+  });
+}
+
 interface DeleteConversationArgs {
   conversationId: string;
   isBuyer: boolean;
@@ -387,10 +462,10 @@ interface DeleteConversationArgs {
  * error, and invalidates `inbox.all` on success. The other party still sees
  * the conversation — this is a per-side hide, not a true delete.
  *
- * NOTE: callers in app/listing/[id].tsx (conversation insert), app/conversation/[id].tsx
- * (mark-as-read updates), and message inserts in app/listing/[id].tsx +
- * app/conversation/[id].tsx all affect inbox data via DB triggers and the
- * realtime subscription. They carry TODO(tanstack-migrate) breadcrumbs.
+ * NOTE: app/listing/[id].tsx still does its own conversation insert + offer
+ * message insert and carries TODO(tanstack-migrate) breadcrumbs that point at
+ * useSendMessage. Those write paths fire DB triggers + realtime that this
+ * screen relies on, so any migration of listing/[id].tsx must keep that wiring.
  */
 export function useDeleteConversation() {
   const queryClient = useQueryClient();
