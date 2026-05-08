@@ -145,7 +145,7 @@ export default function AccountFlagsScreen() {
                   'Clear TIN?',
                   'This will remove the stored tax details so you can test the collection flow again.',
                   [
-                    { text: 'Clear', style: 'destructive', onPress: () => update({ tax_id_collected_at: null } as any) },
+                    { text: 'Clear', style: 'destructive', onPress: () => update({ tax_id_collected_at: null }) },
                     { text: 'Cancel', style: 'cancel' },
                   ]
                 )}

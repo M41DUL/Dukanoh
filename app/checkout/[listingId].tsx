@@ -13,6 +13,7 @@ import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
@@ -30,6 +31,8 @@ import { useCreateOrder } from '@/lib/mutations';
 import { calcProtectionFee, calcOrderTotal, formatGBP } from '@/lib/paymentHelpers';
 import { useFeeConfig } from '@/context/FeeConfigContext';
 import { edgeFetch } from '@/lib/edgeFetch';
+
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 type PaymentMethod = 'apple_pay' | 'google_pay' | 'card';
 
@@ -52,7 +55,7 @@ interface AddressState {
   country: string;
 }
 
-const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string }[] = Platform.OS === 'ios'
+const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: IoniconName }[] = Platform.OS === 'ios'
   ? [
       { key: 'apple_pay', label: 'Apple Pay', icon: 'logo-apple' },
       { key: 'card',      label: 'Credit / Debit card', icon: 'card-outline' },
@@ -452,7 +455,7 @@ export default function CheckoutScreen() {
                 >
                   <View style={styles.paymentOptionLeft}>
                     <Ionicons
-                      name={option.icon as any}
+                      name={option.icon}
                       size={18}
                       color={active ? colors.primary : colors.textSecondary}
                     />

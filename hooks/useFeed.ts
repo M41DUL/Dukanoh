@@ -49,6 +49,10 @@ interface FeedData {
 }
 
 // ── Private data helpers ────────────────────────────────────────────
+type ListingsCategoryJoin = { listings: { category: string | null } | null };
+type ListingsCategoryOccasionJoin = { listings: { category: string | null; occasion: string | null } | null };
+type ListingsTrendingJoin = { listings: { category: string | null; status: string | null } | null };
+
 async function getViewedCategories(userId: string, signal: AbortSignal): Promise<string[]> {
   const { data, error } = await supabase
     .from('listing_views')
@@ -59,10 +63,11 @@ async function getViewedCategories(userId: string, signal: AbortSignal): Promise
     .abortSignal(signal);
   if (error) throw error;
   if (!data) return [];
+  const rows = data as unknown as ListingsCategoryJoin[];
   return [...new Set(
-    data
-      .map(d => (d.listings as any)?.category)
-      .filter(Boolean) as string[]
+    rows
+      .map(d => d.listings?.category)
+      .filter((c): c is string => !!c)
   )];
 }
 
@@ -75,9 +80,10 @@ async function getSavedSignals(userId: string, signal: AbortSignal): Promise<{ c
     .abortSignal(signal);
   if (error) throw error;
   if (!data) return { categories: [], occasions: [] };
+  const rows = data as unknown as ListingsCategoryOccasionJoin[];
   return {
-    categories: [...new Set(data.map(d => (d.listings as any)?.category).filter(Boolean) as string[])],
-    occasions:  [...new Set(data.map(d => (d.listings as any)?.occasion).filter(Boolean) as string[])],
+    categories: [...new Set(rows.map(d => d.listings?.category).filter((c): c is string => !!c))],
+    occasions:  [...new Set(rows.map(d => d.listings?.occasion).filter((o): o is string => !!o))],
   };
 }
 
@@ -126,9 +132,10 @@ async function fetchTrendingCategories(
   if (error) throw error;
   if (!data || data.length === 0) return [];
 
-  const counts = data.reduce<Record<string, number>>((acc, row) => {
-    const listing = row.listings as any;
-    const cat: string | undefined = listing?.category;
+  const rows = data as unknown as ListingsTrendingJoin[];
+  const counts = rows.reduce<Record<string, number>>((acc, row) => {
+    const listing = row.listings;
+    const cat = listing?.category;
     if (!cat || listing?.status !== 'available') return acc;
     if (gender && cat !== gender) return acc; // gender filter
     // Apply seasonal weight multiplier to boost seasonal categories in ranking
@@ -171,10 +178,13 @@ async function fetchSuggestedSection(
     return q.abortSignal(signal);
   };
 
-  // Run category and occasion queries in parallel, then merge
-  const queries: Promise<{ data: any[] | null; error: any }>[] = [];
-  if (categories.length > 0) queries.push(buildBase().in('category', categories) as any);
-  if (occasions.length > 0) queries.push(buildBase().in('occasion', occasions) as any);
+  // Run category and occasion queries in parallel, then merge.
+  // Each query returns rows shaped by SUGGESTED_SELECT — i.e. Listing
+  // with the seller join populated.
+  type SuggestedQueryResult = { data: Listing[] | null; error: unknown };
+  const queries: PromiseLike<SuggestedQueryResult>[] = [];
+  if (categories.length > 0) queries.push(buildBase().in('category', categories) as unknown as PromiseLike<SuggestedQueryResult>);
+  if (occasions.length > 0) queries.push(buildBase().in('occasion', occasions) as unknown as PromiseLike<SuggestedQueryResult>);
   if (queries.length === 0) return [];
 
   const results = await Promise.all(queries);
@@ -187,23 +197,24 @@ async function fetchSuggestedSection(
   const merged: Listing[] = [];
   for (const { data } of results) {
     for (const item of data ?? []) {
-      if (!seen.has(item.id) && !(item as any).seller?.tax_hold) {
+      if (!seen.has(item.id) && !item.seller?.tax_hold) {
         seen.add(item.id);
         merged.push(item);
       }
     }
   }
 
-  // Re-sort merged results by published_at desc
-  merged.sort((a, b) =>
-    new Date((b as any).published_at ?? (b as any).created_at).getTime() -
-    new Date((a as any).published_at ?? (a as any).created_at).getTime()
-  );
+  // Re-sort merged results by published_at desc (fall back to created_at)
+  merged.sort((a, b) => {
+    const tb = b.published_at ?? b.created_at ?? '';
+    const ta = a.published_at ?? a.created_at ?? '';
+    return new Date(tb).getTime() - new Date(ta).getTime();
+  });
 
   // Apply seller diversity cap: max 2 listings per seller
   const sellerCount = new Map<string, number>();
   const diverse = merged.filter(l => {
-    const sid = (l as any).seller_id as string;
+    const sid = l.seller_id;
     const count = sellerCount.get(sid) ?? 0;
     if (count >= 2) return false;
     sellerCount.set(sid, count + 1);
@@ -233,15 +244,15 @@ async function fetchNewArrivals(
 
   const { data, error } = await query.abortSignal(signal);
   if (error) throw error;
-  const listings = (data ?? []).filter(
-    l => !(l as any).seller?.tax_hold
+  const listings = ((data ?? []) as unknown as Listing[]).filter(
+    l => !l.seller?.tax_hold
   );
   if (listings.length === 0) return listings;
 
   // Apply seller diversity cap: max 2 listings per seller
   const sellerCount = new Map<string, number>();
   const diverse = listings.filter(l => {
-    const sid = (l as any).seller_id as string;
+    const sid = l.seller_id;
     const count = sellerCount.get(sid) ?? 0;
     if (count >= 2) return false;
     sellerCount.set(sid, count + 1);

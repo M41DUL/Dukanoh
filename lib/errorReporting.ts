@@ -44,9 +44,14 @@ export function initErrorReporting(): void {
     previousHandler?.(error, isFatal);
   });
 
-  // Unhandled promise rejections
-  const prevRejectionHandler = (global as any).onunhandledrejection;
-  (global as any).onunhandledrejection = (event: PromiseRejectionEvent) => {
+  // Unhandled promise rejections — global is untyped in RN, so we
+  // attach an explicit shape for the only field we touch.
+  type GlobalWithUnhandledRejection = typeof globalThis & {
+    onunhandledrejection?: ((event: PromiseRejectionEvent) => void) | null;
+  };
+  const g = global as unknown as GlobalWithUnhandledRejection;
+  const prevRejectionHandler = g.onunhandledrejection;
+  g.onunhandledrejection = (event: PromiseRejectionEvent) => {
     const err =
       event?.reason instanceof Error
         ? event.reason

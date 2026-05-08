@@ -134,7 +134,7 @@ async function fetchStories(userId: string, signal: AbortSignal): Promise<StoryL
 
   // Fetch boosted listings by ID (exclude own)
   const boostedIds = (boostsRes.data ?? []).map(b => b.listing_id);
-  let boostedListings: any[] = [];
+  let boostedListings: StoryListing[] = [];
   if (boostedIds.length > 0) {
     const { data, error } = await supabase
       .from('listings')
@@ -146,7 +146,7 @@ async function fetchStories(userId: string, signal: AbortSignal): Promise<StoryL
       .limit(20)
       .abortSignal(signal);
     if (error) throw error;
-    boostedListings = data ?? [];
+    boostedListings = (data ?? []) as unknown as StoryListing[];
   }
 
   const viewedIds = new Set(viewedStoriesRes.data?.map(s => s.listing_id) ?? []);
@@ -161,11 +161,12 @@ async function fetchStories(userId: string, signal: AbortSignal): Promise<StoryL
   const boostedIdSet = new Set(boostedIds);
   const seenIds = new Set<string>();
   const merged: StoryListing[] = [];
-  for (const l of [...boostedListings, ...(organicRes.data ?? [])]) {
+  const organicListings = (organicRes.data ?? []) as unknown as StoryListing[];
+  for (const l of [...boostedListings, ...organicListings]) {
     if (seenIds.has(l.id)) continue;
-    if ((l as any).seller?.tax_hold) continue;
+    if (l.seller?.tax_hold) continue;
     seenIds.add(l.id);
-    merged.push({ ...(l as StoryListing), is_boosted: boostedIdSet.has(l.id), viewed: false });
+    merged.push({ ...l, is_boosted: boostedIdSet.has(l.id), viewed: false });
   }
 
   // Dedup to one listing per seller (keep most recently created — already ordered desc)
