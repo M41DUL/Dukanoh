@@ -83,7 +83,9 @@ export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props)
       const now = new Date().toISOString();
       // TODO(tanstack-migrate): when this sheet migrates, wrap each price
       // update in a useUpdateListingPrice hook in lib/mutations.ts (or a
-      // bulk variant) that invalidates queryKeys.myListings.all.
+      // bulk variant) that invalidates queryKeys.myListings.all and
+      // queryKeys.listings.all (price drops affect cached browse / search
+      // results, including the price-asc / price-desc sort variants).
       await Promise.all(
         changedIds.map(id => {
           const listing = listings.find(l => l.id === id);

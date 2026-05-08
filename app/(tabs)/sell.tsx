@@ -384,8 +384,10 @@ export default function SellScreen() {
 
       // TODO(tanstack-migrate): when this screen migrates, wrap the insert
       // in a useCreateListing hook in lib/mutations.ts that invalidates
-      // queryKeys.myListings.all (so new draft/listing appears in My items)
-      // and queryKeys.home.all (so it surfaces in Suggested / New arrivals).
+      // queryKeys.myListings.all (so new draft/listing appears in My items),
+      // queryKeys.listings.all (so it appears in cached browse / search
+      // results), and queryKeys.home.all (so it surfaces in Suggested /
+      // New arrivals).
       const { data: insertedRow, error } = await supabase.from('listings').insert({
         seller_id: user.id,
         title: form.title.trim(),

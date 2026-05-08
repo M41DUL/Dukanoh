@@ -274,8 +274,9 @@ export default function ListingDetailScreen() {
             // TODO(tanstack-migrate): when this screen migrates, wrap this
             // status update in a useUpdateListingStatus hook in lib/mutations.ts
             // that invalidates queryKeys.myListings.all (status flips Active→Sold
-            // in the seller's Selling tab) and queryKeys.home.all (so the
-            // sold item drops out of Suggested / New arrivals).
+            // in the seller's Selling tab), queryKeys.listings.all (so the sold
+            // item drops out of cached browse / search results), and
+            // queryKeys.home.all (so it drops out of Suggested / New arrivals).
             await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id ?? '');
             setListing(prev => prev ? { ...prev, status: 'sold' } : prev);
           },
@@ -288,9 +289,10 @@ export default function ListingDetailScreen() {
   const handlePublish = async () => {
     // TODO(tanstack-migrate): when this screen migrates, wrap this status
     // update in a useUpdateListingStatus hook in lib/mutations.ts that
-    // invalidates queryKeys.myListings.all (draft→available moves the
-    // listing from the Drafts tab to the Selling tab) and queryKeys.home.all
-    // (so the newly-published listing surfaces in Suggested / New arrivals).
+    // invalidates queryKeys.myListings.all (draft→available moves the listing
+    // from the Drafts tab to the Selling tab), queryKeys.listings.all (so the
+    // newly-live listing appears in cached browse / search results), and
+    // queryKeys.home.all (so it surfaces in Suggested / New arrivals).
     await supabase.from('listings').update({ status: 'available' }).eq('id', id ?? '');
     setListing(prev => prev ? { ...prev, status: 'available' } : prev);
     Alert.alert('Published!', 'Your listing is now live on the feed.');

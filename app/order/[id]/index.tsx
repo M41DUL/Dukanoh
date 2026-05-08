@@ -221,8 +221,9 @@ export default function OrderDetailScreen() {
             // cancellation_strikes insert) in a useCancelOrder hook in
             // lib/mutations.ts that invalidates queryKeys.orders.all,
             // queryKeys.myListings.all (the listing returns to the seller's
-            // Selling tab), and queryKeys.home.all (the listing comes back
-            // into Suggested / New arrivals on the home feed).
+            // Selling tab), queryKeys.listings.all (so the listing reappears
+            // in cached browse / search results), and queryKeys.home.all
+            // (the listing comes back into Suggested / New arrivals on home).
             await supabase.from('orders').update({
               status: 'cancelled',
               cancelled_at: new Date().toISOString(),

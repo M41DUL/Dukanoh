@@ -33,6 +33,48 @@ export const queryKeys = {
     all: ['listings'] as const,
     detail: (id?: string) =>
       [...queryKeys.listings.all, 'detail', id] as const,
+    // Browse + filter + search-results screen (app/listings.tsx). The key
+    // includes every dimension that affects results so each unique filter
+    // combo gets its own cache entry. Arrays are sorted for determinism so
+    // ['blue','red'] and ['red','blue'] collapse to the same key.
+    search: (params: {
+      term?: string;
+      categories?: string[];
+      occasion?: string;
+      sort?: string;
+      subTab?: string;
+      sizes?: string[];
+      occasions?: string[];
+      conditions?: string[];
+      colours?: string[];
+      fabrics?: string[];
+      priceMin?: number | null;
+      priceMax?: number | null;
+      myListings?: boolean;
+      userId?: string;
+      blockedIds?: string[];
+    }) =>
+      [
+        ...queryKeys.listings.all,
+        'search',
+        {
+          term: params.term ?? '',
+          categories: [...(params.categories ?? [])].sort(),
+          occasion: params.occasion ?? '',
+          sort: params.sort ?? 'newest',
+          subTab: params.subTab ?? 'All',
+          sizes: [...(params.sizes ?? [])].sort(),
+          occasions: [...(params.occasions ?? [])].sort(),
+          conditions: [...(params.conditions ?? [])].sort(),
+          colours: [...(params.colours ?? [])].sort(),
+          fabrics: [...(params.fabrics ?? [])].sort(),
+          priceMin: params.priceMin ?? null,
+          priceMax: params.priceMax ?? null,
+          myListings: !!params.myListings,
+          userId: params.userId,
+          blockedIds: [...(params.blockedIds ?? [])].sort(),
+        },
+      ] as const,
   },
   inbox: {
     all: ['inbox'] as const,
