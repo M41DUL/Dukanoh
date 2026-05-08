@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
-import { supabase } from '@/lib/supabase';
+import { useBulkUpdatePrices } from '@/lib/mutations';
 import { FontFamily, Spacing, BorderRadius, type ProColorTokens } from '@/constants/theme';
 import type { HubListing } from '@/components/hub/hubTheme';
 
@@ -33,6 +33,7 @@ interface Props {
 export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props) {
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const bulkUpdatePrices = useBulkUpdatePrices();
 
   useEffect(() => {
     if (visible) {
@@ -80,36 +81,25 @@ export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props)
     if (changedIds.length === 0 || saving) return;
     setSaving(true);
     try {
-      const now = new Date().toISOString();
-      // TODO(tanstack-migrate): when this sheet migrates, wrap each price
-      // update in a useUpdateListingPrice hook in lib/mutations.ts (or a
-      // bulk variant) that invalidates queryKeys.myListings.all and
-      // queryKeys.listings.all (price drops affect cached browse / search
-      // results, including the price-asc / price-desc sort variants).
-      await Promise.all(
-        changedIds.map(id => {
+      const updates = changedIds
+        .map(id => {
           const listing = listings.find(l => l.id === id);
-          if (!listing) return Promise.resolve();
-          const newPrice = parseFloat(prices[id]);
-          const isPriceDrop = newPrice < listing.price;
-          const update: Record<string, unknown> = { price: newPrice };
-          if (isPriceDrop) {
-            update.original_price = listing.price;
-            update.price_dropped_at = now;
-          } else {
-            update.original_price = null;
-            update.price_dropped_at = null;
-          }
-          return supabase.from('listings').update(update).eq('id', id);
+          if (!listing) return null;
+          return {
+            listingId: id,
+            currentPrice: listing.price,
+            newPrice: parseFloat(prices[id]),
+          };
         })
-      );
+        .filter((u): u is { listingId: string; currentPrice: number; newPrice: number } => u !== null);
+      await bulkUpdatePrices.mutateAsync({ updates });
       onSaved();
     } catch {
       Alert.alert('Something went wrong', 'Could not save all price changes. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [changedIds, listings, prices, saving, onSaved]);
+  }, [changedIds, listings, prices, saving, onSaved, bulkUpdatePrices]);
 
   return (
     <BottomSheet
