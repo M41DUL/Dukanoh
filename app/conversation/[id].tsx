@@ -41,6 +41,19 @@ interface ConversationMeta {
   listing_status: string;
 }
 
+// Raw shape returned by the conversations query (with joined rows
+// nested by Supabase's foreign-key select syntax). Flattened into
+// ConversationMeta in a useMemo below.
+interface ConversationRow {
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  last_message_sender_id: string | null;
+  buyer: { username: string | null } | null;
+  seller: { username: string | null } | null;
+  listing: { title: string | null; status: string | null } | null;
+}
+
 const PAGE_SIZE = 40;
 
 export default function ConversationScreen() {
@@ -63,7 +76,7 @@ export default function ConversationScreen() {
 
   const metaQuery = useQuery({
     queryKey: queryKeys.conversations.detail(id),
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal }): Promise<ConversationRow> => {
       const { data, error } = await supabase
         .from('conversations')
         .select(`
@@ -77,7 +90,7 @@ export default function ConversationScreen() {
         .maybeSingle();
       if (error) throw error;
       if (!data) throw new Error('Conversation not found');
-      return data as any;
+      return data as ConversationRow;
     },
     enabled: !!id && !!user,
   });
@@ -90,7 +103,7 @@ export default function ConversationScreen() {
       listing_id: c.listing_id,
       buyer_id: c.buyer_id,
       seller_id: c.seller_id,
-      other_username: isBuyer ? c.seller?.username : c.buyer?.username,
+      other_username: (isBuyer ? c.seller?.username : c.buyer?.username) ?? '',
       listing_title: c.listing?.title ?? '',
       listing_status: c.listing?.status ?? 'available',
     };
