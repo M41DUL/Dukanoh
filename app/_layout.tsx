@@ -27,6 +27,7 @@ import { initErrorReporting } from '@/lib/errorReporting';
 import { initRevenueCat, syncProEntitlement } from '@/lib/revenuecat';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { ToastProvider } from '@/context/ToastContext';
 import { SavedProvider } from '@/context/SavedContext';
 import { BlockedProvider } from '@/context/BlockedContext';
 import { FeeConfigProvider } from '@/context/FeeConfigContext';
@@ -231,13 +232,15 @@ export default function RootLayout() {
             merchantIdentifier="merchant.com.m41dul.dukanoh"
           >
             <ThemeProvider>
-              <FeeConfigProvider>
-                <SavedProvider>
-                  <BlockedProvider>
-                    <RootNavigator />
-                  </BlockedProvider>
-                </SavedProvider>
-              </FeeConfigProvider>
+              <ToastProvider>
+                <FeeConfigProvider>
+                  <SavedProvider>
+                    <BlockedProvider>
+                      <RootNavigator />
+                    </BlockedProvider>
+                  </SavedProvider>
+                </FeeConfigProvider>
+              </ToastProvider>
             </ThemeProvider>
           </StripeProvider>
         </QueryClientProvider>
