@@ -297,7 +297,7 @@ export function useCancelOrder() {
           cancelled_by: cancelledBy,
         })
         .eq('id', orderId)
-        .in('status', CANCELLABLE_ORDER_STATUSES as unknown as string[])
+        .in('status', [...CANCELLABLE_ORDER_STATUSES])
         .select('id');
       if (orderErr) throw orderErr;
       if (!updated || updated.length === 0) throw new OrderStateChangedError();

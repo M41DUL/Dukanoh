@@ -49,10 +49,6 @@ interface FeedData {
 }
 
 // ── Private data helpers ────────────────────────────────────────────
-type ListingsCategoryJoin = { listings: { category: string | null } | null };
-type ListingsCategoryOccasionJoin = { listings: { category: string | null; occasion: string | null } | null };
-type ListingsTrendingJoin = { listings: { category: string | null; status: string | null } | null };
-
 async function getViewedCategories(userId: string, signal: AbortSignal): Promise<string[]> {
   const { data, error } = await supabase
     .from('listing_views')
@@ -63,9 +59,8 @@ async function getViewedCategories(userId: string, signal: AbortSignal): Promise
     .abortSignal(signal);
   if (error) throw error;
   if (!data) return [];
-  const rows = data as unknown as ListingsCategoryJoin[];
   return [...new Set(
-    rows
+    data
       .map(d => d.listings?.category)
       .filter((c): c is string => !!c)
   )];
@@ -80,10 +75,9 @@ async function getSavedSignals(userId: string, signal: AbortSignal): Promise<{ c
     .abortSignal(signal);
   if (error) throw error;
   if (!data) return { categories: [], occasions: [] };
-  const rows = data as unknown as ListingsCategoryOccasionJoin[];
   return {
-    categories: [...new Set(rows.map(d => d.listings?.category).filter((c): c is string => !!c))],
-    occasions:  [...new Set(rows.map(d => d.listings?.occasion).filter((o): o is string => !!o))],
+    categories: [...new Set(data.map(d => d.listings?.category).filter((c): c is string => !!c))],
+    occasions:  [...new Set(data.map(d => d.listings?.occasion).filter((o): o is string => !!o))],
   };
 }
 
@@ -132,8 +126,7 @@ async function fetchTrendingCategories(
   if (error) throw error;
   if (!data || data.length === 0) return [];
 
-  const rows = data as unknown as ListingsTrendingJoin[];
-  const counts = rows.reduce<Record<string, number>>((acc, row) => {
+  const counts = data.reduce<Record<string, number>>((acc, row) => {
     const listing = row.listings;
     const cat = listing?.category;
     if (!cat || listing?.status !== 'available') return acc;
@@ -178,13 +171,13 @@ async function fetchSuggestedSection(
     return q.abortSignal(signal);
   };
 
-  // Run category and occasion queries in parallel, then merge.
-  // Each query returns rows shaped by SUGGESTED_SELECT — i.e. Listing
-  // with the seller join populated.
-  type SuggestedQueryResult = { data: Listing[] | null; error: unknown };
-  const queries: PromiseLike<SuggestedQueryResult>[] = [];
-  if (categories.length > 0) queries.push(buildBase().in('category', categories) as unknown as PromiseLike<SuggestedQueryResult>);
-  if (occasions.length > 0) queries.push(buildBase().in('occasion', occasions) as unknown as PromiseLike<SuggestedQueryResult>);
+  // Run category and occasion queries in parallel, then merge. Each query
+  // returns rows shaped by SUGGESTED_SELECT — Listing with the seller join.
+  // Typed Supabase client infers the row shape; queries.push receives the
+  // builder which is PromiseLike when awaited.
+  const queries = [];
+  if (categories.length > 0) queries.push(buildBase().in('category', categories));
+  if (occasions.length > 0) queries.push(buildBase().in('occasion', occasions));
   if (queries.length === 0) return [];
 
   const results = await Promise.all(queries);
@@ -197,9 +190,9 @@ async function fetchSuggestedSection(
   const merged: Listing[] = [];
   for (const { data } of results) {
     for (const item of data ?? []) {
-      if (!seen.has(item.id) && !item.seller?.tax_hold) {
+      if (!seen.has(item.id) && !(item as Listing).seller?.tax_hold) {
         seen.add(item.id);
-        merged.push(item);
+        merged.push(item as Listing);
       }
     }
   }
@@ -244,8 +237,8 @@ async function fetchNewArrivals(
 
   const { data, error } = await query.abortSignal(signal);
   if (error) throw error;
-  const listings = ((data ?? []) as unknown as Listing[]).filter(
-    l => !l.seller?.tax_hold
+  const listings = ((data ?? []) as Listing[]).filter(
+    l => !l.seller?.tax_hold,
   );
   if (listings.length === 0) return listings;
 

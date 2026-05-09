@@ -146,7 +146,7 @@ async function fetchStories(userId: string, signal: AbortSignal): Promise<StoryL
       .limit(20)
       .abortSignal(signal);
     if (error) throw error;
-    boostedListings = (data ?? []) as unknown as StoryListing[];
+    boostedListings = (data ?? []) as StoryListing[];
   }
 
   const viewedIds = new Set(viewedStoriesRes.data?.map(s => s.listing_id) ?? []);
@@ -161,7 +161,7 @@ async function fetchStories(userId: string, signal: AbortSignal): Promise<StoryL
   const boostedIdSet = new Set(boostedIds);
   const seenIds = new Set<string>();
   const merged: StoryListing[] = [];
-  const organicListings = (organicRes.data ?? []) as unknown as StoryListing[];
+  const organicListings = (organicRes.data ?? []) as StoryListing[];
   for (const l of [...boostedListings, ...organicListings]) {
     if (seenIds.has(l.id)) continue;
     if (l.seller?.tax_hold) continue;
