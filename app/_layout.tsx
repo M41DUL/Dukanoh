@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AppState, type AppStateStatus, Platform } from 'react-native';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
@@ -21,6 +21,7 @@ import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/reac
 import NetInfo from '@react-native-community/netinfo';
 import { useReactQueryDevTools } from '@dev-plugins/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthRedirect } from '@/hooks/useAuthRedirect';
 import { configureGoogleSignIn } from '@/lib/socialAuth';
 import { initErrorReporting } from '@/lib/errorReporting';
 import { initRevenueCat, syncProEntitlement } from '@/lib/revenuecat';
@@ -78,11 +79,8 @@ function RootNavigator() {
     initRevenueCat(session.user.id);
     syncProEntitlement(session.user.id);
   }, [session?.user.id]);
-  const router = useRouter();
-  const segments = useSegments();
   const { isDark } = useTheme();
   const [splashDone, setSplashDone] = useState(false);
-  const [routeReady, setRouteReady] = useState(false);
   const [splashVisible, setSplashVisible] = useState(true);
 
   useEffect(() => {
@@ -91,43 +89,18 @@ function RootNavigator() {
     }
   }, [fontsLoaded, loading]);
 
-  // Navigate to the correct route once splash animation finishes
-  useEffect(() => {
-    if (!fontsLoaded || loading || !splashDone || routeReady) return;
-
-    if (!session) {
-      const inAuthGroup = segments[0] === '(auth)';
-      if (!inAuthGroup) router.replace('/(auth)/intro');
-    } else {
-      if (needsUsername) {
-        router.replace('/username-picker');
-      } else {
-        router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
-      }
-    }
-    // Wait for route to mount, then tell splash to fade out
-    setTimeout(() => setRouteReady(true), 100);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [splashDone, fontsLoaded, loading]); // intentional: fires once when splash finishes; other deps intentionally excluded
-
-  // Handle auth state changes after initial navigation (e.g. login/logout)
-  useEffect(() => {
-    if (!fontsLoaded || loading || !routeReady || splashVisible) return;
-
-    const inAuthGroup = segments[0] === '(auth)';
-
-    if (!session) {
-      if (!inAuthGroup) router.replace('/(auth)/intro');
-    } else if (inAuthGroup) {
-      if (needsUsername) {
-        router.replace('/username-picker');
-      } else {
-        router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
-      }
-    }
-  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, needsUsername, routeReady, splashVisible]);
-
-
+  // Auth-driven navigation: handles both initial route selection (after
+  // splash) and runtime transitions (login/logout). See useAuthRedirect
+  // for the phase-based logic.
+  const routeReady = useAuthRedirect({
+    session,
+    loading,
+    fontsLoaded,
+    needsUsername,
+    onboardingCompleted,
+    splashDone,
+    splashVisible,
+  });
 
   if (!fontsLoaded || loading) return null;
 
