@@ -89,7 +89,8 @@ export default function ListingDetailScreen() {
   // stays. Seeded from extrasQuery via the useEffect below.
   const [boostExpiry, setBoostExpiry] = useState<Date | null>(null);
   const [boostsUsed, setBoostsUsed] = useState(0);
-  const [boostsResetAt, setBoostsResetAt] = useState<string | null>(null);
+  // boosts_reset_at no longer needs client tracking — increment_boosts_used
+  // owns the rollover atomically and the boosts.tsx screen reads its own copy.
   const [activeBoostCount, setActiveBoostCount] = useState(0);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -180,7 +181,6 @@ export default function ListingDetailScreen() {
         sellerBoosts: sellerBoostData
           ? {
               boostsUsed: sellerBoostData[0].data?.boosts_used ?? 0,
-              boostsResetAt: sellerBoostData[0].data?.boosts_reset_at ?? null,
               activeBoostCount: sellerBoostData[1].count ?? 0,
             }
           : null,
@@ -205,7 +205,6 @@ export default function ListingDetailScreen() {
     setBoostExpiry(extras.boostExpiry);
     if (extras.sellerBoosts) {
       setBoostsUsed(extras.sellerBoosts.boostsUsed);
-      setBoostsResetAt(extras.sellerBoosts.boostsResetAt);
       setActiveBoostCount(extras.sellerBoosts.activeBoostCount);
     }
   }, [extras]);
@@ -379,24 +378,23 @@ export default function ListingDetailScreen() {
     let amountPaid = 0;
 
     if (sellerTier === 'pro') {
-      const now = new Date();
-      const resetAt = boostsResetAt ? new Date(boostsResetAt) : null;
-      let currentUsed = boostsUsed;
-
-      // Reset monthly allowance if expired
-      if (!resetAt || resetAt <= now) {
-        const nextReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        await supabase.from('users').update({ boosts_used: 0, boosts_reset_at: nextReset }).eq('id', user.id);
-        currentUsed = 0;
-        setBoostsUsed(0);
-        setBoostsResetAt(nextReset);
+      // Atomic check-and-increment. RPC takes a row lock, folds in monthly
+      // rollover, and returns FALSE when the quota is exhausted — so two
+      // concurrent taps can't both slip a 4th free boost through.
+      const { data: granted, error: rpcErr } = await supabase.rpc('increment_boosts_used', {
+        p_user_id: user.id,
+      });
+      if (rpcErr) {
+        Alert.alert('Something went wrong', 'Please try again.');
+        return;
       }
 
-      if (currentUsed < 3) {
-        // Use free monthly boost
-        await supabase.from('users').update({ boosts_used: currentUsed + 1 }).eq('id', user.id);
-        setBoostsUsed(currentUsed + 1);
+      if (granted === true) {
+        // Free monthly boost granted server-side; reflect in local state
+        // so the UI counter updates without a refetch.
+        setBoostsUsed(prev => prev + 1);
       } else {
+        // Quota exhausted — fall through to IAP.
         const purchased = await purchaseBoostConsumable();
         if (!purchased) return;
         amountPaid = 0.99;

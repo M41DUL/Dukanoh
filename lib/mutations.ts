@@ -1344,12 +1344,24 @@ interface AddBoostArgs {
 const BOOST_DURATION_HOURS = 24;
 
 /**
- * Adds a Pro story boost: inserts a `boosts` row, mirrors the flags onto
- * `listings`, and increments the monthly counter on the `users` row via the
- * `increment_boosts_used` RPC (atomic +1, also seeds `boosts_reset_at` to UTC
- * midnight on the first of next month when null). The atomic RPC replaces the
- * previous read-then-write pattern that under-counted under concurrent taps.
- * Throws on any error so the caller's catch can show an alert.
+ * Thrown by useAddBoost when the user is already at the monthly free-boost
+ * quota. Callers can use this to route to the IAP path instead.
+ */
+export class BoostQuotaExceededError extends Error {
+  constructor() {
+    super('Monthly free-boost quota exhausted.');
+    this.name = 'BoostQuotaExceededError';
+  }
+}
+
+/**
+ * Adds a Pro story boost. Calls `increment_boosts_used` first — the RPC
+ * takes a row lock, folds in monthly rollover, and returns BOOLEAN telling
+ * us whether a free quota slot was actually granted. If the quota is
+ * exhausted (FALSE) we throw BoostQuotaExceededError so callers can route
+ * to IAP without writing any boost rows. Only on TRUE do we insert the
+ * `boosts` row and mirror the flags onto `listings`; if either of those
+ * later steps fails we decrement to roll the counter back.
  *
  * Invalidates boosts.all (this screen's combined list/meta query),
  * home.all (Stories row reads `boosts` to surface boosted listings), and
@@ -1361,28 +1373,43 @@ export function useAddBoost() {
 
   return useMutation({
     mutationFn: async ({ listingId, sellerId }: AddBoostArgs) => {
+      // 1. Atomic check-and-increment. FALSE = quota exhausted.
+      const { data: granted, error: userErr } = await supabase.rpc('increment_boosts_used', {
+        p_user_id: sellerId,
+      });
+      if (userErr) throw userErr;
+      if (granted === false) throw new BoostQuotaExceededError();
+
       const expiresAt = new Date(
         Date.now() + BOOST_DURATION_HOURS * 60 * 60 * 1000,
       ).toISOString();
 
+      // 2. Insert the boost record. Roll back the counter on failure.
       const { error: boostErr } = await supabase.from('boosts').insert({
         listing_id: listingId,
         seller_id: sellerId,
         expires_at: expiresAt,
         amount_paid: 0,
       });
-      if (boostErr) throw boostErr;
+      if (boostErr) {
+        await supabase.rpc('decrement_boosts_used', { p_user_id: sellerId });
+        throw boostErr;
+      }
 
+      // 3. Mirror flags onto the listing. Roll back boost row + counter on failure.
       const { error: listingErr } = await supabase
         .from('listings')
         .update({ is_boosted: true, boost_expires_at: expiresAt })
         .eq('id', listingId);
-      if (listingErr) throw listingErr;
-
-      const { error: userErr } = await supabase.rpc('increment_boosts_used', {
-        p_user_id: sellerId,
-      });
-      if (userErr) throw userErr;
+      if (listingErr) {
+        await supabase
+          .from('boosts')
+          .delete()
+          .eq('listing_id', listingId)
+          .eq('seller_id', sellerId);
+        await supabase.rpc('decrement_boosts_used', { p_user_id: sellerId });
+        throw listingErr;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.boosts.all });

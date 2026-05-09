@@ -1639,22 +1639,54 @@ ALTER TABLE public.admin_login_attempts ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS admin_login_attempts_ip_time_idx ON public.admin_login_attempts (ip, attempted_at);
 
 -- ── Boost counter RPCs ────────────────────────────────────────
--- Atomic +1/-1 on users.boosts_used so concurrent boost taps don't both read the
--- same value and clobber each other's increment. Increment also seeds
--- boosts_reset_at (UTC midnight, first of next month) when null so the monthly
--- reset cron has a deadline to compare against.
+-- Atomic check-and-increment on users.boosts_used so concurrent boost taps
+-- can't (a) both read the same value and clobber each other's increment, or
+-- (b) both cross the monthly reset boundary and lose one of the writes, or
+-- (c) both decide client-side that quota is available and slip an extra free
+-- boost through.
+--
+-- increment_boosts_used returns BOOLEAN: TRUE when a free monthly boost was
+-- granted, FALSE when the quota is already exhausted (caller routes to IAP).
+-- The function takes a row-level lock and folds the monthly rollover into
+-- the same atomic step.
 
 CREATE OR REPLACE FUNCTION public.increment_boosts_used(p_user_id UUID)
-RETURNS void AS $$
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_quota         CONSTANT INTEGER := 3;
+  v_used          INTEGER;
+  v_reset_at      TIMESTAMPTZ;
+  v_now           TIMESTAMPTZ := NOW();
+  v_next_reset    TIMESTAMPTZ;
 BEGIN
+  SELECT boosts_used, boosts_reset_at
+    INTO v_used, v_reset_at
+  FROM public.users
+  WHERE id = p_user_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'User not found: %', p_user_id;
+  END IF;
+
+  v_next_reset := (DATE_TRUNC('month', v_now AT TIME ZONE 'UTC') + INTERVAL '1 month') AT TIME ZONE 'UTC';
+
+  IF v_reset_at IS NULL OR v_reset_at <= v_now THEN
+    v_used     := 0;
+    v_reset_at := v_next_reset;
+  END IF;
+
+  IF v_used >= v_quota THEN
+    UPDATE public.users SET boosts_reset_at = v_reset_at WHERE id = p_user_id;
+    RETURN FALSE;
+  END IF;
+
   UPDATE public.users
-  SET
-    boosts_used = boosts_used + 1,
-    boosts_reset_at = COALESCE(
-      boosts_reset_at,
-      (DATE_TRUNC('month', (NOW() AT TIME ZONE 'UTC') + INTERVAL '1 month')) AT TIME ZONE 'UTC'
-    )
-  WHERE id = p_user_id;
+     SET boosts_used     = v_used + 1,
+         boosts_reset_at = v_reset_at
+   WHERE id = p_user_id;
+
+  RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 

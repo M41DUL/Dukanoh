@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/queryKeys';
-import { useAddBoost, useRemoveBoost } from '@/lib/mutations';
+import { useAddBoost, useRemoveBoost, BoostQuotaExceededError } from '@/lib/mutations';
 import { QueryStateView } from '@/components/QueryStateView';
 import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { isBoostActive } from '@/utils/boostHelpers';
@@ -159,8 +159,17 @@ export default function BoostsScreen() {
                 listingId: listing.id,
                 sellerId: user.id,
               });
-            } catch {
-              Alert.alert('Something went wrong', 'Please try again.');
+            } catch (err) {
+              if (err instanceof BoostQuotaExceededError) {
+                Alert.alert(
+                  'No boosts remaining',
+                  resetDate
+                    ? `Your 3 monthly boosts reset on ${resetDate}.`
+                    : 'Your monthly boosts will reset at the start of next month.',
+                );
+              } else {
+                Alert.alert('Something went wrong', 'Please try again.');
+              }
             } finally {
               setTogglingId(null);
             }
