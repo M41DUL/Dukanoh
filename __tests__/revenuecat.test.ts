@@ -1,10 +1,7 @@
 // syncProEntitlement — unit tests
-// Mocks: react-native-purchases and @/lib/supabase
+// Mocks: react-native-purchases, @/lib/supabase, @/lib/errorReporting
 
-import { ENTITLEMENT_ID } from '../lib/revenuecat';
-
-// Import AFTER mocks are registered
-import { syncProEntitlement } from '../lib/revenuecat';
+import { ENTITLEMENT_ID , syncProEntitlement } from '../lib/revenuecat';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -20,7 +17,6 @@ const mockEq = jest.fn();
 const mockSelect = jest.fn();
 const mockSingle = jest.fn();
 
-// Build a chainable mock: .from().select().eq().single() and .from().update().eq()
 const mockFrom = jest.fn((_table: string) => ({
   select: mockSelect.mockReturnValue({
     eq: mockEq.mockReturnValue({
@@ -36,6 +32,12 @@ jest.mock('../lib/supabase', () => ({
   supabase: { from: (table: string) => mockFrom(table) },
 }));
 
+const mockReportError = jest.fn();
+jest.mock('../lib/errorReporting', () => ({
+  reportError: (...args: unknown[]) => mockReportError(...args),
+  initErrorReporting: jest.fn(),
+}));
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeCustomerInfo(active: boolean, expiryDate: string | null = '2027-01-01') {
@@ -49,7 +51,7 @@ function makeCustomerInfo(active: boolean, expiryDate: string | null = '2027-01-
 }
 
 function setupDb(tier: string) {
-  mockSingle.mockResolvedValue({ data: { seller_tier: tier, pro_expires_at: null }, error: null });
+  mockSingle.mockResolvedValue({ data: { seller_tier: tier }, error: null });
   mockEq.mockReturnValue({ single: mockSingle });
 }
 
@@ -70,78 +72,91 @@ describe('ENTITLEMENT_ID', () => {
 });
 
 describe('syncProEntitlement', () => {
-  describe('when RevenueCat says active and DB says free', () => {
-    test('updates seller_tier to pro', async () => {
-      mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(true, '2027-06-01'));
-      setupDb('free');
+  // The function intentionally does NOT write to users.seller_tier from the
+  // client — RLS locks those columns and only the revenuecat-webhook edge
+  // function (service role) is authorised to update them. Drift between RC
+  // and DB is reported via reportError so it surfaces in monitoring.
+
+  describe('when RC and DB agree', () => {
+    test('does not report drift when RC active and DB pro', async () => {
+      mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(true));
+      setupDb('pro');
 
       await syncProEntitlement('user-123');
 
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ seller_tier: 'pro', had_free_trial: true })
-      );
+      expect(mockReportError).not.toHaveBeenCalled();
     });
 
-    test('writes the expiry date from RevenueCat', async () => {
-      mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(true, '2027-06-01'));
+    test('does not report drift when RC inactive and DB free', async () => {
+      mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(false));
       setupDb('free');
 
       await syncProEntitlement('user-123');
 
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ pro_expires_at: '2027-06-01' })
-      );
+      expect(mockReportError).not.toHaveBeenCalled();
     });
 
-    test('handles null expiry date gracefully', async () => {
-      mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(true, null));
-      setupDb('free');
+    test('treats founder as active (no drift when RC is also active)', async () => {
+      mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(true));
+      setupDb('founder');
 
       await syncProEntitlement('user-123');
 
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ pro_expires_at: null })
-      );
+      expect(mockReportError).not.toHaveBeenCalled();
     });
   });
 
-  describe('when RevenueCat says not active and DB says pro', () => {
-    test('downgrades seller_tier to free', async () => {
+  describe('when RC and DB disagree', () => {
+    test('reports drift when RC active and DB free', async () => {
+      mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(true));
+      setupDb('free');
+
+      await syncProEntitlement('user-123');
+
+      expect(mockReportError).toHaveBeenCalledWith(
+        expect.any(Error),
+        'syncProEntitlement',
+      );
+    });
+
+    test('reports drift when RC inactive and DB pro', async () => {
       mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(false));
       setupDb('pro');
 
       await syncProEntitlement('user-123');
 
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ seller_tier: 'free', pro_expires_at: null })
+      expect(mockReportError).toHaveBeenCalledWith(
+        expect.any(Error),
+        'syncProEntitlement',
       );
     });
 
-    test('also downgrades if DB tier is founder', async () => {
+    test('reports drift when RC inactive and DB founder', async () => {
       mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(false));
       setupDb('founder');
 
       await syncProEntitlement('user-123');
 
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ seller_tier: 'free' })
+      expect(mockReportError).toHaveBeenCalledWith(
+        expect.any(Error),
+        'syncProEntitlement',
       );
     });
   });
 
-  describe('when there is no mismatch', () => {
-    test('does not write to DB when RC active and DB already pro', async () => {
+  describe('does not write tier columns from the client', () => {
+    test('never calls supabase.update even on drift (RC active, DB free)', async () => {
       mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(true));
-      setupDb('pro');
+      setupDb('free');
 
       await syncProEntitlement('user-123');
 
       expect(mockUpdate).not.toHaveBeenCalled();
     });
 
-    test('does not write to DB when RC inactive and DB already free', async () => {
+    test('never calls supabase.update even on drift (RC inactive, DB pro)', async () => {
       mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(false));
-      setupDb('free');
+      setupDb('pro');
 
       await syncProEntitlement('user-123');
 
@@ -160,16 +175,6 @@ describe('syncProEntitlement', () => {
     test('does not throw when supabase select fails', async () => {
       mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(true));
       mockSingle.mockResolvedValue({ data: null, error: new Error('DB error') });
-
-      await expect(syncProEntitlement('user-123')).resolves.toBeUndefined();
-    });
-
-    test('does not throw when supabase update fails', async () => {
-      mockGetCustomerInfo.mockResolvedValue(makeCustomerInfo(true, '2027-01-01'));
-      setupDb('free');
-      mockEq.mockReturnValueOnce({ single: mockSingle }).mockReturnValueOnce(
-        Promise.reject(new Error('update failed'))
-      );
 
       await expect(syncProEntitlement('user-123')).resolves.toBeUndefined();
     });

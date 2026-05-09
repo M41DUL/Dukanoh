@@ -235,15 +235,26 @@ ALTER TABLE public.messages       ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public profiles are viewable"
   ON public.users FOR SELECT USING (true);
 
--- WITH CHECK prevents users from directly writing to rating fields.
--- update_seller_rating is SECURITY DEFINER (runs as postgres, bypasses RLS) so it is exempt.
+-- WITH CHECK prevents users from directly writing to:
+--   * rating_avg / rating_count   — only update_seller_rating (SECURITY DEFINER) writes these
+--   * seller_tier / pro_expires_at / had_free_trial — only the revenuecat-webhook
+--     edge function writes these (it uses the service-role key, bypasses RLS)
+--   * is_verified / is_official / tax_hold — admin-managed only
+-- Without these locks, any authenticated user could promote themselves to Pro
+-- by hitting PostgREST directly with the anon key.
 CREATE POLICY "Users can update own profile"
   ON public.users FOR UPDATE
   USING ((select auth.uid()) = id)
   WITH CHECK (
     (select auth.uid()) = id
-    AND rating_avg IS NOT DISTINCT FROM (SELECT u.rating_avg FROM public.users u WHERE u.id = (select auth.uid()))
-    AND rating_count IS NOT DISTINCT FROM (SELECT u.rating_count FROM public.users u WHERE u.id = (select auth.uid()))
+    AND rating_avg     IS NOT DISTINCT FROM (SELECT u.rating_avg     FROM public.users u WHERE u.id = (select auth.uid()))
+    AND rating_count   IS NOT DISTINCT FROM (SELECT u.rating_count   FROM public.users u WHERE u.id = (select auth.uid()))
+    AND seller_tier    IS NOT DISTINCT FROM (SELECT u.seller_tier    FROM public.users u WHERE u.id = (select auth.uid()))
+    AND pro_expires_at IS NOT DISTINCT FROM (SELECT u.pro_expires_at FROM public.users u WHERE u.id = (select auth.uid()))
+    AND had_free_trial IS NOT DISTINCT FROM (SELECT u.had_free_trial FROM public.users u WHERE u.id = (select auth.uid()))
+    AND is_verified    IS NOT DISTINCT FROM (SELECT u.is_verified    FROM public.users u WHERE u.id = (select auth.uid()))
+    AND is_official    IS NOT DISTINCT FROM (SELECT u.is_official    FROM public.users u WHERE u.id = (select auth.uid()))
+    AND tax_hold       IS NOT DISTINCT FROM (SELECT u.tax_hold       FROM public.users u WHERE u.id = (select auth.uid()))
   );
 
 -- Invites
@@ -1105,6 +1116,12 @@ CREATE POLICY "Sellers can read their own strikes"
   ON public.cancellation_strikes FOR SELECT TO authenticated
   USING ((select auth.uid()) = seller_id);
 
+-- Sellers can record their own strikes via useCancelOrder. Self-strike has
+-- no abuse benefit; legitimate inserts come from the cancel-with-refund flow.
+CREATE POLICY "Sellers can record their own cancellation strikes"
+  ON public.cancellation_strikes FOR INSERT TO authenticated
+  WITH CHECK ((select auth.uid()) = seller_id);
+
 CREATE INDEX idx_strikes_seller ON public.cancellation_strikes (seller_id);
 
 -- Trigger: increment strike count and escalate account_status on each new strike
@@ -1183,6 +1200,13 @@ CREATE POLICY "Boosts are publicly readable"
 CREATE POLICY "Sellers can create boosts"
   ON public.boosts FOR INSERT TO authenticated
   WITH CHECK ((select auth.uid()) = seller_id);
+
+-- Only the seller can remove their own boost (used by useRemoveBoost). The
+-- boost lifecycle is INSERT once + DELETE on cancel; UPDATE is intentionally
+-- not allowed from the client.
+CREATE POLICY "Sellers can delete their own boosts"
+  ON public.boosts FOR DELETE TO authenticated
+  USING ((select auth.uid()) = seller_id);
 
 CREATE INDEX idx_boosts_listing_id ON public.boosts (listing_id);
 CREATE INDEX idx_boosts_seller_id  ON public.boosts (seller_id);
