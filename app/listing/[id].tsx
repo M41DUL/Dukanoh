@@ -303,6 +303,33 @@ export default function ListingDetailScreen() {
   };
 
 
+  // Helper: optimistically flip status with proper rollback. Captures the
+  // previous status BEFORE writing the new one so an error can restore it
+  // — otherwise a failed write leaves the seller looking at a stale "sold"
+  // (or "available") state while buyers can still purchase.
+  const optimisticallySetStatus = (
+    nextStatus: 'available' | 'sold',
+    onSuccess?: () => void,
+    errorTitle = 'Could not update listing',
+  ) => {
+    if (!id) return;
+    const detailKey = queryKeys.listings.detail(id);
+    const previous = queryClient.getQueryData<Listing | null>(detailKey);
+    queryClient.setQueryData<Listing | null>(detailKey, prev =>
+      prev ? { ...prev, status: nextStatus } : prev,
+    );
+    updateStatus.mutate(
+      { listingId: id, status: nextStatus },
+      {
+        onSuccess,
+        onError: () => {
+          queryClient.setQueryData<Listing | null>(detailKey, previous ?? null);
+          Alert.alert(errorTitle, 'Please try again.');
+        },
+      },
+    );
+  };
+
   const handleMarkSold = () => {
     Alert.alert(
       'Mark as sold',
@@ -312,15 +339,7 @@ export default function ListingDetailScreen() {
         {
           text: 'Mark as sold',
           style: 'destructive',
-          onPress: () => {
-            if (!id) return;
-            // Optimistic flip; the hook also invalidates listings.all so the
-            // canonical row is refetched right after.
-            queryClient.setQueryData<Listing | null>(queryKeys.listings.detail(id), prev =>
-              prev ? { ...prev, status: 'sold' } : prev
-            );
-            updateStatus.mutate({ listingId: id, status: 'sold' });
-          },
+          onPress: () => optimisticallySetStatus('sold', undefined, 'Could not mark as sold'),
         },
       ],
       { cancelable: true }
@@ -328,13 +347,10 @@ export default function ListingDetailScreen() {
   };
 
   const handlePublish = () => {
-    if (!id) return;
-    queryClient.setQueryData<Listing | null>(queryKeys.listings.detail(id), prev =>
-      prev ? { ...prev, status: 'available' } : prev
-    );
-    updateStatus.mutate(
-      { listingId: id, status: 'available' },
-      { onSuccess: () => Alert.alert('Published!', 'Your listing is now live on the feed.') },
+    optimisticallySetStatus(
+      'available',
+      () => Alert.alert('Published!', 'Your listing is now live on the feed.'),
+      'Could not publish listing',
     );
   };
 

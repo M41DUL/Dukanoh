@@ -1649,6 +1649,12 @@ CREATE INDEX IF NOT EXISTS admin_login_attempts_ip_time_idx ON public.admin_logi
 -- granted, FALSE when the quota is already exhausted (caller routes to IAP).
 -- The function takes a row-level lock and folds the monthly rollover into
 -- the same atomic step.
+--
+-- Both RPCs are SECURITY DEFINER (so they can update users.boosts_used without
+-- a per-user RLS write policy) and therefore enforce p_user_id = auth.uid()
+-- explicitly — anyone with the anon key can hit PostgREST and pass any UUID,
+-- so without this guard a Pro user could exhaust a competitor's free quota
+-- or perpetually decrement their own counter to skip the IAP fallback.
 
 CREATE OR REPLACE FUNCTION public.increment_boosts_used(p_user_id UUID)
 RETURNS BOOLEAN AS $$
@@ -1659,6 +1665,10 @@ DECLARE
   v_now           TIMESTAMPTZ := NOW();
   v_next_reset    TIMESTAMPTZ;
 BEGIN
+  IF p_user_id IS NULL OR p_user_id <> auth.uid() THEN
+    RAISE EXCEPTION 'Cannot modify another user''s boost counter';
+  END IF;
+
   SELECT boosts_used, boosts_reset_at
     INTO v_used, v_reset_at
   FROM public.users
@@ -1693,6 +1703,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 CREATE OR REPLACE FUNCTION public.decrement_boosts_used(p_user_id UUID)
 RETURNS void AS $$
 BEGIN
+  IF p_user_id IS NULL OR p_user_id <> auth.uid() THEN
+    RAISE EXCEPTION 'Cannot modify another user''s boost counter';
+  END IF;
+
   UPDATE public.users
   SET boosts_used = GREATEST(0, boosts_used - 1)
   WHERE id = p_user_id;
