@@ -31,6 +31,7 @@ import { SavedProvider } from '@/context/SavedContext';
 import { BlockedProvider } from '@/context/BlockedContext';
 import { FeeConfigProvider } from '@/context/FeeConfigContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
+import { RootErrorBoundary } from '@/components/RootErrorBoundary';
 import { queryClient } from '@/lib/queryClient';
 
 // React Query's built-in browser focus/online events don't fire on RN —
@@ -223,22 +224,24 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
-        <StripeProvider
-          publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
-          merchantIdentifier="merchant.com.m41dul.dukanoh"
-        >
-          <ThemeProvider>
-            <FeeConfigProvider>
-              <SavedProvider>
-                <BlockedProvider>
-                  <RootNavigator />
-                </BlockedProvider>
-              </SavedProvider>
-            </FeeConfigProvider>
-          </ThemeProvider>
-        </StripeProvider>
-      </QueryClientProvider>
+      <RootErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <StripeProvider
+            publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
+            merchantIdentifier="merchant.com.m41dul.dukanoh"
+          >
+            <ThemeProvider>
+              <FeeConfigProvider>
+                <SavedProvider>
+                  <BlockedProvider>
+                    <RootNavigator />
+                  </BlockedProvider>
+                </SavedProvider>
+              </FeeConfigProvider>
+            </ThemeProvider>
+          </StripeProvider>
+        </QueryClientProvider>
+      </RootErrorBoundary>
     </GestureHandlerRootView>
   );
 }
