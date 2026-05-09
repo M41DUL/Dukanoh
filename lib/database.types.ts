@@ -1526,12 +1526,14 @@ export type Database = {
         Returns: undefined
       }
       consume_invite: { Args: { p_code: string }; Returns: boolean }
+      decrement_boosts_used: { Args: { p_user_id: string }; Returns: undefined }
       delete_user_account: { Args: never; Returns: undefined }
       expire_pro_subscriptions: { Args: never; Returns: undefined }
       get_seller_response_rate: {
         Args: { p_seller_id: string }
         Returns: number
       }
+      increment_boosts_used: { Args: { p_user_id: string }; Returns: undefined }
       increment_pending_balance: {
         Args: { p_amount: number; p_seller_id: string }
         Returns: undefined

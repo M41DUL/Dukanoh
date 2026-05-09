@@ -33,6 +33,7 @@ export interface Listing {
   status?: 'available' | 'sold' | 'draft' | string | null;
   view_count?: number | null;
   created_at?: string | null;
+  published_at?: string | null;
   isBoosted?: boolean;
   is_boosted?: boolean | null;
   price_dropped_at?: string | null;

@@ -6,23 +6,31 @@ import { HowItWorks } from '@/components/HowItWorks';
 import { ImageViewerModal } from '@/components/ImageViewerModal';
 import { Listing } from '@/components/ListingCard';
 import { ListingGrid } from '@/components/ListingGrid';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { QueryStateView } from '@/components/QueryStateView';
 import { SectionHeader } from '@/components/SectionHeader';
 import { StarRating } from '@/components/StarRating';
 import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 import { useBlocked } from '@/context/BlockedContext';
 import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
-import { recordView } from '@/hooks/useRecentlyViewed';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import Purchases from 'react-native-purchases';
 import { getImageUrl } from '@/lib/imageUtils';
+import {
+  useCreateConversation,
+  useDuplicateListing,
+  useRecordListingView,
+  useReportListing,
+  useSendMessage,
+  useUpdateListingStatus,
+} from '@/lib/mutations';
+import { queryKeys } from '@/lib/queryKeys';
 import { calcOrderTotal, calcProtectionFee } from '@/lib/paymentHelpers';
 import { useFeeConfig } from '@/context/FeeConfigContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import * as Crypto from 'expo-crypto';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -66,11 +74,8 @@ export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, sellerTier: authSellerTier } = useAuth();
   const { blockedIds, blockUser } = useBlocked();
-  const [listing, setListing] = useState<Listing | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [imageIndex, setImageIndex] = useState(0);
-  const [sellerListings, setSellerListings] = useState<Listing[]>([]);
-  const [similarListings, setSimilarListings] = useState<Listing[]>([]);
   const [priceBreakdownVisible, setPriceBreakdownVisible] = useState(false);
   const [offerVisible, setOfferVisible] = useState(false);
   const [offerAmount, setOfferAmount] = useState('');
@@ -78,20 +83,164 @@ export default function ListingDetailScreen() {
   const [offerError, setOfferError] = useState('');
   const [offerPreset, setOfferPreset] = useState<'10' | '20' | 'custom'>('custom');
   const offerInputRef = useRef<TextInput>(null);
-  const [boostExpiry, setBoostExpiry] = useState<Date | null>(null);
   const [boostVisible, setBoostVisible] = useState(false);
-  const [sellerTier, setSellerTier] = useState<'pro' | 'free'>('free');
+  // Boost-flow local state — handleBoost mutates these directly. Boost
+  // mutations aren't part of this migration, so the local-state pattern
+  // stays. Seeded from extrasQuery via the useEffect below.
+  const [boostExpiry, setBoostExpiry] = useState<Date | null>(null);
   const [boostsUsed, setBoostsUsed] = useState(0);
-  const [boostsResetAt, setBoostsResetAt] = useState<string | null>(null);
+  // boosts_reset_at no longer needs client tracking — increment_boosts_used
+  // owns the rollover atomically and the boosts.tsx screen reads its own copy.
   const [activeBoostCount, setActiveBoostCount] = useState(0);
-  const [responseRate, setResponseRate] = useState<number | null>(null);
-  const [soldCount, setSoldCount] = useState<number | null>(null);
-  const [saveCount, setSaveCount] = useState(0);
-  const [offerCount, setOfferCount] = useState(0);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const imageScrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
+
+  const sellerTier: 'pro' | 'free' = (
+    authSellerTier === 'pro' || authSellerTier === 'founder' ? authSellerTier : 'free'
+  ) as 'pro' | 'free';
+
+  const listingQuery = useQuery({
+    queryKey: queryKeys.listings.detail(id),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('listings')
+        .select(
+          'id, title, description, price, original_price, price_dropped_at, images, status, category, gender, condition, occasion, size, colour, fabric, worn_at, measurements, created_at, seller_id, save_count, view_count, collection_id, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier, tax_hold)'
+        )
+        .eq('id', id!)
+        .abortSignal(signal)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as Listing | null) ?? null;
+    },
+    enabled: !!id,
+  });
+
+  const listing = listingQuery.data ?? null;
+
+  const extrasQuery = useQuery({
+    queryKey: queryKeys.listings.detailExtras(id, user?.id, blockedIds),
+    queryFn: async () => {
+      // `enabled` guarantees listing + id are present.
+      const sellerId = listing!.seller_id;
+      const category = listing!.category as string;
+      const occasion = listing!.occasion as string | undefined;
+      const isOwnerView = user?.id === sellerId;
+
+      let simQ = supabase
+        .from('listings')
+        .select(
+          'id, title, price, original_price, price_dropped_at, images, status, category, occasion, save_count, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)'
+        )
+        .eq('category', category)
+        .eq('status', 'available')
+        .neq('id', id!)
+        .neq('seller_id', sellerId)
+        .order('save_count', { ascending: false })
+        .limit(20);
+      if (blockedIds.length > 0) simQ = simQ.not('seller_id', 'in', `(${blockedIds.join(',')})`);
+
+      const [
+        { data: rate },
+        { count: sold },
+        { data: others },
+        { data: similar },
+        { data: msgs },
+        { data: boost },
+        sellerBoostData,
+      ] = await Promise.all([
+        supabase.rpc('get_seller_response_rate', { p_seller_id: sellerId }),
+        supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', sellerId).eq('status', 'sold'),
+        supabase.from('listings').select('id, title, price, original_price, price_dropped_at, images, status, condition, size, occasion, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)').eq('seller_id', sellerId).eq('status', 'available').neq('id', id!).order('created_at', { ascending: false }).limit(4),
+        simQ,
+        supabase.from('messages').select('content').eq('listing_id', id!),
+        supabase.from('boosts').select('expires_at').eq('listing_id', id!).gte('expires_at', new Date().toISOString()).maybeSingle(),
+        isOwnerView
+          ? Promise.all([
+              supabase.from('users').select('boosts_used, boosts_reset_at').eq('id', user?.id ?? '').single(),
+              supabase.from('boosts').select('id', { count: 'exact', head: true }).eq('seller_id', user?.id ?? '').gte('expires_at', new Date().toISOString()),
+            ])
+          : Promise.resolve(null),
+      ]);
+
+      // Prioritise occasion matches, then fill with the rest — both groups already ordered by save_count.
+      const all = (similar ?? []) as Listing[];
+      const occasionMatches = occasion ? all.filter(l => l.occasion === occasion) : [];
+      const rest = occasion ? all.filter(l => l.occasion !== occasion) : all;
+      const similarSorted = [...occasionMatches, ...rest].slice(0, 4);
+
+      return {
+        responseRate: (rate as number | null) ?? null,
+        soldCount: sold ?? 0,
+        sellerListings: (others as Listing[] | null) ?? [],
+        similarListings: similarSorted,
+        offerCount: msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0,
+        boostExpiry: boost ? new Date(boost.expires_at) : null,
+        sellerBoosts: sellerBoostData
+          ? {
+              boostsUsed: sellerBoostData[0].data?.boosts_used ?? 0,
+              activeBoostCount: sellerBoostData[1].count ?? 0,
+            }
+          : null,
+      };
+    },
+    enabled: !!listing && !!id,
+  });
+
+  const extras = extrasQuery.data;
+  const responseRate = extras?.responseRate ?? null;
+  const soldCount = extras?.soldCount ?? null;
+  const sellerListings = extras?.sellerListings ?? [];
+  const similarListings = extras?.similarListings ?? [];
+  const offerCount = extras?.offerCount ?? 0;
+  const saveCount = listing?.save_count ?? 0;
+
+  // Seed the local boost-flow state from extras on first arrival. handleBoost
+  // continues to mutate the local state directly so the boost UI stays
+  // responsive without round-tripping through the cache.
+  useEffect(() => {
+    if (!extras) return;
+    setBoostExpiry(extras.boostExpiry);
+    if (extras.sellerBoosts) {
+      setBoostsUsed(extras.sellerBoosts.boostsUsed);
+      setActiveBoostCount(extras.sellerBoosts.activeBoostCount);
+    }
+  }, [extras]);
+
+  const recordListingView = useRecordListingView();
+  const createConversation = useCreateConversation();
+  const sendMessage = useSendMessage();
+  const updateStatus = useUpdateListingStatus();
+  const duplicate = useDuplicateListing();
+  const reportListing = useReportListing();
+
+  // Fire view tracking once per listing visit. The upsert is idempotent so
+  // multiple fires would be safe, but the ref keeps invalidation chatter down.
+  // The hourly increment_view_count cooldown still uses the module-level map.
+  const viewedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!listing || !id) return;
+    if (listing.status === 'draft') return;
+    if (viewedRef.current === id) return;
+    viewedRef.current = id;
+
+    if (user) {
+      recordListingView.mutate({ listingId: id, userId: user.id });
+    }
+    const cacheKey = `${user?.id ?? 'anon'}:${id}`;
+    const lastIncrement = recentViewIncrements.get(cacheKey) ?? 0;
+    if (Date.now() - lastIncrement > VIEW_INCREMENT_COOLDOWN) {
+      recentViewIncrements.set(cacheKey, Date.now());
+      supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
+        queryClient.setQueryData<Listing | null>(queryKeys.listings.detail(id), prev =>
+          prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev
+        );
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listing, id, user]);
 
   const headerBgOpacity = scrollY.interpolate({
     inputRange: [IMAGE_HEIGHT * 0.6, IMAGE_HEIGHT * 0.85],
@@ -116,144 +265,70 @@ export default function ListingDetailScreen() {
   const { feePercent, feeFlat } = useFeeConfig();
 
   useEffect(() => {
-    if (!id) return;
-
-    (async () => {
-      // Primary fetch — must complete first so we have seller_id + category for secondary queries
-      const { data } = await supabase
-        .from('listings')
-        .select('id, title, description, price, original_price, price_dropped_at, images, status, category, gender, condition, occasion, size, colour, fabric, worn_at, measurements, created_at, seller_id, save_count, view_count, collection_id, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier, tax_hold)')
-        .eq('id', id)
-        .single();
-
-      if (!data) { setLoading(false); return; }
-
-      setListing(data as Listing);
-      setSaveCount(data.save_count ?? 0);
-
-      // Track view (fire-and-forget, non-blocking)
-      if (data.status !== 'draft') {
-        if (user) recordView(id, user.id);
-        const cacheKey = `${user?.id ?? 'anon'}:${id}`;
-        const lastIncrement = recentViewIncrements.get(cacheKey) ?? 0;
-        if (Date.now() - lastIncrement > VIEW_INCREMENT_COOLDOWN) {
-          recentViewIncrements.set(cacheKey, Date.now());
-          supabase.rpc('increment_view_count', { listing_id: id }).then(() => {
-            setListing(prev => prev ? { ...prev, view_count: (prev.view_count ?? 0) + 1 } : prev);
-          });
-        }
-      }
-
-      // Build similar listings query — fetch 20, then prioritise by occasion match + save_count
-      let simQ = supabase
-        .from('listings')
-        .select('id, title, price, original_price, price_dropped_at, images, status, category, occasion, save_count, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)')
-        .eq('category', data.category)
-        .eq('status', 'available')
-        .neq('id', id)
-        .neq('seller_id', data.seller_id)
-        .order('save_count', { ascending: false })
-        .limit(20);
-      if (blockedIds.length > 0) simQ = simQ.not('seller_id', 'in', `(${blockedIds.join(',')})`);
-
-      const isSeller = user?.id === data.seller_id;
-
-      // All secondary queries run in parallel
-      const [
-        { data: rate },
-        { count: sold },
-        { data: others },
-        { data: similar },
-        { data: msgs },
-        { data: boost },
-        sellerBoostData,
-      ] = await Promise.all([
-        supabase.rpc('get_seller_response_rate', { p_seller_id: data.seller_id }),
-        supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', data.seller_id).eq('status', 'sold'),
-        supabase.from('listings').select('id, title, price, original_price, price_dropped_at, images, status, condition, size, occasion, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)').eq('seller_id', data.seller_id).eq('status', 'available').neq('id', id).order('created_at', { ascending: false }).limit(4),
-        simQ,
-        supabase.from('messages').select('content').eq('listing_id', id),
-        supabase.from('boosts').select('expires_at').eq('listing_id', id).gte('expires_at', new Date().toISOString()).maybeSingle(),
-        // Only fetch seller boost data if current user owns this listing
-        isSeller
-          ? Promise.all([
-              supabase.from('users').select('boosts_used, boosts_reset_at').eq('id', user?.id ?? '').single(),
-              supabase.from('boosts').select('id', { count: 'exact', head: true }).eq('seller_id', user?.id ?? '').gte('expires_at', new Date().toISOString()),
-            ])
-          : Promise.resolve(null),
-      ]);
-
-      if (rate !== null) setResponseRate(rate as number);
-      setSoldCount(sold ?? 0);
-      if (others) setSellerListings(others);
-      if (similar) {
-        // Prioritise occasion matches, then fill with remaining — both groups already ordered by save_count
-        const occasion = data.occasion as string | undefined;
-        const all = similar;
-        const occasionMatches = occasion ? all.filter(l => l.occasion === occasion) : [];
-        const rest = occasion ? all.filter(l => l.occasion !== occasion) : all;
-        setSimilarListings([...occasionMatches, ...rest].slice(0, 4));
-      }
-      setOfferCount(msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0);
-      if (boost) setBoostExpiry(new Date(boost.expires_at));
-      if (sellerBoostData) {
-        const [{ data: profile }, { count: boostCount }] = sellerBoostData;
-        setSellerTier((authSellerTier === 'pro' || authSellerTier === 'founder' ? authSellerTier : 'free') as 'pro' | 'free');
-        setBoostsUsed(profile?.boosts_used ?? 0);
-        setBoostsResetAt(profile?.boosts_reset_at ?? null);
-        setActiveBoostCount(boostCount ?? 0);
-      }
-
-      setLoading(false);
-    })();
-  }, [id, blockedIds, user, authSellerTier]);
-
-
-  useEffect(() => {
     if (offerVisible) {
       setTimeout(() => offerInputRef.current?.focus(), 100);
     }
   }, [offerVisible]);
 
-  if (loading) return <LoadingSpinner />;
-  if (!listing) return null;
-
-  const findOrCreateConversation = async (): Promise<string | null> => {
-    if (!user || !id) return null;
-    const { data: existing } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('listing_id', id)
-      .eq('buyer_id', user.id)
-      .maybeSingle();
-    if (existing) return existing.id as string;
-    const { data: created, error } = await supabase
-      .from('conversations')
-      .insert({ listing_id: id, buyer_id: user.id, seller_id: listing.seller_id })
-      .select('id')
-      .single();
-    if (error?.code === '23505') {
-      // Unique constraint hit (race condition) — row was just created, fetch it
-      const { data: retry } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('listing_id', id)
-        .eq('buyer_id', user.id)
-        .single();
-      return (retry?.id as string) ?? null;
-    }
-    return (created?.id as string) ?? null;
-  };
+  if (listingQuery.isLoading || listingQuery.isError || !listing) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.background }]}>
+        <StatusBar style="light" />
+        <QueryStateView
+          query={listingQuery}
+          isEmpty={!listing && !listingQuery.isLoading && !listingQuery.isError}
+          empty={{
+            heading: 'Listing not found',
+            subtext: 'This listing may have been removed.',
+          }}
+        >
+          <View />
+        </QueryStateView>
+      </View>
+    );
+  }
 
   const handleMessage = async () => {
-    const convId = await findOrCreateConversation();
-    if (convId) {
+    if (!user || !id) return;
+    try {
+      const convId = await createConversation.mutateAsync({
+        listingId: id,
+        buyerId: user.id,
+        sellerId: listing.seller_id,
+      });
       router.push(`/conversation/${convId}`);
-    } else {
+    } catch {
       Alert.alert('Unable to message', 'This conversation could not be created. The listing may no longer be available.');
     }
   };
 
+
+  // Helper: optimistically flip status with proper rollback. Captures the
+  // previous status BEFORE writing the new one so an error can restore it
+  // — otherwise a failed write leaves the seller looking at a stale "sold"
+  // (or "available") state while buyers can still purchase.
+  const optimisticallySetStatus = (
+    nextStatus: 'available' | 'sold',
+    onSuccess?: () => void,
+    errorTitle = 'Could not update listing',
+  ) => {
+    if (!id) return;
+    const detailKey = queryKeys.listings.detail(id);
+    const previous = queryClient.getQueryData<Listing | null>(detailKey);
+    queryClient.setQueryData<Listing | null>(detailKey, prev =>
+      prev ? { ...prev, status: nextStatus } : prev,
+    );
+    updateStatus.mutate(
+      { listingId: id, status: nextStatus },
+      {
+        onSuccess,
+        onError: () => {
+          queryClient.setQueryData<Listing | null>(detailKey, previous ?? null);
+          Alert.alert(errorTitle, 'Please try again.');
+        },
+      },
+    );
+  };
 
   const handleMarkSold = () => {
     Alert.alert(
@@ -264,20 +339,19 @@ export default function ListingDetailScreen() {
         {
           text: 'Mark as sold',
           style: 'destructive',
-          onPress: async () => {
-            await supabase.from('listings').update({ status: 'sold', sold_at: new Date().toISOString() }).eq('id', id ?? '');
-            setListing(prev => prev ? { ...prev, status: 'sold' } : prev);
-          },
+          onPress: () => optimisticallySetStatus('sold', undefined, 'Could not mark as sold'),
         },
       ],
       { cancelable: true }
     );
   };
 
-  const handlePublish = async () => {
-    await supabase.from('listings').update({ status: 'available' }).eq('id', id ?? '');
-    setListing(prev => prev ? { ...prev, status: 'available' } : prev);
-    Alert.alert('Published!', 'Your listing is now live on the feed.');
+  const handlePublish = () => {
+    optimisticallySetStatus(
+      'available',
+      () => Alert.alert('Published!', 'Your listing is now live on the feed.'),
+      'Could not publish listing',
+    );
   };
 
 
@@ -320,24 +394,23 @@ export default function ListingDetailScreen() {
     let amountPaid = 0;
 
     if (sellerTier === 'pro') {
-      const now = new Date();
-      const resetAt = boostsResetAt ? new Date(boostsResetAt) : null;
-      let currentUsed = boostsUsed;
-
-      // Reset monthly allowance if expired
-      if (!resetAt || resetAt <= now) {
-        const nextReset = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        await supabase.from('users').update({ boosts_used: 0, boosts_reset_at: nextReset }).eq('id', user.id);
-        currentUsed = 0;
-        setBoostsUsed(0);
-        setBoostsResetAt(nextReset);
+      // Atomic check-and-increment. RPC takes a row lock, folds in monthly
+      // rollover, and returns FALSE when the quota is exhausted — so two
+      // concurrent taps can't both slip a 4th free boost through.
+      const { data: granted, error: rpcErr } = await supabase.rpc('increment_boosts_used', {
+        p_user_id: user.id,
+      });
+      if (rpcErr) {
+        Alert.alert('Something went wrong', 'Please try again.');
+        return;
       }
 
-      if (currentUsed < 3) {
-        // Use free monthly boost
-        await supabase.from('users').update({ boosts_used: currentUsed + 1 }).eq('id', user.id);
-        setBoostsUsed(currentUsed + 1);
+      if (granted === true) {
+        // Free monthly boost granted server-side; reflect in local state
+        // so the UI counter updates without a refetch.
+        setBoostsUsed(prev => prev + 1);
       } else {
+        // Quota exhausted — fall through to IAP.
         const purchased = await purchaseBoostConsumable();
         if (!purchased) return;
         amountPaid = 0.99;
@@ -364,15 +437,20 @@ export default function ListingDetailScreen() {
     });
   };
 
-  const submitReport = async (reason: string) => {
-    if (!user) return;
-    await supabase.from('reports').insert({
-      reporter_id: user.id,
-      listing_id: id ?? '',
-      seller_id: listing.seller_id,
-      reason,
-    });
-    Alert.alert('Report submitted', 'Thank you for helping keep Dukanoh safe.');
+  const submitReport = (reason: string) => {
+    if (!user || !id) return;
+    reportListing.mutate(
+      {
+        reporterId: user.id,
+        listingId: id,
+        sellerId: listing.seller_id,
+        reason,
+      },
+      {
+        onSuccess: () =>
+          Alert.alert('Report submitted', 'Thank you for helping keep Dukanoh safe.'),
+      }
+    );
   };
 
   const handleReport = () => {
@@ -414,29 +492,39 @@ export default function ListingDetailScreen() {
   };
 
   const handleDuplicate = async () => {
-    if (!user || !listing || !listing.category || !listing.condition) return;
-    const { data, error } = await supabase.from('listings').insert({
-      seller_id: user.id,
-      title: listing.title,
-      description: listing.description,
-      price: listing.price,
-      category: listing.category,
-      condition: listing.condition,
-      size: listing.size,
-      occasion: listing.occasion,
-      measurements: listing.measurements,
-      images: listing.images,
-      worn_at: listing.worn_at,
-      status: 'draft',
-    }).select('id').single();
-    if (error || !data) { Alert.alert('Error', 'Could not duplicate listing.'); return; }
-    router.push(`/listing/edit/${data.id}`);
+    if (!user || !listing.category || !listing.condition) return;
+    try {
+      const newId = await duplicate.mutateAsync({
+        sellerId: user.id,
+        source: {
+          title: listing.title,
+          description: listing.description ?? null,
+          price: listing.price,
+          category: listing.category,
+          condition: listing.condition,
+          size: listing.size ?? null,
+          occasion: listing.occasion ?? null,
+          measurements: (listing.measurements as { note?: string; chest?: string; waist?: string; length?: string } | null) ?? null,
+          images: listing.images ?? null,
+          worn_at: listing.worn_at ?? null,
+        },
+      });
+      router.push(`/listing/edit/${newId}`);
+    } catch {
+      Alert.alert('Error', 'Could not duplicate listing.');
+    }
   };
 
   const handleToggleSave = () => {
     if (!id) return;
     const wasSaved = isSaved(id);
-    setSaveCount(c => wasSaved ? Math.max(0, c - 1) : c + 1);
+    // Optimistic save_count adjustment on the cached listing detail; the
+    // SavedContext toggle drives the heart UI separately via its own cache.
+    queryClient.setQueryData<Listing | null>(queryKeys.listings.detail(id), prev => {
+      if (!prev) return prev;
+      const current = prev.save_count ?? 0;
+      return { ...prev, save_count: wasSaved ? Math.max(0, current - 1) : current + 1 };
+    });
     toggleSave(id, listing.price);
   };
 
@@ -445,28 +533,35 @@ export default function ListingDetailScreen() {
     if (!amount || amount <= 0) { setOfferError('Please enter a valid amount.'); return; }
     if (amount > 99999) { setOfferError('Offer amount is too high.'); return; }
     if (amount >= listing.price) { setOfferError(`Offer must be less than £${listing.price.toFixed(2)}.`); return; }
-    if (!user) return;
+    if (!user || !id) return;
     setOfferError('');
     setOfferSending(true);
-    const convId = await findOrCreateConversation();
-    if (!convId) {
+    let convId: string;
+    try {
+      convId = await createConversation.mutateAsync({
+        listingId: id,
+        buyerId: user.id,
+        sellerId: listing.seller_id,
+      });
+    } catch {
       setOfferError('Could not send offer. The listing may no longer be available.');
       setOfferSending(false);
       return;
     }
-    const { error } = await supabase.from('messages').insert({
-      id: Crypto.randomUUID(),
-      conversation_id: convId,
-      listing_id: id ?? '',
-      sender_id: user.id,
-      receiver_id: listing.seller_id,
-      content: `__OFFER__:${amount.toFixed(2)}`,
-    });
-    setOfferSending(false);
-    if (error) {
+    try {
+      await sendMessage.mutateAsync({
+        conversationId: convId,
+        listingId: id,
+        senderId: user.id,
+        receiverId: listing.seller_id,
+        content: `__OFFER__:${amount.toFixed(2)}`,
+      });
+    } catch {
+      setOfferSending(false);
       setOfferError('Failed to send offer. Please try again.');
       return;
     }
+    setOfferSending(false);
     setOfferVisible(false);
     setOfferAmount('');
     Alert.alert('Offer sent!', `Your offer of £${amount.toFixed(2)} has been sent to the seller.`, [

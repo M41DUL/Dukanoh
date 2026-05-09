@@ -34,8 +34,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { compressImage, compressImageForAnalysis } from '@/lib/imageUtils';
-import { validateListing, buildMeasurements, isFormDirty as checkFormDirty, ListingForm, CATEGORY_TO_GENDER } from '@/lib/sellHelpers';
+import { compressImageForAnalysis } from '@/lib/imageUtils';
+import { validateListing, isFormDirty as checkFormDirty, ListingForm, CATEGORY_TO_GENDER } from '@/lib/sellHelpers';
+import { useCreateListing } from '@/lib/mutations';
 import { useAuth } from '@/hooks/useAuth';
 import { useTaxStatus } from '@/hooks/useTaxStatus';
 import { TaxHoldBanner } from '@/components/TaxHoldBanner';
@@ -64,6 +65,7 @@ export default function SellScreen() {
   const colors = useThemeColors();
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const createListing = useCreateListing();
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const scrollRef = useRef<any>(null);
   const fieldPositions = useRef<Record<string, number>>({});
@@ -335,36 +337,6 @@ export default function SellScreen() {
     return errorKeys.length === 0;
   };
 
-  const uploadImages = async (): Promise<string[]> => {
-    if (!user) return [];
-
-    setUploadProgress({ done: 0, total: images.length });
-
-    const uploads = images.map(async (uri) => {
-      const compressed = await compressImage(uri);
-      const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-
-      const response = await fetch(compressed);
-      const arrayBuffer = await response.arrayBuffer();
-
-      const { error } = await supabase.storage
-        .from('listings')
-        .upload(fileName, arrayBuffer, {
-          contentType: 'image/jpeg',
-          cacheControl: '31536000',
-        });
-
-      if (error) throw new Error(`Failed to upload photo: ${error.message}`);
-
-      setUploadProgress(prev => ({ ...prev, done: prev.done + 1 }));
-
-      const { data } = supabase.storage.from('listings').getPublicUrl(fileName);
-      return data.publicUrl;
-    });
-
-    return Promise.all(uploads);
-  };
-
   const resetForm = () => {
     setForm(emptyForm);
     setMeasurementsNote('');
@@ -380,32 +352,18 @@ export default function SellScreen() {
 
     setSubmitting(status);
     try {
-      const imageUrls = await uploadImages();
-
-      const { data: insertedRow, error } = await supabase.from('listings').insert({
-        seller_id: user.id,
-        title: form.title.trim(),
-        description: form.description.trim() || null,
-        price: parseFloat(form.price),
-        gender: form.gender,
-        category: form.category,
-        condition: form.condition,
-        size: form.size || null,
-        occasion: form.occasion || null,
-        colour: form.colour || null,
-        fabric: form.fabric || null,
-        measurements: buildMeasurements(measurementsNote),
-        worn_at: form.worn_at.trim() || null,
-        images: imageUrls,
-        status: status,
-        published_at: status === 'available' ? new Date().toISOString() : null,
-      }).select('id').single();
-
-      if (error) throw error;
+      const result = await createListing.mutateAsync({
+        userId: user.id,
+        form,
+        measurementsNote,
+        images,
+        newStatus: status,
+        onUploadProgress: (done, total) => setUploadProgress({ done, total }),
+      });
 
       if (status === 'available') {
         setSuccessListing({
-          id: insertedRow?.id ?? '',
+          id: result.id,
           seller_id: user.id,
           title: form.title.trim(),
           price: parseFloat(form.price),
@@ -413,7 +371,7 @@ export default function SellScreen() {
           category: form.category,
           condition: form.condition,
           size: form.size || undefined,
-          images: imageUrls,
+          images: result.images,
           status: 'available',
           seller: { username },
         });
@@ -595,13 +553,31 @@ export default function SellScreen() {
             onSelect={val => {
               const inferredGender = CATEGORY_TO_GENDER[val];
               setForm(f => ({ ...f, category: val, gender: inferredGender ?? f.gender }));
-              setErrors(e => ({ ...e, category: undefined }));
+              setErrors(e => ({ ...e, category: undefined, gender: inferredGender ? undefined : e.gender }));
               scrollToField('description');
               setTimeout(() => descRef.current?.focus(), 300);
             }}
             error={errors.category}
           />
         </View>
+
+        {form.category && !CATEGORY_TO_GENDER[form.category] && (
+          <View onLayout={e => { fieldPositions.current.gender = e.nativeEvent.layout.y; }}>
+            <Select
+              ref={genderRef}
+              label="Gender"
+              required
+              placeholder="Select gender"
+              value={form.gender}
+              options={Genders}
+              onSelect={val => {
+                setForm(f => ({ ...f, gender: val }));
+                setErrors(e => ({ ...e, gender: undefined }));
+              }}
+              error={errors.gender}
+            />
+          </View>
+        )}
 
         <View onLayout={e => { fieldPositions.current.description = e.nativeEvent.layout.y; }}>
           <Input
@@ -697,19 +673,6 @@ export default function SellScreen() {
         {/* ── Optional details ──────────────────────────────── */}
         {showDetails && (
           <>
-            <View onLayout={e => { fieldPositions.current.gender = e.nativeEvent.layout.y; }}>
-              <Select
-                ref={genderRef}
-                label="Gender"
-                placeholder="Select gender"
-                value={form.gender}
-                options={Genders}
-                onSelect={val => {
-                  setForm(f => ({ ...f, gender: val }));
-                }}
-              />
-            </View>
-
             <View onLayout={e => { fieldPositions.current.colour = e.nativeEvent.layout.y; }}>
               <Select
                 ref={colourRef}

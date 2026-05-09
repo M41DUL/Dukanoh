@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { AppState, type AppStateStatus, Platform } from 'react-native';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
@@ -16,16 +17,32 @@ import {
   Inter_900Black,
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
+import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
+import NetInfo from '@react-native-community/netinfo';
+import { useReactQueryDevTools } from '@dev-plugins/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthRedirect } from '@/hooks/useAuthRedirect';
 import { configureGoogleSignIn } from '@/lib/socialAuth';
 import { initErrorReporting } from '@/lib/errorReporting';
 import { initRevenueCat, syncProEntitlement } from '@/lib/revenuecat';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { ToastProvider } from '@/context/ToastContext';
 import { SavedProvider } from '@/context/SavedContext';
 import { BlockedProvider } from '@/context/BlockedContext';
 import { FeeConfigProvider } from '@/context/FeeConfigContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
+import { RootErrorBoundary } from '@/components/RootErrorBoundary';
+import { queryClient } from '@/lib/queryClient';
+
+// React Query's built-in browser focus/online events don't fire on RN —
+// these managers bridge AppState + NetInfo so queries refetch on resume
+// and pause while offline.
+onlineManager.setEventListener((setOnline) =>
+  NetInfo.addEventListener((state) => {
+    setOnline(!!state.isConnected);
+  })
+);
 
 initErrorReporting();
 
@@ -46,18 +63,26 @@ function RootNavigator() {
 
   const { session, loading, onboardingCompleted, needsUsername } = useAuth();
   usePushNotifications();
+  if (__DEV__) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useReactQueryDevTools(queryClient);
+  }
 
   useEffect(() => { configureGoogleSignIn(); }, []);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (status: AppStateStatus) => {
+      // Web's onFocus already covers this; only bridge on native.
+      if (Platform.OS !== 'web') focusManager.setFocused(status === 'active');
+    });
+    return () => sub.remove();
+  }, []);
   useEffect(() => {
     if (!session?.user.id) return;
     initRevenueCat(session.user.id);
     syncProEntitlement(session.user.id);
   }, [session?.user.id]);
-  const router = useRouter();
-  const segments = useSegments();
   const { isDark } = useTheme();
   const [splashDone, setSplashDone] = useState(false);
-  const [routeReady, setRouteReady] = useState(false);
   const [splashVisible, setSplashVisible] = useState(true);
 
   useEffect(() => {
@@ -66,43 +91,18 @@ function RootNavigator() {
     }
   }, [fontsLoaded, loading]);
 
-  // Navigate to the correct route once splash animation finishes
-  useEffect(() => {
-    if (!fontsLoaded || loading || !splashDone || routeReady) return;
-
-    if (!session) {
-      const inAuthGroup = segments[0] === '(auth)';
-      if (!inAuthGroup) router.replace('/(auth)/intro');
-    } else {
-      if (needsUsername) {
-        router.replace('/username-picker');
-      } else {
-        router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
-      }
-    }
-    // Wait for route to mount, then tell splash to fade out
-    setTimeout(() => setRouteReady(true), 100);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [splashDone, fontsLoaded, loading]); // intentional: fires once when splash finishes; other deps intentionally excluded
-
-  // Handle auth state changes after initial navigation (e.g. login/logout)
-  useEffect(() => {
-    if (!fontsLoaded || loading || !routeReady || splashVisible) return;
-
-    const inAuthGroup = segments[0] === '(auth)';
-
-    if (!session) {
-      if (!inAuthGroup) router.replace('/(auth)/intro');
-    } else if (inAuthGroup) {
-      if (needsUsername) {
-        router.replace('/username-picker');
-      } else {
-        router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
-      }
-    }
-  }, [session, loading, fontsLoaded, segments, router, onboardingCompleted, needsUsername, routeReady, splashVisible]);
-
-
+  // Auth-driven navigation: handles both initial route selection (after
+  // splash) and runtime transitions (login/logout). See useAuthRedirect
+  // for the phase-based logic.
+  const routeReady = useAuthRedirect({
+    session,
+    loading,
+    fontsLoaded,
+    needsUsername,
+    onboardingCompleted,
+    splashDone,
+    splashVisible,
+  });
 
   if (!fontsLoaded || loading) return null;
 
@@ -225,20 +225,26 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StripeProvider
-        publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
-        merchantIdentifier="merchant.com.m41dul.dukanoh"
-      >
-        <ThemeProvider>
-          <FeeConfigProvider>
-            <SavedProvider>
-              <BlockedProvider>
-                <RootNavigator />
-              </BlockedProvider>
-            </SavedProvider>
-          </FeeConfigProvider>
-        </ThemeProvider>
-      </StripeProvider>
+      <RootErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <StripeProvider
+            publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
+            merchantIdentifier="merchant.com.m41dul.dukanoh"
+          >
+            <ThemeProvider>
+              <ToastProvider>
+                <FeeConfigProvider>
+                  <SavedProvider>
+                    <BlockedProvider>
+                      <RootNavigator />
+                    </BlockedProvider>
+                  </SavedProvider>
+                </FeeConfigProvider>
+              </ToastProvider>
+            </ThemeProvider>
+          </StripeProvider>
+        </QueryClientProvider>
+      </RootErrorBoundary>
     </GestureHandlerRootView>
   );
 }

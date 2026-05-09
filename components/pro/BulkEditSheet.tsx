@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
-import { supabase } from '@/lib/supabase';
+import { useBulkUpdatePrices, BulkUpdatePartialFailureError } from '@/lib/mutations';
 import { FontFamily, Spacing, BorderRadius, type ProColorTokens } from '@/constants/theme';
 import type { HubListing } from '@/components/hub/hubTheme';
 
@@ -33,6 +33,7 @@ interface Props {
 export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props) {
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const bulkUpdatePrices = useBulkUpdatePrices();
 
   useEffect(() => {
     if (visible) {
@@ -80,31 +81,35 @@ export function BulkEditSheet({ visible, listings, onClose, onSaved, P }: Props)
     if (changedIds.length === 0 || saving) return;
     setSaving(true);
     try {
-      const now = new Date().toISOString();
-      await Promise.all(
-        changedIds.map(id => {
+      const updates = changedIds
+        .map(id => {
           const listing = listings.find(l => l.id === id);
-          if (!listing) return Promise.resolve();
-          const newPrice = parseFloat(prices[id]);
-          const isPriceDrop = newPrice < listing.price;
-          const update: Record<string, unknown> = { price: newPrice };
-          if (isPriceDrop) {
-            update.original_price = listing.price;
-            update.price_dropped_at = now;
-          } else {
-            update.original_price = null;
-            update.price_dropped_at = null;
-          }
-          return supabase.from('listings').update(update).eq('id', id);
+          if (!listing) return null;
+          return {
+            listingId: id,
+            currentPrice: listing.price,
+            newPrice: parseFloat(prices[id]),
+          };
         })
-      );
+        .filter((u): u is { listingId: string; currentPrice: number; newPrice: number } => u !== null);
+      await bulkUpdatePrices.mutateAsync({ updates });
       onSaved();
-    } catch {
-      Alert.alert('Something went wrong', 'Could not save all price changes. Please try again.');
+    } catch (err) {
+      if (err instanceof BulkUpdatePartialFailureError) {
+        // Some rows did land — close out as if successful so the UI reflects
+        // partial progress, but tell the user exactly how many were saved.
+        Alert.alert(
+          'Some prices weren’t saved',
+          `Updated ${err.succeededCount} of ${err.total} listings. Please check and retry the rest.`,
+        );
+        onSaved();
+      } else {
+        Alert.alert('Something went wrong', 'Could not save your price changes. Please try again.');
+      }
     } finally {
       setSaving(false);
     }
-  }, [changedIds, listings, prices, saving, onSaved]);
+  }, [changedIds, listings, prices, saving, onSaved, bulkUpdatePrices]);
 
   return (
     <BottomSheet

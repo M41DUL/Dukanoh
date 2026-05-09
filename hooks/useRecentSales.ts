@@ -33,13 +33,16 @@ export function useRecentSales() {
       if (!data || data.length < MIN_SALES) return;
 
       setSales(
-        data.map(d => ({
-          id: d.id,
-          title: d.title,
-          image: (d.images as string[])?.[0] ?? '',
-          sellerUsername: (d.seller as any)?.username ?? '',
-          soldAt: d.sold_at as string,
-        }))
+        data.map(d => {
+          const seller = d.seller as { username: string | null } | null;
+          return {
+            id: d.id,
+            title: d.title,
+            image: (d.images as string[])?.[0] ?? '',
+            sellerUsername: seller?.username ?? '',
+            soldAt: d.sold_at as string,
+          };
+        })
       );
     })();
   }, []);

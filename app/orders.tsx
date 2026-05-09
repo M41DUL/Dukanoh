@@ -7,17 +7,19 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { TabBar } from '@/components/TabBar';
-import { EmptyState } from '@/components/EmptyState';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { QueryStateView } from '@/components/QueryStateView';
 import { getImageUrl } from '@/lib/imageUtils';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { supabase } from '@/lib/supabase';
+import { queryKeys } from '@/lib/queryKeys';
 import {
   Typography,
   Spacing,
@@ -112,6 +114,13 @@ const EMPTY: Record<OrderTab, { heading: string; subtext: string; ctaLabel?: str
 
 // ─── Screen ───────────────────────────────────────────────────
 
+const ORDERS_SELECT = `
+  id, buyer_id, seller_id, status, item_price, created_at,
+  listing:listings(title, images),
+  buyer:users!orders_buyer_id_fkey(username),
+  seller:users!orders_seller_id_fkey(username)
+`;
+
 export default function OrdersScreen() {
   const { user } = useAuth();
   const colors = useThemeColors();
@@ -119,41 +128,44 @@ export default function OrdersScreen() {
 
   const [activeTab, setActiveTab] = useState<OrderTab>('sold');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
-  const [sold, setSold] = useState<Order[]>([]);
-  const [bought, setBought] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchOrders = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    const [soldRes, boughtRes] = await Promise.all([
-      supabase
+  const soldQuery = useQuery({
+    queryKey: queryKeys.orders.list(user?.id, 'sold'),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
         .from('orders')
-        .select(`
-          id, buyer_id, seller_id, status, item_price, created_at,
-          listing:listings(title, images),
-          buyer:users!orders_buyer_id_fkey(username),
-          seller:users!orders_seller_id_fkey(username)
-        `)
-        .eq('seller_id', user.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('orders')
-        .select(`
-          id, buyer_id, seller_id, status, item_price, created_at,
-          listing:listings(title, images),
-          buyer:users!orders_buyer_id_fkey(username),
-          seller:users!orders_seller_id_fkey(username)
-        `)
-        .eq('buyer_id', user.id)
-        .order('created_at', { ascending: false }),
-    ]);
-    setSold((soldRes.data ?? []).map(o => ({ ...o, status: o.status as OrderStatus })));
-    setBought((boughtRes.data ?? []).map(o => ({ ...o, status: o.status as OrderStatus })));
-    setLoading(false);
-  }, [user]);
+        .select(ORDERS_SELECT)
+        .eq('seller_id', user!.id)
+        .order('created_at', { ascending: false })
+        .abortSignal(signal);
+      if (error) throw error;
+      return (data ?? []).map(o => ({ ...o, status: o.status as OrderStatus })) as Order[];
+    },
+    enabled: !!user,
+  });
 
-  useFocusEffect(useCallback(() => { fetchOrders(); }, [fetchOrders]));
+  const boughtQuery = useQuery({
+    queryKey: queryKeys.orders.list(user?.id, 'bought'),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(ORDERS_SELECT)
+        .eq('buyer_id', user!.id)
+        .order('created_at', { ascending: false })
+        .abortSignal(signal);
+      if (error) throw error;
+      return (data ?? []).map(o => ({ ...o, status: o.status as OrderStatus })) as Order[];
+    },
+    enabled: !!user,
+  });
+
+  const refetchAll = useCallback(async () => {
+    await Promise.all([soldQuery.refetch(), boughtQuery.refetch()]);
+  }, [soldQuery, boughtQuery]);
+
+  useRefreshOnFocus(refetchAll);
+
+  const activeQuery = activeTab === 'sold' ? soldQuery : boughtQuery;
 
   // Reset filter when switching tabs
   const handleTabChange = useCallback((key: string) => {
@@ -168,11 +180,11 @@ export default function OrdersScreen() {
 
   // Apply status filter to current tab's data
   const data = useMemo(() => {
-    const all = activeTab === 'sold' ? sold : bought;
+    const all = activeQuery.data ?? [];
     const statuses = FILTER_STATUSES[activeFilter];
     if (!statuses) return all;
     return all.filter(o => statuses.includes(o.status));
-  }, [activeTab, activeFilter, sold, bought]);
+  }, [activeQuery.data, activeFilter]);
 
   const actionRequired = activeTab === 'sold' ? SELLER_ACTION : BUYER_ACTION;
   const empty = EMPTY[activeTab];
@@ -213,9 +225,12 @@ export default function OrdersScreen() {
         })}
       </View>
 
-      {loading ? (
-        <LoadingSpinner />
-      ) : (
+      <QueryStateView
+        query={activeQuery}
+        isEmpty={data.length === 0}
+        errorHeading="Couldn't load orders"
+        empty={empty}
+      >
         <FlatList
           key={activeTab}
           data={data}
@@ -232,16 +247,8 @@ export default function OrdersScreen() {
               styles={styles}
             />
           )}
-          ListEmptyComponent={
-            <EmptyState
-              heading={empty.heading}
-              subtext={empty.subtext}
-              ctaLabel={empty.ctaLabel}
-              onCta={empty.onCta}
-            />
-          }
         />
-      )}
+      </QueryStateView>
     </ScreenWrapper>
   );
 }

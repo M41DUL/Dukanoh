@@ -235,15 +235,26 @@ ALTER TABLE public.messages       ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public profiles are viewable"
   ON public.users FOR SELECT USING (true);
 
--- WITH CHECK prevents users from directly writing to rating fields.
--- update_seller_rating is SECURITY DEFINER (runs as postgres, bypasses RLS) so it is exempt.
+-- WITH CHECK prevents users from directly writing to:
+--   * rating_avg / rating_count   — only update_seller_rating (SECURITY DEFINER) writes these
+--   * seller_tier / pro_expires_at / had_free_trial — only the revenuecat-webhook
+--     edge function writes these (it uses the service-role key, bypasses RLS)
+--   * is_verified / is_official / tax_hold — admin-managed only
+-- Without these locks, any authenticated user could promote themselves to Pro
+-- by hitting PostgREST directly with the anon key.
 CREATE POLICY "Users can update own profile"
   ON public.users FOR UPDATE
   USING ((select auth.uid()) = id)
   WITH CHECK (
     (select auth.uid()) = id
-    AND rating_avg IS NOT DISTINCT FROM (SELECT u.rating_avg FROM public.users u WHERE u.id = (select auth.uid()))
-    AND rating_count IS NOT DISTINCT FROM (SELECT u.rating_count FROM public.users u WHERE u.id = (select auth.uid()))
+    AND rating_avg     IS NOT DISTINCT FROM (SELECT u.rating_avg     FROM public.users u WHERE u.id = (select auth.uid()))
+    AND rating_count   IS NOT DISTINCT FROM (SELECT u.rating_count   FROM public.users u WHERE u.id = (select auth.uid()))
+    AND seller_tier    IS NOT DISTINCT FROM (SELECT u.seller_tier    FROM public.users u WHERE u.id = (select auth.uid()))
+    AND pro_expires_at IS NOT DISTINCT FROM (SELECT u.pro_expires_at FROM public.users u WHERE u.id = (select auth.uid()))
+    AND had_free_trial IS NOT DISTINCT FROM (SELECT u.had_free_trial FROM public.users u WHERE u.id = (select auth.uid()))
+    AND is_verified    IS NOT DISTINCT FROM (SELECT u.is_verified    FROM public.users u WHERE u.id = (select auth.uid()))
+    AND is_official    IS NOT DISTINCT FROM (SELECT u.is_official    FROM public.users u WHERE u.id = (select auth.uid()))
+    AND tax_hold       IS NOT DISTINCT FROM (SELECT u.tax_hold       FROM public.users u WHERE u.id = (select auth.uid()))
   );
 
 -- Invites
@@ -1105,6 +1116,12 @@ CREATE POLICY "Sellers can read their own strikes"
   ON public.cancellation_strikes FOR SELECT TO authenticated
   USING ((select auth.uid()) = seller_id);
 
+-- Sellers can record their own strikes via useCancelOrder. Self-strike has
+-- no abuse benefit; legitimate inserts come from the cancel-with-refund flow.
+CREATE POLICY "Sellers can record their own cancellation strikes"
+  ON public.cancellation_strikes FOR INSERT TO authenticated
+  WITH CHECK ((select auth.uid()) = seller_id);
+
 CREATE INDEX idx_strikes_seller ON public.cancellation_strikes (seller_id);
 
 -- Trigger: increment strike count and escalate account_status on each new strike
@@ -1183,6 +1200,13 @@ CREATE POLICY "Boosts are publicly readable"
 CREATE POLICY "Sellers can create boosts"
   ON public.boosts FOR INSERT TO authenticated
   WITH CHECK ((select auth.uid()) = seller_id);
+
+-- Only the seller can remove their own boost (used by useRemoveBoost). The
+-- boost lifecycle is INSERT once + DELETE on cancel; UPDATE is intentionally
+-- not allowed from the client.
+CREATE POLICY "Sellers can delete their own boosts"
+  ON public.boosts FOR DELETE TO authenticated
+  USING ((select auth.uid()) = seller_id);
 
 CREATE INDEX idx_boosts_listing_id ON public.boosts (listing_id);
 CREATE INDEX idx_boosts_seller_id  ON public.boosts (seller_id);
@@ -1637,3 +1661,78 @@ CREATE TABLE IF NOT EXISTS public.admin_login_attempts (
 ALTER TABLE public.admin_login_attempts ENABLE ROW LEVEL SECURITY;
 
 CREATE INDEX IF NOT EXISTS admin_login_attempts_ip_time_idx ON public.admin_login_attempts (ip, attempted_at);
+
+-- ── Boost counter RPCs ────────────────────────────────────────
+-- Atomic check-and-increment on users.boosts_used so concurrent boost taps
+-- can't (a) both read the same value and clobber each other's increment, or
+-- (b) both cross the monthly reset boundary and lose one of the writes, or
+-- (c) both decide client-side that quota is available and slip an extra free
+-- boost through.
+--
+-- increment_boosts_used returns BOOLEAN: TRUE when a free monthly boost was
+-- granted, FALSE when the quota is already exhausted (caller routes to IAP).
+-- The function takes a row-level lock and folds the monthly rollover into
+-- the same atomic step.
+--
+-- Both RPCs are SECURITY DEFINER (so they can update users.boosts_used without
+-- a per-user RLS write policy) and therefore enforce p_user_id = auth.uid()
+-- explicitly — anyone with the anon key can hit PostgREST and pass any UUID,
+-- so without this guard a Pro user could exhaust a competitor's free quota
+-- or perpetually decrement their own counter to skip the IAP fallback.
+
+CREATE OR REPLACE FUNCTION public.increment_boosts_used(p_user_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_quota         CONSTANT INTEGER := 3;
+  v_used          INTEGER;
+  v_reset_at      TIMESTAMPTZ;
+  v_now           TIMESTAMPTZ := NOW();
+  v_next_reset    TIMESTAMPTZ;
+BEGIN
+  IF p_user_id IS NULL OR p_user_id <> auth.uid() THEN
+    RAISE EXCEPTION 'Cannot modify another user''s boost counter';
+  END IF;
+
+  SELECT boosts_used, boosts_reset_at
+    INTO v_used, v_reset_at
+  FROM public.users
+  WHERE id = p_user_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'User not found: %', p_user_id;
+  END IF;
+
+  v_next_reset := (DATE_TRUNC('month', v_now AT TIME ZONE 'UTC') + INTERVAL '1 month') AT TIME ZONE 'UTC';
+
+  IF v_reset_at IS NULL OR v_reset_at <= v_now THEN
+    v_used     := 0;
+    v_reset_at := v_next_reset;
+  END IF;
+
+  IF v_used >= v_quota THEN
+    UPDATE public.users SET boosts_reset_at = v_reset_at WHERE id = p_user_id;
+    RETURN FALSE;
+  END IF;
+
+  UPDATE public.users
+     SET boosts_used     = v_used + 1,
+         boosts_reset_at = v_reset_at
+   WHERE id = p_user_id;
+
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE OR REPLACE FUNCTION public.decrement_boosts_used(p_user_id UUID)
+RETURNS void AS $$
+BEGIN
+  IF p_user_id IS NULL OR p_user_id <> auth.uid() THEN
+    RAISE EXCEPTION 'Cannot modify another user''s boost counter';
+  END IF;
+
+  UPDATE public.users
+  SET boosts_used = GREATEST(0, boosts_used - 1)
+  WHERE id = p_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

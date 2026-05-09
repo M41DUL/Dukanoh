@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,19 +13,26 @@ import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import type { ComponentProps } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { BottomSheet } from '@/components/BottomSheet';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { QueryStateView } from '@/components/QueryStateView';
 import { Spacing, BorderRadius, FontFamily, Typography, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { queryKeys } from '@/lib/queryKeys';
+import { useCreateOrder } from '@/lib/mutations';
 import { calcProtectionFee, calcOrderTotal, formatGBP } from '@/lib/paymentHelpers';
 import { useFeeConfig } from '@/context/FeeConfigContext';
 import { edgeFetch } from '@/lib/edgeFetch';
+
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 type PaymentMethod = 'apple_pay' | 'google_pay' | 'card';
 
@@ -48,7 +55,7 @@ interface AddressState {
   country: string;
 }
 
-const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: string }[] = Platform.OS === 'ios'
+const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: IoniconName }[] = Platform.OS === 'ios'
   ? [
       { key: 'apple_pay', label: 'Apple Pay', icon: 'logo-apple' },
       { key: 'card',      label: 'Credit / Debit card', icon: 'card-outline' },
@@ -70,10 +77,9 @@ export default function CheckoutScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { confirmPlatformPayPayment } = usePlatformPay();
+  const createOrder = useCreateOrder();
 
-  const [listing, setListing] = useState<ListingSummary | null>(null);
   const [address, setAddress] = useState<AddressState | null>(null);
-  const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [applePaySupported, setApplePaySupported] = useState(false);
   const [googlePaySupported, setGooglePaySupported] = useState(false);
@@ -81,7 +87,7 @@ export default function CheckoutScreen() {
   const [protectionSheetVisible, setProtectionSheetVisible] = useState(false);
 
   // Check platform pay support on mount
-  React.useEffect(() => {
+  useEffect(() => {
     if (Platform.OS === 'ios') {
       isPlatformPaySupported().then(setApplePaySupported);
     } else if (Platform.OS === 'android') {
@@ -89,36 +95,43 @@ export default function CheckoutScreen() {
     }
   }, []);
 
+  // Listing read shares the queryKeys.listings.detail cache with listing/[id]
+  // and the browse caches — arriving from the listing page is an instant cache
+  // hit. Selects the same column set as listing/[id] to keep cache shape
+  // consistent regardless of which screen populates the entry first.
+  const listingQuery = useQuery({
+    queryKey: queryKeys.listings.detail(listingId),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('listings')
+        .select(
+          'id, title, description, price, original_price, price_dropped_at, images, status, category, gender, condition, occasion, size, colour, fabric, worn_at, measurements, created_at, seller_id, save_count, view_count, collection_id, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier, tax_hold)'
+        )
+        .eq('id', listingId!)
+        .abortSignal(signal)
+        .maybeSingle();
+      if (error) throw error;
+      return data as ListingSummary | null;
+    },
+    enabled: !!listingId,
+  });
+
+  useRefreshOnFocus(listingQuery.refetch);
+
+  const listing = listingQuery.data ?? null;
+
+  // Address fetch is intentionally NOT migrated — it's a user-row read
+  // outside the listing/orders cache namespaces. Refetched on focus so a
+  // round-trip through /settings/address picks up the new address.
   useFocusEffect(
     useCallback(() => {
-      if (!user || !listingId) return;
+      if (!user) return;
       (async () => {
-        setLoading(true);
-        const [{ data: listingData }, { data: userData }] = await Promise.all([
-          supabase
-            .from('listings')
-            .select('id, title, price, images, seller_id, status, size, condition')
-            .eq('id', listingId)
-            .single(),
-          supabase
-            .from('users')
-            .select('address_line1, address_line2, city, postcode, country')
-            .eq('id', user.id)
-            .single(),
-        ]);
-
-        if (!listingData || listingData.status !== 'available') {
-          Alert.alert('Unavailable', 'This listing is no longer available.');
-          router.back();
-          return;
-        }
-        if (listingData.seller_id === user.id) {
-          Alert.alert('Error', 'You cannot buy your own listing.');
-          router.back();
-          return;
-        }
-
-        setListing(listingData);
+        const { data: userData } = await supabase
+          .from('users')
+          .select('address_line1, address_line2, city, postcode, country')
+          .eq('id', user.id)
+          .single();
         if (userData?.address_line1) {
           setAddress({
             address_line1: userData.address_line1,
@@ -128,10 +141,25 @@ export default function CheckoutScreen() {
             country: userData.country ?? '',
           });
         }
-        setLoading(false);
       })();
-    }, [user, listingId])
+    }, [user])
   );
+
+  // Validation on listing data — runs whenever the cached entry updates,
+  // including a stale `available` row flipping to `sold` while the user is
+  // on this screen.
+  useEffect(() => {
+    if (!user || !listing) return;
+    if (listing.status !== 'available') {
+      Alert.alert('Unavailable', 'This listing is no longer available.');
+      router.back();
+      return;
+    }
+    if (listing.seller_id === user.id) {
+      Alert.alert('Error', 'You cannot buy your own listing.');
+      router.back();
+    }
+  }, [listing, user]);
 
   const protectionFee = listing ? calcProtectionFee(listing.price, feePercent, feeFlat) : 0;
   const total = listing ? calcOrderTotal(listing.price, feePercent, feeFlat) : 0;
@@ -282,37 +310,34 @@ export default function CheckoutScreen() {
       }
     }
 
-    // Step 4 — Payment succeeded: insert the order record
+    // Step 4 — Payment succeeded: insert the order record + flip listing to sold
     // For unverified sellers, set a far-future sentinel so stripe-connect-status
     // can find and transfer these funds once they complete onboarding.
     const payoutPendingSentinel = seller_verified
       ? null
       : '2099-01-01T00:00:00.000Z';
 
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        listing_id: listing.id,
-        buyer_id: user.id,
-        seller_id: listing.seller_id,
-        status: 'paid',
-        item_price: listing.price,
-        protection_fee: protectionFee,
-        total_paid: total,
-        stripe_payment_id: payment_intent_id,
-        seller_verify_deadline: payoutPendingSentinel,
-        delivery_address_line1: address?.address_line1,
-        delivery_address_line2: address?.address_line2 ?? null,
-        delivery_city: address?.city,
-        delivery_postcode: address?.postcode,
-        delivery_country: address?.country,
-      })
-      .select('id')
-      .single();
-
-    if (orderError || !order) {
+    try {
+      const order = await createOrder.mutateAsync({
+        listingId: listing.id,
+        buyerId: user.id,
+        sellerId: listing.seller_id,
+        itemPrice: listing.price,
+        protectionFee,
+        totalPaid: total,
+        stripePaymentId: payment_intent_id,
+        sellerVerifyDeadline: payoutPendingSentinel,
+        deliveryAddressLine1: address!.address_line1,
+        deliveryAddressLine2: address?.address_line2 ?? null,
+        deliveryCity: address!.city,
+        deliveryPostcode: address!.postcode,
+        deliveryCountry: address!.country,
+      });
       setPlacing(false);
-      if ((orderError as { code?: string })?.code === '23505') {
+      router.replace(`/order/${order.id}?fromCheckout=true`);
+    } catch (err) {
+      setPlacing(false);
+      if ((err as { code?: string })?.code === '23505') {
         // Unique constraint on listing_id fired — check if it's our own order
         const { data: existing } = await supabase
           .from('orders')
@@ -328,29 +353,8 @@ export default function CheckoutScreen() {
       } else {
         Alert.alert('Error', 'Payment taken but order could not be saved. Please contact support.');
       }
-      return;
     }
-
-    // Step 5 — Mark listing as sold
-    await supabase
-      .from('listings')
-      .update({ status: 'sold', buyer_id: user.id, sold_at: new Date().toISOString() })
-      .eq('id', listing.id);
-
-    setPlacing(false);
-    router.replace(`/order/${order.id}?fromCheckout=true`);
   };
-
-  if (loading) {
-    return (
-      <ScreenWrapper>
-        <Header title="Checkout" showBack />
-        <LoadingSpinner />
-      </ScreenWrapper>
-    );
-  }
-
-  if (!listing) return null;
 
   const hasAddress = !!address?.address_line1;
   const addressLine2 = address?.address_line2 ? `, ${address.address_line2}` : '';
@@ -361,8 +365,14 @@ export default function CheckoutScreen() {
   return (
     <ScreenWrapper>
       <Header title="Checkout" showBack />
-
-      <View style={styles.inner}>
+      <QueryStateView
+        query={listingQuery}
+        isEmpty={!listing}
+        empty={{ heading: 'Listing not found', subtext: 'This listing is no longer available.' }}
+      >
+        {listing && (
+          <>
+          <View style={styles.inner}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -445,7 +455,7 @@ export default function CheckoutScreen() {
                 >
                   <View style={styles.paymentOptionLeft}>
                     <Ionicons
-                      name={option.icon as any}
+                      name={option.icon}
                       size={18}
                       color={active ? colors.primary : colors.textSecondary}
                     />
@@ -568,6 +578,9 @@ export default function CheckoutScreen() {
           Every purchase on Dukanoh includes Safe Checkout. If your piece does not arrive or does not match the listing, raise a dispute and our team will step in.
         </Text>
       </BottomSheet>
+          </>
+        )}
+      </QueryStateView>
     </ScreenWrapper>
   );
 }

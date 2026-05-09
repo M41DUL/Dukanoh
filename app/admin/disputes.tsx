@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,18 +14,21 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { EmptyState } from '@/components/EmptyState';
+import { QueryStateView } from '@/components/QueryStateView';
 import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { supabase } from '@/lib/supabase';
-import { edgeFetch } from '@/lib/edgeFetch';
+import { queryKeys } from '@/lib/queryKeys';
+import { useResolveDispute } from '@/lib/mutations';
 
 type ResolutionOutcome = 'release_seller' | 'refund_buyer';
 
@@ -57,52 +60,53 @@ export default function AdminDisputesScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [disputes, setDisputes] = useState<DisputedOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [resolving, setResolving] = useState(false);
-
   // Resolve modal state
   const [modalOrder, setModalOrder] = useState<DisputedOrder | null>(null);
   const [outcome, setOutcome] = useState<ResolutionOutcome>('release_seller');
   const [note, setNote] = useState('');
 
-  const checkAdminAndLoad = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
+  const adminQuery = useQuery({
+    queryKey: ['admin-check', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'admin_user_ids')
+        .single();
+      if (error) throw error;
+      const adminIds: string[] = JSON.parse(data?.value ?? '[]');
+      return adminIds.includes(user!.id);
+    },
+    enabled: !!user,
+  });
 
-    const { data: setting } = await supabase
-      .from('platform_settings')
-      .select('value')
-      .eq('key', 'admin_user_ids')
-      .single();
+  const isAdmin = adminQuery.data ?? null;
 
-    const adminIds: string[] = JSON.parse(setting?.value ?? '[]');
-    if (!adminIds.includes(user.id)) {
-      setIsAdmin(false);
-      setLoading(false);
-      return;
-    }
-    setIsAdmin(true);
+  const disputesQuery = useQuery({
+    queryKey: queryKeys.adminDisputes.list(),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id, item_price, protection_fee, dispute_reason, dispute_description,
+          disputed_at, created_at, listing_id, seller_id, buyer_id,
+          appeal_reason, appeal_by, appealed_at,
+          listing:listings(title, images),
+          buyer:users!orders_buyer_id_fkey(username),
+          seller:users!orders_seller_id_fkey(username)
+        `)
+        .eq('status', 'disputed')
+        .order('disputed_at', { ascending: true })
+        .abortSignal(signal);
+      if (error) throw error;
+      return (data ?? []) as DisputedOrder[];
+    },
+    enabled: isAdmin === true,
+  });
 
-    const { data } = await supabase
-      .from('orders')
-      .select(`
-        id, item_price, protection_fee, dispute_reason, dispute_description,
-        disputed_at, created_at, listing_id, seller_id, buyer_id,
-        appeal_reason, appeal_by, appealed_at,
-        listing:listings(title, images),
-        buyer:users!orders_buyer_id_fkey(username),
-        seller:users!orders_seller_id_fkey(username)
-      `)
-      .eq('status', 'disputed')
-      .order('disputed_at', { ascending: true });
+  useRefreshOnFocus(disputesQuery.refetch);
 
-    setDisputes(data ?? []);
-    setLoading(false);
-  }, [user]);
-
-  useFocusEffect(useCallback(() => { checkAdminAndLoad(); }, [checkAdminAndLoad]));
+  const resolveDispute = useResolveDispute();
 
   const openResolveModal = (order: DisputedOrder) => {
     setModalOrder(order);
@@ -117,59 +121,21 @@ export default function AdminDisputesScreen() {
       return;
     }
 
-    setResolving(true);
-    const now = new Date().toISOString();
-    const appealDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    if (outcome === 'refund_buyer') {
-      // Refund fires immediately; seller can appeal but financial reversal requires manual admin action
-      const refundRes = await edgeFetch('stripe-refund', { order_id: modalOrder.id });
-      if (!refundRes.ok) {
-        const err = await refundRes.json().catch(() => ({}));
-        setResolving(false);
-        Alert.alert('Refund failed', err?.error ?? 'Could not process refund. Please try again.');
-        return;
-      }
-
-      await supabase
-        .from('orders')
-        .update({
-          status: 'resolved',
-          resolution_outcome: 'refund_buyer',
-          resolution_note: note.trim(),
-          resolved_at: now,
-          appeal_deadline_at: appealDeadline,
-        })
-        .eq('id', modalOrder.id)
-        .eq('status', 'disputed');
-
-      if (modalOrder.listing_id) {
-        await supabase
-          .from('listings')
-          .update({ status: 'available', buyer_id: null, sold_at: null })
-          .eq('id', modalOrder.listing_id);
-      }
-    } else {
-      // Seller wins — wallet credit deferred until appeal window closes (auto_release_orders handles it)
-      await supabase
-        .from('orders')
-        .update({
-          status: 'resolved',
-          resolution_outcome: 'release_seller',
-          resolution_note: note.trim(),
-          resolved_at: now,
-          appeal_deadline_at: appealDeadline,
-        })
-        .eq('id', modalOrder.id)
-        .eq('status', 'disputed');
+    try {
+      await resolveDispute.mutateAsync({
+        orderId: modalOrder.id,
+        listingId: modalOrder.listing_id,
+        outcome,
+        note: note.trim(),
+      });
+      setModalOrder(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not resolve dispute. Please try again.';
+      Alert.alert(outcome === 'refund_buyer' ? 'Refund failed' : 'Resolution failed', message);
     }
-
-    setResolving(false);
-    setModalOrder(null);
-    checkAdminAndLoad();
   };
 
-  if (loading) {
+  if (adminQuery.isLoading) {
     return (
       <ScreenWrapper>
         <Header title="Disputes" showBack />
@@ -190,9 +156,21 @@ export default function AdminDisputesScreen() {
     );
   }
 
+  const disputes = disputesQuery.data ?? [];
+  const resolving = resolveDispute.isPending;
+
   return (
     <ScreenWrapper>
       <Header title={`Disputes (${disputes.length})`} showBack />
+      <QueryStateView
+        query={disputesQuery}
+        isEmpty={disputes.length === 0}
+        errorHeading="Couldn't load disputes"
+        empty={{
+          heading: 'No open disputes',
+          subtext: 'All disputes have been resolved.',
+        }}
+      >
       <FlatList
         data={disputes}
         keyExtractor={item => item.id}
@@ -269,13 +247,8 @@ export default function AdminDisputesScreen() {
             />
           </View>
         )}
-        ListEmptyComponent={
-          <EmptyState
-            heading="No open disputes"
-            subtext="All disputes have been resolved."
-          />
-        }
       />
+      </QueryStateView>
 
       {/* Resolve modal */}
       <Modal

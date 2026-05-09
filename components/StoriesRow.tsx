@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -366,7 +366,7 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                       size="md"
                       onPress={() => {
                         close();
-                        router.push(activeStory.ctaRoute as any);
+                        router.push(activeStory.ctaRoute as Href);
                       }}
                       style={viewerStyles.viewBtn}
                     />

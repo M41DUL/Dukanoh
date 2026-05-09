@@ -72,11 +72,9 @@ export default function EditProfileScreen() {
     const path = `${user.id}.jpg`;
 
     const formData = new FormData();
-    formData.append('file', {
-      uri,
-      name: path,
-      type: 'image/jpeg',
-    } as any);
+    // RN FormData accepts a {uri, name, type} object as a file part —
+    // its TypeScript types declare Blob/string, hence the typed cast.
+    formData.append('file', { uri, name: path, type: 'image/jpeg' } as unknown as Blob);
 
     const { error } = await supabase.storage
       .from('avatars')

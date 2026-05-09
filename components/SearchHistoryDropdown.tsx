@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, type DimensionValue } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
@@ -92,7 +92,7 @@ function getStyles(colors: ColorTokens, inline: boolean) {
           }
         : {
             position: 'absolute' as const,
-            top: '100%' as any,
+            top: '100%' as DimensionValue,
             left: 0,
             right: 0,
             backgroundColor: colors.background,

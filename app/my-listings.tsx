@@ -1,16 +1,18 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Alert, View, Text, FlatList, StyleSheet } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { TabBar } from '@/components/TabBar';
 import { ListingCard, Listing } from '@/components/ListingCard';
-import { EmptyState } from '@/components/EmptyState';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { QueryStateView } from '@/components/QueryStateView';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { supabase } from '@/lib/supabase';
-import { extractStoragePath } from '@/lib/imageUtils';
+import { queryKeys } from '@/lib/queryKeys';
+import { ActiveOrderExistsError, useDeleteListing } from '@/lib/mutations';
 import {
   Spacing,
   BorderRadius,
@@ -45,46 +47,74 @@ const EMPTY: Record<ItemTab, { heading: string; subtext: string; ctaLabel?: stri
   },
 };
 
+const SELLING_SELECT =
+  'id, title, images, status, price, seller_id, created_at, sold_at, seller:users!listings_seller_id_fkey(username, avatar_url)';
+const DRAFTS_SELECT =
+  'id, title, images, status, price, seller_id, created_at, seller:users!listings_seller_id_fkey(username, avatar_url)';
+const BOUGHT_SELECT =
+  'id, title, images, status, price, seller_id, created_at, sold_at, seller:users!listings_seller_id_fkey(username, avatar_url)';
+
 export default function MyItemsScreen() {
   const { user } = useAuth();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [activeTab, setActiveTab] = useState<ItemTab>('selling');
-  const [selling, setSelling] = useState<Listing[]>([]);
-  const [drafts, setDrafts] = useState<Listing[]>([]);
-  const [bought, setBought] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const fetchAll = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    const [sellingRes, draftsRes, boughtRes] = await Promise.all([
-      supabase
+  const sellingQuery = useQuery({
+    queryKey: queryKeys.myListings.list(user?.id, 'selling'),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
         .from('listings')
-        .select('id, title, images, status, price, seller_id, created_at, sold_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
-        .eq('seller_id', user.id)
+        .select(SELLING_SELECT)
+        .eq('seller_id', user!.id)
         .in('status', ['available', 'sold'])
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('listings')
-        .select('id, title, images, status, price, seller_id, created_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
-        .eq('seller_id', user.id)
-        .eq('status', 'draft')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('listings')
-        .select('id, title, images, status, price, seller_id, created_at, sold_at, seller:users!listings_seller_id_fkey(username, avatar_url)')
-        .eq('buyer_id', user.id)
-        .order('sold_at', { ascending: false }),
-    ]);
-    setSelling(sellingRes.data ?? []);
-    setDrafts(draftsRes.data ?? []);
-    setBought(boughtRes.data ?? []);
-    setLoading(false);
-  }, [user]);
+        .order('created_at', { ascending: false })
+        .abortSignal(signal);
+      if (error) throw error;
+      return (data ?? []) as Listing[];
+    },
+    enabled: !!user,
+  });
 
-  useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
+  const draftsQuery = useQuery({
+    queryKey: queryKeys.myListings.list(user?.id, 'drafts'),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('listings')
+        .select(DRAFTS_SELECT)
+        .eq('seller_id', user!.id)
+        .eq('status', 'draft')
+        .order('created_at', { ascending: false })
+        .abortSignal(signal);
+      if (error) throw error;
+      return (data ?? []) as Listing[];
+    },
+    enabled: !!user,
+  });
+
+  const boughtQuery = useQuery({
+    queryKey: queryKeys.myListings.list(user?.id, 'bought'),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('listings')
+        .select(BOUGHT_SELECT)
+        .eq('buyer_id', user!.id)
+        .order('sold_at', { ascending: false })
+        .abortSignal(signal);
+      if (error) throw error;
+      return (data ?? []) as Listing[];
+    },
+    enabled: !!user,
+  });
+
+  const refetchAll = useCallback(async () => {
+    await Promise.all([sellingQuery.refetch(), draftsQuery.refetch(), boughtQuery.refetch()]);
+  }, [sellingQuery, draftsQuery, boughtQuery]);
+
+  useRefreshOnFocus(refetchAll);
+
+  const deleteListing = useDeleteListing();
 
   const handleLongPress = useCallback((item: Listing) => {
     if (activeTab === 'bought') return;
@@ -104,26 +134,23 @@ export default function MyItemsScreen() {
               {
                 text: 'Delete',
                 style: 'destructive',
-                onPress: async () => {
-                  if (item.status === 'available') {
-                    const { count } = await supabase
-                      .from('orders')
-                      .select('id', { count: 'exact', head: true })
-                      .eq('listing_id', item.id)
-                      .not('status', 'in', '(cancelled,completed,resolved)');
-                    if (count && count > 0) {
-                      Alert.alert('Cannot delete', 'This listing has an active order in progress.');
-                      return;
-                    }
-                  }
-                  const storagePaths = (item.images ?? [])
-                    .map((url: string) => extractStoragePath(url, 'listings'))
-                    .filter((p): p is string => p !== null);
-                  if (storagePaths.length > 0) {
-                    await supabase.storage.from('listings').remove(storagePaths);
-                  }
-                  await supabase.from('listings').delete().eq('id', item.id);
-                  fetchAll();
+                onPress: () => {
+                  deleteListing.mutate(
+                    {
+                      listingId: item.id,
+                      status: item.status,
+                      images: item.images,
+                    },
+                    {
+                      onError: (err) => {
+                        if (err instanceof ActiveOrderExistsError) {
+                          Alert.alert('Cannot delete', 'This listing has an active order in progress.');
+                          return;
+                        }
+                        Alert.alert('Error', err instanceof Error ? err.message : 'Failed to delete listing.');
+                      },
+                    },
+                  );
                 },
               },
             ]
@@ -132,9 +159,14 @@ export default function MyItemsScreen() {
         { text: 'Cancel', style: 'cancel' },
       ]
     );
-  }, [activeTab, fetchAll]);
+  }, [activeTab, deleteListing]);
 
-  const data = activeTab === 'selling' ? selling : activeTab === 'drafts' ? drafts : bought;
+  const activeQuery = activeTab === 'selling'
+    ? sellingQuery
+    : activeTab === 'drafts'
+      ? draftsQuery
+      : boughtQuery;
+  const data = activeQuery.data ?? [];
   const empty = EMPTY[activeTab];
 
   return (
@@ -147,9 +179,12 @@ export default function MyItemsScreen() {
         onTabChange={key => setActiveTab(key as ItemTab)}
       />
 
-      {loading ? (
-        <LoadingSpinner />
-      ) : (
+      <QueryStateView
+        query={activeQuery}
+        isEmpty={data.length === 0}
+        errorHeading="Couldn't load items"
+        empty={empty}
+      >
         <FlatList
           key={activeTab}
           data={data}
@@ -184,16 +219,8 @@ export default function MyItemsScreen() {
               )}
             </View>
           )}
-          ListEmptyComponent={
-            <EmptyState
-              heading={empty.heading}
-              subtext={empty.subtext}
-              ctaLabel={empty.ctaLabel}
-              onCta={empty.onCta}
-            />
-          }
         />
-      )}
+      </QueryStateView>
     </ScreenWrapper>
   );
 }

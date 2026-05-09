@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { useAppealDispute } from '@/lib/mutations';
 
 export default function AppealScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -28,6 +29,7 @@ export default function AppealScreen() {
 
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const appealDispute = useAppealDispute();
 
   const handleSubmit = async () => {
     if (reason.trim().length < 20) {
@@ -37,37 +39,30 @@ export default function AppealScreen() {
     if (!user || !id) return;
 
     setSubmitting(true);
+    try {
+      const isBuyer = await supabase
+        .from('orders')
+        .select('buyer_id')
+        .eq('id', id)
+        .maybeSingle()
+        .then(({ data }) => data?.buyer_id === user.id);
 
-    const isBuyer = await supabase
-      .from('orders')
-      .select('buyer_id')
-      .eq('id', id)
-      .maybeSingle()
-      .then(({ data }) => data?.buyer_id === user.id);
+      await appealDispute.mutateAsync({
+        orderId: id,
+        appealedBy: isBuyer ? 'buyer' : 'seller',
+        reason: reason.trim(),
+      });
 
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        status: 'disputed',
-        appealed_at: new Date().toISOString(),
-        appeal_by: isBuyer ? 'buyer' : 'seller',
-        appeal_reason: reason.trim(),
-      })
-      .eq('id', id)
-      .eq('status', 'resolved');
-
-    setSubmitting(false);
-
-    if (error) {
+      Alert.alert(
+        'Appeal submitted',
+        'Our team will review your appeal and respond within 7 days.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch {
       Alert.alert('Something went wrong', 'Could not submit your appeal. Please try again.');
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    Alert.alert(
-      'Appeal submitted',
-      'Our team will review your appeal and respond within 7 days.',
-      [{ text: 'OK', onPress: () => router.back() }]
-    );
   };
 
   return (

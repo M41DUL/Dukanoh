@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,21 +12,29 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { useQuery } from '@tanstack/react-query';
 import { getImageUrl } from '@/lib/imageUtils';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { QueryStateView } from '@/components/QueryStateView';
 import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { queryKeys } from '@/lib/queryKeys';
 import { formatGBP } from '@/lib/paymentHelpers';
 import { getOrderActions } from '@/lib/orderHelpers';
-import { edgeFetch } from '@/lib/edgeFetch';
+import {
+  useMarkOrderShipped,
+  useConfirmOrderReceipt,
+  useWithdrawDispute,
+  useCancelOrder,
+} from '@/lib/mutations';
 
 type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'resolved' | 'cancelled';
 
@@ -103,34 +111,46 @@ export default function OrderDetailScreen() {
 
   const isFromCheckout = fromCheckout === 'true';
 
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
   const [trackingNumber, setTrackingNumber] = useState('');
   const [courier, setCourier] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchOrder = useCallback(async () => {
-    if (!id || !user) return;
-    const { data } = await supabase
-      .from('orders')
-      .select(`
-        *,
-        listing:listings(title, images),
-        buyer:users!orders_buyer_id_fkey(username, avatar_url),
-        seller:users!orders_seller_id_fkey(username, avatar_url, is_verified)
-      `)
-      .eq('id', id)
-      .single();
+  const markShipped = useMarkOrderShipped();
+  const confirmReceipt = useConfirmOrderReceipt();
+  const withdrawDispute = useWithdrawDispute();
+  const cancelOrder = useCancelOrder();
 
-    if (data) {
-      setOrder(data as Order);
-      setTrackingNumber(data.tracking_number ?? '');
-      setCourier(data.courier ?? '');
-    }
-    setLoading(false);
-  }, [id, user]);
+  const orderQuery = useQuery({
+    queryKey: queryKeys.orders.detail(id),
+    queryFn: async ({ signal }) => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          listing:listings(title, images),
+          buyer:users!orders_buyer_id_fkey(username, avatar_url),
+          seller:users!orders_seller_id_fkey(username, avatar_url, is_verified)
+        `)
+        .eq('id', id!)
+        .abortSignal(signal)
+        .maybeSingle();
+      if (error) throw error;
+      return data as Order | null;
+    },
+    enabled: !!id && !!user,
+  });
 
-  useFocusEffect(useCallback(() => { fetchOrder(); }, [fetchOrder]));
+  useRefreshOnFocus(orderQuery.refetch);
+
+  const order = orderQuery.data ?? null;
+
+  // Seed the tracking inputs from server-side values whenever they change
+  // (initial load + after a successful mark-shipped refetch).
+  useEffect(() => {
+    if (!order) return;
+    setTrackingNumber(order.tracking_number ?? '');
+    setCourier(order.courier ?? '');
+  }, [order?.tracking_number, order?.courier]);
 
   const isBuyer = order?.buyer_id === user?.id;
   const isSeller = order?.seller_id === user?.id;
@@ -143,17 +163,16 @@ export default function OrderDetailScreen() {
       return;
     }
     setSubmitting(true);
-    const { error } = await supabase.rpc('mark_order_shipped', {
-      p_order_id:  order.id,
-      p_seller_id: user.id,
-      p_tracking:  trackingNumber.trim(),
-      p_courier:   courier.trim() || undefined,
-    });
-    if (error) {
-      setSubmitting(false);
+    try {
+      await markShipped.mutateAsync({
+        orderId: order.id,
+        sellerId: user.id,
+        trackingNumber: trackingNumber.trim(),
+        courier: courier.trim() || undefined,
+      });
+    } catch {
       Alert.alert('Error', 'Could not update order. Please try again.');
-    } else {
-      await fetchOrder();
+    } finally {
       setSubmitting(false);
     }
   };
@@ -171,12 +190,14 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             if (!user) return;
             setSubmitting(true);
-            await supabase.rpc('confirm_order_receipt', {
-              p_order_id: order.id,
-              p_buyer_id: user.id,
-            });
-            await fetchOrder();
-            setSubmitting(false);
+            try {
+              await confirmReceipt.mutateAsync({
+                orderId: order.id,
+                buyerId: user.id,
+              });
+            } finally {
+              setSubmitting(false);
+            }
           },
         },
       ]
@@ -195,28 +216,23 @@ export default function OrderDetailScreen() {
           text: 'Cancel order',
           style: 'destructive',
           onPress: async () => {
+            if (!user) return;
             setSubmitting(true);
-            const refundRes = await edgeFetch('stripe-refund', { order_id: order.id });
-            if (!refundRes.ok) {
-              const err = await refundRes.json().catch(() => ({}));
+            try {
+              await cancelOrder.mutateAsync(
+                isBuyer
+                  ? { orderId: order.id, listingId: order.listing_id, cancelledBy: 'buyer' }
+                  : { orderId: order.id, listingId: order.listing_id, cancelledBy: 'seller', sellerId: user.id },
+              );
+            } catch (err) {
+              const message =
+                err instanceof Error && err.message
+                  ? err.message
+                  : 'Could not process refund. Please contact support.';
+              Alert.alert('Cancellation failed', message);
+            } finally {
               setSubmitting(false);
-              Alert.alert('Cancellation failed', err?.error ?? 'Could not process refund. Please contact support.');
-              return;
             }
-            const cancelledBy = isBuyer ? 'buyer' : 'seller';
-            await supabase.from('orders').update({
-              status: 'cancelled',
-              cancelled_at: new Date().toISOString(),
-              cancelled_by: cancelledBy,
-            }).eq('id', order.id);
-            if (order.listing_id) {
-              await supabase.from('listings').update({ status: 'available', buyer_id: null, sold_at: null }).eq('id', order.listing_id);
-            }
-            if (isSeller && user) {
-              await supabase.from('cancellation_strikes').insert({ seller_id: user.id, order_id: order.id });
-            }
-            await fetchOrder();
-            setSubmitting(false);
           },
         },
       ]
@@ -235,13 +251,14 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             if (!user || !order) return;
             setSubmitting(true);
-            await supabase.from('orders').update({
-              status: 'completed',
-              delivered_at: new Date().toISOString(),
-              completed_at: new Date().toISOString(),
-            }).eq('id', order.id).eq('buyer_id', user.id);
-            await fetchOrder();
-            setSubmitting(false);
+            try {
+              await withdrawDispute.mutateAsync({
+                orderId: order.id,
+                buyerId: user.id,
+              });
+            } finally {
+              setSubmitting(false);
+            }
           },
         },
       ]
@@ -323,37 +340,26 @@ export default function OrderDetailScreen() {
     }
   };
 
-  if (loading) {
-    return (
-      <ScreenWrapper>
-        <Header title="Order" showBack />
-        <LoadingSpinner />
-      </ScreenWrapper>
-    );
-  }
+  const statusColor = order ? STATUS_COLOR[order.status] ?? colors.textSecondary : colors.textSecondary;
+  const orderActions = order
+    ? getOrderActions(order.status, isBuyer, isSeller)
+    : { canShip: false, canConfirm: false, isDisputed: false };
+  const { canShip, canConfirm, isDisputed } = orderActions;
 
-  if (!order) {
-    return (
-      <ScreenWrapper>
-        <Header title="Order" showBack />
-        <View style={styles.notFound}>
-          <Text style={[styles.notFoundText, { color: colors.textSecondary }]}>Order not found.</Text>
-        </View>
-      </ScreenWrapper>
-    );
-  }
-
-  const statusColor = STATUS_COLOR[order.status] ?? colors.textSecondary;
-  const { canShip, canConfirm, isDisputed } = getOrderActions(order.status, isBuyer, isSeller);
-
-  const imageUrl = order.listing?.images?.[0]
+  const imageUrl = order?.listing?.images?.[0]
     ? getImageUrl(order.listing.images[0], 'detail')
     : null;
 
   return (
     <ScreenWrapper>
-      <Header title="Order details" showBack />
+      <Header title={order ? 'Order details' : 'Order'} showBack />
 
+      <QueryStateView
+        query={orderQuery}
+        isEmpty={!order}
+        empty={{ heading: 'Order not found.' }}
+      >
+      {order && (
       <View style={styles.inner}>
         <ScrollView
           contentContainerStyle={[
@@ -652,6 +658,8 @@ export default function OrderDetailScreen() {
           </View>
         )}
       </View>
+      )}
+      </QueryStateView>
     </ScreenWrapper>
   );
 }
@@ -815,7 +823,5 @@ function getStyles(_colors: ColorTokens) {
       paddingTop: Spacing.base,
       paddingHorizontal: Spacing.base,
     },
-    notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    notFoundText: { fontSize: 14, fontFamily: FontFamily.regular },
   });
 }

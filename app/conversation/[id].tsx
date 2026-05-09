@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import {
   View,
   Alert,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { activeConversationId } from '@/hooks/usePushNotifications';
 import { BottomBar } from '@/components/BottomBar';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
@@ -19,9 +20,10 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import { queryKeys } from '@/lib/queryKeys';
+import { useSendMessage, useMarkConversationRead } from '@/lib/mutations';
 import { useAuth } from '@/hooks/useAuth';
 import { Ionicons } from '@expo/vector-icons';
-import * as Crypto from 'expo-crypto';
 
 interface Message {
   id: string;
@@ -39,22 +41,32 @@ interface ConversationMeta {
   listing_status: string;
 }
 
+// Raw shape returned by the conversations query (with joined rows
+// nested by Supabase's foreign-key select syntax). Flattened into
+// ConversationMeta in a useMemo below.
+interface ConversationRow {
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  last_message_sender_id: string | null;
+  buyer: { username: string | null } | null;
+  seller: { username: string | null } | null;
+  listing: { title: string | null; status: string | null } | null;
+}
+
+const PAGE_SIZE = 40;
+
 export default function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [meta, setMeta] = useState<ConversationMeta | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
+  const queryClient = useQueryClient();
   const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const listRef = useRef<FlatList>(null);
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const PAGE_SIZE = 40;
+  const sendMessage = useSendMessage();
+  const markRead = useMarkConversationRead();
 
   // Suppress push notifications for this conversation while screen is open
   useEffect(() => {
@@ -62,12 +74,10 @@ export default function ConversationScreen() {
     return () => { activeConversationId.current = null; };
   }, [id]);
 
-  useEffect(() => {
-    if (!id || !user) return;
-
-    // Fetch conversation metadata + messages in parallel
-    Promise.all([
-      supabase
+  const metaQuery = useQuery({
+    queryKey: queryKeys.conversations.detail(id),
+    queryFn: async ({ signal }): Promise<ConversationRow> => {
+      const { data, error } = await supabase
         .from('conversations')
         .select(`
           listing_id, buyer_id, seller_id, last_message_sender_id,
@@ -75,45 +85,77 @@ export default function ConversationScreen() {
           seller:users!conversations_seller_id_fkey ( username ),
           listing:listings!conversations_listing_id_fkey ( title, status )
         `)
-        .eq('id', id)
-        .single(),
-      supabase
+        .eq('id', id!)
+        .abortSignal(signal)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('Conversation not found');
+      return data as ConversationRow;
+    },
+    enabled: !!id && !!user,
+  });
+
+  const meta = useMemo<ConversationMeta | null>(() => {
+    const c = metaQuery.data;
+    if (!c || !user) return null;
+    const isBuyer = c.buyer_id === user.id;
+    return {
+      listing_id: c.listing_id,
+      buyer_id: c.buyer_id,
+      seller_id: c.seller_id,
+      other_username: (isBuyer ? c.seller?.username : c.buyer?.username) ?? '',
+      listing_title: c.listing?.title ?? '',
+      listing_status: c.listing?.status ?? 'available',
+    };
+  }, [metaQuery.data, user]);
+
+  // Mark as read on initial load when the last message was from the other person.
+  // Reads `last_message_sender_id` directly off metaQuery.data (the raw row),
+  // not the mapped `meta`, since meta drops that field.
+  useEffect(() => {
+    const c = metaQuery.data;
+    if (!c || !user || !id) return;
+    if (c.last_message_sender_id && c.last_message_sender_id !== user.id) {
+      markRead.mutate({ conversationId: id });
+    }
+    // Intentionally only depends on the cached row + user — markRead identity
+    // is stable enough that re-firing on its change isn't useful.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaQuery.data, user, id]);
+
+  const messagesQuery = useInfiniteQuery({
+    queryKey: queryKeys.conversations.messages(id),
+    queryFn: async ({ pageParam, signal }) => {
+      const from = pageParam * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data, error } = await supabase
         .from('messages')
         .select('id, content, sender_id, created_at')
-        .eq('conversation_id', id)
+        .eq('conversation_id', id!)
         .order('created_at', { ascending: false })
-        .range(0, PAGE_SIZE - 1),
-    ]).then(([{ data: conv, error: convErr }, { data: msgs }]) => {
-      if (convErr || !conv) {
-        setLoadError(true);
-        setLoading(false);
-        return;
-      } else {
-        const c = conv as any;
-        const isBuyer = c.buyer_id === user.id;
-        setMeta({
-          listing_id: c.listing_id,
-          buyer_id: c.buyer_id,
-          seller_id: c.seller_id,
-          other_username: isBuyer ? c.seller?.username : c.buyer?.username,
-          listing_title: c.listing?.title ?? '',
-          listing_status: c.listing?.status ?? 'available',
-        });
-        // Mark as read if the last message was from the other person
-        if (c.last_message_sender_id && c.last_message_sender_id !== user.id) {
-          supabase
-            .from('conversations')
-            .update({ last_message_sender_id: null })
-            .eq('id', id)
-            .then(() => {});
-        }
-      }
-      if (msgs) {
-        setMessages(msgs as Message[]);
-        setHasMore(msgs.length === PAGE_SIZE);
-      }
-      setLoading(false);
-    });
+        .range(from, to)
+        .abortSignal(signal);
+      if (error) throw error;
+      return {
+        data: (data ?? []) as Message[],
+        nextCursor: (data?.length ?? 0) === PAGE_SIZE ? pageParam + 1 : undefined,
+      };
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: !!id && !!user,
+  });
+
+  const messages = useMemo<Message[]>(
+    () => messagesQuery.data?.pages.flatMap(p => p.data) ?? [],
+    [messagesQuery.data],
+  );
+
+  // Realtime: any new message in this thread invalidates the messages cache so
+  // it refetches. Realtime payload row shape may drift from the SELECT shape
+  // above, so invalidate-and-refetch is safer than setQueryData.
+  useEffect(() => {
+    if (!id || !user) return;
 
     const channel = supabase
       .channel(`conversation:${id}`)
@@ -121,15 +163,12 @@ export default function ConversationScreen() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
         payload => {
-          setMessages(prev => [payload.new as Message, ...prev]);
-          // Mark as read immediately since the user is viewing the conversation
+          queryClient.invalidateQueries({ queryKey: queryKeys.conversations.messages(id) });
+          // Mark as read immediately if the message is from the other party
+          // (the user is viewing the conversation, so it counts as read).
           const msg = payload.new as Message;
-          if (user && msg.sender_id !== user.id) {
-            supabase
-              .from('conversations')
-              .update({ last_message_sender_id: null })
-              .eq('id', id)
-              .then(() => {});
+          if (msg.sender_id !== user.id) {
+            markRead.mutate({ conversationId: id });
           }
         }
       )
@@ -139,67 +178,54 @@ export default function ConversationScreen() {
       channel.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, [id, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user, queryClient]);
 
-  const respondToOffer = async (offerId: string, amount: string, accepted: boolean) => {
+  const respondToOffer = (offerId: string, amount: string, accepted: boolean) => {
     if (!user || !id || !meta) return;
-
     const receiverId = user.id === meta.buyer_id ? meta.seller_id : meta.buyer_id;
-    const content = accepted ? `__OFFER_ACCEPTED__:${offerId}:${amount}` : `__OFFER_DECLINED__:${offerId}:${amount}`;
-
-    const { error } = await supabase.from('messages').insert({
-      id: Crypto.randomUUID(),
-      conversation_id: id,
-      listing_id: meta.listing_id,
-      sender_id: user.id,
-      receiver_id: receiverId,
-      content,
-    });
-    if (error && error.code !== '23505') {
-      Alert.alert('Error', 'Failed to respond to offer. Please try again.');
-    }
+    const content = accepted
+      ? `__OFFER_ACCEPTED__:${offerId}:${amount}`
+      : `__OFFER_DECLINED__:${offerId}:${amount}`;
+    sendMessage.mutate(
+      {
+        conversationId: id,
+        listingId: meta.listing_id,
+        senderId: user.id,
+        receiverId,
+        content,
+      },
+      {
+        onError: () => Alert.alert('Error', 'Failed to respond to offer. Please try again.'),
+      }
+    );
   };
 
-  const handleSend = async () => {
-    if (!text.trim() || sending || !user || !id || !meta) return;
-
-    setSending(true);
+  const handleSend = () => {
+    if (!text.trim() || sendMessage.isPending || !user || !id || !meta) return;
     const content = text.trim();
     setText('');
-
     const receiverId = user.id === meta.buyer_id ? meta.seller_id : meta.buyer_id;
-
-    const { error } = await supabase.from('messages').insert({
-      id: Crypto.randomUUID(),
-      conversation_id: id,
-      listing_id: meta.listing_id,
-      sender_id: user.id,
-      receiver_id: receiverId,
-      content,
-    });
-
-    if (error && error.code !== '23505') {
-      setText(content); // Restore text so user can retry
-      Alert.alert('Error', 'Failed to send message. Please try again.');
-    }
-
-    setSending(false);
+    sendMessage.mutate(
+      {
+        conversationId: id,
+        listingId: meta.listing_id,
+        senderId: user.id,
+        receiverId,
+        content,
+      },
+      {
+        onError: () => {
+          setText(content); // Restore text so user can retry
+          Alert.alert('Error', 'Failed to send message. Please try again.');
+        },
+      }
+    );
   };
 
-  const loadMore = async () => {
-    if (loadingMore || !hasMore || !id || messages.length === 0) return;
-    setLoadingMore(true);
-    const { data: older } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', id)
-      .order('created_at', { ascending: false })
-      .range(messages.length, messages.length + PAGE_SIZE - 1);
-    if (older) {
-      setMessages(prev => [...prev, ...(older as Message[])]);
-      setHasMore(older.length === PAGE_SIZE);
-    }
-    setLoadingMore(false);
+  const loadMore = () => {
+    if (messagesQuery.isFetchingNextPage || !messagesQuery.hasNextPage) return;
+    messagesQuery.fetchNextPage();
   };
 
   const formatDateLabel = (dateStr: string) => {
@@ -308,7 +334,9 @@ export default function ConversationScreen() {
     );
   };
 
-  if (loading) {
+  const initialLoading = metaQuery.isLoading || messagesQuery.isLoading;
+
+  if (initialLoading) {
     return (
       <ScreenWrapper>
         <Header showBack title="Message" />
@@ -317,7 +345,7 @@ export default function ConversationScreen() {
     );
   }
 
-  if (loadError) {
+  if (metaQuery.isError || !meta) {
     return (
       <ScreenWrapper>
         <Header showBack title="Message" />
@@ -335,17 +363,17 @@ export default function ConversationScreen() {
     <ScreenWrapper>
       <Header
         showBack
-        title={meta?.other_username ? `@${meta.other_username}` : 'Message'}
+        title={meta.other_username ? `@${meta.other_username}` : 'Message'}
       />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {meta?.listing_title ? (
+        {meta.listing_title ? (
           <TouchableOpacity
             style={styles.listingCard}
-            onPress={meta ? () => router.push(`/listing/${meta.listing_id}`) : undefined}
+            onPress={() => router.push(`/listing/${meta.listing_id}`)}
             activeOpacity={0.7}
           >
             <Text style={styles.listingCardTitle} numberOfLines={1}>{meta.listing_title}</Text>
@@ -371,7 +399,7 @@ export default function ConversationScreen() {
           maxToRenderPerBatch={10}
           windowSize={10}
           removeClippedSubviews
-          ListFooterComponent={loadingMore ? <LoadingSpinner /> : null}
+          ListFooterComponent={messagesQuery.isFetchingNextPage ? <LoadingSpinner /> : null}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Ionicons name="chatbubble-outline" size={40} color={colors.textSecondary} />
@@ -380,7 +408,7 @@ export default function ConversationScreen() {
           }
         />
 
-        {meta?.listing_status === 'sold' ? (
+        {meta.listing_status === 'sold' ? (
           <BottomBar style={{ justifyContent: 'center' }}>
             <Ionicons name="lock-closed-outline" size={14} color={colors.textSecondary} />
             <Text style={styles.soldInputText}>This listing has been sold</Text>
@@ -397,9 +425,9 @@ export default function ConversationScreen() {
               maxLength={1000}
             />
             <TouchableOpacity
-              style={[styles.sendButton, (!text.trim() || sending) && styles.sendDisabled]}
+              style={[styles.sendButton, (!text.trim() || sendMessage.isPending) && styles.sendDisabled]}
               onPress={handleSend}
-              disabled={!text.trim() || sending}
+              disabled={!text.trim() || sendMessage.isPending}
               activeOpacity={0.8}
             >
               <Ionicons name="arrow-up" size={20} color={colors.background} />
