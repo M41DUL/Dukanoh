@@ -8,25 +8,37 @@ Deno.serve(async (req) => {
     return new Response(null, {
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-token',
       },
     });
   }
 
-  const authHeader = req.headers.get('Authorization') ?? '';
-  const supabaseAuth = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    { global: { headers: { Authorization: authHeader } } }
-  );
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  // Two auth modes:
+  //   1. Mobile app — buyer or admin user signed in via Supabase auth.
+  //   2. Web admin (dukanoh-web) — no Supabase user; calls server-to-server
+  //      with X-Admin-Token: ADMIN_SESSION_SECRET. Treated as admin.
+  const adminToken = req.headers.get('X-Admin-Token') ?? '';
+  const adminSecret = Deno.env.get('ADMIN_SESSION_SECRET') ?? '';
+  const isWebAdmin = !!adminSecret && adminToken === adminSecret;
+
+  let callerId: string | null = null;
+
+  if (!isWebAdmin) {
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const supabaseAuth = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    callerId = user.id;
   }
-  const callerId = user.id;
 
   const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
   if (!stripeSecretKey) {
@@ -62,20 +74,22 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Verify the caller is either the buyer or an admin
-  const isCallerBuyer = order.buyer_id === callerId;
-  if (!isCallerBuyer) {
-    const { data: settings } = await supabase
-      .from('platform_settings')
-      .select('value')
-      .eq('key', 'admin_user_ids')
-      .single();
-    const adminIds: string[] = JSON.parse(settings?.value ?? '[]');
-    if (!adminIds.includes(callerId)) {
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
+  // Verify the caller is either the buyer, an admin user, or the web admin
+  if (!isWebAdmin) {
+    const isCallerBuyer = order.buyer_id === callerId;
+    if (!isCallerBuyer) {
+      const { data: settings } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'admin_user_ids')
+        .single();
+      const adminIds: string[] = JSON.parse(settings?.value ?? '[]');
+      if (!adminIds.includes(callerId!)) {
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
     }
   }
 
