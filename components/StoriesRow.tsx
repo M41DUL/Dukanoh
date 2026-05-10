@@ -4,6 +4,8 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
+  PanResponder,
   Modal,
   Dimensions,
   StyleSheet,
@@ -16,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { getImageUrl } from '@/lib/imageUtils';
 import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
+import { Typography, Spacing, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
 import { useSaved } from '@/context/SavedContext';
@@ -48,6 +50,68 @@ function timeAgo(dateStr?: string): string {
   return `${days}d`;
 }
 
+// Tap zones with press-and-hold-to-pause. A quick press (<250ms) is
+// treated as a tap and triggers prev/next; a longer press pauses the
+// timer until release. Used by both story viewers so the gesture is
+// consistent with Instagram / Snapchat behaviour.
+const HOLD_THRESHOLD_MS = 250;
+
+function TapNavZones({
+  onPrev,
+  onNext,
+  onPause,
+  onResume,
+}: {
+  onPrev: () => void;
+  onNext: () => void;
+  onPause: () => void;
+  onResume: () => void;
+}) {
+  const pressStart = useRef<number | null>(null);
+  const wasHeld = useRef(false);
+
+  const handlePressIn = () => {
+    pressStart.current = Date.now();
+    wasHeld.current = false;
+    onPause();
+  };
+
+  const handlePressOut = (onTap: () => void) => {
+    const start = pressStart.current;
+    pressStart.current = null;
+    if (start === null) return;
+    const heldMs = Date.now() - start;
+    if (heldMs < HOLD_THRESHOLD_MS && !wasHeld.current) {
+      onTap();
+    } else {
+      onResume();
+    }
+  };
+
+  // If the press lingers past the hold threshold, lock in the "held"
+  // state so a delayed release still resumes (instead of navigating).
+  const armHoldFlag = () => {
+    setTimeout(() => {
+      if (pressStart.current !== null) wasHeld.current = true;
+    }, HOLD_THRESHOLD_MS);
+  };
+
+  return (
+    <View style={viewerStyles.tapZones} pointerEvents="box-none">
+      <Pressable
+        style={viewerStyles.tapLeft}
+        onPressIn={() => { handlePressIn(); armHoldFlag(); }}
+        onPressOut={() => handlePressOut(onPrev)}
+      />
+      <Pressable
+        style={viewerStyles.tapRight}
+        onPressIn={() => { handlePressIn(); armHoldFlag(); }}
+        onPressOut={() => handlePressOut(onNext)}
+      />
+    </View>
+  );
+}
+
 function ListingStoryViewer({
   story,
   stories,
@@ -56,6 +120,8 @@ function ListingStoryViewer({
   onPrev,
   onNext,
   onClose,
+  onPause,
+  onResume,
 }: {
   story: StoryListing;
   stories: AnyStory[];
@@ -64,6 +130,8 @@ function ListingStoryViewer({
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
+  onPause: () => void;
+  onResume: () => void;
 }) {
   const { isSaved, toggleSave } = useSaved();
   const saved = isSaved(story.id);
@@ -96,7 +164,7 @@ function ListingStoryViewer({
         ))}
       </View>
 
-      {/* Top bar: avatar + username + time + close */}
+      {/* Top bar: avatar + username + time + heart + close */}
       <View style={viewerStyles.topBar}>
         <Avatar
           uri={story.seller?.avatar_url ?? undefined}
@@ -111,47 +179,50 @@ function ListingStoryViewer({
         )}
         <Text style={viewerStyles.topTime}>{timeAgo(story.published_at ?? undefined)}</Text>
         <View style={{ flex: 1 }} />
+        <TouchableOpacity
+          onPress={() => toggleSave(story.id, story.price)}
+          hitSlop={12}
+          activeOpacity={0.7}
+          style={viewerStyles.topCloseBtn}
+          accessibilityLabel={saved ? 'Remove from saved' : 'Save listing'}
+          accessibilityRole="button"
+        >
+          <Ionicons
+            name={saved ? 'heart' : 'heart-outline'}
+            size={26}
+            color={saved ? '#FF4444' : '#fff'}
+          />
+        </TouchableOpacity>
         <TouchableOpacity onPress={onClose} hitSlop={16} style={viewerStyles.topCloseBtn} accessibilityLabel="Close story" accessibilityRole="button">
           <Ionicons name="close" size={26} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {/* Tap zones */}
-      <View style={viewerStyles.tapZones} pointerEvents="box-none">
-        <TouchableOpacity style={viewerStyles.tapLeft} onPress={onPrev} activeOpacity={1} />
-        <TouchableOpacity style={viewerStyles.tapRight} onPress={onNext} activeOpacity={1} />
-      </View>
+      <TapNavZones
+        onPrev={onPrev}
+        onNext={onNext}
+        onPause={onPause}
+        onResume={onResume}
+      />
 
-      {/* Bottom: info card + CTA + heart */}
-      <View style={viewerStyles.bottomBar}>
-        <View style={viewerStyles.infoCard}>
-          <Text style={viewerStyles.listingTitle} numberOfLines={2}>{story.title}</Text>
-          <Text style={viewerStyles.listingPrice}>£{story.price?.toFixed(2)}</Text>
-        </View>
-        <View style={viewerStyles.ctaRow}>
-          <Button
-            label="View Listing"
-            size="md"
-            onPress={() => {
-              onClose();
-              router.push(`/listing/${story.id}`);
-            }}
-            style={viewerStyles.viewBtn}
-          />
-          <TouchableOpacity
-            onPress={() => toggleSave(story.id, story.price)}
-            hitSlop={8}
-            activeOpacity={0.7}
-            accessibilityLabel={saved ? 'Remove from saved' : 'Save listing'}
-            accessibilityRole="button"
-          >
-            <Ionicons
-              name={saved ? 'heart' : 'heart-outline'}
-              size={28}
-              color={saved ? '#FF4444' : '#fff'}
-            />
-          </TouchableOpacity>
-        </View>
+      {/* Soft gradient + bottom overlay (no card; text floats over the gradient) */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.85)']}
+        style={viewerStyles.scrimBottom}
+      />
+      <View style={viewerStyles.listingOverlay}>
+        <Text style={viewerStyles.listingHeadline} numberOfLines={2}>{story.title}</Text>
+        <Text style={viewerStyles.listingHeadline}>£{story.price?.toFixed(2)}</Text>
+        <Button
+          label="View Listing"
+          size="md"
+          onPress={() => {
+            onClose();
+            router.push(`/listing/${story.id}`);
+          }}
+          style={viewerStyles.listingCtaBtn}
+        />
       </View>
     </>
   );
@@ -182,6 +253,14 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
   const groupStories: AnyStory[] = viewerGroup === 'app' ? appStories : listingStories;
   const activeStory: AnyStory | null = viewerGroup ? groupStories[activeIndex] ?? null : null;
 
+  // Track the current animated progress value via a listener so we can
+  // resume from where we paused without reaching for __getValue().
+  const progressValue = useRef(0);
+  useEffect(() => {
+    const id = progress.addListener(({ value }) => { progressValue.current = value; });
+    return () => progress.removeListener(id);
+  }, [progress]);
+
   const stopTimer = () => {
     if (timerAnim.current) {
       timerAnim.current.stop();
@@ -194,6 +273,26 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
     timerAnim.current = Animated.timing(progress, {
       toValue: 1,
       duration: STORY_DURATION,
+      useNativeDriver: false,
+    });
+    timerAnim.current.start(({ finished }) => {
+      if (finished) goNext();
+    });
+  };
+
+  // Pause: stop the animation but leave progressValue at its current point.
+  // Resume: continue to 1 over the remaining time.
+  const pauseTimer = () => {
+    stopTimer();
+  };
+
+  const resumeTimer = () => {
+    if (viewerGroup === null) return;
+    const remaining = (1 - progressValue.current) * STORY_DURATION;
+    if (remaining <= 0) { goNext(); return; }
+    timerAnim.current = Animated.timing(progress, {
+      toValue: 1,
+      duration: remaining,
       useNativeDriver: false,
     });
     timerAnim.current.start(({ finished }) => {
@@ -242,6 +341,29 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
     setViewerGroup(null);
     setActiveIndex(0);
   };
+
+  // Swipe-down to dismiss. Only claim the gesture for clear downward
+  // movement (≥10px and more vertical than horizontal) so taps and
+  // press-holds aren't disturbed.
+  const swipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, g) =>
+          g.dy > 10 && Math.abs(g.dy) > Math.abs(g.dx),
+        onPanResponderGrant: () => stopTimer(),
+        onPanResponderRelease: (_, g) => {
+          if (g.dy > 100 || g.vy > 0.5) {
+            close();
+          } else {
+            resumeTimer();
+          }
+        },
+        onPanResponderTerminate: () => resumeTimer(),
+      }),
+    // close, stopTimer, resumeTimer are stable in this scope
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const progressWidth = progress.interpolate({
     inputRange: [0, 1],
@@ -356,14 +478,30 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
         onRequestClose={close}
       >
         {activeStory && (
-          <View style={viewerStyles.viewer}>
+          <View style={viewerStyles.viewer} {...swipeResponder.panHandlers}>
             <StatusBar hidden />
 
             {activeStory.type === 'app' ? (
-              // App story viewer — branded card on dark background.
-              // Headline / body / CTA are each optional; an image-only story
-              // shows the Dukanoh logo overlay and nothing else.
+              // App story viewer — full-bleed image with optional overlay.
+              // Render order matters: image first (bottom), then tap zones
+              // on top of it, then scrim + overlay on top of those. If the
+              // image is rendered after tap zones it intercepts touches.
               <>
+                {activeStory.imageUrl ? (
+                  <Image
+                    source={{ uri: activeStory.imageUrl }}
+                    style={viewerStyles.fullImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                ) : (
+                  <Image
+                    source={require('@/assets/images/hero-banner-1.png')}
+                    style={viewerStyles.fullImage}
+                    contentFit="cover"
+                  />
+                )}
+
                 <View style={viewerStyles.progressBar}>
                   {groupStories.map((_, i) => (
                     <View key={i} style={viewerStyles.progressSegmentContainer}>
@@ -382,25 +520,13 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                   <Ionicons name="close" size={26} color="#fff" />
                 </TouchableOpacity>
 
-                <View style={viewerStyles.tapZones} pointerEvents="box-none">
-                  <TouchableOpacity style={viewerStyles.tapLeft} onPress={goPrev} activeOpacity={1} />
-                  <TouchableOpacity style={viewerStyles.tapRight} onPress={goNext} activeOpacity={1} />
-                </View>
+                <TapNavZones
+                  onPrev={goPrev}
+                  onNext={goNext}
+                  onPause={pauseTimer}
+                  onResume={resumeTimer}
+                />
 
-                {activeStory.imageUrl ? (
-                  <Image
-                    source={{ uri: activeStory.imageUrl }}
-                    style={viewerStyles.fullImage}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                ) : (
-                  <Image
-                    source={require('@/assets/images/hero-banner-1.png')}
-                    style={viewerStyles.fullImage}
-                    contentFit="cover"
-                  />
-                )}
                 {(() => {
                   // For image-only stories we hide all the chrome — no
                   // bottom scrim, no overlay — so the image is the entire story.
@@ -450,6 +576,8 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                 onPrev={goPrev}
                 onNext={goNext}
                 onClose={close}
+                onPause={pauseTimer}
+                onResume={resumeTimer}
               />
             )}
           </View>
@@ -595,32 +723,28 @@ const viewerStyles = StyleSheet.create({
   topCloseBtn: {
     padding: Spacing.xs,
   },
-  // Bottom bar (info card + CTA + heart)
-  bottomBar: {
+  // Listing story overlay — title + price + CTA float over the gradient
+  // scrim. Title and price share the same style intentionally (no
+  // visual hierarchy between them).
+  listingOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Spacing.base,
+    paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing['3xl'] + (Platform.OS === 'android' ? 32 : 0),
-    paddingTop: Spacing.lg,
-    gap: Spacing.md,
-  },
-  infoCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: BorderRadius.medium,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
     gap: Spacing.xs,
   },
-  listingTitle: {
-    ...Typography.body,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#0D0D0D',
+  listingHeadline: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontFamily: FontFamily.semibold,
+    color: '#fff',
   },
-  listingPrice: {
-    ...Typography.body,
-    color: '#0D0D0D',
+  listingCtaBtn: {
+    alignSelf: 'flex-start',
+    marginTop: Spacing.md,
+    minWidth: 180,
   },
   progressBar: {
     position: 'absolute',
