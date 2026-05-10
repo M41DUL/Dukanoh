@@ -112,6 +112,8 @@ export const queryKeys = {
       [...queryKeys.home.all, 'feed', userId, [...blockedIds].sort()] as const,
     stories: (userId?: string) =>
       [...queryKeys.home.all, 'stories', userId] as const,
+    appStories: () =>
+      [...queryKeys.home.all, 'app-stories'] as const,
     recentlyViewed: (userId?: string) =>
       [...queryKeys.home.all, 'recently-viewed', userId] as const,
   },

@@ -4,47 +4,81 @@ import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/queryKeys';
 import { useAuth } from './useAuth';
 
+// App stories: admin-authored broadcast cards shown under the Dukanoh
+// bubble in the home feed. Headline / body / CTA are all optional —
+// minimum viable story is just an image. See app/admin/stories.tsx.
 export interface AppStory {
   type: 'app';
-  id: 'dukanoh-app-story';
+  id: string;
   imageUrl?: string;
-  headline: string;
-  body: string;
-  ctaLabel: string;
-  ctaRoute: string;
+  headline?: string;
+  body?: string;
+  ctaLabel?: string;
+  ctaRoute?: string;
 }
 
-const APP_MESSAGES: Omit<AppStory, 'type' | 'id'>[] = [
-  {
-    headline: 'Welcome to Dukanoh',
-    body: 'The South Asian fashion marketplace. Buy and sell pre-loved clothing from your community.',
-    ctaLabel: 'Start browsing',
-    ctaRoute: '/listings',
-  },
-  {
-    headline: 'How it works',
-    body: 'Browse listings, message sellers directly, and arrange collection or delivery between you.',
-    ctaLabel: 'Explore now',
-    ctaRoute: '/listings',
-  },
-  {
-    headline: 'Discover your style',
-    body: 'Lehengas, sherwanis, sarees and more — all pre-loved, all at a fraction of the price.',
-    ctaLabel: 'Browse listings',
-    ctaRoute: '/listings',
-  },
-  {
-    headline: 'Join the community',
-    body: 'Save your favourites, follow price drops, and find outfits for every occasion.',
-    ctaLabel: 'Get started',
-    ctaRoute: '/listings',
-  },
-];
+export type AppStoryDestination =
+  | 'home'
+  | 'search'
+  | 'sell'
+  | 'saved'
+  | 'listings'
+  | 'dukanoh-fit'
+  | 'boosts'
+  | 'specific-listing';
 
-export function getAppStory(): AppStory {
-  const weekNumber = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
-  const msg = APP_MESSAGES[weekNumber % APP_MESSAGES.length];
-  return { type: 'app', id: 'dukanoh-app-story', ...msg };
+// Translate the persisted destination + listing id into a router path.
+// Kept here (not a deep import in the composer) so the row -> route
+// mapping has a single source of truth.
+function destinationToRoute(dest: string | null, listingId: string | null): string | undefined {
+  if (!dest) return undefined;
+  switch (dest) {
+    case 'home':         return '/(tabs)/';
+    case 'search':       return '/(tabs)/search';
+    case 'sell':         return '/(tabs)/sell';
+    case 'saved':        return '/saved';
+    case 'listings':     return '/listings';
+    case 'dukanoh-fit':  return '/dukanoh-fit';
+    case 'boosts':       return '/boosts';
+    case 'specific-listing':
+      return listingId ? `/listing/${listingId}` : undefined;
+    default:             return undefined;
+  }
+}
+
+async function fetchAppStories(signal: AbortSignal): Promise<AppStory[]> {
+  const { data, error } = await supabase
+    .from('app_stories')
+    .select('id, image_url, headline, body, cta_label, cta_destination, cta_listing_id, expires_at')
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .order('published_at', { ascending: false })
+    .abortSignal(signal);
+
+  if (error) throw error;
+
+  return (data ?? []).map(row => ({
+    type: 'app' as const,
+    id: row.id,
+    imageUrl: row.image_url ?? undefined,
+    headline: row.headline ?? undefined,
+    body: row.body ?? undefined,
+    ctaLabel: row.cta_label ?? undefined,
+    ctaRoute: destinationToRoute(row.cta_destination, row.cta_listing_id),
+  }));
+}
+
+export function useAppStories() {
+  const query = useQuery({
+    queryKey: queryKeys.home.appStories(),
+    queryFn: ({ signal }) => fetchAppStories(signal),
+    staleTime: 60_000,
+  });
+
+  return {
+    appStories: query.data ?? [],
+    loading: query.isLoading,
+    refetch: query.refetch,
+  };
 }
 
 export interface StoryListing {

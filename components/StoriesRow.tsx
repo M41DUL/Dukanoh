@@ -12,17 +12,17 @@ import {
   Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getImageUrl } from '@/lib/imageUtils';
 import { router, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
 import { useSaved } from '@/context/SavedContext';
 import { Avatar } from './Avatar';
 import { Button } from './Button';
 import { GradientCard } from './GradientCard';
-import { DukanohLogo } from './DukanohLogo';
 import { StoryListing, AppStory } from '@/hooks/useStories';
 
 const { width, height } = Dimensions.get('window');
@@ -158,15 +158,29 @@ function ListingStoryViewer({
 }
 
 export function StoriesRow({ stories, onView }: StoriesRowProps) {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  // Two visual groups: admin "app" stories collapse into a single Dukanoh
+  // bubble in the row; tapping it opens a viewer that cycles through ONLY
+  // the app stories. Listing stories keep their existing per-bubble UX.
+  // The viewer's progress bar / nav stays within the active group.
+  const [viewerGroup, setViewerGroup] = useState<'app' | 'listing' | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number>(0);
   const colors = useThemeColors();
   const { isDark } = useTheme();
   const rowStyles = useMemo(() => getRowStyles(colors), [colors]);
   const progress = useRef(new Animated.Value(0)).current;
   const timerAnim = useRef<Animated.CompositeAnimation | null>(null);
 
-  const activeStory = activeIndex !== null ? stories[activeIndex] : null;
-  const isSingleAppStory = stories.length === 1 && stories[0].type === 'app';
+  const appStories = useMemo(
+    () => stories.filter((s): s is AppStory => s.type === 'app'),
+    [stories],
+  );
+  const listingStories = useMemo(
+    () => stories.filter((s): s is StoryListing => s.type !== 'app'),
+    [stories],
+  );
+
+  const groupStories: AnyStory[] = viewerGroup === 'app' ? appStories : listingStories;
+  const activeStory: AnyStory | null = viewerGroup ? groupStories[activeIndex] ?? null : null;
 
   const stopTimer = () => {
     if (timerAnim.current) {
@@ -187,9 +201,9 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
     });
   };
 
-  // biome-ignore lint: activeIndex drives the timer
+  // biome-ignore lint: activeIndex / viewerGroup drive the timer
   useEffect(() => {
-    if (activeIndex !== null) {
+    if (viewerGroup !== null) {
       startTimer();
     } else {
       stopTimer();
@@ -197,51 +211,74 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
     }
     return () => stopTimer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndex]); // progress is a stable Animated.Value ref; startTimer/stopTimer depend only on stable refs
+  }, [viewerGroup, activeIndex]);
 
-  const openStory = (index: number) => {
+  const openStory = (group: 'app' | 'listing', index: number) => {
+    setViewerGroup(group);
     setActiveIndex(index);
-    const story = stories[index];
-    if (story.type !== 'app') onView(story.id);
+    if (group === 'listing') {
+      const story = listingStories[index];
+      if (story) onView(story.id);
+    }
   };
 
   const goNext = () => {
-    if (activeIndex === null) return;
-    if (activeIndex < stories.length - 1) {
+    if (viewerGroup === null) return;
+    if (activeIndex < groupStories.length - 1) {
       const next = activeIndex + 1;
       setActiveIndex(next);
-      const story = stories[next];
-      if (story.type !== 'app') onView(story.id);
+      if (viewerGroup === 'listing') onView(listingStories[next].id);
     } else {
-      setActiveIndex(null);
+      close();
     }
   };
 
   const goPrev = () => {
-    if (activeIndex === null || activeIndex === 0) return;
+    if (viewerGroup === null || activeIndex === 0) return;
     setActiveIndex(activeIndex - 1);
   };
 
-  const close = () => setActiveIndex(null);
+  const close = () => {
+    setViewerGroup(null);
+    setActiveIndex(0);
+  };
 
   const progressWidth = progress.interpolate({
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   });
 
-  if (stories.length === 0) return null;
+  if (appStories.length === 0 && listingStories.length === 0) return null;
+
+  // When there are no user-generated listing stories, fall back to the
+  // gradient card — using the latest app story that has actual copy.
+  // For image-only app stories there's nothing to show on the card, so we
+  // keep falling back to the bubble row in that case.
+  const fallbackCardStory = listingStories.length === 0
+    ? appStories.find(s => s.headline || s.body)
+    : null;
+
+  // Build a single flat data array for the row: one Dukanoh entry standing
+  // in for the whole app-story group, then each listing as its own bubble.
+  type RowEntry =
+    | { kind: 'app' }
+    | { kind: 'listing'; index: number; listing: StoryListing };
+  const rowEntries: RowEntry[] = [
+    ...(appStories.length > 0 ? [{ kind: 'app' as const }] : []),
+    ...listingStories.map((l, index) => ({ kind: 'listing' as const, index, listing: l })),
+  ];
 
   return (
     <>
-      {isSingleAppStory ? (
+      {fallbackCardStory ? (
         <View style={rowStyles.cardOuter}>
           <GradientCard
             colors={isDark ? ['rgba(199,247,94,0.12)', colors.surface] : ['#E8FBC5', colors.surface]}
-            title={(stories[0] as AppStory).headline}
-            subtitle={(stories[0] as AppStory).body}
+            title={fallbackCardStory.headline ?? 'Dukanoh'}
+            subtitle={fallbackCardStory.body ?? ''}
             titleColor={colors.textPrimary}
             subtitleColor={colors.textSecondary}
-            onPress={() => openStory(0)}
+            onPress={() => openStory('app', appStories.indexOf(fallbackCardStory))}
             left={
               <View style={rowStyles.cardRing}>
                 <View style={rowStyles.cardRingInner}>
@@ -257,52 +294,63 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
           />
         </View>
       ) : (
-        <FlatList
-          horizontal
-          data={stories}
-          keyExtractor={item => item.id}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={rowStyles.row}
-          renderItem={({ item, index }) => {
-            const isApp = item.type === 'app';
-            const listing = isApp ? null : (item as StoryListing);
+      <FlatList
+        horizontal
+        data={rowEntries}
+        keyExtractor={(entry, i) => entry.kind === 'app' ? 'app-bubble' : `listing-${entry.listing.id}-${i}`}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={rowStyles.row}
+        renderItem={({ item }) => {
+          if (item.kind === 'app') {
             return (
               <TouchableOpacity
                 style={rowStyles.bubble}
-                onPress={() => openStory(index)}
+                onPress={() => openStory('app', 0)}
                 activeOpacity={0.9}
               >
-                <View style={[rowStyles.ring, isApp && rowStyles.ringApp, !isApp && listing?.is_boosted && rowStyles.ringBoosted, !isApp && !listing?.is_boosted && listing?.viewed && rowStyles.ringViewed]}>
+                <View style={[rowStyles.ring, rowStyles.ringApp]}>
                   <View style={rowStyles.ringInner}>
-                    {isApp ? (
-                      <Image
-                        source={APP_STORY_ICON}
-                        style={viewerStyles.bubbleImage}
-                        contentFit="cover"
-                      />
-                    ) : listing?.images?.[0] ? (
-                      <Image
-                        source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
-                        style={viewerStyles.bubbleImage}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                    ) : (
-                      <View style={[viewerStyles.bubbleImage, rowStyles.bubblePlaceholder]} />
-                    )}
+                    <Image
+                      source={APP_STORY_ICON}
+                      style={viewerStyles.bubbleImage}
+                      contentFit="cover"
+                    />
                   </View>
                 </View>
-                <Text style={rowStyles.bubbleLabel} numberOfLines={1}>
-                  {isApp ? 'Dukanoh' : listing?.category}
-                </Text>
+                <Text style={rowStyles.bubbleLabel} numberOfLines={1}>Dukanoh</Text>
               </TouchableOpacity>
             );
-          }}
-        />
+          }
+          const { listing, index } = item;
+          return (
+            <TouchableOpacity
+              style={rowStyles.bubble}
+              onPress={() => openStory('listing', index)}
+              activeOpacity={0.9}
+            >
+              <View style={[rowStyles.ring, listing.is_boosted && rowStyles.ringBoosted, !listing.is_boosted && listing.viewed && rowStyles.ringViewed]}>
+                <View style={rowStyles.ringInner}>
+                  {listing.images?.[0] ? (
+                    <Image
+                      source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }}
+                      style={viewerStyles.bubbleImage}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ) : (
+                    <View style={[viewerStyles.bubbleImage, rowStyles.bubblePlaceholder]} />
+                  )}
+                </View>
+              </View>
+              <Text style={rowStyles.bubbleLabel} numberOfLines={1}>{listing.category}</Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
       )}
 
       <Modal
-        visible={activeIndex !== null}
+        visible={viewerGroup !== null}
         animationType="fade"
         statusBarTranslucent
         onRequestClose={close}
@@ -312,15 +360,17 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
             <StatusBar hidden />
 
             {activeStory.type === 'app' ? (
-              // App story viewer — branded card on dark background
+              // App story viewer — branded card on dark background.
+              // Headline / body / CTA are each optional; an image-only story
+              // shows the Dukanoh logo overlay and nothing else.
               <>
                 <View style={viewerStyles.progressBar}>
-                  {stories.map((_, i) => (
+                  {groupStories.map((_, i) => (
                     <View key={i} style={viewerStyles.progressSegmentContainer}>
                       <Animated.View
                         style={[
                           viewerStyles.progressSegment,
-                          i < (activeIndex ?? 0) && viewerStyles.progressDone,
+                          i < activeIndex && viewerStyles.progressDone,
                           i === activeIndex && { width: progressWidth },
                         ]}
                       />
@@ -351,34 +401,51 @@ export function StoriesRow({ stories, onView }: StoriesRowProps) {
                     contentFit="cover"
                   />
                 )}
-                <View style={viewerStyles.scrimBottom} />
-                <View style={viewerStyles.appCardCenter}>
-                  <DukanohLogo width={140} height={24} color="#C7F75E" />
-                </View>
-                <View style={viewerStyles.overlay}>
-                  <Text style={viewerStyles.storyTitle}>{activeStory.headline}</Text>
-                  {activeStory.body ? (
-                    <Text style={viewerStyles.appBody}>{activeStory.body}</Text>
-                  ) : null}
-                  <View style={viewerStyles.ctaRow}>
-                    <Button
-                      label={activeStory.ctaLabel}
-                      size="md"
-                      onPress={() => {
-                        close();
-                        router.push(activeStory.ctaRoute as Href);
-                      }}
-                      style={viewerStyles.viewBtn}
-                    />
-                  </View>
-                </View>
+                {(() => {
+                  // For image-only stories we hide all the chrome — no
+                  // bottom scrim, no overlay — so the image is the entire story.
+                  const hasContent = !!(
+                    activeStory.headline ||
+                    activeStory.body ||
+                    (activeStory.ctaLabel && activeStory.ctaRoute)
+                  );
+                  if (!hasContent) return null;
+                  return (
+                    <>
+                      <LinearGradient
+                        pointerEvents="none"
+                        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.85)']}
+                        style={viewerStyles.scrimBottom}
+                      />
+                      <View style={viewerStyles.appOverlay}>
+                        {activeStory.headline ? (
+                          <Text style={viewerStyles.appHeadline}>{activeStory.headline}</Text>
+                        ) : null}
+                        {activeStory.body ? (
+                          <Text style={viewerStyles.appBody}>{activeStory.body}</Text>
+                        ) : null}
+                        {activeStory.ctaLabel && activeStory.ctaRoute ? (
+                          <Button
+                            label={activeStory.ctaLabel}
+                            size="md"
+                            onPress={() => {
+                              close();
+                              router.push(activeStory.ctaRoute as Href);
+                            }}
+                            style={viewerStyles.appCtaBtn}
+                          />
+                        ) : null}
+                      </View>
+                    </>
+                  );
+                })()}
               </>
             ) : (
               // Regular listing story viewer — Instagram style
               <ListingStoryViewer
                 story={activeStory as StoryListing}
-                stories={stories}
-                activeIndex={activeIndex ?? 0}
+                stories={groupStories}
+                activeIndex={activeIndex}
                 progressWidth={progressWidth}
                 onPrev={goPrev}
                 onNext={goNext}
@@ -439,7 +506,8 @@ function getRowStyles(colors: ColorTokens) {
       textAlign: 'center',
       width: 64,
     },
-    // Single story card layout
+    // Fallback gradient card — used when there are no listing stories
+    // and at least one app story has copy worth showing.
     cardOuter: {
       marginTop: Spacing.sm,
       marginBottom: Spacing.base,
@@ -490,10 +558,7 @@ const viewerStyles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 280,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderTopLeftRadius: BorderRadius.large,
-    borderTopRightRadius: BorderRadius.large,
+    height: 320,
   },
   // Top bar (Instagram-style: avatar + username + time + close)
   topBar: {
@@ -597,6 +662,7 @@ const viewerStyles = StyleSheet.create({
   },
   tapLeft: { flex: 1 },
   tapRight: { flex: 2 },
+  // ListingStoryViewer overlay (used by listing stories — left-aligned card)
   overlay: {
     position: 'absolute',
     bottom: 0,
@@ -617,21 +683,34 @@ const viewerStyles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   viewBtn: { flex: 1 },
-  // App story card styles
-  appCardCenter: {
+  // App story (admin broadcast) overlay — centered, modern.
+  appOverlay: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing['3xl'] + (Platform.OS === 'android' ? 32 : 0),
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 200,
+    gap: Spacing.md,
+  },
+  appHeadline: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontFamily: FontFamily.bold,
+    color: '#fff',
+    textAlign: 'center',
+    letterSpacing: -0.4,
   },
   appBody: {
     ...Typography.body,
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.78)',
     textAlign: 'center',
     lineHeight: 22,
+    maxWidth: 320,
+  },
+  appCtaBtn: {
+    marginTop: Spacing.xs,
+    minWidth: 180,
   },
 });

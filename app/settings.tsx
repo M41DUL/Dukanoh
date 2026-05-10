@@ -347,6 +347,12 @@ export default function SettingsScreen() {
             subtitle: 'Admin: view user submissions',
             onPress: () => router.push('/admin/feedback'),
           },
+          {
+            icon: 'newspaper-outline',
+            title: 'Stories',
+            subtitle: 'Publish broadcast cards to the home feed',
+            onPress: () => router.push('/admin/stories'),
+          },
           ...(isOfficial ? [{
             icon: 'toggle-outline' as const,
             title: 'Account Flags',

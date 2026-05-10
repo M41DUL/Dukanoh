@@ -19,7 +19,7 @@ import {
 import { Spacing, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
-import { useStories, getAppStory } from '@/hooks/useStories';
+import { useStories, useAppStories } from '@/hooks/useStories';
 import { useAuth } from '@/hooks/useAuth';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 import { useFeed } from '@/hooks/useFeed';
@@ -39,7 +39,8 @@ export default function HomeScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const { stories, loading: storiesLoading, markViewed, refetch: refetchStories } = useStories();
-  const allStories = [getAppStory(), ...stories];
+  const { appStories, refetch: refetchAppStories } = useAppStories();
+  const allStories = [...appStories, ...stories];
   const { items: recentItems, refetch: refetchRecent } = useRecentlyViewed(user?.id);
 
   const {
@@ -75,9 +76,9 @@ export default function HomeScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchFeed(), refetchRecent(), refetchStories()]);
+    await Promise.all([refetchFeed(), refetchRecent(), refetchStories(), refetchAppStories()]);
     setRefreshing(false);
-  }, [refetchFeed, refetchRecent, refetchStories]);
+  }, [refetchFeed, refetchRecent, refetchStories, refetchAppStories]);
 
   useRefreshOnFocus(refetchFeed);
   useRefreshOnFocus(refetchRecent);

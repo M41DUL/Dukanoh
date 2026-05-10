@@ -145,6 +145,66 @@ export type Database = {
           },
         ]
       }
+      app_stories: {
+        Row: {
+          body: string | null
+          created_at: string
+          created_by: string | null
+          cta_destination: string | null
+          cta_label: string | null
+          cta_listing_id: string | null
+          expires_at: string | null
+          headline: string | null
+          id: string
+          image_url: string | null
+          published_at: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          cta_destination?: string | null
+          cta_label?: string | null
+          cta_listing_id?: string | null
+          expires_at?: string | null
+          headline?: string | null
+          id?: string
+          image_url?: string | null
+          published_at?: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          cta_destination?: string | null
+          cta_label?: string | null
+          cta_listing_id?: string | null
+          expires_at?: string | null
+          headline?: string | null
+          id?: string
+          image_url?: string | null
+          published_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_stories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_stories_cta_listing_id_fkey"
+            columns: ["cta_listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blocked_users: {
         Row: {
           blocked_id: string
@@ -1514,6 +1574,8 @@ export type Database = {
       activate_seller:
         | { Args: { p_code: string; p_user_id: string }; Returns: boolean }
         | { Args: { p_code?: string; p_user_id: string }; Returns: boolean }
+      admin_delete_app_story: { Args: { p_id: string }; Returns: undefined }
+      admin_save_app_story: { Args: { payload: Json }; Returns: string }
       admin_update_user_flags: {
         Args: { patch: Json; target_user_id: string }
         Returns: undefined
