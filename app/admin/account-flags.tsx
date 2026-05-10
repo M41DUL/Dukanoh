@@ -47,10 +47,10 @@ export default function AccountFlagsScreen() {
     const next = { ...flags, ...patch };
     setFlags(next);
     setSaving(true);
-    const { error } = await supabase
-      .from('users')
-      .update(patch)
-      .eq('id', user.id);
+    const { error } = await supabase.rpc('admin_update_user_flags', {
+      target_user_id: user.id,
+      patch,
+    });
     setSaving(false);
     if (error) {
       Alert.alert('Error', 'Could not update flag. Please try again.');

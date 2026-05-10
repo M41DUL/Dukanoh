@@ -1514,6 +1514,10 @@ export type Database = {
       activate_seller:
         | { Args: { p_code: string; p_user_id: string }; Returns: boolean }
         | { Args: { p_code?: string; p_user_id: string }; Returns: boolean }
+      admin_update_user_flags: {
+        Args: { patch: Json; target_user_id: string }
+        Returns: undefined
+      }
       auto_release_orders: { Args: never; Returns: undefined }
       claim_available_balance: {
         Args: { p_seller_id: string }
@@ -1533,7 +1537,7 @@ export type Database = {
         Args: { p_seller_id: string }
         Returns: number
       }
-      increment_boosts_used: { Args: { p_user_id: string }; Returns: undefined }
+      increment_boosts_used: { Args: { p_user_id: string }; Returns: boolean }
       increment_pending_balance: {
         Args: { p_amount: number; p_seller_id: string }
         Returns: undefined
@@ -1685,3 +1689,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
