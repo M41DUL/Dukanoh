@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, Share, Linking, Platform } from 'react-native';
+import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet, Alert, Share, Platform } from 'react-native';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
@@ -237,12 +238,12 @@ export default function SettingsScreen() {
     {
       icon: 'document-text-outline',
       title: 'Terms & Conditions',
-      onPress: () => Linking.openURL('https://www.dukanoh.com/terms-and-conditions'),
+      onPress: () => WebBrowser.openBrowserAsync('https://www.dukanoh.com/terms-and-conditions'),
     },
     {
       icon: 'shield-outline',
       title: 'Privacy Policy',
-      onPress: () => Linking.openURL('https://www.dukanoh.com/privacy-policy'),
+      onPress: () => WebBrowser.openBrowserAsync('https://www.dukanoh.com/privacy-policy'),
     },
   ];
 

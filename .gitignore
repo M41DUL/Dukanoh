@@ -38,6 +38,9 @@ yarn-error.*
 .env
 .env*.local
 
+# Play Store service account key (download from Play Console → API access)
+play-service-account.json
+
 # Supabase
 supabase/.temp/
 
