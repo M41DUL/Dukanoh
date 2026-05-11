@@ -11,6 +11,7 @@ import {
   Image,
   TextInput,
   Dimensions,
+  Platform,
 } from 'react-native';
 
 import { router } from 'expo-router';
@@ -907,11 +908,15 @@ const styles = StyleSheet.create({
   // Earnings card
   earningsCardShell: {
     borderRadius: BorderRadius.large,
-    shadowColor: '#3735C5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.09,
-    shadowRadius: 14,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#3735C5',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.09,
+        shadowRadius: 14,
+      },
+      default: {},
+    }),
   },
   earningsCard: {
     borderRadius: BorderRadius.large,
@@ -976,11 +981,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: Spacing.lg,
     gap: Spacing.md,
-    shadowColor: '#3735C5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.09,
-    shadowRadius: 14,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#3735C5',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.09,
+        shadowRadius: 14,
+      },
+      default: {},
+    }),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1020,16 +1029,20 @@ const styles = StyleSheet.create({
     flex: 1,
     aspectRatio: 1,
     borderRadius: BorderRadius.large,
-    shadowColor: '#3735C5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.09,
-    shadowRadius: 14,
-    elevation: 3,
     borderWidth: 1,
     padding: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#3735C5',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.09,
+        shadowRadius: 14,
+      },
+      default: {},
+    }),
   },
   squareCardLabel: {
     fontSize: 11,

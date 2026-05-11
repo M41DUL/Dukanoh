@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { FontFamily, Spacing, BorderRadius, Typography, type ProColorTokens } from '@/constants/theme';
 
@@ -33,11 +33,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    shadowColor: '#3735C5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.09,
-    shadowRadius: 14,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#3735C5',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.09,
+        shadowRadius: 14,
+      },
+      default: {},
+    }),
   },
   value: {
     fontSize: 22,
