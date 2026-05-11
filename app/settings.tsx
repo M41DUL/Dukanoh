@@ -353,6 +353,12 @@ export default function SettingsScreen() {
             subtitle: 'Publish broadcast cards to the home feed',
             onPress: () => router.push('/admin/stories'),
           },
+          {
+            icon: 'notifications-outline',
+            title: 'Broadcasts',
+            subtitle: 'Send a push notification to a cohort',
+            onPress: () => router.push('/admin/broadcasts'),
+          },
           ...(isOfficial ? [{
             icon: 'toggle-outline' as const,
             title: 'Account Flags',

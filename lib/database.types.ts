@@ -62,6 +62,7 @@ export type Database = {
           description: string
           id: string
           receipt_url: string | null
+          recurring_id: string | null
         }
         Insert: {
           amount: number
@@ -71,6 +72,7 @@ export type Database = {
           description: string
           id?: string
           receipt_url?: string | null
+          recurring_id?: string | null
         }
         Update: {
           amount?: number
@@ -80,8 +82,17 @@ export type Database = {
           description?: string
           id?: string
           receipt_url?: string | null
+          recurring_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "admin_expenses_recurring_id_fkey"
+            columns: ["recurring_id"]
+            isOneToOne: false
+            referencedRelation: "admin_recurring_expenses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       admin_login_attempts: {
         Row: {
@@ -98,6 +109,42 @@ export type Database = {
           attempted_at?: string
           id?: string
           ip?: string
+        }
+        Relationships: []
+      }
+      admin_recurring_expenses: {
+        Row: {
+          active: boolean
+          amount: number
+          category: string
+          created_at: string
+          day_of_month: number
+          description: string
+          id: string
+          last_generated_ym: string | null
+          receipt_url: string | null
+        }
+        Insert: {
+          active?: boolean
+          amount: number
+          category: string
+          created_at?: string
+          day_of_month: number
+          description: string
+          id?: string
+          last_generated_ym?: string | null
+          receipt_url?: string | null
+        }
+        Update: {
+          active?: boolean
+          amount?: number
+          category?: string
+          created_at?: string
+          day_of_month?: number
+          description?: string
+          id?: string
+          last_generated_ym?: string | null
+          receipt_url?: string | null
         }
         Relationships: []
       }
@@ -277,6 +324,72 @@ export type Database = {
           {
             foreignKeyName: "boosts_seller_id_fkey"
             columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      broadcasts: {
+        Row: {
+          audience_active_days: number | null
+          audience_role: string | null
+          audience_tier: string | null
+          body: string
+          created_at: string
+          deep_link_destination: string | null
+          deep_link_listing_id: string | null
+          error_message: string | null
+          id: string
+          recipient_count: number
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          audience_active_days?: number | null
+          audience_role?: string | null
+          audience_tier?: string | null
+          body: string
+          created_at?: string
+          deep_link_destination?: string | null
+          deep_link_listing_id?: string | null
+          error_message?: string | null
+          id?: string
+          recipient_count?: number
+          sent_at?: string | null
+          sent_by?: string | null
+          status: string
+          title: string
+        }
+        Update: {
+          audience_active_days?: number | null
+          audience_role?: string | null
+          audience_tier?: string | null
+          body?: string
+          created_at?: string
+          deep_link_destination?: string | null
+          deep_link_listing_id?: string | null
+          error_message?: string | null
+          id?: string
+          recipient_count?: number
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcasts_deep_link_listing_id_fkey"
+            columns: ["deep_link_listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcasts_sent_by_fkey"
+            columns: ["sent_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1133,7 +1246,10 @@ export type Database = {
           listing_id: string
           reason: string
           reporter_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
           seller_id: string
+          status: string
         }
         Insert: {
           created_at?: string | null
@@ -1141,7 +1257,10 @@ export type Database = {
           listing_id: string
           reason: string
           reporter_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           seller_id: string
+          status?: string
         }
         Update: {
           created_at?: string | null
@@ -1149,7 +1268,10 @@ export type Database = {
           listing_id?: string
           reason?: string
           reporter_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           seller_id?: string
+          status?: string
         }
         Relationships: [
           {
@@ -1162,6 +1284,13 @@ export type Database = {
           {
             foreignKeyName: "reports_reporter_id_fkey"
             columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reviewed_by_fkey"
+            columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1443,6 +1572,7 @@ export type Database = {
           is_official: boolean | null
           is_seller: boolean | null
           is_verified: boolean | null
+          last_active_at: string | null
           last_name: string | null
           location: string | null
           marketing_consent: boolean
@@ -1491,6 +1621,7 @@ export type Database = {
           is_official?: boolean | null
           is_seller?: boolean | null
           is_verified?: boolean | null
+          last_active_at?: string | null
           last_name?: string | null
           location?: string | null
           marketing_consent?: boolean
@@ -1539,6 +1670,7 @@ export type Database = {
           is_official?: boolean | null
           is_seller?: boolean | null
           is_verified?: boolean | null
+          last_active_at?: string | null
           last_name?: string | null
           location?: string | null
           marketing_consent?: boolean
@@ -1574,6 +1706,10 @@ export type Database = {
       activate_seller:
         | { Args: { p_code: string; p_user_id: string }; Returns: boolean }
         | { Args: { p_code?: string; p_user_id: string }; Returns: boolean }
+      admin_count_broadcast_audience: {
+        Args: { filters: Json }
+        Returns: number
+      }
       admin_delete_app_story: { Args: { p_id: string }; Returns: undefined }
       admin_save_app_story: { Args: { payload: Json }; Returns: string }
       admin_update_user_flags: {

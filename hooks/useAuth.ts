@@ -41,7 +41,13 @@ export function useAuth() {
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
-      if (s?.user) await fetchProfile(s.user.id);
+      if (s?.user) {
+        await fetchProfile(s.user.id);
+        // Best-effort: bump last_active_at on app open. Powers the
+        // "active in last X days" audience filter for admin broadcasts.
+        // Fire-and-forget; never blocks startup if it fails.
+        supabase.from('users').update({ last_active_at: new Date().toISOString() }).eq('id', s.user.id).then(() => {});
+      }
       setLoading(false);
     });
 
