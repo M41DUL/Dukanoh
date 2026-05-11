@@ -2084,3 +2084,206 @@ BEGIN
   WHERE id = p_user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- =============================================================
+-- ADMIN RECURRING EXPENSES + COST-EFFICIENCY HELPERS
+-- Service-role only. RLS enabled with no permissive policies.
+-- =============================================================
+
+-- Recurring (monthly) expense templates.
+CREATE TABLE IF NOT EXISTS public.admin_recurring_expenses (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category          TEXT NOT NULL CHECK (category IN (
+                      'stripe_fees',
+                      'hosting_vercel',
+                      'hosting_supabase',
+                      'legal',
+                      'marketing',
+                      'subscriptions',
+                      'other'
+                    )),
+  description       TEXT NOT NULL,
+  amount            NUMERIC(10, 2) NOT NULL CHECK (amount > 0),
+  day_of_month      SMALLINT NOT NULL CHECK (day_of_month BETWEEN 1 AND 31),
+  receipt_url       TEXT,
+  active            BOOLEAN NOT NULL DEFAULT TRUE,
+  last_generated_ym TEXT,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.admin_expenses
+  ADD COLUMN IF NOT EXISTS recurring_id UUID REFERENCES public.admin_recurring_expenses(id) ON DELETE SET NULL;
+
+ALTER TABLE public.admin_recurring_expenses ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS admin_recurring_expenses_active_idx
+  ON public.admin_recurring_expenses (active) WHERE active = TRUE;
+
+CREATE INDEX IF NOT EXISTS admin_expenses_recurring_id_idx
+  ON public.admin_expenses (recurring_id);
+
+-- Idempotent generator — invoked daily by pg_cron and as a fallback at render.
+CREATE OR REPLACE FUNCTION public.generate_due_recurring_expenses()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  tpl              RECORD;
+  v_today          DATE := CURRENT_DATE;
+  v_year           INT;
+  v_month          INT;
+  v_clamped_day    INT;
+  v_month_end_day  INT;
+  v_target_date    DATE;
+  v_last_ym        TEXT;
+  v_inserted_total INT := 0;
+BEGIN
+  FOR tpl IN
+    SELECT id, category, description, amount, day_of_month,
+           receipt_url, last_generated_ym, created_at
+    FROM public.admin_recurring_expenses
+    WHERE active = TRUE
+  LOOP
+    IF tpl.last_generated_ym IS NOT NULL THEN
+      v_year  := split_part(tpl.last_generated_ym, '-', 1)::INT;
+      v_month := split_part(tpl.last_generated_ym, '-', 2)::INT + 1;
+      IF v_month > 12 THEN v_month := 1; v_year := v_year + 1; END IF;
+    ELSE
+      v_year  := EXTRACT(YEAR  FROM tpl.created_at)::INT;
+      v_month := EXTRACT(MONTH FROM tpl.created_at)::INT;
+    END IF;
+
+    v_last_ym := NULL;
+
+    WHILE make_date(v_year, v_month, 1) <= date_trunc('month', v_today)::date LOOP
+      v_month_end_day := EXTRACT(DAY FROM
+        (date_trunc('month', make_date(v_year, v_month, 1)) + INTERVAL '1 month' - INTERVAL '1 day')::date
+      )::INT;
+      v_clamped_day := LEAST(tpl.day_of_month, v_month_end_day);
+
+      IF v_year  = EXTRACT(YEAR  FROM v_today)::INT
+         AND v_month = EXTRACT(MONTH FROM v_today)::INT
+         AND EXTRACT(DAY FROM v_today)::INT < v_clamped_day THEN
+        EXIT;
+      END IF;
+
+      v_target_date := make_date(v_year, v_month, v_clamped_day);
+
+      INSERT INTO public.admin_expenses (date, category, description, amount, receipt_url, recurring_id)
+      VALUES (v_target_date, tpl.category, tpl.description, tpl.amount, tpl.receipt_url, tpl.id);
+
+      v_inserted_total := v_inserted_total + 1;
+      v_last_ym := to_char(v_target_date, 'YYYY-MM');
+
+      v_month := v_month + 1;
+      IF v_month > 12 THEN v_month := 1; v_year := v_year + 1; END IF;
+    END LOOP;
+
+    IF v_last_ym IS NOT NULL THEN
+      UPDATE public.admin_recurring_expenses
+         SET last_generated_ym = v_last_ym
+       WHERE id = tpl.id;
+    END IF;
+  END LOOP;
+
+  RETURN v_inserted_total;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.generate_due_recurring_expenses() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.generate_due_recurring_expenses() TO service_role;
+
+-- One-row finance KPI rollup for the admin dashboard.
+CREATE OR REPLACE VIEW public.admin_finance_summary AS
+SELECT
+  COALESCE((SELECT SUM(amount)::NUMERIC FROM public.platform_ledger), 0)                                    AS all_time_revenue,
+  COALESCE((SELECT SUM(amount)::NUMERIC FROM public.platform_ledger
+            WHERE created_at >= date_trunc('month', NOW())), 0)                                              AS mtd_revenue,
+  COALESCE((SELECT SUM(amount)::NUMERIC FROM public.admin_expenses), 0)                                     AS all_time_expenses,
+  COALESCE((SELECT SUM(amount)::NUMERIC FROM public.admin_expenses
+            WHERE date >= date_trunc('month', NOW())::date), 0)                                              AS mtd_expenses,
+  COALESCE((SELECT SUM(item_price)::NUMERIC FROM public.orders WHERE status = 'completed'), 0)              AS gmv,
+  COALESCE((SELECT SUM(total_paid)::NUMERIC FROM public.orders WHERE status IN ('paid','shipped')), 0)      AS active_escrow,
+  COALESCE((SELECT COUNT(*)::INT FROM public.orders WHERE status = 'cancelled' AND disputed_at IS NOT NULL), 0)  AS refund_count,
+  COALESCE((SELECT SUM(item_price)::NUMERIC FROM public.orders WHERE status = 'cancelled' AND disputed_at IS NOT NULL), 0) AS refund_value;
+
+REVOKE ALL ON public.admin_finance_summary FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.admin_finance_summary TO service_role;
+
+-- Monthly revenue rollup (last 12 months).
+CREATE OR REPLACE VIEW public.admin_ledger_monthly AS
+SELECT
+  to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
+  SUM(amount)::NUMERIC                                AS revenue
+FROM public.platform_ledger
+WHERE created_at >= (date_trunc('month', NOW()) - INTERVAL '11 months')
+GROUP BY 1;
+
+REVOKE ALL ON public.admin_ledger_monthly FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.admin_ledger_monthly TO service_role;
+
+-- Boosts revenue/count summary.
+CREATE OR REPLACE VIEW public.admin_boosts_summary AS
+SELECT
+  COALESCE(SUM(amount_paid)::NUMERIC, 0)                                                                  AS all_time_revenue,
+  COALESCE(SUM(amount_paid) FILTER (WHERE boosted_at >= NOW() - INTERVAL '30 days')::NUMERIC, 0)          AS thirty_day_revenue,
+  COALESCE(COUNT(*) FILTER (WHERE boosted_at >= NOW() - INTERVAL '30 days')::INT, 0)                       AS thirty_day_count,
+  COALESCE(COUNT(*) FILTER (WHERE expires_at > NOW())::INT, 0)                                             AS active_count
+FROM public.boosts;
+
+REVOKE ALL ON public.admin_boosts_summary FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.admin_boosts_summary TO service_role;
+
+-- Top boosters by spend in the last N days.
+CREATE OR REPLACE FUNCTION public.get_top_boosters(p_days INT DEFAULT 30, p_limit INT DEFAULT 5)
+RETURNS TABLE (
+  seller_id   UUID,
+  username    TEXT,
+  boost_count INT,
+  spent       NUMERIC
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    u.id            AS seller_id,
+    u.username,
+    COUNT(b.*)::INT AS boost_count,
+    COALESCE(SUM(b.amount_paid), 0)::NUMERIC AS spent
+  FROM public.boosts b
+  JOIN public.users u ON u.id = b.seller_id
+  WHERE b.boosted_at >= NOW() - (p_days::TEXT || ' days')::INTERVAL
+  GROUP BY u.id, u.username
+  ORDER BY spent DESC
+  LIMIT p_limit;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_top_boosters(INT, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_top_boosters(INT, INT) TO service_role;
+
+-- Admin sidebar badge counts, one round-trip.
+CREATE OR REPLACE FUNCTION public.get_admin_nav_counts()
+RETURNS TABLE (
+  disputes_count INT,
+  reports_count  INT,
+  stuck_paid     INT,
+  stuck_shipped  INT,
+  old_disputes   INT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'disputed')                                              AS disputes_count,
+    (SELECT COUNT(*)::INT FROM public.reports WHERE status = 'pending')                                              AS reports_count,
+    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'paid'     AND created_at  < NOW() - INTERVAL '3 days')  AS stuck_paid,
+    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'shipped'  AND shipped_at  < NOW() - INTERVAL '14 days') AS stuck_shipped,
+    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'disputed' AND disputed_at < NOW() - INTERVAL '7 days')  AS old_disputes;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_admin_nav_counts() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_admin_nav_counts() TO service_role;
