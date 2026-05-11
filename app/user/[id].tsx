@@ -238,6 +238,7 @@ export default function SellerProfileScreen() {
   const hasRating = (seller.rating_count ?? 0) > 0;
   const hasSold = (soldCount ?? 0) > 0;
   const hasResponseRate = responseRate !== null;
+  const isNewSeller = !!seller.is_seller && !hasRating && (listings.length > 0 || hasSold);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -297,6 +298,11 @@ export default function SellerProfileScreen() {
                   seller.avg_response_time_mins <= 120 && (
                   <View style={[styles.badgePill, { backgroundColor: '#1F2D08' }]}>
                     <Text style={[styles.badgePillText, { color: '#C7F75E' }]}>⚡ Fast Responder</Text>
+                  </View>
+                )}
+                {isNewSeller && (
+                  <View style={[styles.badgePill, { backgroundColor: '#C7F75E' }]}>
+                    <Text style={[styles.badgePillText, { color: '#0D0D0D' }]}>New seller</Text>
                   </View>
                 )}
               </View>

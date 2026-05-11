@@ -837,10 +837,14 @@ export default function ListingDetailScreen() {
                     <Text style={styles.featuredBadgeText}>Featured</Text>
                   </View>
                 )}
-                {(listing.seller?.rating_count ?? 0) > 0 && (
+                {(listing.seller?.rating_count ?? 0) > 0 ? (
                   <View style={styles.sellerRating}>
                     <StarRating rating={listing.seller?.rating_avg ?? 0} size={11} />
                     <Text style={styles.sellerSub}>({listing.seller?.rating_count})</Text>
+                  </View>
+                ) : (
+                  <View style={styles.newSellerBadge}>
+                    <Text style={styles.newSellerBadgeText}>New seller</Text>
                   </View>
                 )}
               </View>
@@ -1447,6 +1451,8 @@ function getStyles(colors: ColorTokens) {
     sellerName: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
     featuredBadge: { backgroundColor: colors.secondary, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.full },
     featuredBadgeText: { ...Typography.micro, fontFamily: FontFamily.semibold, color: colors.textPrimary },
+    newSellerBadge: { backgroundColor: '#C7F75E', paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.full },
+    newSellerBadgeText: { ...Typography.micro, fontFamily: FontFamily.semibold, color: '#0D0D0D' },
     sellerRating: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     sellerSub: { ...Typography.caption, color: colors.textSecondary },
 
