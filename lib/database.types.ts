@@ -1577,6 +1577,7 @@ export type Database = {
           location: string | null
           marketing_consent: boolean
           marketing_push_consent: boolean
+          marketing_prompted_at: string | null
           onboarding_completed: boolean | null
           phone: string | null
           postcode: string | null
@@ -1626,6 +1627,7 @@ export type Database = {
           location?: string | null
           marketing_consent?: boolean
           marketing_push_consent?: boolean
+          marketing_prompted_at?: string | null
           onboarding_completed?: boolean | null
           phone?: string | null
           postcode?: string | null
@@ -1675,6 +1677,7 @@ export type Database = {
           location?: string | null
           marketing_consent?: boolean
           marketing_push_consent?: boolean
+          marketing_prompted_at?: string | null
           onboarding_completed?: boolean | null
           phone?: string | null
           postcode?: string | null

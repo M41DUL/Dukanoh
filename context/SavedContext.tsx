@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { queryKeys } from '@/lib/queryKeys';
 import { useToggleSavedItem } from '@/lib/mutations';
+import { useMarketingConsent } from '@/context/MarketingConsentContext';
+import { isFirstSaveAction } from '@/lib/marketingConsent';
 
 interface SavedContextValue {
   savedIds: Set<string>;
@@ -42,18 +44,29 @@ export function SavedProvider({ children }: { children: React.ReactNode }) {
   const isSaved = useCallback((id: string) => savedIds.has(id), [savedIds]);
 
   const toggleMutation = useToggleSavedItem();
+  const { requestShow: requestMarketingConsent } = useMarketingConsent();
 
   // Fire-and-forget. The hook owns optimistic updates + rollback; callers
   // (heart buttons on cards, listing detail, etc.) don't await.
   const toggleSave = useCallback((listingId: string, price?: number) => {
     if (!userId) return;
+    const isCurrentlySaved = savedIds.has(listingId);
+    const isFirstSave = isFirstSaveAction(savedIds.size, isCurrentlySaved);
     toggleMutation.mutate({
       userId,
       listingId,
-      isCurrentlySaved: savedIds.has(listingId),
+      isCurrentlySaved,
       price,
     });
-  }, [userId, savedIds, toggleMutation]);
+    // First save = a clear "I like this" signal — best moment to ask about
+    // marketing notifications. Provider checks the gate (already opted-in
+    // / already prompted / etc.) and silently no-ops if not appropriate.
+    // Delay so the heart animation lands first; sheet feels like a reward
+    // for the action rather than an interruption.
+    if (isFirstSave) {
+      setTimeout(() => { requestMarketingConsent(); }, 800);
+    }
+  }, [userId, savedIds, toggleMutation, requestMarketingConsent]);
 
   const reload = useCallback(async () => {
     await refetch();

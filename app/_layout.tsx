@@ -31,6 +31,7 @@ import { ToastProvider } from '@/context/ToastContext';
 import { SavedProvider } from '@/context/SavedContext';
 import { BlockedProvider } from '@/context/BlockedContext';
 import { FeeConfigProvider } from '@/context/FeeConfigContext';
+import { MarketingConsentProvider } from '@/context/MarketingConsentContext';
 import { SplashAnimation } from '@/components/SplashAnimation';
 import { RootErrorBoundary } from '@/components/RootErrorBoundary';
 import { queryClient } from '@/lib/queryClient';
@@ -234,11 +235,13 @@ export default function RootLayout() {
             <ThemeProvider>
               <ToastProvider>
                 <FeeConfigProvider>
-                  <SavedProvider>
-                    <BlockedProvider>
-                      <RootNavigator />
-                    </BlockedProvider>
-                  </SavedProvider>
+                  <MarketingConsentProvider>
+                    <SavedProvider>
+                      <BlockedProvider>
+                        <RootNavigator />
+                      </BlockedProvider>
+                    </SavedProvider>
+                  </MarketingConsentProvider>
                 </FeeConfigProvider>
               </ToastProvider>
             </ThemeProvider>

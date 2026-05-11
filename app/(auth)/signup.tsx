@@ -170,7 +170,9 @@ export default function SignUpScreen() {
         }),
       );
       if (authError) throw authError;
-      // Write DOB and optional marketing push consent
+      // Write DOB and optional marketing push consent. We deliberately do
+      // not stamp marketing_prompted_at here — users who miss the checkbox
+      // get a second chance via the in-app sheet at their first save.
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await supabase.from('users').update({

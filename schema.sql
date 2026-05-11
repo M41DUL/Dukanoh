@@ -40,6 +40,7 @@ CREATE TABLE public.users (
   analytics_consent           BOOLEAN NOT NULL DEFAULT TRUE,   -- Firebase/analytics opt-out
   marketing_consent           BOOLEAN NOT NULL DEFAULT FALSE,  -- personalisation/retargeting opt-in
   marketing_push_consent      BOOLEAN NOT NULL DEFAULT FALSE,  -- marketing push notifications (PECR)
+  marketing_prompted_at       TIMESTAMPTZ,                     -- when we asked the user about marketing notifications (signup checkbox or in-app sheet); null = never asked
   last_active_at              TIMESTAMPTZ,                     -- bumped from useAuth on app open; powers "active in last X days" audience filter
   -- Stripe Connect Express
   stripe_account_id           TEXT,
