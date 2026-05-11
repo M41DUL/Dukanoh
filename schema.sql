@@ -505,11 +505,18 @@ CREATE TABLE public.reports (
   listing_id  UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
   seller_id   UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   reason      TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dismissed', 'actioned')),
+  reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  reviewed_at TIMESTAMPTZ,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (reporter_id, listing_id)
 );
 
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS reports_status_idx     ON public.reports (status);
+CREATE INDEX IF NOT EXISTS reports_created_at_idx ON public.reports (created_at DESC);
+CREATE INDEX IF NOT EXISTS reports_listing_id_idx ON public.reports (listing_id);
 
 CREATE POLICY "Users can create reports"
   ON public.reports FOR INSERT WITH CHECK ((select auth.uid()) = reporter_id);
