@@ -15,7 +15,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  preference: 'system',
+  preference: 'light',
   setPreference: async () => {},
   colors: lightColors,
   isDark: false,
@@ -23,7 +23,7 @@ const ThemeContext = createContext<ThemeContextValue>({
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const deviceScheme = useColorScheme();
-  const [preference, setPreferenceState] = useState<ThemePreference>('system');
+  const [preference, setPreferenceState] = useState<ThemePreference>('light');
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
