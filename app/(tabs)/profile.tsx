@@ -364,7 +364,7 @@ function getStyles(colors: ColorTokens) {
     },
     badgePillText: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     editBtn: {
       marginTop: Spacing.md,
@@ -429,7 +429,7 @@ function getStyles(colors: ColorTokens) {
     hubCardTitle: {
       ...Typography.subheading,
       color: HUB.textPrimary,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     proBadge: {
       backgroundColor: HUB.accent,
@@ -440,7 +440,7 @@ function getStyles(colors: ColorTokens) {
     proBadgeText: {
       ...Typography.caption,
       color: HUB.background,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     hubMetrics: {
       flexDirection: 'row',
@@ -454,7 +454,7 @@ function getStyles(colors: ColorTokens) {
     hubMetricValue: {
       ...Typography.subheading,
       color: HUB.accent,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
     },
     hubMetricLabel: {
       ...Typography.caption,
@@ -474,7 +474,7 @@ function getStyles(colors: ColorTokens) {
     hubCardFooterText: {
       ...Typography.caption,
       color: HUB.accent,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
     },
     hubPlanNameRow: {
       flexDirection: 'row' as const,
@@ -483,7 +483,7 @@ function getStyles(colors: ColorTokens) {
     },
     hubPlanName: {
       fontSize: 20,
-      fontFamily: FontFamily.black,
+      ...FontFamily.black,
       color: HUB.textPrimary,
       letterSpacing: -0.3,
       lineHeight: 26,
@@ -498,7 +498,7 @@ function getStyles(colors: ColorTokens) {
     },
     expiredPillText: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: '#F59E0B',
     },
     verifyPill: {
@@ -511,7 +511,7 @@ function getStyles(colors: ColorTokens) {
     },
     verifyPillText: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: HUB.textSecondary,
     },
     trialPill: {
@@ -524,23 +524,23 @@ function getStyles(colors: ColorTokens) {
     },
     trialPillText: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: HUB.accent,
     },
     hubBenefitLine: {
       fontSize: 15,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: HUB.textPrimary,
       lineHeight: 21,
     },
     hubCardPrice: {
       fontSize: 13,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: HUB.textSecondary,
     },
     hubFounderSuffix: {
       fontSize: 13,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: HUB.accent,
     },
     hubMoreChip: {
@@ -562,14 +562,14 @@ function getStyles(colors: ColorTokens) {
     },
     hubFeatureLabel: {
       fontSize: 13,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: HUB.textPrimary,
       flex: 1,
       lineHeight: 18,
     },
     hubMoreText: {
       fontSize: 13,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: HUB.accent,
     },
     inviteCard: {
@@ -586,14 +586,14 @@ function getStyles(colors: ColorTokens) {
     },
     inviteCardTitle: {
       fontSize: 16,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
       lineHeight: 22,
       textAlign: 'center',
     },
     inviteCardSubtitle: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textPrimary,
       lineHeight: 21,
       textAlign: 'center',

@@ -132,15 +132,24 @@ describe('FontFamily', () => {
     WEIGHTS.forEach(w => expect(FontFamily).toHaveProperty(w));
   });
 
-  test('all values start with Inter_', () => {
+  test('each entry pairs an Inter_ family with a numeric fontWeight', () => {
     Object.values(FontFamily).forEach(val => {
-      expect(val).toMatch(/^Inter_/);
+      expect(val.fontFamily).toMatch(/^Inter_/);
+      expect(val.fontWeight).toMatch(/^[1-9]00$/);
     });
   });
 
-  test('no duplicate font strings', () => {
-    const vals = Object.values(FontFamily);
-    expect(new Set(vals).size).toBe(vals.length);
+  test('no duplicate font families', () => {
+    const families = Object.values(FontFamily).map(v => v.fontFamily);
+    expect(new Set(families).size).toBe(families.length);
+  });
+
+  test('fontWeight matches the family name', () => {
+    // e.g. Inter_400Regular pairs with '400'
+    Object.values(FontFamily).forEach(val => {
+      const weightFromName = val.fontFamily.match(/Inter_(\d{3})/)?.[1];
+      expect(val.fontWeight).toBe(weightFromName);
+    });
   });
 });
 
@@ -154,11 +163,14 @@ describe('Typography', () => {
   });
 
   VARIANTS.forEach(variant => {
-    test(`${variant} has fontSize, fontFamily, and includeFontPadding`, () => {
+    test(`${variant} has fontSize, fontFamily, fontWeight, and includeFontPadding`, () => {
       const t = Typography[variant];
       expect(typeof t.fontSize).toBe('number');
       expect(t.fontSize).toBeGreaterThan(0);
       expect(typeof t.fontFamily).toBe('string');
+      expect(t.fontFamily).toMatch(/^Inter_/);
+      expect(typeof t.fontWeight).toBe('string');
+      expect(t.fontWeight).toMatch(/^[1-9]00$/);
       expect(t.includeFontPadding).toBe(false);
     });
   });

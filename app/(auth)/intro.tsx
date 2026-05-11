@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 13,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: 'rgba(255,255,255,0.85)',
     letterSpacing: 0.2,
   },
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 38,
-    fontFamily: FontFamily.black,
+    ...FontFamily.black,
     color: '#FFFFFF',
     lineHeight: LINE_HEIGHT,
   },

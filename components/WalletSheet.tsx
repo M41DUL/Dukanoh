@@ -219,7 +219,7 @@ function getStyles(_colors: ColorTokens) {
   return StyleSheet.create({
     title: {
       ...Typography.subheading,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       marginBottom: Spacing.lg,
     },
     content: {
@@ -241,14 +241,14 @@ function getStyles(_colors: ColorTokens) {
     },
     balanceMainLabel: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       letterSpacing: 0.6,
       textTransform: 'uppercase',
       color: 'rgba(255,255,255,0.7)',
     },
     balanceMainAmount: {
       fontSize: 26,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       color: '#FFFFFF',
       letterSpacing: -0.5,
     },
@@ -265,13 +265,13 @@ function getStyles(_colors: ColorTokens) {
     },
     balanceSideLabel: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       letterSpacing: 0.4,
       textTransform: 'uppercase',
     },
     balanceSideAmount: {
       fontSize: 16,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
     },
 
     // Unlock hero (unverified sellers)
@@ -290,12 +290,12 @@ function getStyles(_colors: ColorTokens) {
     },
     unlockTitle: {
       fontSize: 20,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       textAlign: 'center',
     },
     unlockBody: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       textAlign: 'center',
       lineHeight: 20,
     },
@@ -321,7 +321,7 @@ function getStyles(_colors: ColorTokens) {
     },
     pendingPayoutAmount: {
       fontSize: 15,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     pendingPayoutSub: {
       ...Typography.caption,

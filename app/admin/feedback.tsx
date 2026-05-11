@@ -220,16 +220,16 @@ function getStyles(colors: ColorTokens) {
     },
     typeText: {
       fontSize: 12,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     date: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textSecondary,
     },
     message: {
       fontSize: 15,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textPrimary,
       lineHeight: 22,
     },
@@ -243,7 +243,7 @@ function getStyles(colors: ColorTokens) {
     },
     userText: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textSecondary,
     },
     trustRow: {
@@ -262,12 +262,12 @@ function getStyles(colors: ColorTokens) {
     },
     trustPillText: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textSecondary,
     },
     joinDate: {
       fontSize: 11,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textSecondary,
     },
     divider: {
@@ -281,7 +281,7 @@ function getStyles(colors: ColorTokens) {
     },
     accessDenied: {
       fontSize: 15,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
     },
   });
 }

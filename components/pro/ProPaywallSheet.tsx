@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   },
   subheading: {
     fontSize: 22,
-    fontFamily: FontFamily.bold,
+    ...FontFamily.bold,
     color: P.textPrimary,
     textAlign: 'center',
     lineHeight: 30,
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
   },
   verifyPillText: {
     fontSize: 11,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: P.textSecondary,
   },
   trialPill: {
@@ -383,25 +383,25 @@ const styles = StyleSheet.create({
   },
   trialPillText: {
     fontSize: 11,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: P.primary,
   },
   founderSuffix: {
     fontSize: 12,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: P.primary,
     marginTop: 2,
   },
   benefitLine: {
     fontSize: 15,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: P.textPrimary,
     lineHeight: 21,
     marginBottom: Spacing.sm,
   },
   planName: {
     fontSize: 26,
-    fontFamily: FontFamily.black,
+    ...FontFamily.black,
     color: P.textPrimary,
     letterSpacing: -0.5,
     lineHeight: 32,
@@ -413,12 +413,12 @@ const styles = StyleSheet.create({
   },
   price: {
     fontSize: 18,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: P.textSecondary,
   },
   pricePer: {
     fontSize: 14,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: P.textSecondary,
   },
   featureList: {
@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
   },
   featureLabel: {
     fontSize: 15,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: P.textPrimary,
     flex: 1,
     lineHeight: 21,
@@ -453,12 +453,12 @@ const styles = StyleSheet.create({
   founderTitle: {
     flex: 1,
     fontSize: 14,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: P.primary,
   },
   founderCount: {
     fontSize: 13,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: P.textSecondary,
   },
   track: {
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   },
   founderNote: {
     fontSize: 13,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: P.textSecondary,
     lineHeight: 19,
   },
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   },
   trialNote: {
     fontSize: 12,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: P.textSecondary,
     textAlign: 'center',
     lineHeight: 18,

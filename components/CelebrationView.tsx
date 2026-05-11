@@ -167,13 +167,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontFamily: FontFamily.bold,
+    ...FontFamily.bold,
     textAlign: 'center',
     lineHeight: 34,
   },
   subtitle: {
     fontSize: 15,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     textAlign: 'center',
     lineHeight: 22,
     maxWidth: 300,

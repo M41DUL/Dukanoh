@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   },
   retryText: {
     ...Typography.body,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: '#FFFFFF',
   },
 });

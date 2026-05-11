@@ -114,12 +114,12 @@ function getStyles(_colors: ColorTokens) {
     },
     emptyTitle: {
       fontSize: 18,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       textAlign: 'center',
     },
     emptyBody: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       textAlign: 'center',
       lineHeight: 20,
     },
@@ -156,16 +156,16 @@ function getStyles(_colors: ColorTokens) {
     },
     infoTitle: {
       fontSize: 14,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     infoSub: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 18,
     },
     disclaimer: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       textAlign: 'center',
       lineHeight: 17,
     },

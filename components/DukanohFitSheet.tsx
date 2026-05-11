@@ -178,7 +178,7 @@ function getStyles(colors: ColorTokens) {
     detailKey: {
       ...Typography.label,
       color: colors.textPrimary,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     detailVal: {
       ...Typography.body,

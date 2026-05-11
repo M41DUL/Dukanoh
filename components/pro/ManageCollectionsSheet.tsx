@@ -118,11 +118,11 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     marginBottom: Spacing.md,
   },
   row: {
@@ -134,11 +134,11 @@ const styles = StyleSheet.create({
   },
   colName: {
     fontSize: 15,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
   colCount: {
     fontSize: 12,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     marginTop: 1,
   },
   input: {
@@ -147,6 +147,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
     fontSize: 15,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
   },
 });

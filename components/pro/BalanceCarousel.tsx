@@ -139,18 +139,18 @@ const styles = StyleSheet.create({
   },
   amount: {
     fontSize: 40,
-    fontFamily: FontFamily.black,
+    ...FontFamily.black,
     letterSpacing: -1,
     lineHeight: 48,
   },
   label: {
     fontSize: 13,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
     marginTop: 2,
   },
   subtitle: {
     fontSize: 12,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
   },
   withdrawBtn: {
     marginTop: Spacing.md,
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   },
   withdrawBtnText: {
     fontSize: 14,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   dots: {
     flexDirection: 'row',

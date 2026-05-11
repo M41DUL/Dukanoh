@@ -103,14 +103,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   loader: {
     marginTop: Spacing['2xl'],
   },
   empty: {
     fontSize: 14,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     marginTop: Spacing.lg,
     textAlign: 'center',
   },

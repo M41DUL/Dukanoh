@@ -117,7 +117,7 @@ function getStyles(colors: ColorTokens) {
     },
     question: {
       fontSize: 15,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
       lineHeight: 22,
     },
@@ -145,7 +145,7 @@ function getStyles(colors: ColorTokens) {
     emailBtnText: {
       flex: 1,
       fontSize: 15,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
     },
   });

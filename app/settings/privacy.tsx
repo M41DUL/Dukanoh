@@ -128,7 +128,7 @@ function getStyles(_colors: ColorTokens) {
     },
     intro: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 19,
     },
     card: {
@@ -148,11 +148,11 @@ function getStyles(_colors: ColorTokens) {
     },
     rowLabel: {
       fontSize: 14,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
     },
     rowDescription: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 17,
     },
   });

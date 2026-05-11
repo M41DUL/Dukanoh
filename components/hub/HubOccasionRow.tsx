@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
   },
   name: {
     ...Typography.body,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
     textTransform: 'capitalize',
   },
   stats: {

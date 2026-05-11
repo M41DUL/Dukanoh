@@ -94,7 +94,7 @@ function getStyles(colors: ColorTokens) {
     perkText: {
       ...Typography.body,
       color: colors.textPrimary,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       flex: 1,
       lineHeight: 20,
     },

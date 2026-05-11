@@ -222,13 +222,13 @@ function getStyles(colors: ColorTokens) {
     },
     stepNumberText: {
       fontSize: 12,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       color: '#FFFFFF',
     },
     stepTitle: {
       ...Typography.body,
       color: colors.textPrimary,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       fontSize: 16,
     },
     stepDescription: {

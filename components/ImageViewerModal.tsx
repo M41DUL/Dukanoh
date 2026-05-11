@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   counterText: {
     color: '#FFFFFF',
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
     fontSize: 14,
   },
 });

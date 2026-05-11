@@ -335,7 +335,7 @@ function getStyles(_colors: ColorTokens) {
     },
     filterPillText: {
       fontSize: 12,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
     },
 
     // List
@@ -368,7 +368,7 @@ function getStyles(_colors: ColorTokens) {
     },
     title: {
       ...Typography.body,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
     },
     counterparty: {
       ...Typography.caption,
@@ -388,7 +388,7 @@ function getStyles(_colors: ColorTokens) {
     },
     statusPillText: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     actionDot: {
       width: 7,

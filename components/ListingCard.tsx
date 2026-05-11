@@ -206,7 +206,7 @@ function getStyles(colors: ColorTokens) {
     soldLabel: {
       ...Typography.body,
       color: '#fff',
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       letterSpacing: 1.5,
     },
     featuredBadge: {
@@ -220,7 +220,7 @@ function getStyles(colors: ColorTokens) {
     },
     featuredText: {
       ...Typography.micro,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
     },
     heartBtn: {
@@ -232,8 +232,8 @@ function getStyles(colors: ColorTokens) {
       padding: 6,
     },
     content: { paddingVertical: Spacing.sm, gap: 3 },
-    title: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
-    titleHighlight: { fontFamily: FontFamily.bold },
+    title: { ...Typography.body, color: colors.textPrimary, ...FontFamily.semibold },
+    titleHighlight: { ...FontFamily.bold },
     meta: { ...Typography.body, color: colors.textSecondary },
     priceRow: {
       flexDirection: 'row',
@@ -252,7 +252,7 @@ function getStyles(colors: ColorTokens) {
     },
     priceDropLabel: {
       ...Typography.small,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.success,
     },
     totalRow: {
@@ -263,7 +263,7 @@ function getStyles(colors: ColorTokens) {
     },
     totalPrice: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
     },
   });

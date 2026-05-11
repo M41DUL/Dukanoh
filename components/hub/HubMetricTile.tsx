@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: 22,
-    fontFamily: FontFamily.bold,
+    ...FontFamily.bold,
     letterSpacing: -0.5,
   },
   label: {

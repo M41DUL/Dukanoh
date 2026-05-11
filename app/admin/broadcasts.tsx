@@ -181,7 +181,7 @@ function getStyles(colors: ColorTokens) {
     rowTitle: {
       flex: 1,
       fontSize: 15,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       color: colors.textPrimary,
     },
     statusPill: {
@@ -191,18 +191,18 @@ function getStyles(colors: ColorTokens) {
     },
     statusText: {
       fontSize: 10,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
     },
     rowBody: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textPrimary,
     },
     rowMeta: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textSecondary,
     },
   });

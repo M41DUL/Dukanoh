@@ -57,7 +57,7 @@ function getStyles(colors: ColorTokens) {
     },
     retryText: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: '#FFFFFF',
     },
     homeLink: {

@@ -83,11 +83,11 @@ const styles = StyleSheet.create({
   listingTitle: {
     ...Typography.body,
     color: HUB.textPrimary,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
   listingPrice: {
     fontSize: 15,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: HUB.accent,
   },
   listingStats: {

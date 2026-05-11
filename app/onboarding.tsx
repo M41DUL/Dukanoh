@@ -298,7 +298,7 @@ const bubbleStyles = StyleSheet.create({
     overflow: 'visible',
   },
   label: {
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     textAlign: 'center',
     paddingHorizontal: 4,
   },

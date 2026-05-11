@@ -738,7 +738,7 @@ const viewerStyles = StyleSheet.create({
   listingHeadline: {
     fontSize: 18,
     lineHeight: 24,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: '#fff',
   },
   listingCtaBtn: {
@@ -821,7 +821,7 @@ const viewerStyles = StyleSheet.create({
   appHeadline: {
     fontSize: 28,
     lineHeight: 34,
-    fontFamily: FontFamily.bold,
+    ...FontFamily.bold,
     color: '#fff',
     textAlign: 'center',
     letterSpacing: -0.4,

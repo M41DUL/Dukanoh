@@ -793,7 +793,7 @@ const styles = StyleSheet.create({
   },
   avatarInitials: {
     fontSize: 14,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   proBadgeNotif: {
     position: 'absolute',
@@ -812,12 +812,12 @@ const styles = StyleSheet.create({
   },
   headerName: {
     fontSize: 17,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     lineHeight: 22,
   },
   headerUsername: {
     fontSize: 13,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
   },
   ratingCircle: {
     width: 40,
@@ -830,7 +830,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 12,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
 
   // Balance carousel — edge-to-edge breakout
@@ -873,11 +873,11 @@ const styles = StyleSheet.create({
   },
   notifBadgeText: {
     fontSize: 10,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   quickLinkLabel: {
     ...Typography.caption,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
 
   // Account banners
@@ -891,12 +891,12 @@ const styles = StyleSheet.create({
   },
   bannerTitle: {
     fontSize: 13,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     marginBottom: 2,
   },
   bannerBody: {
     fontSize: 12,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     lineHeight: 17,
   },
 
@@ -930,13 +930,13 @@ const styles = StyleSheet.create({
   },
   earningsLabel: {
     fontSize: 11,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   earningsHero: {
     fontSize: 26,
-    fontFamily: FontFamily.bold,
+    ...FontFamily.bold,
     letterSpacing: -0.5,
   },
   earningsChartWrap: {
@@ -957,11 +957,11 @@ const styles = StyleSheet.create({
   },
   earningsStatLabel: {
     fontSize: 11,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
   },
   earningsStatValue: {
     fontSize: 18,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     letterSpacing: -0.5,
   },
   earningsStatDivider: {
@@ -998,7 +998,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 15,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   cardActions: {
     flexDirection: 'row',
@@ -1012,7 +1012,7 @@ const styles = StyleSheet.create({
   },
   cardActionText: {
     fontSize: 13,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
   cardActionDivider: {
     width: 1,
@@ -1046,18 +1046,18 @@ const styles = StyleSheet.create({
   },
   squareCardLabel: {
     fontSize: 11,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     textAlign: 'center',
   },
   squareCardValue: {
     fontSize: 32,
-    fontFamily: FontFamily.bold,
+    ...FontFamily.bold,
     letterSpacing: -1,
     textAlign: 'center',
   },
   squareCardSubtitle: {
     fontSize: 11,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     textAlign: 'center',
   },
   squareCardFooter: {
@@ -1068,7 +1068,7 @@ const styles = StyleSheet.create({
   },
   squareCardAction: {
     fontSize: 12,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
 
   // Collections
@@ -1087,11 +1087,11 @@ const styles = StyleSheet.create({
   },
   collectionName: {
     fontSize: 13,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
   collectionCount: {
     fontSize: 12,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
   },
 
   // Occasion
@@ -1108,13 +1108,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
   },
 
   // Sheets
   sheetTitle: {
     fontSize: 17,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     marginBottom: Spacing.md,
   },
   sheetInput: {
@@ -1122,12 +1122,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: Spacing.md,
     fontSize: 15,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     marginBottom: Spacing.md,
   },
   sheetEmptyText: {
     fontSize: 14,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     marginBottom: Spacing.md,
   },
   sheetOption: {
@@ -1139,7 +1139,7 @@ const styles = StyleSheet.create({
   },
   sheetOptionText: {
     fontSize: 15,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
   },
 
   // Settings footer

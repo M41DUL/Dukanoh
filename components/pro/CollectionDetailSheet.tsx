@@ -81,11 +81,11 @@ const rowStyles = StyleSheet.create({
   },
   name: {
     fontSize: 14,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
   price: {
     fontSize: 12,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     marginTop: 2,
   },
 });
@@ -188,11 +188,11 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   section: {
     fontSize: 11,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: Spacing.md,
@@ -204,6 +204,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
   },
 });

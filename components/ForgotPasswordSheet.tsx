@@ -113,14 +113,14 @@ export function ForgotPasswordSheet({ visible, onClose, initialEmail = '' }: For
 const styles = StyleSheet.create({
   title: {
     fontSize: 28,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: '#FFFFFF',
     marginBottom: Spacing.xs,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 15,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: 'rgba(255,255,255,0.6)',
     marginBottom: Spacing.lg,
     lineHeight: 22,
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 13,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: lightColors.error,
   },
   sentContainer: {},

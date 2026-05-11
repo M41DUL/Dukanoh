@@ -169,78 +169,73 @@ export type ColorTokens = typeof lightColors;
 // Static fallback — screens should use useThemeColors() hook instead
 export const Colors = lightColors;
 
+// FontFamily entries pair the Expo Google Fonts family with the matching
+// numeric fontWeight. Always spread (`...FontFamily.bold`) instead of
+// assigning to `fontFamily` directly — this keeps iOS and Android in sync.
+// If only `fontFamily` is set, Android may apply synthetic boldening from a
+// stale inherited `fontWeight`, making text render heavier than on iOS.
 export const FontFamily = {
-  thin: 'Inter_100Thin',
-  extraLight: 'Inter_200ExtraLight',
-  light: 'Inter_300Light',
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semibold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
-  extraBold: 'Inter_800ExtraBold',
-  black: 'Inter_900Black',
+  thin:       { fontFamily: 'Inter_100Thin',       fontWeight: '100' as const },
+  extraLight: { fontFamily: 'Inter_200ExtraLight', fontWeight: '200' as const },
+  light:      { fontFamily: 'Inter_300Light',      fontWeight: '300' as const },
+  regular:    { fontFamily: 'Inter_400Regular',    fontWeight: '400' as const },
+  medium:     { fontFamily: 'Inter_500Medium',     fontWeight: '500' as const },
+  semibold:   { fontFamily: 'Inter_600SemiBold',   fontWeight: '600' as const },
+  bold:       { fontFamily: 'Inter_700Bold',       fontWeight: '700' as const },
+  extraBold:  { fontFamily: 'Inter_800ExtraBold',  fontWeight: '800' as const },
+  black:      { fontFamily: 'Inter_900Black',      fontWeight: '900' as const },
 };
 
 export const Typography = {
   display: {
     fontSize: 32,
-    fontWeight: '700' as const,
-    fontFamily: 'Inter_700Bold',
+    ...FontFamily.bold,
     includeFontPadding: false,
   },
   heading: {
     fontSize: 24,
-    fontWeight: '700' as const,
-    fontFamily: 'Inter_700Bold',
+    ...FontFamily.bold,
     includeFontPadding: false,
   },
   price: {
     fontSize: 28,
-    fontWeight: '700' as const,
-    fontFamily: 'Inter_700Bold',
+    ...FontFamily.bold,
     includeFontPadding: false,
   },
   subheading: {
     fontSize: 18,
-    fontWeight: '600' as const,
-    fontFamily: 'Inter_600SemiBold',
+    ...FontFamily.semibold,
     includeFontPadding: false,
   },
   bodyLarge: {
     fontSize: 16,
-    fontWeight: '400' as const,
-    fontFamily: 'Inter_400Regular',
+    ...FontFamily.regular,
     includeFontPadding: false,
   },
   body: {
     fontSize: 14,
-    fontWeight: '400' as const,
-    fontFamily: 'Inter_400Regular',
+    ...FontFamily.regular,
     includeFontPadding: false,
   },
   caption: {
     fontSize: 12,
-    fontWeight: '400' as const,
-    fontFamily: 'Inter_400Regular',
+    ...FontFamily.regular,
     includeFontPadding: false,
   },
   small: {
     fontSize: 11,
-    fontWeight: '400' as const,
-    fontFamily: 'Inter_400Regular',
+    ...FontFamily.regular,
     includeFontPadding: false,
   },
   micro: {
     fontSize: 10,
-    fontWeight: '400' as const,
-    fontFamily: 'Inter_400Regular',
+    ...FontFamily.regular,
     includeFontPadding: false,
   },
   label: {
     fontSize: 14,
-    fontWeight: '500' as const,
     letterSpacing: 0,
-    fontFamily: 'Inter_500Medium',
+    ...FontFamily.medium,
     includeFontPadding: false,
   },
 };

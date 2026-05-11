@@ -280,7 +280,7 @@ const chipStyles = StyleSheet.create({
   },
   text: {
     fontSize: 13,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
 });
 
@@ -293,7 +293,7 @@ function getStyles(colors: ColorTokens) {
     },
     sectionLabel: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.6,
@@ -301,7 +301,7 @@ function getStyles(colors: ColorTokens) {
     },
     subLabel: {
       fontSize: 12,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       color: colors.textSecondary,
       marginBottom: Spacing.xs,
     },
@@ -321,11 +321,11 @@ function getStyles(colors: ColorTokens) {
     },
     previewText: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     previewSub: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textSecondary,
     },
     sendBtn: {

@@ -963,8 +963,8 @@ export default function ListingDetailScreen() {
         {/* Total row */}
         <View style={[styles.breakdownRow, { marginTop: Spacing.md }]}>
           <View style={styles.breakdownInfo}>
-            <Text style={[styles.breakdownLabel, { fontFamily: FontFamily.semibold }]}>Total Including Safe Checkout</Text>
-            <Text style={[styles.breakdownValue, { fontFamily: FontFamily.semibold }]}>£{calcOrderTotal(listing.price, feePercent, feeFlat).toFixed(2)}</Text>
+            <Text style={[styles.breakdownLabel, { ...FontFamily.semibold }]}>Total Including Safe Checkout</Text>
+            <Text style={[styles.breakdownValue, { ...FontFamily.semibold }]}>£{calcOrderTotal(listing.price, feePercent, feeFlat).toFixed(2)}</Text>
           </View>
         </View>
 
@@ -1168,7 +1168,7 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.full,
       minHeight: 44,
     },
-    savePillText: { ...Typography.body, color: '#FFFFFF', fontFamily: FontFamily.regular },
+    savePillText: { ...Typography.body, color: '#FFFFFF', ...FontFamily.regular },
     imageBottomBar: {
       position: 'absolute',
       bottom: Spacing.base,
@@ -1180,7 +1180,7 @@ function getStyles(colors: ColorTokens) {
     savePillPlaceholder: { width: 100 },
     statusPillDraft: { backgroundColor: 'rgba(247,159,0,0.85)' },
     statusPillSold: { backgroundColor: 'rgba(0,0,0,0.55)' },
-    statusPillText: { ...Typography.body, color: '#FFFFFF', fontFamily: FontFamily.semibold },
+    statusPillText: { ...Typography.body, color: '#FFFFFF', ...FontFamily.semibold },
     dotsRow: {
       flex: 1,
       flexDirection: 'row',
@@ -1210,7 +1210,7 @@ function getStyles(colors: ColorTokens) {
       paddingVertical: 3,
       borderRadius: BorderRadius.full,
     },
-    imageCounterText: { ...Typography.caption, color: '#FFFFFF', fontFamily: FontFamily.semibold },
+    imageCounterText: { ...Typography.caption, color: '#FFFFFF', ...FontFamily.semibold },
 
     // Thumbnails
 
@@ -1227,13 +1227,13 @@ function getStyles(colors: ColorTokens) {
     titleGroup: { gap: Spacing.md },
     titleBlock: { gap: 4 },
     titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-    title: { ...Typography.heading, fontSize: 18, fontFamily: FontFamily.regular, color: colors.textPrimary, flex: 1 },
-    subtitle: { ...Typography.body, fontSize: 14, fontFamily: FontFamily.medium, color: colors.textSecondary },
-    price: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, color: colors.textPrimary },
+    title: { ...Typography.heading, fontSize: 18, ...FontFamily.regular, color: colors.textPrimary, flex: 1 },
+    subtitle: { ...Typography.body, fontSize: 14, ...FontFamily.medium, color: colors.textSecondary },
+    price: { ...Typography.body, fontSize: 16, ...FontFamily.medium, color: colors.textPrimary },
     priceBlock: { gap: 2 },
-    itemPrice: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.medium, color: colors.textSecondary },
+    itemPrice: { ...Typography.body, fontSize: 16, ...FontFamily.medium, color: colors.textSecondary },
     totalPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    totalPrice: { ...Typography.body, fontSize: 16, fontFamily: FontFamily.semibold, color: colors.textPrimary },
+    totalPrice: { ...Typography.body, fontSize: 16, ...FontFamily.semibold, color: colors.textPrimary },
     pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
     demandBanner: {
       width: 100,
@@ -1247,7 +1247,7 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.full,
       minHeight: 44,
     },
-    demandText: { ...Typography.body, color: colors.amber, fontFamily: FontFamily.regular },
+    demandText: { ...Typography.body, color: colors.amber, ...FontFamily.regular },
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
 
     // CTAs
@@ -1270,7 +1270,7 @@ function getStyles(colors: ColorTokens) {
     },
     analyticsValue: {
       ...Typography.subheading,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       color: colors.textPrimary,
     },
     analyticsLabel: {
@@ -1311,7 +1311,7 @@ function getStyles(colors: ColorTokens) {
     },
     boostedCardTitle: {
       fontSize: 15,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       color: '#0D0D0D',
     },
     boostedCardSub: {
@@ -1372,7 +1372,7 @@ function getStyles(colors: ColorTokens) {
     },
     boostDetailVal: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
     },
     boostPriceRow: {
@@ -1389,7 +1389,7 @@ function getStyles(colors: ColorTokens) {
     betaBadgeText: {
       ...Typography.caption,
       color: colors.primaryText,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
 
     // Sold banner
@@ -1413,7 +1413,7 @@ function getStyles(colors: ColorTokens) {
     },
     sectionLabel: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
     },
     descriptionBlock: { gap: Spacing.xs },
@@ -1429,7 +1429,7 @@ function getStyles(colors: ColorTokens) {
     },
     wornAtLabel: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
     },
     wornAtText: {
@@ -1442,23 +1442,23 @@ function getStyles(colors: ColorTokens) {
     measureBody: { gap: Spacing.xs, paddingBottom: Spacing.sm },
     measureLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.xs },
     measureKey: { ...Typography.body, color: colors.textSecondary },
-    measureVal: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
+    measureVal: { ...Typography.body, color: colors.textPrimary, ...FontFamily.semibold },
 
     // Seller
     sellerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.base, paddingVertical: Spacing.sm },
     sellerInfo: { flex: 1, gap: 2 },
     sellerNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-    sellerName: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
+    sellerName: { ...Typography.body, color: colors.textPrimary, ...FontFamily.semibold },
     featuredBadge: { backgroundColor: colors.secondary, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.full },
-    featuredBadgeText: { ...Typography.micro, fontFamily: FontFamily.semibold, color: colors.textPrimary },
+    featuredBadgeText: { ...Typography.micro, ...FontFamily.semibold, color: colors.textPrimary },
     newSellerBadge: { backgroundColor: '#C7F75E', paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.full },
-    newSellerBadgeText: { ...Typography.micro, fontFamily: FontFamily.semibold, color: '#0D0D0D' },
+    newSellerBadgeText: { ...Typography.micro, ...FontFamily.semibold, color: '#0D0D0D' },
     sellerRating: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
     sellerSub: { ...Typography.caption, color: colors.textSecondary },
 
     // Review
     reviewBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
-    reviewBtnText: { ...Typography.body, color: colors.primaryText, fontFamily: FontFamily.semibold },
+    reviewBtnText: { ...Typography.body, color: colors.primaryText, ...FontFamily.semibold },
 
     // More from seller
 
@@ -1527,7 +1527,7 @@ function getStyles(colors: ColorTokens) {
       overflow: 'hidden',
     },
     offerItemInfo: { flex: 1, gap: 3 },
-    offerItemTitle: { ...Typography.body, color: colors.textPrimary, fontFamily: FontFamily.semibold },
+    offerItemTitle: { ...Typography.body, color: colors.textPrimary, ...FontFamily.semibold },
     offerItemPrice: { ...Typography.caption, color: colors.textSecondary },
     offerPresets: {
       flexDirection: 'row',
@@ -1547,7 +1547,7 @@ function getStyles(colors: ColorTokens) {
       borderColor: colors.primary,
       borderWidth: 2,
     },
-    offerPresetPrice: { fontSize: 14, fontFamily: FontFamily.semibold, color: colors.textPrimary },
+    offerPresetPrice: { fontSize: 14, ...FontFamily.semibold, color: colors.textPrimary },
     offerPresetLabel: { ...Typography.caption, color: colors.textSecondary },
     amountRow: {
       flexDirection: 'row',
@@ -1558,8 +1558,8 @@ function getStyles(colors: ColorTokens) {
       gap: Spacing.xs,
       marginTop: Spacing.sm,
     },
-    currencySymbol: { fontSize: 20, fontFamily: FontFamily.semibold, color: colors.textPrimary },
-    amountInput: { fontSize: 20, fontFamily: FontFamily.semibold, color: colors.textPrimary, flex: 1, padding: 0 },
+    currencySymbol: { fontSize: 20, ...FontFamily.semibold, color: colors.textPrimary },
+    amountInput: { fontSize: 20, ...FontFamily.semibold, color: colors.textPrimary, flex: 1, padding: 0 },
     modalError: { ...Typography.caption, color: colors.error },
   });
 }

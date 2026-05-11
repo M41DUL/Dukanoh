@@ -126,7 +126,7 @@ function getStyles(_colors: ColorTokens) {
     },
     intro: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 20,
     },
     section: {
@@ -134,7 +134,7 @@ function getStyles(_colors: ColorTokens) {
     },
     sectionLabel: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       letterSpacing: 0.6,
       textTransform: 'uppercase',
     },
@@ -146,13 +146,13 @@ function getStyles(_colors: ColorTokens) {
     },
     textArea: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 22,
       minHeight: 120,
     },
     charCount: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       textAlign: 'right',
     },
     infoBox: {
@@ -161,7 +161,7 @@ function getStyles(_colors: ColorTokens) {
     },
     infoText: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 18,
     },
   });

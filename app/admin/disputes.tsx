@@ -376,12 +376,12 @@ function getStyles(_colors: ColorTokens) {
     },
     itemTitle: {
       fontSize: 13,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       lineHeight: 18,
     },
     itemMeta: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
     },
     appealBadge: {
       flexDirection: 'row',
@@ -395,7 +395,7 @@ function getStyles(_colors: ColorTokens) {
     },
     appealBadgeText: {
       fontSize: 12,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     reasonPill: {
       alignSelf: 'flex-start',
@@ -405,11 +405,11 @@ function getStyles(_colors: ColorTokens) {
     },
     reasonText: {
       fontSize: 12,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     description: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 18,
     },
     appealReason: {
@@ -420,7 +420,7 @@ function getStyles(_colors: ColorTokens) {
     },
     appealReasonLabel: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
     },
@@ -432,7 +432,7 @@ function getStyles(_colors: ColorTokens) {
     },
     accessDenied: {
       fontSize: 15,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
     },
     // Modal
     modalWrap: {
@@ -448,7 +448,7 @@ function getStyles(_colors: ColorTokens) {
     },
     modalTitle: {
       fontSize: 17,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     modalScroll: { flex: 1 },
     modalContent: {
@@ -458,7 +458,7 @@ function getStyles(_colors: ColorTokens) {
     },
     sectionLabel: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       textTransform: 'uppercase',
       letterSpacing: 0.6,
     },
@@ -472,12 +472,12 @@ function getStyles(_colors: ColorTokens) {
     },
     outcomeLabel: {
       fontSize: 14,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       marginBottom: 2,
     },
     outcomeSub: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 16,
     },
     radio: {
@@ -496,7 +496,7 @@ function getStyles(_colors: ColorTokens) {
     },
     noteHint: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 18,
       marginTop: -Spacing.xs,
     },
@@ -508,13 +508,13 @@ function getStyles(_colors: ColorTokens) {
     },
     textArea: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 22,
       minHeight: 100,
     },
     charCount: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       textAlign: 'right',
       marginTop: -Spacing.xs,
     },
@@ -528,7 +528,7 @@ function getStyles(_colors: ColorTokens) {
     infoText: {
       flex: 1,
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 18,
     },
   });

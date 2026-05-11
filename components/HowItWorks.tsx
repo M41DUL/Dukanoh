@@ -38,7 +38,7 @@ function getStyles(colors: ColorTokens) {
     },
     title: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
       marginBottom: Spacing.xs,
     },
@@ -57,7 +57,7 @@ function getStyles(colors: ColorTokens) {
     },
     number: {
       ...Typography.caption,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textSecondary,
       lineHeight: 14,
     },

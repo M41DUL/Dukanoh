@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 34,
-    fontFamily: FontFamily.black,
+    ...FontFamily.black,
     color: '#FFFFFF',
     lineHeight: LINE_HEIGHT,
   },
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   },
   submitBtnText: {
     fontSize: 16,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: '#0D0D0D',
     letterSpacing: 0.2,
   },
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   },
   confirmedTitle: {
     fontSize: 28,
-    fontFamily: FontFamily.bold,
+    ...FontFamily.bold,
     color: '#0D0D0D',
     textAlign: 'center',
   },

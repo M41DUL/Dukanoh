@@ -127,13 +127,13 @@ export function AuthSheet({ visible, mode, onClose, onEmail }: AuthSheetProps) {
 const styles = StyleSheet.create({
   title: {
     fontSize: 28,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: '#FFFFFF',
     marginBottom: Spacing.xs,
   },
   subtitle: {
     fontSize: 15,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: 'rgba(255,255,255,0.6)',
     marginBottom: Spacing.lg,
   },

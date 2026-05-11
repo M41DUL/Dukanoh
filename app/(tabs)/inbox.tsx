@@ -390,7 +390,7 @@ function getStyles(colors: ColorTokens) {
     },
     officialPillText: {
       fontSize: 10,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: '#FFFFFF',
     },
     unreadDot: {

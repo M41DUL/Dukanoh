@@ -360,11 +360,11 @@ function getStyles(colors: ColorTokens) {
     successText: {
       ...Typography.caption,
       color: '#15803D',
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
     },
     sectionLabel: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       textTransform: 'uppercase',
       letterSpacing: 0.6,
     },
@@ -388,7 +388,7 @@ function getStyles(colors: ColorTokens) {
     optionLabel: {
       flex: 1,
       fontSize: 15,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
     },
     radio: {
       width: 20,
@@ -423,7 +423,7 @@ function getStyles(colors: ColorTokens) {
     declarationText: {
       flex: 1,
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 19,
     },
   });

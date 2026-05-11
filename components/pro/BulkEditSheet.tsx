@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   presetsRow: {
     flexDirection: 'row',
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   },
   presetText: {
     fontSize: 13,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   emptyState: {
     flex: 1,
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 15,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
   },
   list: {
     paddingBottom: Spacing.xl,
@@ -283,11 +283,11 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     fontSize: 14,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
   rowOriginal: {
     fontSize: 12,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     marginTop: 2,
   },
   inputWrap: {
@@ -300,11 +300,11 @@ const styles = StyleSheet.create({
   },
   inputPrefix: {
     fontSize: 15,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
   input: {
     fontSize: 15,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     minWidth: 60,
     textAlign: 'right',
   },

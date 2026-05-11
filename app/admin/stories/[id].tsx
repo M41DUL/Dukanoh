@@ -372,7 +372,7 @@ function getStyles(colors: ColorTokens) {
     },
     sectionLabel: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.6,
@@ -411,7 +411,7 @@ function getStyles(colors: ColorTokens) {
     toggleLabel: {
       flex: 1,
       fontSize: 15,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       color: colors.textPrimary,
     },
     divider: { marginVertical: 0 },
@@ -422,7 +422,7 @@ function getStyles(colors: ColorTokens) {
     },
     fieldLabel: {
       fontSize: 12,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       color: colors.textSecondary,
       marginTop: Spacing.sm,
       marginBottom: Spacing.xs,
@@ -440,7 +440,7 @@ function getStyles(colors: ColorTokens) {
     },
     destChipText: {
       fontSize: 13,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
     },
     expiryRow: {
       flexDirection: 'row',
@@ -455,7 +455,7 @@ function getStyles(colors: ColorTokens) {
     },
     expiryChipText: {
       fontSize: 13,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
     },
     saveBtn: {
       marginTop: Spacing.sm,

@@ -44,13 +44,13 @@ const styles = StyleSheet.create({
   },
   shareCardTitle: {
     fontSize: 15,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: HUB.textPrimary,
     marginTop: Spacing.xs,
   },
   shareCardPrice: {
     fontSize: 18,
-    fontFamily: FontFamily.bold,
+    ...FontFamily.bold,
     color: HUB.accent,
   },
 });

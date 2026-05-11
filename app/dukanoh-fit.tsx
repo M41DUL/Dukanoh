@@ -331,12 +331,12 @@ function getStyles(colors: ColorTokens) {
     sectionLabel: {
       ...Typography.label,
       color: colors.textPrimary,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     detectedTag: {
       ...Typography.micro,
       color: colors.textPrimary,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       backgroundColor: `${colors.secondary}33`,
       paddingHorizontal: Spacing.xs,
       paddingVertical: 2,

@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   },
   text: {
     ...Typography.body,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
     textAlign: 'center',
   },
 });

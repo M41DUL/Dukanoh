@@ -428,12 +428,12 @@ function getStyles(colors: ColorTokens) {
     },
     inviteCode: {
       fontSize: 15,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       letterSpacing: 0.5,
     },
     inviteStatus: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
     },
     shareBtn: {
       flexDirection: 'row',
@@ -445,7 +445,7 @@ function getStyles(colors: ColorTokens) {
     },
     shareBtnText: {
       fontSize: 13,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
 
     // Sections
@@ -485,14 +485,14 @@ function getStyles(colors: ColorTokens) {
     badgeText: {
       ...Typography.caption,
       color: '#FFFFFF',
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       fontSize: 11,
     },
 
     // Footer
     footer: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textSecondary,
       textAlign: 'center',
       marginTop: Spacing.lg,

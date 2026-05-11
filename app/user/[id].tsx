@@ -507,7 +507,7 @@ function getStyles(colors: ColorTokens) {
       flex: 1,
       ...Typography.body,
       fontSize: 16,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
       textAlign: 'center',
     },
@@ -540,11 +540,11 @@ function getStyles(colors: ColorTokens) {
     },
     badgePillText: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     username: {
       ...Typography.subheading,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       color: colors.textPrimary,
     },
     joinedText: {
@@ -568,7 +568,7 @@ function getStyles(colors: ColorTokens) {
     },
     statValue: {
       ...Typography.subheading,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       color: colors.textPrimary,
     },
     statLabel: {
@@ -589,7 +589,7 @@ function getStyles(colors: ColorTokens) {
     },
     messageBtnText: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
 
     // Divider
@@ -626,7 +626,7 @@ function getStyles(colors: ColorTokens) {
     },
     rateBtnText: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
 
     // Review cards
@@ -644,7 +644,7 @@ function getStyles(colors: ColorTokens) {
     },
     reviewerName: {
       ...Typography.body,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textPrimary,
     },
     reviewDate: {

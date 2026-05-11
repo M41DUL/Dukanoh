@@ -250,7 +250,7 @@ function getStyles(_colors: ColorTokens) {
     },
     statusBadgeText: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
   });
 }

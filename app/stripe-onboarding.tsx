@@ -194,12 +194,12 @@ function getStyles(_colors: ColorTokens) {
     },
     heroTitle: {
       fontSize: 22,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       textAlign: 'center',
     },
     heroBody: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       textAlign: 'center',
       lineHeight: 20,
     },
@@ -228,11 +228,11 @@ function getStyles(_colors: ColorTokens) {
     },
     benefitTitle: {
       fontSize: 14,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     benefitBody: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 18,
     },
     needsBox: {
@@ -242,7 +242,7 @@ function getStyles(_colors: ColorTokens) {
     },
     sectionLabel: {
       fontSize: 14,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     needsRow: {
       flexDirection: 'row',
@@ -252,12 +252,12 @@ function getStyles(_colors: ColorTokens) {
     needsText: {
       flex: 1,
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 18,
     },
     disclaimer: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       textAlign: 'center',
       lineHeight: 17,
     },

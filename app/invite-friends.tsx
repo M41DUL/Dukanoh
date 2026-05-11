@@ -271,13 +271,13 @@ function getStyles(_colors: ColorTokens) {
     },
     heroTitle: {
       fontSize: 32,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       color: '#FFFFFF',
       lineHeight: 38,
     },
     heroSubtitle: {
       fontSize: 16,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: 'rgba(255,255,255,0.7)',
       lineHeight: 24,
     },
@@ -301,7 +301,7 @@ function getStyles(_colors: ColorTokens) {
     },
     codeText: {
       fontSize: 20,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       color: '#FFFFFF',
       letterSpacing: 3,
     },
@@ -316,7 +316,7 @@ function getStyles(_colors: ColorTokens) {
     },
     shareBtnText: {
       fontSize: 16,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: lightColors.primary,
     },
     noSellerCard: {
@@ -330,7 +330,7 @@ function getStyles(_colors: ColorTokens) {
     noSellerText: {
       flex: 1,
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: 'rgba(255,255,255,0.6)',
       lineHeight: 20,
     },
@@ -342,7 +342,7 @@ function getStyles(_colors: ColorTokens) {
     },
     perksSectionTitle: {
       fontSize: 18,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: '#FFFFFF',
       marginBottom: Spacing.lg,
     },
@@ -365,12 +365,12 @@ function getStyles(_colors: ColorTokens) {
     },
     perkTitle: {
       fontSize: 15,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: '#FFFFFF',
     },
     perkDescription: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: 'rgba(255,255,255,0.6)',
       lineHeight: 20,
     },
@@ -382,7 +382,7 @@ function getStyles(_colors: ColorTokens) {
     },
     stepsSectionTitle: {
       fontSize: 18,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: '#FFFFFF',
       marginBottom: Spacing.lg,
     },
@@ -409,12 +409,12 @@ function getStyles(_colors: ColorTokens) {
     },
     stepNumberText: {
       fontSize: 14,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
       color: lightColors.primary,
     },
     stepText: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: 'rgba(255,255,255,0.7)',
       textAlign: 'center',
     },
@@ -438,7 +438,7 @@ function getStyles(_colors: ColorTokens) {
     },
     sectionLabel: {
       fontSize: 12,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: 'rgba(255,255,255,0.5)',
       textTransform: 'uppercase',
       letterSpacing: 0.5,
@@ -456,12 +456,12 @@ function getStyles(_colors: ColorTokens) {
     },
     invitedUsername: {
       fontSize: 15,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: '#FFFFFF',
     },
     invitedDate: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: 'rgba(255,255,255,0.5)',
     },
     emptyInvites: {
@@ -471,7 +471,7 @@ function getStyles(_colors: ColorTokens) {
     },
     emptyInvitesText: {
       fontSize: 15,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: 'rgba(255,255,255,0.5)',
       textAlign: 'center',
       lineHeight: 22,

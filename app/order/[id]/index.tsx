@@ -668,7 +668,7 @@ function MetaRow({ label, value, bold, colors }: { label: string; value: string;
   return (
     <View style={metaStyles.row}>
       <Text style={[metaStyles.label, { color: colors.textSecondary }]}>{label}</Text>
-      <Text style={[metaStyles.value, { color: colors.textPrimary, fontFamily: bold ? FontFamily.bold : FontFamily.medium }]}>
+      <Text style={[metaStyles.value, { color: colors.textPrimary, ...(bold ? FontFamily.bold : FontFamily.medium) }]}>
         {value}
       </Text>
     </View>
@@ -677,7 +677,7 @@ function MetaRow({ label, value, bold, colors }: { label: string; value: string;
 
 const metaStyles = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  label: { fontSize: 13, fontFamily: FontFamily.regular },
+  label: { fontSize: 13, ...FontFamily.regular },
   value: { fontSize: 13 },
 });
 
@@ -704,7 +704,7 @@ function getStyles(_colors: ColorTokens) {
     },
     statusText: {
       fontSize: 13,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     imageWrap: {
       borderRadius: BorderRadius.large,
@@ -720,12 +720,12 @@ function getStyles(_colors: ColorTokens) {
     },
     itemTitle: {
       fontSize: 16,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       lineHeight: 22,
     },
     itemPrice: {
       fontSize: 22,
-      fontFamily: FontFamily.bold,
+      ...FontFamily.bold,
     },
     divider: {
       height: StyleSheet.hairlineWidth,
@@ -736,7 +736,7 @@ function getStyles(_colors: ColorTokens) {
     },
     sectionLabel: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       letterSpacing: 0.6,
       textTransform: 'uppercase',
     },
@@ -757,16 +757,16 @@ function getStyles(_colors: ColorTokens) {
       padding: Spacing.base,
     },
     nudgeText: { flex: 1, gap: 2 },
-    nudgeTitle: { fontSize: 13, fontFamily: FontFamily.semibold },
-    nudgeSub: { fontSize: 12, fontFamily: FontFamily.regular, lineHeight: 17 },
+    nudgeTitle: { fontSize: 13, ...FontFamily.semibold },
+    nudgeSub: { fontSize: 12, ...FontFamily.regular, lineHeight: 17 },
     hint: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 18,
     },
     addressText: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 22,
     },
     inputWrap: {
@@ -778,7 +778,7 @@ function getStyles(_colors: ColorTokens) {
     },
     textInput: {
       fontSize: 14,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
     },
     autoRelease: {
       flexDirection: 'row',
@@ -792,7 +792,7 @@ function getStyles(_colors: ColorTokens) {
     autoReleaseText: {
       flex: 1,
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 17,
     },
     disputeHeader: {
@@ -816,7 +816,7 @@ function getStyles(_colors: ColorTokens) {
     },
     reasonText: {
       fontSize: 12,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     stickyBar: {
       borderTopWidth: StyleSheet.hairlineWidth,

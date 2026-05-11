@@ -71,12 +71,12 @@ const styles = StyleSheet.create({
   },
   nameOnImage: {
     fontSize: 14,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     color: '#FFFFFF',
   },
   countOnImage: {
     fontSize: 12,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     color: 'rgba(255,255,255,0.75)',
     marginTop: 2,
   },
@@ -89,12 +89,12 @@ const styles = StyleSheet.create({
   },
   namePlaceholder: {
     fontSize: 13,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
     textAlign: 'center',
   },
   countPlaceholder: {
     fontSize: 11,
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     textAlign: 'center',
   },
 });

@@ -569,8 +569,8 @@ export default function CheckoutScreen() {
 
         <View style={[styles.breakdownRow, { marginTop: Spacing.md }]}>
           <View style={styles.breakdownInfo}>
-            <Text style={[styles.breakdownLabel, { fontFamily: FontFamily.semibold }]}>Total Including Safe Checkout</Text>
-            <Text style={[styles.breakdownValue, { fontFamily: FontFamily.semibold }]}>£{total.toFixed(2)}</Text>
+            <Text style={[styles.breakdownLabel, { ...FontFamily.semibold }]}>Total Including Safe Checkout</Text>
+            <Text style={[styles.breakdownValue, { ...FontFamily.semibold }]}>£{total.toFixed(2)}</Text>
           </View>
         </View>
 

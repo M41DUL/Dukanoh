@@ -215,12 +215,12 @@ function getStyles(colors: ColorTokens) {
     },
     rowTitle: {
       fontSize: 15,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       color: colors.textPrimary,
     },
     rowSub: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textSecondary,
     },
     divider: {
@@ -228,7 +228,7 @@ function getStyles(colors: ColorTokens) {
     },
     sectionTitle: {
       fontSize: 11,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.6,
@@ -242,7 +242,7 @@ function getStyles(colors: ColorTokens) {
     tierLabel: {
       flex: 1,
       fontSize: 15,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       color: colors.textPrimary,
     },
     tierRadio: {

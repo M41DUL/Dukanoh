@@ -202,12 +202,12 @@ function getStyles(colors: ColorTokens) {
     },
     rowTitle: {
       fontSize: 15,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       color: colors.textPrimary,
     },
     rowMeta: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textSecondary,
     },
     expiredPill: {
@@ -217,7 +217,7 @@ function getStyles(colors: ColorTokens) {
     },
     expiredText: {
       fontSize: 10,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.5,

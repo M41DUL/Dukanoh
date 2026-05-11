@@ -148,11 +148,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   title: {
-    fontFamily: FontFamily.bold,
+    ...FontFamily.bold,
     fontSize: Typography.subheading.fontSize,
   },
   subtitle: {
-    fontFamily: FontFamily.regular,
+    ...FontFamily.regular,
     fontSize: Typography.body.fontSize,
     textAlign: 'center',
   },
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.large,
   },
   shareLabel: {
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
     fontSize: Typography.body.fontSize,
   },
   buttons: {

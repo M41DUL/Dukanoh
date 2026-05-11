@@ -117,7 +117,7 @@ function getStyles(colors: ColorTokens) {
     },
     label: {
       fontSize: 13,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       color: colors.textSecondary,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
@@ -142,7 +142,7 @@ function getStyles(colors: ColorTokens) {
     },
     typeChipText: {
       fontSize: 14,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
       color: colors.textPrimary,
     },
     typeChipTextActive: {
@@ -155,13 +155,13 @@ function getStyles(colors: ColorTokens) {
       borderColor: colors.border,
       padding: Spacing.base,
       fontSize: 15,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textPrimary,
       minHeight: 140,
     },
     charCount: {
       fontSize: 12,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       color: colors.textSecondary,
       textAlign: 'right',
       marginTop: -Spacing.sm,

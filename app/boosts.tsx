@@ -348,11 +348,11 @@ const rowStyles = StyleSheet.create({
   },
   title: {
     ...Typography.body,
-    fontFamily: FontFamily.medium,
+    ...FontFamily.medium,
   },
   price: {
     fontSize: 15,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   expires: {
     ...Typography.caption,
@@ -365,7 +365,7 @@ const rowStyles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 11,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
   boostBtn: {
     borderWidth: 1,
@@ -377,7 +377,7 @@ const rowStyles = StyleSheet.create({
   },
   boostBtnText: {
     fontSize: 11,
-    fontFamily: FontFamily.semibold,
+    ...FontFamily.semibold,
   },
 });
 
@@ -406,7 +406,7 @@ function getStyles(P: ReturnType<typeof useProColors>) {
     },
     headerTitle: {
       fontSize: 17,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
     },
     scroll: {
       paddingHorizontal: Spacing.base,
@@ -432,12 +432,12 @@ function getStyles(P: ReturnType<typeof useProColors>) {
     },
     quotaNum: {
       fontSize: 22,
-      fontFamily: FontFamily.black,
+      ...FontFamily.black,
       lineHeight: 26,
     },
     quotaOf: {
       fontSize: 10,
-      fontFamily: FontFamily.medium,
+      ...FontFamily.medium,
     },
     quotaInfo: {
       flex: 1,
@@ -445,17 +445,17 @@ function getStyles(P: ReturnType<typeof useProColors>) {
     },
     quotaTitle: {
       fontSize: 15,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       lineHeight: 20,
     },
     quotaNote: {
       fontSize: 13,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       lineHeight: 18,
     },
     sectionLabel: {
       fontSize: 12,
-      fontFamily: FontFamily.semibold,
+      ...FontFamily.semibold,
       textTransform: 'uppercase',
       letterSpacing: 0.5,
       marginTop: Spacing.xs,
@@ -467,7 +467,7 @@ function getStyles(P: ReturnType<typeof useProColors>) {
     },
     emptyText: {
       fontSize: 15,
-      fontFamily: FontFamily.regular,
+      ...FontFamily.regular,
       textAlign: 'center',
       lineHeight: 22,
     },
