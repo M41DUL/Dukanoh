@@ -10,15 +10,12 @@ import { useFocusEffect } from 'expo-router';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { Divider } from '@/components/Divider';
 import { Spacing, BorderRadius, FontFamily, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
 interface ConsentState {
-  analytics_consent: boolean;
-  marketing_consent: boolean;
   marketing_push_consent: boolean;
 }
 
@@ -28,8 +25,6 @@ export default function PrivacySettingsScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [consent, setConsent] = useState<ConsentState>({
-    analytics_consent: true,
-    marketing_consent: false,
     marketing_push_consent: false,
   });
   const [loading, setLoading] = useState(true);
@@ -38,14 +33,12 @@ export default function PrivacySettingsScreen() {
     if (!user) return;
     supabase
       .from('users')
-      .select('analytics_consent, marketing_consent, marketing_push_consent')
+      .select('marketing_push_consent')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
           setConsent({
-            analytics_consent: data.analytics_consent ?? true,
-            marketing_consent: data.marketing_consent ?? false,
             marketing_push_consent: data.marketing_push_consent ?? false,
           });
         }
@@ -76,28 +69,10 @@ export default function PrivacySettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.intro, { color: colors.textSecondary }]}>
-          Manage how Dukanoh uses your data. Strictly necessary cookies cannot be disabled as they are required for the app to function.
+          Choose what Dukanoh can send you. You can change this at any time.
         </Text>
 
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <ToggleRow
-            label="Analytics"
-            description="Usage patterns and crash reports. Helps us improve the app."
-            value={consent.analytics_consent}
-            onValueChange={v => handleToggle('analytics_consent', v)}
-            colors={colors}
-            styles={styles}
-          />
-          <Divider />
-          <ToggleRow
-            label="Marketing & personalisation"
-            description="Personalised recommendations and retargeting on third-party platforms."
-            value={consent.marketing_consent}
-            onValueChange={v => handleToggle('marketing_consent', v)}
-            colors={colors}
-            styles={styles}
-          />
-          <Divider />
           <ToggleRow
             label="Marketing notifications"
             description="Promotions, new features, and personalised offers from Dukanoh."

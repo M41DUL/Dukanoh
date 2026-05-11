@@ -231,7 +231,7 @@ export default function SettingsScreen() {
     {
       icon: 'options-outline',
       title: 'Privacy Settings',
-      subtitle: 'Manage cookies and tracking',
+      subtitle: 'Manage marketing notifications',
       onPress: () => router.push('/settings/privacy'),
     },
     {
