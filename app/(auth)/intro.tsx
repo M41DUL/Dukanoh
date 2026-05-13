@@ -302,6 +302,8 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 38,
     ...FontFamily.black,
+    // Android applies synthetic boldening on top of Inter_900Black when fontWeight is also '900' — drop to 'normal' so the family weight stands alone.
+    fontWeight: Platform.OS === 'android' ? 'normal' : FontFamily.black.fontWeight,
     color: '#FFFFFF',
     lineHeight: LINE_HEIGHT,
   },
