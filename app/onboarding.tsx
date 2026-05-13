@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,346 +7,91 @@ import {
   BackHandler,
   Animated,
   Easing,
-  useWindowDimensions,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/lib/supabase';
 import {
-  Typography,
+  lightColors,
   Spacing,
+  BorderRadius,
   FontFamily,
-  ColorTokens,
 } from '@/constants/theme';
 import {
-  LOGO_FINAL_W,
-  LOGO_FINAL_H,
-} from '@/constants/logoLayout';
-import {
   ONBOARDING_CATEGORIES,
-  CATEGORY_LAYOUT,
-  CATEGORY_DISTANCES,
-  MAX_DIST,
-  BASE_WIDTH,
   getSubtitleText,
   toggleCategory as toggleCat,
-  BubbleLayout,
 } from '@/constants/onboardingHelpers';
-import { useThemeColors } from '@/hooks/useThemeColors';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Button } from '@/components/Button';
 import { BottomSheet } from '@/components/BottomSheet';
 
-// ─── Confetti particle ──────────────────────────────────────
+// ─── Pill selector ──────────────────────────────────────────
 
-const PARTICLE_COUNT = 6;
-const PARTICLE_COLORS = ['#C7F75E', '#3735C5', '#FF6B6B', '#FFD93D', '#6BCB77', '#9B59B6'];
-
-function ConfettiParticles({ fire, size }: { fire: boolean; size: number }) {
-  const progressAnims = useRef(
-    Array.from({ length: PARTICLE_COUNT }, () => new Animated.Value(0)),
-  ).current;
-  const directions = useRef(
-    Array.from({ length: PARTICLE_COUNT }, () => ({
-      angle: Math.random() * Math.PI * 2,
-      distance: 20 + Math.random() * 30,
-    })),
-  );
-
-  useEffect(() => {
-    if (!fire) return;
-    directions.current = Array.from({ length: PARTICLE_COUNT }, () => ({
-      angle: Math.random() * Math.PI * 2,
-      distance: 20 + Math.random() * 30,
-    }));
-    progressAnims.forEach((p) => {
-      p.setValue(0);
-      Animated.timing(p, {
-        toValue: 1,
-        duration: 500,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start();
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fire]); // progressAnims are stable Animated.Value refs
-
-  const centre = size / 2;
-
-  return (
-    <>
-      {progressAnims.map((progress, i) => {
-        const d = directions.current[i];
-        return (
-          <Animated.View
-            key={i}
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: centre - 3,
-              top: centre - 3,
-              width: 6,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: PARTICLE_COLORS[i % PARTICLE_COLORS.length],
-              opacity: progress.interpolate({
-                inputRange: [0, 0.3, 1],
-                outputRange: [0, 1, 0],
-              }),
-              transform: [
-                {
-                  translateX: progress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, Math.cos(d.angle) * d.distance],
-                  }),
-                },
-                {
-                  translateY: progress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, Math.sin(d.angle) * d.distance],
-                  }),
-                },
-                {
-                  scale: progress.interpolate({
-                    inputRange: [0, 0.5, 1],
-                    outputRange: [0, 1.2, 0.4],
-                  }),
-                },
-              ],
-            }}
-          />
-        );
-      })}
-    </>
-  );
-}
-
-// ─── Animated bubble ────────────────────────────────────────
-
-function Bubble({
+function PillSelector({
   label,
-  active,
+  selected,
   onPress,
-  layout,
   index,
   animate,
-  colors,
-  areaHeight,
-  screenWidth,
 }: {
   label: string;
-  active: boolean;
+  selected: boolean;
   onPress: () => void;
-  layout: BubbleLayout;
   index: number;
   animate: boolean;
-  colors: ColorTokens;
-  areaHeight: number;
-  screenWidth: number;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const entrance = useRef(new Animated.Value(animate ? 0 : 1)).current;
-  const float = useRef(new Animated.Value(0)).current;
-  const colorAnim = useRef(new Animated.Value(active ? 1 : 0)).current;
-  const [fireConfetti, setFireConfetti] = useState(false);
-  const wasActive = useRef(active);
-
-  // Centre-out stagger: closer to centre = smaller delay
-  const normDist = CATEGORY_DISTANCES[index] / MAX_DIST;
-  const entranceDelay = 200 + normDist * 800;
 
   useEffect(() => {
     if (!animate) return;
     Animated.timing(entrance, {
       toValue: 1,
-      duration: 400,
-      delay: entranceDelay,
+      duration: 350,
+      delay: 80 + index * 55,
       easing: Easing.out(Easing.back(1.4)),
       useNativeDriver: true,
     }).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // one-time entrance animation — animated values are stable refs
-
-  // Colour fade + confetti on selection, shrink on deselection
-  useEffect(() => {
-    Animated.timing(colorAnim, {
-      toValue: active ? 1 : 0,
-      duration: 250,
-      easing: Easing.out(Easing.ease),
-      useNativeDriver: false,
-    }).start();
-
-    if (active && !wasActive.current) {
-      // Confetti on newly selected
-      setFireConfetti(false);
-      requestAnimationFrame(() => setFireConfetti(true));
-    } else if (!active && wasActive.current) {
-      // Subtle shrink-bounce on deselect
-      Animated.sequence([
-        Animated.timing(scale, { toValue: 0.9, duration: 100, useNativeDriver: true }),
-        Animated.spring(scale, { toValue: 1, speed: 20, bounciness: 10, useNativeDriver: true }),
-      ]).start();
-    }
-    wasActive.current = active;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]); // colorAnim and scale are stable Animated.Value refs
-
-  // Gentle float when selected
-  useEffect(() => {
-    if (active) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(float, { toValue: -4, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(float, { toValue: 4, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ]),
-      ).start();
-    } else {
-      float.stopAnimation();
-      Animated.timing(float, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    }
-    return () => { float.stopAnimation(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]); // float is a stable Animated.Value ref
+  }, []); // one-time entrance — entrance is a stable Animated.Value ref
 
   const handlePress = async () => {
-    await Haptics.selectionAsync();
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Animated.sequence([
-      Animated.timing(scale, {
-        toValue: 0.85,
-        duration: 80,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        speed: 20,
-        bounciness: 14,
-        useNativeDriver: true,
-      }),
+      Animated.timing(scale, { toValue: 0.96, duration: 80, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, speed: 22, bounciness: 10, useNativeDriver: true }),
     ]).start();
     onPress();
   };
 
-  const containerWidth = screenWidth - Spacing.base * 2;
-  const bubbleSize = active ? layout.size * (screenWidth / BASE_WIDTH) * 1.06 : layout.size * (screenWidth / BASE_WIDTH);
-
-  const bgColor = colorAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [colors.surface, colors.secondary],
-  });
-  const borderColor = colorAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [colors.border, colors.secondary],
-  });
-
   return (
     <Animated.View
       style={{
-        position: 'absolute',
-        left: layout.left * containerWidth,
-        top: layout.top * areaHeight,
         opacity: entrance,
-        transform: [
-          { scale: Animated.multiply(entrance, scale) },
-          { translateY: float },
-        ],
+        transform: [{ scale: Animated.multiply(entrance, scale) }],
       }}
     >
       <TouchableOpacity
         onPress={handlePress}
-        activeOpacity={0.7}
+        activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityState={{ selected: active }}
+        accessibilityState={{ selected }}
       >
-        <Animated.View
-          style={[
-            bubbleStyles.bubble,
-            {
-              width: bubbleSize,
-              height: bubbleSize,
-              borderRadius: bubbleSize / 2,
-              backgroundColor: bgColor,
-              borderColor: borderColor,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              bubbleStyles.label,
-              {
-                color: active ? '#0D0D0D' : colors.textPrimary,
-                fontSize: 13,
-              },
-            ]}
-            numberOfLines={1}
-          >
+        <View style={[pillStyles.pill, selected ? pillStyles.pillSelected : pillStyles.pillMuted]}>
+          <Text style={[pillStyles.label, { color: selected ? '#0D0D0D' : '#FFFFFF' }]}>
             {label}
           </Text>
-          <ConfettiParticles fire={fireConfetti} size={bubbleSize} />
-        </Animated.View>
+          <View style={[pillStyles.indicator, selected ? pillStyles.indicatorSelected : pillStyles.indicatorMuted]}>
+            {selected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+          </View>
+        </View>
       </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
-const bubbleStyles = StyleSheet.create({
-  bubble: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    overflow: 'visible',
-  },
-  label: {
-    ...FontFamily.semibold,
-    textAlign: 'center',
-    paddingHorizontal: 4,
-  },
-});
-
-// ─── Shimmer overlay ────────────────────────────────────────
-
-function ShimmerOverlay({ visible, screenWidth }: { visible: boolean; screenWidth: number }) {
-  const shimmer = useRef(new Animated.Value(-1)).current;
-
-  useEffect(() => {
-    if (!visible) return;
-    Animated.loop(
-      Animated.timing(shimmer, {
-        toValue: 2,
-        duration: 1800,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]); // shimmer is a stable Animated.Value ref
-
-  if (!visible) return null;
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={{
-        ...StyleSheet.absoluteFillObject,
-        transform: [
-          {
-            translateX: shimmer.interpolate({
-              inputRange: [-1, 2],
-              outputRange: [-screenWidth, screenWidth * 2],
-            }),
-          },
-        ],
-      }}
-    >
-      <View
-        style={{
-          width: screenWidth * 0.5,
-          height: '100%',
-          backgroundColor: 'rgba(255,255,255,0.7)',
-          transform: [{ skewX: '-20deg' }],
-        }}
-      />
     </Animated.View>
   );
 }
@@ -360,30 +105,18 @@ export default function OnboardingScreen() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  const [animateBubbles, setAnimateBubbles] = useState(false);
-  const [bubbleAreaHeight, setBubbleAreaHeight] = useState(0);
-  const [showShimmer, setShowShimmer] = useState(true);
+  const [animatePills, setAnimatePills] = useState(false);
   const [error, setError] = useState('');
-  const { width: screenWidth } = useWindowDimensions();
-  const colors = useThemeColors();
   const insets = useSafeAreaInsets();
-  const styles = useMemo(() => getStyles(colors), [colors]);
 
-  // Start bubble animation immediately, show welcome sheet after a short delay (skip on reset)
   useEffect(() => {
-    requestAnimationFrame(() => setAnimateBubbles(true));
+    requestAnimationFrame(() => setAnimatePills(true));
     if (!isReset) {
       const timer = setTimeout(() => setShowWelcome(true), 400);
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentional mount-only — isReset is a prop that doesn't change after mount
-
-  // Stop shimmer once bubbles have finished entering
-  useEffect(() => {
-    const shimmerTimer = setTimeout(() => setShowShimmer(false), 2000);
-    return () => clearTimeout(shimmerTimer);
-  }, []);
 
   // Android hardware back — consume the event to prevent app exit
   useEffect(() => {
@@ -436,71 +169,69 @@ export default function OnboardingScreen() {
   const categoryCount = selectedCategories.length;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Big watermark logo at bottom */}
-      <View style={styles.logoContainer}>
-        <View style={{ marginBottom: -60 }}>
-          <DukanohLogo width={LOGO_FINAL_W} height={LOGO_FINAL_H} />
-        </View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar style="light" />
+
+      {/* Small wordmark top-left — matches intro */}
+      <View style={styles.header}>
+        <DukanohLogo width={80} height={14} color={lightColors.secondary} />
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.heading}>What are you into?</Text>
-        <Text style={styles.subtitle}>
-          {getSubtitleText(categoryCount)}
-        </Text>
-        <Text style={styles.hint}>These shape your home feed</Text>
-
-        <View style={styles.heroCard}>
-          <View style={styles.shimmerClip}>
-            <ShimmerOverlay visible={showShimmer} screenWidth={screenWidth} />
+      {/* Hero card — heading + pills all scroll together inside */}
+      <View style={styles.heroCard}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.headingBlock}>
+            <Text style={styles.counter}>{getSubtitleText(categoryCount)}</Text>
           </View>
-          <View
-            style={styles.bubbleArea}
-            onLayout={(e) => setBubbleAreaHeight(e.nativeEvent.layout.height)}
-          >
-            {bubbleAreaHeight > 0 && ONBOARDING_CATEGORIES.map((cat, i) => (
-              <Bubble
-                key={cat}
-                label={cat}
-                active={selectedCategories.includes(cat)}
-                onPress={() => toggleCategory(cat)}
-                layout={CATEGORY_LAYOUT[i]}
-                index={i}
-                animate={animateBubbles}
-                colors={colors}
-                areaHeight={bubbleAreaHeight}
-                screenWidth={screenWidth}
-              />
-            ))}
-          </View>
-        </View>
 
-        <View style={styles.footer}>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Button
-            label="Show me my feed"
-            onPress={saveAndNavigate}
-            variant="primary"
-            disabled={categoryCount === 0}
-            loading={saving}
-          />
-        </View>
+          {ONBOARDING_CATEGORIES.map((cat, i) => (
+            <PillSelector
+              key={cat}
+              label={cat}
+              selected={selectedCategories.includes(cat)}
+              onPress={() => toggleCategory(cat)}
+              index={i}
+              animate={animatePills}
+            />
+          ))}
+        </ScrollView>
+      </View>
 
-        <View style={styles.logoSpacer} />
+      {/* CTA */}
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.base) }]}>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Button
+          label="Show me my feed"
+          onPress={saveAndNavigate}
+          variant="secondary"
+          disabled={categoryCount === 0}
+          loading={saving}
+        />
       </View>
 
       {/* Welcome bottom sheet — only on first signup, not profile reset */}
-      <BottomSheet visible={showWelcome} onClose={() => setShowWelcome(false)}>
+      <BottomSheet
+        visible={showWelcome}
+        onClose={() => setShowWelcome(false)}
+        backgroundColor={lightColors.primary}
+        handleColor="rgba(255,255,255,0.3)"
+        bottomPadding={0}
+      >
         <View style={styles.sheetContent}>
-          <Text style={styles.sheetHeading}>{"What's your taste?"}</Text>
+          <Text style={styles.sheetHeading} numberOfLines={1} adjustsFontSizeToFit>
+            Your feed, your vibe.
+          </Text>
           <Text style={styles.sheetSubtitle}>
-            {"Pick the categories you love. Your home feed builds itself around your choices. You can update them any time in Settings."}
+            Pick the categories you love. Your home feed reshapes around them. Change it up any time in Settings.
           </Text>
           <Button
-            label="Choose my categories"
+            label="Let's pick"
             onPress={() => setShowWelcome(false)}
-            variant="primary"
+            variant="secondary"
             style={styles.sheetButton}
           />
         </View>
@@ -509,94 +240,119 @@ export default function OnboardingScreen() {
   );
 }
 
-function getStyles(colors: ColorTokens) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    logoContainer: {
-      ...StyleSheet.absoluteFillObject,
-      alignItems: 'center',
-      justifyContent: 'flex-end',
-      overflow: 'hidden',
-    },
-    content: {
-      flex: 1,
-      paddingHorizontal: Spacing.base,
-      paddingTop: Spacing.xl,
-    },
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: lightColors.primary,
+  },
+  header: {
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.base,
+  },
+  heroCard: {
+    flex: 1,
+    borderRadius: 24,
+    backgroundColor: '#1E1C8A',
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.base,
+    overflow: 'hidden',
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  headingBlock: {
+    paddingTop: Spacing.lg,
+    // Compensate for the scroll container's gap (Spacing.sm) so the visual
+    // whitespace above and below the counter matches.
+    paddingBottom: Spacing.lg - Spacing.sm,
+    alignItems: 'center',
+  },
+  counter: {
+    fontSize: 14,
+    ...FontFamily.medium,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+  },
+  footer: {
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.base,
+    gap: Spacing.sm,
+  },
+  error: {
+    fontSize: 12,
+    ...FontFamily.regular,
+    color: '#FF8888',
+    textAlign: 'center',
+  },
 
-    heading: {
-      ...Typography.heading,
-      color: colors.textPrimary,
-      textAlign: 'center',
-      marginBottom: Spacing.sm,
-    },
-    subtitle: {
-      ...Typography.body,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      lineHeight: 22,
-    },
-    hint: {
-      ...Typography.caption,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      marginTop: Spacing.xs,
-    },
+  // Welcome sheet — centered copy, indigo bg, flush CTA
+  sheetContent: {
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xs,
+  },
+  sheetHeading: {
+    fontSize: 32,
+    ...FontFamily.black,
+    fontWeight: Platform.OS === 'android' ? 'normal' : FontFamily.black.fontWeight,
+    color: '#FFFFFF',
+    lineHeight: 38,
+    textAlign: 'center',
+  },
+  sheetSubtitle: {
+    fontSize: 15,
+    ...FontFamily.regular,
+    color: 'rgba(255,255,255,0.75)',
+    lineHeight: 22,
+    marginTop: Spacing.md,
+    textAlign: 'center',
+  },
+  sheetButton: {
+    marginTop: Spacing.xl,
+    alignSelf: 'stretch',
+  },
+});
 
-    // Hero card
-    heroCard: {
-      flex: 1,
-      borderRadius: 24,
-      backgroundColor: colors.primaryLight,
-      marginTop: Spacing.base,
-      marginBottom: Spacing.base,
-    },
-    shimmerClip: {
-      ...StyleSheet.absoluteFillObject,
-      borderRadius: 24,
-      overflow: 'hidden',
-    },
-    bubbleArea: {
-      flex: 1,
-      margin: Spacing.base,
-    },
-
-    // Footer
-    footer: {
-      gap: Spacing.sm,
-    },
-    error: {
-      ...Typography.caption,
-      color: colors.error,
-      textAlign: 'center',
-    },
-    logoSpacer: {
-      height: LOGO_FINAL_H - 60 + Spacing.xl + (Platform.OS === 'android' ? 40 : 0),
-    },
-
-    // Welcome sheet
-    sheetContent: {
-      alignItems: 'center',
-      paddingHorizontal: Spacing.xs,
-    },
-    sheetHeading: {
-      ...Typography.heading,
-      color: colors.textPrimary,
-      textAlign: 'center',
-      marginBottom: Spacing.sm,
-    },
-    sheetSubtitle: {
-      ...Typography.body,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      lineHeight: 22,
-    },
-    sheetButton: {
-      marginTop: Spacing.xl,
-      width: '100%',
-    },
-  });
-}
+const pillStyles = StyleSheet.create({
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    height: 64,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  pillMuted: {
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(255,255,255,0.20)',
+  },
+  pillSelected: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  label: {
+    fontSize: 18,
+    ...FontFamily.bold,
+    letterSpacing: 0.2,
+  },
+  indicator: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  indicatorMuted: {
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  indicatorSelected: {
+    backgroundColor: '#0D0D0D',
+  },
+});

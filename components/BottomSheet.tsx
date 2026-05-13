@@ -26,9 +26,10 @@ interface BottomSheetProps {
   useModal?: boolean;
   backgroundColor?: string;
   handleColor?: string;
+  bottomPadding?: number;
 }
 
-export function BottomSheet({ visible, onClose, children, fullScreen = false, useModal = false, backgroundColor, handleColor }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, children, fullScreen = false, useModal = false, backgroundColor, handleColor, bottomPadding }: BottomSheetProps) {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -136,7 +137,7 @@ export function BottomSheet({ visible, onClose, children, fullScreen = false, us
             styles.sheet,
             {
               backgroundColor: backgroundColor ?? colors.background,
-              paddingBottom: insets.bottom + Spacing.xl,
+              paddingBottom: insets.bottom + (bottomPadding ?? Spacing.xl),
               transform: [{ translateY: sheetAnim }],
             },
             fullScreen && {

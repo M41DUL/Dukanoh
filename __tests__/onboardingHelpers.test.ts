@@ -1,13 +1,5 @@
 import {
   ONBOARDING_CATEGORIES,
-  CATEGORY_LAYOUT,
-  CATEGORY_DISTANCES,
-  MAX_DIST,
-  BASE_WIDTH,
-  computeDistances,
-  getEntranceDelay,
-  getScaledSize,
-  getActiveBubbleSize,
   getSubtitleText,
   toggleCategory,
 } from '../constants/onboardingHelpers';
@@ -19,10 +11,6 @@ describe('ONBOARDING_CATEGORIES', () => {
     expect(ONBOARDING_CATEGORIES).not.toContain('All');
   });
 
-  test('has the same number of entries as CATEGORY_LAYOUT', () => {
-    expect(ONBOARDING_CATEGORIES).toHaveLength(CATEGORY_LAYOUT.length);
-  });
-
   test('includes expected categories', () => {
     const expected = [
       'Lehenga', 'Saree', 'Anarkali', 'Sherwani', 'Kurta',
@@ -31,149 +19,6 @@ describe('ONBOARDING_CATEGORIES', () => {
     expected.forEach((cat) => {
       expect(ONBOARDING_CATEGORIES).toContain(cat);
     });
-  });
-});
-
-// ─── CATEGORY_LAYOUT ────────────────────────────────────────
-
-describe('CATEGORY_LAYOUT', () => {
-  test('has one layout entry per category', () => {
-    expect(CATEGORY_LAYOUT).toHaveLength(ONBOARDING_CATEGORIES.length);
-  });
-
-  test('all left values are between 0 and 1', () => {
-    CATEGORY_LAYOUT.forEach((l) => {
-      expect(l.left).toBeGreaterThanOrEqual(0);
-      expect(l.left).toBeLessThan(1);
-    });
-  });
-
-  test('all top values are between 0 and 1', () => {
-    CATEGORY_LAYOUT.forEach((l) => {
-      expect(l.top).toBeGreaterThanOrEqual(0);
-      expect(l.top).toBeLessThan(1);
-    });
-  });
-
-  test('all sizes are positive', () => {
-    CATEGORY_LAYOUT.forEach((l) => {
-      expect(l.size).toBeGreaterThan(0);
-    });
-  });
-
-  test('sizes are within a reasonable range (50–150px base)', () => {
-    CATEGORY_LAYOUT.forEach((l) => {
-      expect(l.size).toBeGreaterThanOrEqual(50);
-      expect(l.size).toBeLessThanOrEqual(150);
-    });
-  });
-});
-
-// ─── computeDistances / CATEGORY_DISTANCES ──────────────────
-
-describe('computeDistances', () => {
-  test('returns one distance per layout entry', () => {
-    expect(CATEGORY_DISTANCES).toHaveLength(CATEGORY_LAYOUT.length);
-  });
-
-  test('all distances are non-negative', () => {
-    CATEGORY_DISTANCES.forEach((d) => {
-      expect(d).toBeGreaterThanOrEqual(0);
-    });
-  });
-
-  test('MAX_DIST is the largest distance', () => {
-    CATEGORY_DISTANCES.forEach((d) => {
-      expect(d).toBeLessThanOrEqual(MAX_DIST);
-    });
-  });
-
-  test('returns 0 for a point at the centre', () => {
-    const distances = computeDistances(
-      [{ left: 0.5, top: 0.5, size: 80 }],
-      { x: 0.5, y: 0.5 },
-    );
-    expect(distances[0]).toBe(0);
-  });
-
-  test('computes correct Euclidean distance', () => {
-    const distances = computeDistances(
-      [{ left: 0.3, top: 0.4, size: 80 }],
-      { x: 0, y: 0 },
-    );
-    // sqrt(0.3^2 + 0.4^2) = sqrt(0.09 + 0.16) = sqrt(0.25) = 0.5
-    expect(distances[0]).toBeCloseTo(0.5);
-  });
-});
-
-// ─── getEntranceDelay ───────────────────────────────────────
-
-describe('getEntranceDelay', () => {
-  test('returns a value between 200ms and 1000ms', () => {
-    for (let i = 0; i < ONBOARDING_CATEGORIES.length; i++) {
-      const delay = getEntranceDelay(i);
-      expect(delay).toBeGreaterThanOrEqual(200);
-      expect(delay).toBeLessThanOrEqual(1000);
-    }
-  });
-
-  test('bubble closest to centre has the smallest delay', () => {
-    const delays = ONBOARDING_CATEGORIES.map((_, i) => getEntranceDelay(i));
-    const minDelay = Math.min(...delays);
-    const minIndex = delays.indexOf(minDelay);
-    // The closest bubble should also have the smallest distance
-    const minDistIndex = CATEGORY_DISTANCES.indexOf(Math.min(...CATEGORY_DISTANCES));
-    expect(minIndex).toBe(minDistIndex);
-  });
-
-  test('bubble farthest from centre has the largest delay (1000ms)', () => {
-    const delays = ONBOARDING_CATEGORIES.map((_, i) => getEntranceDelay(i));
-    const maxDelay = Math.max(...delays);
-    expect(maxDelay).toBe(1000);
-  });
-});
-
-// ─── getScaledSize ──────────────────────────────────────────
-
-describe('getScaledSize', () => {
-  test('returns base size on baseline device (390px)', () => {
-    expect(getScaledSize(100, BASE_WIDTH)).toBe(100);
-  });
-
-  test('scales up on larger screens', () => {
-    const result = getScaledSize(100, 430);
-    expect(result).toBeGreaterThan(100);
-    expect(result).toBeCloseTo(100 * (430 / 390));
-  });
-
-  test('scales down on smaller screens', () => {
-    const result = getScaledSize(100, 320);
-    expect(result).toBeLessThan(100);
-    expect(result).toBeCloseTo(100 * (320 / 390));
-  });
-
-  test('returns 0 for size 0', () => {
-    expect(getScaledSize(0, 390)).toBe(0);
-  });
-});
-
-// ─── getActiveBubbleSize ────────────────────────────────────
-
-describe('getActiveBubbleSize', () => {
-  test('inactive bubble returns base scaled size', () => {
-    const result = getActiveBubbleSize(100, BASE_WIDTH, false);
-    expect(result).toBe(100);
-  });
-
-  test('active bubble is 6% larger than inactive', () => {
-    const inactive = getActiveBubbleSize(100, BASE_WIDTH, false);
-    const active = getActiveBubbleSize(100, BASE_WIDTH, true);
-    expect(active).toBeCloseTo(inactive * 1.06);
-  });
-
-  test('scaling and active multiplier stack correctly', () => {
-    const result = getActiveBubbleSize(100, 430, true);
-    expect(result).toBeCloseTo(100 * (430 / 390) * 1.06);
   });
 });
 
