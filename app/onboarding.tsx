@@ -88,7 +88,7 @@ function PillSelector({
             {label}
           </Text>
           <View style={[pillStyles.indicator, selected ? pillStyles.indicatorSelected : pillStyles.indicatorMuted]}>
-            {selected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+            {selected && <Ionicons name="checkmark" size={16} color="#0D0D0D" />}
           </View>
         </View>
       </TouchableOpacity>
@@ -185,6 +185,7 @@ export default function OnboardingScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.headingBlock}>
+            <Text style={styles.heading}>Pick your vibe.</Text>
             <Text style={styles.counter}>{getSubtitleText(categoryCount)}</Text>
           </View>
 
@@ -269,15 +270,22 @@ const styles = StyleSheet.create({
   headingBlock: {
     paddingTop: Spacing.lg,
     // Compensate for the scroll container's gap (Spacing.sm) so the visual
-    // whitespace above and below the counter matches.
+    // whitespace above and below the heading block matches.
     paddingBottom: Spacing.lg - Spacing.sm,
     alignItems: 'center',
   },
-  counter: {
-    fontSize: 14,
-    ...FontFamily.medium,
-    color: 'rgba(255,255,255,0.7)',
+  heading: {
+    fontSize: 20,
+    ...FontFamily.bold,
+    color: '#FFFFFF',
     textAlign: 'center',
+  },
+  counter: {
+    fontSize: 13,
+    ...FontFamily.medium,
+    color: 'rgba(255,255,255,0.6)',
+    textAlign: 'center',
+    marginTop: Spacing.xs,
   },
   footer: {
     paddingHorizontal: Spacing.base,
@@ -297,11 +305,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xs,
   },
   sheetHeading: {
-    fontSize: 32,
+    fontSize: 24,
     ...FontFamily.black,
     fontWeight: Platform.OS === 'android' ? 'normal' : FontFamily.black.fontWeight,
     color: '#FFFFFF',
-    lineHeight: 38,
+    lineHeight: 30,
     textAlign: 'center',
   },
   sheetSubtitle: {
@@ -334,7 +342,7 @@ const pillStyles = StyleSheet.create({
   },
   pillSelected: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
+    borderColor: lightColors.secondary,
   },
   label: {
     fontSize: 18,
@@ -353,6 +361,6 @@ const pillStyles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.4)',
   },
   indicatorSelected: {
-    backgroundColor: '#0D0D0D',
+    backgroundColor: lightColors.secondary,
   },
 });
