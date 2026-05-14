@@ -294,7 +294,7 @@ export default function OnboardingScreen() {
       </View>
 
       {/* CTA */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.base) }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.xl }]}>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button
           label="Show me my feed"
@@ -311,7 +311,6 @@ export default function OnboardingScreen() {
         onClose={() => setShowWelcome(false)}
         backgroundColor={lightColors.primary}
         handleColor="rgba(255,255,255,0.3)"
-        bottomPadding={0}
       >
         <View style={styles.sheetContent}>
           <Text style={styles.sheetHeading} numberOfLines={1} adjustsFontSizeToFit>
