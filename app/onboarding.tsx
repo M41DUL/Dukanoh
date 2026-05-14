@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +32,9 @@ import { DukanohLogo } from '@/components/DukanohLogo';
 import { Button } from '@/components/Button';
 import { BottomSheet } from '@/components/BottomSheet';
 
+const HERO_CARD_BG = '#1E1C8A';
+const FADE_HEIGHT = 24;
+
 // ─── Pill selector ──────────────────────────────────────────
 
 function PillSelector({
@@ -48,6 +52,8 @@ function PillSelector({
 }) {
   const scale = useRef(new Animated.Value(1)).current;
   const entrance = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const selection = useRef(new Animated.Value(selected ? 1 : 0)).current;
+  const checkScale = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
   useEffect(() => {
     if (!animate) return;
@@ -61,6 +67,23 @@ function PillSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // one-time entrance — entrance is a stable Animated.Value ref
 
+  // Crossfade colours when selection state flips
+  useEffect(() => {
+    Animated.timing(selection, {
+      toValue: selected ? 1 : 0,
+      duration: 200,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false, // colour interpolation can't use native driver
+    }).start();
+    Animated.spring(checkScale, {
+      toValue: selected ? 1 : 0,
+      speed: 18,
+      bounciness: 14,
+      useNativeDriver: true,
+    }).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]); // selection and checkScale are stable Animated.Value refs
+
   const handlePress = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Animated.sequence([
@@ -69,6 +92,27 @@ function PillSelector({
     ]).start();
     onPress();
   };
+
+  const pillBg = selection.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,255,0.10)', '#FFFFFF'],
+  });
+  const pillBorder = selection.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,255,0.20)', lightColors.secondary],
+  });
+  const textColor = selection.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#FFFFFF', '#0D0D0D'],
+  });
+  const indicatorBg = selection.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(0,0,0,0)', lightColors.secondary],
+  });
+  const indicatorBorder = selection.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255,255,255,0.4)', 'rgba(0,0,0,0)'],
+  });
 
   return (
     <Animated.View
@@ -83,14 +127,21 @@ function PillSelector({
         accessibilityRole="button"
         accessibilityState={{ selected }}
       >
-        <View style={[pillStyles.pill, selected ? pillStyles.pillSelected : pillStyles.pillMuted]}>
-          <Text style={[pillStyles.label, { color: selected ? '#0D0D0D' : '#FFFFFF' }]}>
+        <Animated.View style={[pillStyles.pill, { backgroundColor: pillBg, borderColor: pillBorder }]}>
+          <Animated.Text style={[pillStyles.label, { color: textColor }]}>
             {label}
-          </Text>
-          <View style={[pillStyles.indicator, selected ? pillStyles.indicatorSelected : pillStyles.indicatorMuted]}>
-            {selected && <Ionicons name="checkmark" size={16} color="#0D0D0D" />}
-          </View>
-        </View>
+          </Animated.Text>
+          <Animated.View
+            style={[
+              pillStyles.indicator,
+              { backgroundColor: indicatorBg, borderColor: indicatorBorder },
+            ]}
+          >
+            <Animated.View style={{ opacity: checkScale, transform: [{ scale: checkScale }] }}>
+              <Ionicons name="checkmark" size={16} color="#0D0D0D" />
+            </Animated.View>
+          </Animated.View>
+        </Animated.View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -107,7 +158,10 @@ export default function OnboardingScreen() {
   const [saving, setSaving] = useState(false);
   const [animatePills, setAnimatePills] = useState(false);
   const [error, setError] = useState('');
+  const [displayedSubtitle, setDisplayedSubtitle] = useState(() => getSubtitleText(0));
   const insets = useSafeAreaInsets();
+  const counterOpacity = useRef(new Animated.Value(1)).current;
+  const lastCountRef = useRef(0);
 
   useEffect(() => {
     requestAnimationFrame(() => setAnimatePills(true));
@@ -127,6 +181,31 @@ export default function OnboardingScreen() {
   const toggleCategory = useCallback((cat: string) => {
     setSelectedCategories((prev) => toggleCat(prev, cat));
   }, []);
+
+  const categoryCount = selectedCategories.length;
+
+  // Crossfade counter copy when it changes + Success haptic at the "nice taste!" threshold
+  useEffect(() => {
+    const prev = lastCountRef.current;
+    if (prev === categoryCount) return;
+    if (prev < 3 && categoryCount >= 3) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    Animated.timing(counterOpacity, {
+      toValue: 0,
+      duration: 100,
+      useNativeDriver: true,
+    }).start(() => {
+      setDisplayedSubtitle(getSubtitleText(categoryCount));
+      Animated.timing(counterOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    });
+    lastCountRef.current = categoryCount;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryCount]); // counterOpacity is a stable Animated.Value ref
 
   const saveAndNavigate = async () => {
     if (saving) return;
@@ -166,8 +245,6 @@ export default function OnboardingScreen() {
     }
   };
 
-  const categoryCount = selectedCategories.length;
-
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="light" />
@@ -186,7 +263,9 @@ export default function OnboardingScreen() {
         >
           <View style={styles.headingBlock}>
             <Text style={styles.heading}>Pick your vibe.</Text>
-            <Text style={styles.counter}>{getSubtitleText(categoryCount)}</Text>
+            <Animated.Text style={[styles.counter, { opacity: counterOpacity }]}>
+              {displayedSubtitle}
+            </Animated.Text>
           </View>
 
           {ONBOARDING_CATEGORIES.map((cat, i) => (
@@ -200,6 +279,18 @@ export default function OnboardingScreen() {
             />
           ))}
         </ScrollView>
+
+        {/* Edge fades so pills soften as they scroll past the card edges */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[HERO_CARD_BG, 'rgba(30,28,138,0)']}
+          style={styles.fadeTop}
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(30,28,138,0)', HERO_CARD_BG]}
+          style={styles.fadeBottom}
+        />
       </View>
 
       {/* CTA */}
@@ -254,10 +345,24 @@ const styles = StyleSheet.create({
   heroCard: {
     flex: 1,
     borderRadius: 24,
-    backgroundColor: '#1E1C8A',
+    backgroundColor: HERO_CARD_BG,
     marginHorizontal: Spacing.base,
     marginBottom: Spacing.base,
     overflow: 'hidden',
+  },
+  fadeTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: FADE_HEIGHT,
+  },
+  fadeBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: FADE_HEIGHT,
   },
   scroll: {
     flex: 1,
@@ -336,14 +441,6 @@ const pillStyles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     borderWidth: 1,
   },
-  pillMuted: {
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderColor: 'rgba(255,255,255,0.20)',
-  },
-  pillSelected: {
-    backgroundColor: '#FFFFFF',
-    borderColor: lightColors.secondary,
-  },
   label: {
     fontSize: 18,
     ...FontFamily.bold,
@@ -355,12 +452,6 @@ const pillStyles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  indicatorMuted: {
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.4)',
-  },
-  indicatorSelected: {
-    backgroundColor: lightColors.secondary,
   },
 });
