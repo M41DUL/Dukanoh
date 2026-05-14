@@ -41,6 +41,10 @@ yarn-error.*
 # Play Store service account key (download from Play Console → API access)
 play-service-account.json
 
+# Firebase config (upload to EAS as GOOGLE_SERVICES_JSON file env var)
+google-services.json
+GoogleService-Info.plist
+
 # Supabase
 supabase/.temp/
 
