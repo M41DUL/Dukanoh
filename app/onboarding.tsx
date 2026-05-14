@@ -51,7 +51,9 @@ function PillSelector({
   animate: boolean;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
-  const entrance = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  // Start hidden so the staggered entrance has somewhere to animate from.
+  // Parent flips `animate` to true one frame after mount, which fires the effect below.
+  const entrance = useRef(new Animated.Value(0)).current;
   const selection = useRef(new Animated.Value(selected ? 1 : 0)).current;
   const checkScale = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
@@ -65,7 +67,7 @@ function PillSelector({
       useNativeDriver: true,
     }).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // one-time entrance — entrance is a stable Animated.Value ref
+  }, [animate]); // entrance is a stable Animated.Value ref; index never changes
 
   // Crossfade colours when selection state flips
   useEffect(() => {
@@ -84,8 +86,9 @@ function PillSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]); // selection and checkScale are stable Animated.Value refs
 
-  const handlePress = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const handlePress = () => {
+    // Fire-and-forget so visible feedback isn't delayed by the haptic call on Android.
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     Animated.sequence([
       Animated.timing(scale, { toValue: 0.96, duration: 80, useNativeDriver: true }),
       Animated.spring(scale, { toValue: 1, speed: 22, bounciness: 10, useNativeDriver: true }),
@@ -162,6 +165,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const counterOpacity = useRef(new Animated.Value(1)).current;
   const lastCountRef = useRef(0);
+  const fadeTokenRef = useRef(0);
 
   useEffect(() => {
     requestAnimationFrame(() => setAnimatePills(true));
@@ -189,13 +193,20 @@ export default function OnboardingScreen() {
     const prev = lastCountRef.current;
     if (prev === categoryCount) return;
     if (prev < 3 && categoryCount >= 3) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
+    lastCountRef.current = categoryCount;
+
+    // Cancel any in-flight crossfade and start a fresh one. The token check in the
+    // callback below ensures a superseded animation can't swap in stale text.
+    const token = ++fadeTokenRef.current;
+    counterOpacity.stopAnimation();
     Animated.timing(counterOpacity, {
       toValue: 0,
       duration: 100,
       useNativeDriver: true,
-    }).start(() => {
+    }).start(({ finished }) => {
+      if (!finished || fadeTokenRef.current !== token) return;
       setDisplayedSubtitle(getSubtitleText(categoryCount));
       Animated.timing(counterOpacity, {
         toValue: 1,
@@ -203,7 +214,6 @@ export default function OnboardingScreen() {
         useNativeDriver: true,
       }).start();
     });
-    lastCountRef.current = categoryCount;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryCount]); // counterOpacity is a stable Animated.Value ref
 
@@ -220,24 +230,26 @@ export default function OnboardingScreen() {
           const {
             data: { user },
           } = await supabase.auth.getUser();
-          if (user) {
-            const { error: updateError } = await supabase
-              .from('users')
-              .update({
-                preferred_categories: selectedCategories,
-                onboarding_completed: true,
-              })
-              .eq('id', user.id);
-            if (updateError) throw updateError;
-          }
+          if (!user) throw new Error('not-authenticated');
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({
+              preferred_categories: selectedCategories,
+              onboarding_completed: true,
+            })
+            .eq('id', user.id);
+          if (updateError) throw updateError;
           router.replace('/(tabs)');
         })(),
         timeout,
       ]);
     } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
       setError(
-        e instanceof Error && e.message === 'timeout'
+        msg === 'timeout'
           ? 'Taking too long. Check your connection and try again.'
+          : msg === 'not-authenticated'
+          ? 'Your sign-in has expired. Please sign in again.'
           : 'Something went wrong. Please try again.',
       );
     } finally {
