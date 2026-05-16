@@ -553,6 +553,27 @@ export type Database = {
         }
         Relationships: []
       }
+      deletion_feedback: {
+        Row: {
+          id: string
+          occurred_at: string | null
+          reason_code: string
+          reason_text: string | null
+        }
+        Insert: {
+          id?: string
+          occurred_at?: string | null
+          reason_code: string
+          reason_text?: string | null
+        }
+        Update: {
+          id?: string
+          occurred_at?: string | null
+          reason_code?: string
+          reason_text?: string | null
+        }
+        Relationships: []
+      }
       dispute_evidence: {
         Row: {
           created_at: string | null

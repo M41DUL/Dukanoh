@@ -1478,6 +1478,31 @@ CREATE INDEX IF NOT EXISTS idx_deletion_failures_user_id     ON public.deletion_
 CREATE INDEX IF NOT EXISTS idx_deletion_failures_occurred_at ON public.deletion_failures (occurred_at DESC);
 
 
+-- Aggregate-only feedback captured during account deletion. Stored without
+-- a user_id so the feedback survives anonymization without becoming a
+-- back-door for re-identification. Inserted by the delete-account Edge
+-- Function when the user picks a reason; deletions without a reason
+-- (user skipped) record nothing.
+CREATE TABLE IF NOT EXISTS public.deletion_feedback (
+  id           UUID        DEFAULT uuid_generate_v4() PRIMARY KEY,
+  reason_code  TEXT        NOT NULL
+               CHECK (reason_code IN (
+                 'not_finding',
+                 'bad_experience',
+                 'privacy',
+                 'notifications',
+                 'other'
+               )),
+  reason_text  TEXT,
+  occurred_at  TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.deletion_feedback ENABLE ROW LEVEL SECURITY;
+-- No policies: service role only.
+
+CREATE INDEX IF NOT EXISTS idx_deletion_feedback_occurred_at ON public.deletion_feedback (occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_deletion_feedback_reason_code ON public.deletion_feedback (reason_code);
+
+
 -- Returns { blockers: [...] }. Empty array = ready to delete.
 CREATE OR REPLACE FUNCTION public.check_deletion_readiness()
 RETURNS JSONB

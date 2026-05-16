@@ -24,6 +24,19 @@ type FailureStep =
   | 'stripe_close'
   | 'storage_cleanup';
 
+const VALID_REASON_CODES = new Set([
+  'not_finding',
+  'bad_experience',
+  'privacy',
+  'notifications',
+  'other',
+]);
+
+type DeletionBody = {
+  reason_code?: string;
+  reason_text?: string;
+};
+
 async function recordFailure(
   supabase: SupabaseClient,
   userId: string,
@@ -128,6 +141,21 @@ Deno.serve(async (req) => {
   }
   const userId = user.id;
 
+  // Optional anonymous feedback. Missing / invalid body is fine — the user
+  // is allowed to skip the reason step.
+  let body: DeletionBody = {};
+  try {
+    body = (await req.json()) as DeletionBody;
+  } catch {
+    body = {};
+  }
+  const reasonCode = body?.reason_code && VALID_REASON_CODES.has(body.reason_code)
+    ? body.reason_code
+    : null;
+  const reasonText = typeof body?.reason_text === 'string'
+    ? body.reason_text.slice(0, 500).trim() || null
+    : null;
+
   // Service-role client: post-anonymize admin operations + failure logging.
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -158,7 +186,24 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 3. Anonymize. Single transaction, re-runs guards under a row lock.
+  // 3. Record anonymous feedback (if the user picked a reason). Best-effort
+  // — failures shouldn't block deletion. The row has no user_id so the
+  // feedback survives anonymization without identifying anyone.
+  if (reasonCode) {
+    try {
+      await supabase.from('deletion_feedback').insert({
+        reason_code: reasonCode,
+        reason_text: reasonText,
+      });
+    } catch {
+      // Swallow — feedback is non-critical.
+    }
+  }
+
+  // 4. Anonymize. Single transaction, re-runs guards under a row lock.
+  // From here on, the user is anonymized from their POV. Any failure in
+  // the post-steps is recorded but doesn't fail the request — the client
+  // still completes the sign-out flow.
   const { data: anonResult, error: anonErr } =
     await supabaseAuth.rpc('anonymize_user_account');
   if (anonErr) {
@@ -173,11 +218,7 @@ Deno.serve(async (req) => {
     return json(500, { error: 'Anonymize failed', detail: msg });
   }
 
-  // From here on, the user is anonymized from their POV. Any failure in
-  // the post-steps is recorded but doesn't fail the request — the client
-  // still completes the sign-out flow.
-
-  // 4. Scramble email (frees the original for re-signup) + 100-year ban.
+  // 5. Scramble email (frees the original for re-signup) + 100-year ban.
   // Banning rotates refresh tokens; existing access tokens still work
   // until their natural expiry (~1h). The client signs out immediately
   // after a successful response which kills the local session.
@@ -195,7 +236,7 @@ Deno.serve(async (req) => {
     await recordFailure(supabase, userId, 'auth_ban', e);
   }
 
-  // 5. Revoke linked identities so the original email + Apple/Google sub
+  // 6. Revoke linked identities so the original email + Apple/Google sub
   // become free to use for a brand-new signup later.
   try {
     const { data: getRes, error: getErr } = await supabase.auth.admin.getUserById(userId);
@@ -222,7 +263,7 @@ Deno.serve(async (req) => {
     await recordFailure(supabase, userId, 'identity_revoke', e);
   }
 
-  // 6. Close the Stripe Connect account. 404 is fine (already closed).
+  // 7. Close the Stripe Connect account. 404 is fine (already closed).
   if (stripeAccountId && STRIPE_SECRET_KEY) {
     try {
       const r = await fetch(`https://api.stripe.com/v1/accounts/${stripeAccountId}`, {
@@ -230,15 +271,15 @@ Deno.serve(async (req) => {
         headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
       });
       if (!r.ok && r.status !== 404) {
-        const body = await r.text();
-        throw new Error(`Stripe close HTTP ${r.status}: ${body.slice(0, 200)}`);
+        const errBody = await r.text();
+        throw new Error(`Stripe close HTTP ${r.status}: ${errBody.slice(0, 200)}`);
       }
     } catch (e) {
       await recordFailure(supabase, userId, 'stripe_close', e);
     }
   }
 
-  // 7. Storage: avatar at avatars/<userId>.jpg. Listing images intentionally
+  // 8. Storage: avatar at avatars/<userId>.jpg. Listing images intentionally
   // stay — sold listings need them for dispute evidence, and product photos
   // aren't identifying once the seller row is anonymized.
   try {
