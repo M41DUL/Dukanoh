@@ -16,21 +16,7 @@ import { Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily } from '@/c
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { edgeFetch } from '@/lib/edgeFetch';
-
-type ReasonCode =
-  | 'not_finding'
-  | 'bad_experience'
-  | 'privacy'
-  | 'notifications'
-  | 'other';
-
-const REASONS: { code: ReasonCode; label: string }[] = [
-  { code: 'not_finding',    label: 'Not finding what I want' },
-  { code: 'bad_experience', label: 'Bad experience' },
-  { code: 'privacy',        label: 'Privacy concerns' },
-  { code: 'notifications',  label: 'Too many notifications' },
-  { code: 'other',          label: 'Other reason' },
-];
+import { ReasonCode, DELETION_REASONS } from '@/lib/deletion';
 
 const CONFIRM_PHRASE = 'DELETE';
 
@@ -86,7 +72,7 @@ export default function DeleteAccountConfirmScreen() {
         </Text>
 
         <View style={styles.reasonList}>
-          {REASONS.map(r => (
+          {DELETION_REASONS.map(r => (
             <ReasonRow
               key={r.code}
               label={r.label}

@@ -18,86 +18,30 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import {
+  Blocker,
+  BlockerAction,
+  blockerIcon,
+  blockerActionDescriptor,
+  formatGbp,
+  formatResolveAt,
+} from '@/lib/deletion';
 
-type Blocker = {
-  kind:
-    | 'official_account'
-    | 'active_pro_subscription'
-    | 'active_order_buyer'
-    | 'active_order_seller'
-    | 'wallet_balance_pending'
-    | 'wallet_balance_available'
-    | 'stripe_payout_pending'
-    | 'stripe_payout_in_transit'
-    | 'stripe_balance';
-  message: string;
-  order_id?: string;
-  status?: string;
-  amount?: number;
-  resolve_at?: string;
-  expires_at?: string;
-};
-
-type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
-
-function blockerIcon(kind: Blocker['kind']): IoniconName {
-  switch (kind) {
-    case 'active_order_buyer':
-    case 'active_order_seller':
-      return 'bag-outline';
-    case 'wallet_balance_pending':
-    case 'wallet_balance_available':
-    case 'stripe_payout_pending':
-    case 'stripe_payout_in_transit':
-    case 'stripe_balance':
-      return 'card-outline';
-    case 'active_pro_subscription':
-      return 'star-outline';
-    case 'official_account':
-      return 'shield-checkmark-outline';
-  }
-}
-
-function formatGbp(amount?: number) {
-  if (amount == null) return '';
-  return `£${amount.toFixed(2)}`;
-}
-
-function formatResolveAt(iso?: string) {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-}
-
-function openSubscriptionSettings() {
-  const url = Platform.OS === 'ios'
-    ? 'itms-apps://apps.apple.com/account/subscriptions'
-    : 'https://play.google.com/store/account/subscriptions';
-  Linking.openURL(url).catch(() => {});
-}
-
-function blockerAction(blocker: Blocker): { label: string; onPress: () => void } | null {
-  switch (blocker.kind) {
-    case 'active_order_buyer':
-    case 'active_order_seller':
-      if (blocker.order_id) {
-        return {
-          label: 'View order',
-          onPress: () => router.push(`/order/${blocker.order_id}`),
-        };
-      }
-      return null;
-    case 'wallet_balance_available':
-    case 'stripe_balance':
-    case 'wallet_balance_pending':
-    case 'stripe_payout_pending':
-    case 'stripe_payout_in_transit':
-      return { label: 'Go to wallet', onPress: () => router.push('/wallet') };
-    case 'active_pro_subscription':
-      return { label: 'Open subscription settings', onPress: openSubscriptionSettings };
-    case 'official_account':
-      return null;
+function runBlockerAction(action: BlockerAction) {
+  switch (action.kind) {
+    case 'view_order':
+      router.push(`/order/${action.orderId}`);
+      return;
+    case 'open_wallet':
+      router.push('/wallet');
+      return;
+    case 'open_subscription_settings': {
+      const url = Platform.OS === 'ios'
+        ? 'itms-apps://apps.apple.com/account/subscriptions'
+        : 'https://play.google.com/store/account/subscriptions';
+      Linking.openURL(url).catch(() => {});
+      return;
+    }
   }
 }
 
@@ -178,7 +122,7 @@ export default function DeleteAccountPreviewScreen() {
             </Text>
 
             {blockers.map((b, i) => {
-              const action = blockerAction(b);
+              const action = blockerActionDescriptor(b);
               const resolveAt = formatResolveAt(b.resolve_at);
               return (
                 <View key={`${b.kind}-${i}`} style={styles.blockerCard}>
@@ -194,7 +138,7 @@ export default function DeleteAccountPreviewScreen() {
                       <Text style={styles.blockerMeta}>Clears around {resolveAt}</Text>
                     )}
                     {action && (
-                      <TouchableOpacity onPress={action.onPress} style={styles.blockerAction}>
+                      <TouchableOpacity onPress={() => runBlockerAction(action)} style={styles.blockerAction}>
                         <Text style={styles.blockerActionText}>{action.label}</Text>
                         <Ionicons name="chevron-forward" size={16} color={colors.primary} />
                       </TouchableOpacity>
