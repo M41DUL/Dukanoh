@@ -38,6 +38,7 @@ interface Seller {
   is_seller?: boolean;
   seller_tier?: string;
   avg_response_time_mins?: number | null;
+  deleted_at?: string | null;
 }
 
 interface SellerCollection {
@@ -87,7 +88,7 @@ export default function SellerProfileScreen() {
     if (!id) return;
 
     Promise.all([
-      supabase.from('users').select('id, username, avatar_url, bio, rating_avg, rating_count, created_at, is_verified, is_official, is_seller, seller_tier, avg_response_time_mins').eq('id', id).single(),
+      supabase.from('users').select('id, username, avatar_url, bio, rating_avg, rating_count, created_at, is_verified, is_official, is_seller, seller_tier, avg_response_time_mins, deleted_at').eq('id', id).single(),
       supabase
         .from('listings')
         .select('id, title, price, original_price, price_dropped_at, images, status, category, size, condition, save_count, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
@@ -230,6 +231,27 @@ export default function SellerProfileScreen() {
 
   if (loading) return <LoadingSpinner />;
   if (!seller) return null;
+
+  if (seller.deleted_at) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+        <View style={styles.deletedHeader}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.deletedBack}>
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.deletedBody}>
+          <View style={[styles.deletedIcon, { backgroundColor: colors.surface }]}>
+            <Ionicons name="person-outline" size={28} color={colors.textSecondary} />
+          </View>
+          <Text style={[styles.deletedTitle, { color: colors.textPrimary }]}>Account no longer active</Text>
+          <Text style={[styles.deletedBodyText, { color: colors.textSecondary }]}>
+            This member has left Dukanoh.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   const joinedDate = seller.created_at
     ? new Date(seller.created_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
@@ -488,6 +510,44 @@ export default function SellerProfileScreen() {
 function getStyles(colors: ColorTokens) {
   return StyleSheet.create({
     root: { flex: 1 },
+
+    // Deleted user empty state
+    deletedHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: Spacing.sm,
+      paddingVertical: Spacing.sm,
+    },
+    deletedBack: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    deletedBody: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: Spacing.xl,
+      gap: Spacing.sm,
+    },
+    deletedIcon: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: Spacing.xs,
+    },
+    deletedTitle: {
+      ...FontFamily.semibold,
+      fontSize: 18,
+    },
+    deletedBodyText: {
+      ...FontFamily.regular,
+      fontSize: 14,
+      textAlign: 'center',
+    },
 
     // Header
     header: {

@@ -59,7 +59,8 @@ CREATE TABLE public.users (
   is_official                 BOOLEAN DEFAULT FALSE,
   -- Cancellation accountability
   cancellation_strike_count   INT NOT NULL DEFAULT 0,
-  account_status              TEXT NOT NULL DEFAULT 'active' CHECK (account_status IN ('active', 'warned', 'suspended')),
+  account_status              TEXT NOT NULL DEFAULT 'active' CHECK (account_status IN ('active', 'warned', 'suspended', 'deleted')),
+  deleted_at                  TIMESTAMPTZ,    -- NULL = active; set when account is anonymized
   -- Delivery address (saved on profile, pre-fills at checkout)
   address_line1               TEXT,
   address_line2               TEXT,
@@ -890,9 +891,13 @@ CREATE INDEX IF NOT EXISTS idx_orders_auto_release
   WHERE status = 'shipped';
 
 -- Seller wallet (pending + available + lifetime balances)
+-- seller_id is ON DELETE RESTRICT: defense in depth against a future code
+-- path that bypasses anonymize_user_account() and tries to drop a user row
+-- with money in the wallet. The RPC already blocks deletion on non-zero
+-- balance, so under the supported flow this constraint never fires.
 CREATE TABLE public.seller_wallet (
   id                UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  seller_id         UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL UNIQUE,
+  seller_id         UUID REFERENCES public.users (id) ON DELETE RESTRICT NOT NULL UNIQUE,
   pending_balance   NUMERIC(10,2) NOT NULL DEFAULT 0,
   available_balance NUMERIC(10,2) NOT NULL DEFAULT 0,
   lifetime_earned   NUMERIC(10,2) NOT NULL DEFAULT 0,
@@ -1430,54 +1435,266 @@ BEGIN
 END;
 $$;
 
--- ─── Account deletion ─────────────────────────────────────────────────────────
--- Called from the settings screen (handleDeleteAccount).
+-- ─── Account deletion (guarded soft-delete + anonymization) ───────────────────
+-- Orchestrated by the delete-account Edge Function. Two RPCs and a telemetry
+-- table.
 --
--- Cascade chain:
---   auth.users (deleted here)
---     → public.users          ON DELETE CASCADE
---       → listings            ON DELETE CASCADE  (seller's listings removed)
---       → collections         ON DELETE CASCADE
---       → conversations       ON DELETE CASCADE
---       → messages            ON DELETE CASCADE
---       → reviews             ON DELETE CASCADE
---       → saved_items         ON DELETE CASCADE
---       → reports             ON DELETE CASCADE
---       → blocked_users       ON DELETE CASCADE
---       → push_tokens         ON DELETE CASCADE
---       → listing_views       ON DELETE CASCADE
---       → story_views         ON DELETE CASCADE
---       → profile_views       ON DELETE CASCADE
---       → notifications       ON DELETE CASCADE
---       → cancellation_strikes ON DELETE CASCADE
---       → boosts              ON DELETE CASCADE
---       → seller_wallet       ON DELETE CASCADE
---       → fit_search_logs     ON DELETE CASCADE
+-- Why soft-delete instead of DELETE FROM auth.users:
+--   * Cascading the user row from auth.users wipes seller_wallet, which can
+--     destroy unpaid balances (Apr 2026 audit finding).
+--   * UK HMRC / DAC7 requires tax records retained for 6 years; financial
+--     orders for 7 years (privacy-policy.md §7).
+--   * GDPR Art. 17(3)(b)/(e) permits retention for legal / financial
+--     obligations and pending disputes.
+--   * Apple Sign In requires PII removal; scrubbing public.users + banning
+--     auth.users satisfies this without losing the financial trail.
 --
--- Financial records preserved (SET NULL on user FK):
---   orders, transactions, dispute_evidence — required for accounting / legal.
---
--- SECURITY DEFINER runs as the postgres owner role, which has permission to
--- delete from auth.users. Only the authenticated user can call this function.
+-- Flow (Edge Function: supabase/functions/delete-account):
+--   1. check_deletion_readiness() — abort if any blocker.
+--   2. Stripe API: refuse if any payout is pending/in_transit.
+--   3. anonymize_user_account() — this file. Single transaction.
+--   4. auth.admin.updateUserById  — scramble email, ban_duration = 100yr.
+--   5. auth.admin.signOut         — invalidate live JWTs across devices.
+--   6. auth.admin.deleteIdentity  — free original email + OAuth subs.
+--   7. stripe.accounts.del        — close the Connect account.
+--   8. storage cleanup            — avatar, archived-listing images, stories.
+-- Steps 4–8 are recorded in deletion_failures on error; the user is already
+-- anonymized from their POV after step 3 commits.
 
-CREATE OR REPLACE FUNCTION public.delete_user_account()
-RETURNS void
+-- Telemetry for Edge Function failures after the anonymize commit.
+-- No FK on user_id: a future hard-purge job will remove the user row
+-- entirely while keeping the failure record for audit.
+CREATE TABLE IF NOT EXISTS public.deletion_failures (
+  id          UUID        DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id     UUID,
+  step        TEXT NOT NULL,    -- 'auth_ban' | 'auth_signout' | 'identity_revoke' | 'stripe_close' | 'storage_cleanup'
+  error       TEXT NOT NULL,
+  occurred_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.deletion_failures ENABLE ROW LEVEL SECURITY;
+-- No policies: service role only.
+
+CREATE INDEX IF NOT EXISTS idx_deletion_failures_user_id     ON public.deletion_failures (user_id);
+CREATE INDEX IF NOT EXISTS idx_deletion_failures_occurred_at ON public.deletion_failures (occurred_at DESC);
+
+
+-- Returns { blockers: [...] }. Empty array = ready to delete.
+CREATE OR REPLACE FUNCTION public.check_deletion_readiness()
+RETURNS JSONB
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id   UUID := auth.uid();
+  v_blockers  JSONB := '[]'::JSONB;
+  v_user      public.users%ROWTYPE;
+  v_wallet    public.seller_wallet%ROWTYPE;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  SELECT * INTO v_user FROM public.users WHERE id = v_user_id;
+  IF NOT FOUND OR v_user.deleted_at IS NOT NULL THEN
+    RETURN jsonb_build_object('blockers', v_blockers);
+  END IF;
+
+  IF v_user.is_official THEN
+    v_blockers := v_blockers || jsonb_build_object(
+      'kind',    'official_account',
+      'message', 'Official Dukanoh accounts cannot be deleted from the app. Contact support.'
+    );
+  END IF;
+
+  IF v_user.pro_expires_at IS NOT NULL AND v_user.pro_expires_at > NOW() THEN
+    v_blockers := v_blockers || jsonb_build_object(
+      'kind',       'active_pro_subscription',
+      'message',    'You have an active Dukanoh Pro subscription. Cancel it from your App Store or Play Store subscription settings before deleting your account.',
+      'expires_at', v_user.pro_expires_at
+    );
+  END IF;
+
+  v_blockers := v_blockers || COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'kind',     'active_order_buyer',
+      'message',  CASE o.status
+                    WHEN 'created'   THEN 'You have an order awaiting payment.'
+                    WHEN 'paid'      THEN 'You have a paid order waiting to be shipped.'
+                    WHEN 'shipped'   THEN 'You have an order in transit — confirm receipt or wait for delivery before deleting.'
+                    WHEN 'delivered' THEN 'You have a delivered order pending confirmation.'
+                    WHEN 'disputed'  THEN 'You have an open dispute that must be resolved first.'
+                  END,
+      'order_id', o.id,
+      'status',   o.status
+    ))
+    FROM public.orders o
+    WHERE o.buyer_id = v_user_id
+      AND o.status IN ('created','paid','shipped','delivered','disputed')
+  ), '[]'::JSONB);
+
+  v_blockers := v_blockers || COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'kind',     'active_order_seller',
+      'message',  CASE o.status
+                    WHEN 'created'   THEN 'You have a sale awaiting payment.'
+                    WHEN 'paid'      THEN 'You have a paid order to ship.'
+                    WHEN 'shipped'   THEN 'You have a shipment in transit.'
+                    WHEN 'delivered' THEN 'You have a delivered order awaiting buyer confirmation.'
+                    WHEN 'disputed'  THEN 'You have an open dispute that must be resolved first.'
+                  END,
+      'order_id', o.id,
+      'status',   o.status
+    ))
+    FROM public.orders o
+    WHERE o.seller_id = v_user_id
+      AND o.status IN ('created','paid','shipped','delivered','disputed')
+  ), '[]'::JSONB);
+
+  SELECT * INTO v_wallet FROM public.seller_wallet WHERE seller_id = v_user_id;
+  IF FOUND THEN
+    IF v_wallet.pending_balance > 0 THEN
+      v_blockers := v_blockers || jsonb_build_object(
+        'kind',       'wallet_balance_pending',
+        'message',    'You have a pending wallet balance from a recent sale. It will move to your available balance once the order completes.',
+        'amount',     v_wallet.pending_balance,
+        'resolve_at', (SELECT MIN(auto_release_at) FROM public.orders
+                       WHERE seller_id = v_user_id AND status = 'shipped')
+      );
+    END IF;
+    IF v_wallet.available_balance > 0 THEN
+      v_blockers := v_blockers || jsonb_build_object(
+        'kind',    'wallet_balance_available',
+        'message', 'You have an available wallet balance. Request a payout from your wallet before deleting.',
+        'amount',  v_wallet.available_balance
+      );
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object('blockers', v_blockers);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.check_deletion_readiness() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.check_deletion_readiness() TO authenticated;
+
+
+-- Destructive. Called by the delete-account Edge Function after it has
+-- verified Stripe-side state. Re-runs guards inside the transaction under
+-- a row lock so concurrent activity can't slip past.
+CREATE OR REPLACE FUNCTION public.anonymize_user_account()
+RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_user_id           UUID := auth.uid();
+  v_user              public.users%ROWTYPE;
+  v_wallet            public.seller_wallet%ROWTYPE;
+  v_active_order_id   UUID;
+  v_archived_listings INT;
+  v_new_username      TEXT;
 BEGIN
-  IF auth.uid() IS NULL THEN
+  IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  -- Deleting from auth.users triggers the full cascade described above.
-  DELETE FROM auth.users WHERE id = auth.uid();
+  SELECT * INTO v_user FROM public.users WHERE id = v_user_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'BLOCKED:no_user';
+  END IF;
+
+  IF v_user.deleted_at IS NOT NULL THEN
+    -- Idempotent replay: a previous Edge Function run anonymized this user
+    -- but a downstream step (auth ban, Stripe close, storage) failed.
+    RETURN jsonb_build_object('already_deleted', TRUE);
+  END IF;
+
+  IF v_user.is_official THEN
+    RAISE EXCEPTION 'BLOCKED:official_account';
+  END IF;
+
+  IF v_user.pro_expires_at IS NOT NULL AND v_user.pro_expires_at > NOW() THEN
+    RAISE EXCEPTION 'BLOCKED:active_pro_subscription';
+  END IF;
+
+  -- Archive available listings first — closes the inbound-order path so
+  -- the guard below cannot race with a new order being placed.
+  UPDATE public.listings
+     SET status = 'archived'
+   WHERE seller_id = v_user_id
+     AND status   = 'available';
+  GET DIAGNOSTICS v_archived_listings = ROW_COUNT;
+
+  SELECT id INTO v_active_order_id
+  FROM public.orders
+  WHERE (buyer_id = v_user_id OR seller_id = v_user_id)
+    AND status IN ('created','paid','shipped','delivered','disputed')
+  LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'BLOCKED:active_orders';
+  END IF;
+
+  SELECT * INTO v_wallet FROM public.seller_wallet
+    WHERE seller_id = v_user_id FOR UPDATE;
+  IF FOUND AND (v_wallet.pending_balance > 0 OR v_wallet.available_balance > 0) THEN
+    RAISE EXCEPTION 'BLOCKED:wallet_balance';
+  END IF;
+
+  -- Retired username. Original is not freed for reuse — prevents
+  -- impersonation of historical reviews and conversations.
+  -- gen_random_uuid() rather than uuid_generate_v4() because the latter is in
+  -- the `extensions` schema, which is excluded by SET search_path = public.
+  v_new_username := 'deleted_user_' || lower(substring(replace(gen_random_uuid()::text, '-', ''), 1, 12));
+
+  -- Retained intentionally: tax_id_*, had_founder_subscription, had_free_trial,
+  -- created_at, last_active_at, cancellation_strike_count.
+  UPDATE public.users
+     SET username                  = v_new_username,
+         username_confirmed        = TRUE,
+         full_name                 = 'Deleted user',
+         first_name                = NULL,
+         last_name                 = NULL,
+         phone                     = NULL,
+         dob                       = NULL,
+         avatar_url                = NULL,
+         bio                       = NULL,
+         preferred_categories      = '{}',
+         location                  = NULL,
+         seller_invite_code        = NULL,
+         address_line1             = NULL,
+         address_line2             = NULL,
+         city                      = NULL,
+         postcode                  = NULL,
+         country                   = NULL,
+         stripe_account_id         = NULL,
+         marketing_consent         = FALSE,
+         marketing_push_consent    = FALSE,
+         analytics_consent         = FALSE,
+         sale_mode_active          = FALSE,
+         sale_mode_discount_pct    = NULL,
+         account_status            = 'deleted',
+         deleted_at                = NOW()
+   WHERE id = v_user_id;
+
+  DELETE FROM public.push_tokens   WHERE user_id    = v_user_id;
+  DELETE FROM public.saved_items   WHERE user_id    = v_user_id;
+  DELETE FROM public.collections   WHERE seller_id  = v_user_id;
+  DELETE FROM public.blocked_users WHERE blocker_id = v_user_id OR blocked_id = v_user_id;
+  DELETE FROM public.notifications WHERE user_id    = v_user_id;
+
+  RETURN jsonb_build_object(
+    'already_deleted',   FALSE,
+    'archived_listings', v_archived_listings,
+    'new_username',      v_new_username
+  );
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.delete_user_account() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;
+REVOKE ALL ON FUNCTION public.anonymize_user_account() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.anonymize_user_account() TO authenticated;
 
 -- ─── App error reporting ──────────────────────────────────────────────────────
 -- Receives crash reports and unhandled errors from the mobile app.
