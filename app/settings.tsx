@@ -239,7 +239,6 @@ export default function SettingsScreen() {
       title: 'Delete Account',
       subtitle: 'Permanently remove your data',
       onPress: handleDeleteAccount,
-      destructive: true,
     },
   ];
 

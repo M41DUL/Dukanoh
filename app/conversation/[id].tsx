@@ -37,6 +37,7 @@ interface ConversationMeta {
   buyer_id: string;
   seller_id: string;
   other_username: string;
+  other_is_deleted: boolean;
   listing_title: string;
   listing_status: string;
 }
@@ -49,8 +50,8 @@ interface ConversationRow {
   buyer_id: string;
   seller_id: string;
   last_message_sender_id: string | null;
-  buyer: { username: string | null } | null;
-  seller: { username: string | null } | null;
+  buyer: { username: string | null; deleted_at: string | null } | null;
+  seller: { username: string | null; deleted_at: string | null } | null;
   listing: { title: string | null; status: string | null } | null;
 }
 
@@ -81,8 +82,8 @@ export default function ConversationScreen() {
         .from('conversations')
         .select(`
           listing_id, buyer_id, seller_id, last_message_sender_id,
-          buyer:users!conversations_buyer_id_fkey ( username ),
-          seller:users!conversations_seller_id_fkey ( username ),
+          buyer:users!conversations_buyer_id_fkey ( username, deleted_at ),
+          seller:users!conversations_seller_id_fkey ( username, deleted_at ),
           listing:listings!conversations_listing_id_fkey ( title, status )
         `)
         .eq('id', id!)
@@ -99,11 +100,13 @@ export default function ConversationScreen() {
     const c = metaQuery.data;
     if (!c || !user) return null;
     const isBuyer = c.buyer_id === user.id;
+    const otherParty = isBuyer ? c.seller : c.buyer;
     return {
       listing_id: c.listing_id,
       buyer_id: c.buyer_id,
       seller_id: c.seller_id,
-      other_username: (isBuyer ? c.seller?.username : c.buyer?.username) ?? '',
+      other_username:    otherParty?.username ?? '',
+      other_is_deleted:  !!otherParty?.deleted_at,
       listing_title: c.listing?.title ?? '',
       listing_status: c.listing?.status ?? 'available',
     };
@@ -363,7 +366,13 @@ export default function ConversationScreen() {
     <ScreenWrapper>
       <Header
         showBack
-        title={meta.other_username ? `@${meta.other_username}` : 'Message'}
+        title={
+          meta.other_is_deleted
+            ? 'Deleted member'
+            : meta.other_username
+              ? `@${meta.other_username}`
+              : 'Message'
+        }
       />
       <KeyboardAvoidingView
         style={styles.flex}

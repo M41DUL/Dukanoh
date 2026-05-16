@@ -1679,7 +1679,7 @@ BEGIN
   UPDATE public.users
      SET username                  = v_new_username,
          username_confirmed        = TRUE,
-         full_name                 = 'Deleted user',
+         full_name                 = 'Deleted member',
          first_name                = NULL,
          last_name                 = NULL,
          phone                     = NULL,

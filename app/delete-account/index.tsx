@@ -150,9 +150,8 @@ export default function DeleteAccountPreviewScreen() {
           </>
         ) : (
           <>
-            <Text style={styles.heading}>Before you go</Text>
-            <Text style={styles.subheading}>
-              Deleting your account is permanent. Here's what happens.
+            <Text style={[styles.heading, styles.readyHeading]}>
+              Deleting your account is permanent
             </Text>
 
             <View style={styles.infoCard}>
@@ -179,7 +178,7 @@ export default function DeleteAccountPreviewScreen() {
             <Button
               label="Continue"
               onPress={() => router.push('/delete-account/confirm')}
-              variant="primary"
+              variant="outline"
               size="lg"
               style={styles.continueBtn}
             />
@@ -218,6 +217,9 @@ const getStyles = (colors: ColorTokens) => StyleSheet.create({
     fontSize:     22,
     color:        colors.textPrimary,
     marginBottom: Spacing.xs,
+  },
+  readyHeading: {
+    marginBottom: Spacing.lg,
   },
   subheading: {
     ...FontFamily.regular,
