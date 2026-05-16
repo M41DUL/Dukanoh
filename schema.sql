@@ -1721,6 +1721,215 @@ $$;
 REVOKE ALL ON FUNCTION public.anonymize_user_account() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.anonymize_user_account() TO authenticated;
 
+
+-- ─── Admin-initiated deletion variants ────────────────────────────────────────
+-- Same guards and scrub logic as the user-facing functions above, but take
+-- the target user_id as a parameter so dukanoh-web's /admin/account-deletion
+-- view can one-click delete in response to a web request. Service-role only.
+
+CREATE OR REPLACE FUNCTION public.admin_check_deletion_readiness(p_user_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_blockers  JSONB := '[]'::JSONB;
+  v_user      public.users%ROWTYPE;
+  v_wallet    public.seller_wallet%ROWTYPE;
+BEGIN
+  IF p_user_id IS NULL THEN
+    RAISE EXCEPTION 'p_user_id is required';
+  END IF;
+
+  SELECT * INTO v_user FROM public.users WHERE id = p_user_id;
+  IF NOT FOUND OR v_user.deleted_at IS NOT NULL THEN
+    RETURN jsonb_build_object('blockers', v_blockers);
+  END IF;
+
+  IF v_user.is_official THEN
+    v_blockers := v_blockers || jsonb_build_object(
+      'kind',    'official_account',
+      'message', 'Official Dukanoh accounts cannot be deleted. Contact engineering.'
+    );
+  END IF;
+
+  IF v_user.pro_expires_at IS NOT NULL AND v_user.pro_expires_at > NOW() THEN
+    v_blockers := v_blockers || jsonb_build_object(
+      'kind',       'active_pro_subscription',
+      'message',    'User has an active Dukanoh Pro subscription. Must be cancelled via App Store / Play Store before deletion.',
+      'expires_at', v_user.pro_expires_at
+    );
+  END IF;
+
+  v_blockers := v_blockers || COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'kind',     'active_order_buyer',
+      'message',  CASE o.status
+                    WHEN 'created'   THEN 'User has an order awaiting payment.'
+                    WHEN 'paid'      THEN 'User has a paid order waiting to be shipped.'
+                    WHEN 'shipped'   THEN 'User has an order in transit.'
+                    WHEN 'delivered' THEN 'User has a delivered order pending confirmation.'
+                    WHEN 'disputed'  THEN 'User has an open dispute that must be resolved first.'
+                  END,
+      'order_id', o.id,
+      'status',   o.status
+    ))
+    FROM public.orders o
+    WHERE o.buyer_id = p_user_id
+      AND o.status IN ('created','paid','shipped','delivered','disputed')
+  ), '[]'::JSONB);
+
+  v_blockers := v_blockers || COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'kind',     'active_order_seller',
+      'message',  CASE o.status
+                    WHEN 'created'   THEN 'User has a sale awaiting payment.'
+                    WHEN 'paid'      THEN 'User has a paid order to ship.'
+                    WHEN 'shipped'   THEN 'User has a shipment in transit.'
+                    WHEN 'delivered' THEN 'User has a delivered order awaiting buyer confirmation.'
+                    WHEN 'disputed'  THEN 'User has an open dispute that must be resolved first.'
+                  END,
+      'order_id', o.id,
+      'status',   o.status
+    ))
+    FROM public.orders o
+    WHERE o.seller_id = p_user_id
+      AND o.status IN ('created','paid','shipped','delivered','disputed')
+  ), '[]'::JSONB);
+
+  SELECT * INTO v_wallet FROM public.seller_wallet WHERE seller_id = p_user_id;
+  IF FOUND THEN
+    IF v_wallet.pending_balance > 0 THEN
+      v_blockers := v_blockers || jsonb_build_object(
+        'kind',       'wallet_balance_pending',
+        'message',    'User has a pending wallet balance from a recent sale. Will move to available once the order completes.',
+        'amount',     v_wallet.pending_balance,
+        'resolve_at', (SELECT MIN(auto_release_at) FROM public.orders
+                       WHERE seller_id = p_user_id AND status = 'shipped')
+      );
+    END IF;
+    IF v_wallet.available_balance > 0 THEN
+      v_blockers := v_blockers || jsonb_build_object(
+        'kind',    'wallet_balance_available',
+        'message', 'User has an available wallet balance. Must request a payout before deletion.',
+        'amount', v_wallet.available_balance
+      );
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object('blockers', v_blockers);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_check_deletion_readiness(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_check_deletion_readiness(UUID) TO service_role;
+
+
+CREATE OR REPLACE FUNCTION public.admin_anonymize_user_account(p_user_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user              public.users%ROWTYPE;
+  v_wallet            public.seller_wallet%ROWTYPE;
+  v_active_order_id   UUID;
+  v_archived_listings INT;
+  v_new_username      TEXT;
+BEGIN
+  IF p_user_id IS NULL THEN
+    RAISE EXCEPTION 'p_user_id is required';
+  END IF;
+
+  SELECT * INTO v_user FROM public.users WHERE id = p_user_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'BLOCKED:no_user';
+  END IF;
+
+  IF v_user.deleted_at IS NOT NULL THEN
+    RETURN jsonb_build_object('already_deleted', TRUE);
+  END IF;
+
+  IF v_user.is_official THEN
+    RAISE EXCEPTION 'BLOCKED:official_account';
+  END IF;
+
+  IF v_user.pro_expires_at IS NOT NULL AND v_user.pro_expires_at > NOW() THEN
+    RAISE EXCEPTION 'BLOCKED:active_pro_subscription';
+  END IF;
+
+  UPDATE public.listings
+     SET status = 'archived'
+   WHERE seller_id = p_user_id
+     AND status   = 'available';
+  GET DIAGNOSTICS v_archived_listings = ROW_COUNT;
+
+  SELECT id INTO v_active_order_id
+  FROM public.orders
+  WHERE (buyer_id = p_user_id OR seller_id = p_user_id)
+    AND status IN ('created','paid','shipped','delivered','disputed')
+  LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'BLOCKED:active_orders';
+  END IF;
+
+  SELECT * INTO v_wallet FROM public.seller_wallet
+    WHERE seller_id = p_user_id FOR UPDATE;
+  IF FOUND AND (v_wallet.pending_balance > 0 OR v_wallet.available_balance > 0) THEN
+    RAISE EXCEPTION 'BLOCKED:wallet_balance';
+  END IF;
+
+  v_new_username := 'deleted_user_' || lower(substring(replace(gen_random_uuid()::text, '-', ''), 1, 12));
+
+  UPDATE public.users
+     SET username                  = v_new_username,
+         username_confirmed        = TRUE,
+         full_name                 = 'Deleted user',
+         first_name                = NULL,
+         last_name                 = NULL,
+         phone                     = NULL,
+         dob                       = NULL,
+         avatar_url                = NULL,
+         bio                       = NULL,
+         preferred_categories      = '{}',
+         location                  = NULL,
+         seller_invite_code        = NULL,
+         address_line1             = NULL,
+         address_line2             = NULL,
+         city                      = NULL,
+         postcode                  = NULL,
+         country                   = NULL,
+         stripe_account_id         = NULL,
+         marketing_consent         = FALSE,
+         marketing_push_consent    = FALSE,
+         analytics_consent         = FALSE,
+         sale_mode_active          = FALSE,
+         sale_mode_discount_pct    = NULL,
+         account_status            = 'deleted',
+         deleted_at                = NOW()
+   WHERE id = p_user_id;
+
+  DELETE FROM public.push_tokens   WHERE user_id    = p_user_id;
+  DELETE FROM public.saved_items   WHERE user_id    = p_user_id;
+  DELETE FROM public.collections   WHERE seller_id  = p_user_id;
+  DELETE FROM public.blocked_users WHERE blocker_id = p_user_id OR blocked_id = p_user_id;
+  DELETE FROM public.notifications WHERE user_id    = p_user_id;
+
+  RETURN jsonb_build_object(
+    'already_deleted',   FALSE,
+    'archived_listings', v_archived_listings,
+    'new_username',      v_new_username
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_anonymize_user_account(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_anonymize_user_account(UUID) TO service_role;
+
+
 -- ─── App error reporting ──────────────────────────────────────────────────────
 -- Receives crash reports and unhandled errors from the mobile app.
 -- Written by lib/errorReporting.ts (production builds only).
@@ -2506,14 +2715,44 @@ $$;
 REVOKE ALL ON FUNCTION public.get_top_boosters(INT, INT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_top_boosters(INT, INT) TO service_role;
 
+-- Public web deletion request queue. Captures requests submitted via the
+-- /account-deletion page on dukanoh-web by users who cannot delete from the
+-- app. Required for Google Play's account deletion policy.
+CREATE TABLE IF NOT EXISTS public.account_deletion_requests (
+  id            UUID        DEFAULT uuid_generate_v4() PRIMARY KEY,
+  name          TEXT        NOT NULL,
+  email         TEXT        NOT NULL,
+  message       TEXT,
+  status        TEXT        NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'handled')),
+  handled_at    TIMESTAMPTZ,
+  handled_note  TEXT,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.account_deletion_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anon can submit deletion requests"
+  ON public.account_deletion_requests FOR INSERT TO anon
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated can submit deletion requests"
+  ON public.account_deletion_requests FOR INSERT TO authenticated
+  WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_acct_del_req_status_created
+  ON public.account_deletion_requests (status, created_at DESC);
+
+
 -- Admin sidebar badge counts, one round-trip.
 CREATE OR REPLACE FUNCTION public.get_admin_nav_counts()
 RETURNS TABLE (
-  disputes_count INT,
-  reports_count  INT,
-  stuck_paid     INT,
-  stuck_shipped  INT,
-  old_disputes   INT
+  disputes_count          INT,
+  reports_count           INT,
+  stuck_paid              INT,
+  stuck_shipped           INT,
+  old_disputes            INT,
+  account_deletion_count  INT
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -2524,8 +2763,38 @@ AS $$
     (SELECT COUNT(*)::INT FROM public.reports WHERE status = 'pending')                                              AS reports_count,
     (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'paid'     AND created_at  < NOW() - INTERVAL '3 days')  AS stuck_paid,
     (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'shipped'  AND shipped_at  < NOW() - INTERVAL '14 days') AS stuck_shipped,
-    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'disputed' AND disputed_at < NOW() - INTERVAL '7 days')  AS old_disputes;
+    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'disputed' AND disputed_at < NOW() - INTERVAL '7 days')  AS old_disputes,
+    (SELECT COUNT(*)::INT FROM public.account_deletion_requests WHERE status = 'pending')                            AS account_deletion_count;
 $$;
 
 REVOKE ALL ON FUNCTION public.get_admin_nav_counts() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_admin_nav_counts() TO service_role;
+
+-- Admin-only: look up matching auth.users rows for a list of emails so the
+-- /admin/account-deletion view can show whether a deletion request maps to
+-- a real account.
+CREATE OR REPLACE FUNCTION public.find_users_by_emails(p_emails TEXT[])
+RETURNS TABLE (
+  email           TEXT,
+  user_id         UUID,
+  username        TEXT,
+  account_status  TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    au.email::TEXT     AS email,
+    u.id               AS user_id,
+    u.username         AS username,
+    u.account_status   AS account_status
+  FROM auth.users au
+  JOIN public.users u ON u.id = au.id
+  WHERE LOWER(au.email) = ANY (
+    SELECT LOWER(e) FROM unnest(p_emails) AS e
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.find_users_by_emails(TEXT[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.find_users_by_emails(TEXT[]) TO service_role;
