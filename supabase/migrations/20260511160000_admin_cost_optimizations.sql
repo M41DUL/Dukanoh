@@ -202,29 +202,14 @@ REVOKE ALL ON FUNCTION public.get_top_boosters(INT, INT) FROM PUBLIC, anon, auth
 GRANT EXECUTE ON FUNCTION public.get_top_boosters(INT, INT) TO service_role;
 
 
--- 6. Admin nav badge counts — one round trip.
-CREATE OR REPLACE FUNCTION public.get_admin_nav_counts()
-RETURNS TABLE (
-  disputes_count INT,
-  reports_count  INT,
-  stuck_paid     INT,
-  stuck_shipped  INT,
-  old_disputes   INT
-)
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT
-    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'disputed')                                              AS disputes_count,
-    (SELECT COUNT(*)::INT FROM public.reports WHERE status = 'pending')                                              AS reports_count,
-    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'paid'     AND created_at  < NOW() - INTERVAL '3 days')  AS stuck_paid,
-    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'shipped'  AND shipped_at  < NOW() - INTERVAL '14 days') AS stuck_shipped,
-    (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'disputed' AND disputed_at < NOW() - INTERVAL '7 days')  AS old_disputes;
-$$;
-
-REVOKE ALL ON FUNCTION public.get_admin_nav_counts() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_admin_nav_counts() TO service_role;
+-- 6. Admin nav badge counts — definition removed from this migration on
+-- 2026-05-17 during a migration-history reconciliation. Later migrations
+-- (account_deletion_requests, feedback_replies) extended this function with
+-- additional columns. Redefining it here with the original 5-column shape
+-- would either (a) fail with "cannot change return type" when applied on
+-- top of the live extended function, or (b) regress the function on a fresh
+-- DB. The function is owned by whichever later migration defines it last;
+-- this slot intentionally left blank.
 
 
 -- 7. Schedule daily run of generate_due_recurring_expenses().

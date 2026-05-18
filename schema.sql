@@ -2077,16 +2077,20 @@ SELECT cron.schedule(
   'SELECT public.cleanup_messages()'
 );
 
--- User feedback
+-- User feedback. Website "Get in touch" submissions and in-app feedback both
+-- land here. status drives the /admin/feedback triage queue; replies are
+-- threaded in feedback_replies (below).
 CREATE TABLE public.feedback (
-  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id    UUID REFERENCES public.users (id) ON DELETE SET NULL,
-  type       TEXT NOT NULL CHECK (type IN ('bug', 'feature', 'general', 'support')),
-  message    TEXT NOT NULL,
-  name       TEXT,
-  email      TEXT,
-  source     TEXT NOT NULL DEFAULT 'app',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  id            UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id       UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  type          TEXT NOT NULL CHECK (type IN ('bug', 'feature', 'general', 'support', 'legal', 'privacy', 'appeals')),
+  message       TEXT NOT NULL,
+  name          TEXT,
+  email         TEXT,
+  source        TEXT NOT NULL DEFAULT 'app',
+  status        TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'replied', 'closed')),
+  last_reply_at TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
@@ -2108,6 +2112,31 @@ CREATE POLICY "Admins can read all feedback"
         AND value::jsonb @> to_jsonb(auth.uid()::text)
     )
   );
+
+CREATE INDEX IF NOT EXISTS idx_feedback_status_created
+  ON public.feedback (status, created_at DESC);
+
+-- Threaded replies on a feedback row. Outbound rows are inserted by the
+-- admin reply API; inbound rows are inserted by the feedback-inbound Edge
+-- Function when Resend posts a user's reply. Service-role only (no RLS
+-- policy means no anon/authenticated access).
+CREATE TABLE public.feedback_replies (
+  id            UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
+  feedback_id   UUID        NOT NULL REFERENCES public.feedback (id) ON DELETE CASCADE,
+  direction     TEXT        NOT NULL CHECK (direction IN ('outbound', 'inbound')),
+  subject       TEXT,
+  body_text     TEXT,
+  body_html     TEXT,
+  sender_email  TEXT        NOT NULL,
+  sender_name   TEXT,
+  resend_id     TEXT,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.feedback_replies ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_feedback_replies_feedback_id
+  ON public.feedback_replies (feedback_id, created_at);
 
 -- =============================================================
 -- APP STORIES
@@ -2752,7 +2781,8 @@ RETURNS TABLE (
   stuck_paid              INT,
   stuck_shipped           INT,
   old_disputes            INT,
-  account_deletion_count  INT
+  account_deletion_count  INT,
+  feedback_count          INT
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -2764,7 +2794,8 @@ AS $$
     (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'paid'     AND created_at  < NOW() - INTERVAL '3 days')  AS stuck_paid,
     (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'shipped'  AND shipped_at  < NOW() - INTERVAL '14 days') AS stuck_shipped,
     (SELECT COUNT(*)::INT FROM public.orders WHERE status = 'disputed' AND disputed_at < NOW() - INTERVAL '7 days')  AS old_disputes,
-    (SELECT COUNT(*)::INT FROM public.account_deletion_requests WHERE status = 'pending')                            AS account_deletion_count;
+    (SELECT COUNT(*)::INT FROM public.account_deletion_requests WHERE status = 'pending')                            AS account_deletion_count,
+    (SELECT COUNT(*)::INT FROM public.feedback WHERE status = 'open')                                                AS feedback_count;
 $$;
 
 REVOKE ALL ON FUNCTION public.get_admin_nav_counts() FROM PUBLIC, anon, authenticated;
