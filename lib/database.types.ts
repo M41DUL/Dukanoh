@@ -1622,6 +1622,7 @@ export type Database = {
           last_name: string | null
           location: string | null
           marketing_consent: boolean
+          marketing_prompted_at: string | null
           marketing_push_consent: boolean
           onboarding_completed: boolean | null
           phone: string | null
@@ -1672,6 +1673,7 @@ export type Database = {
           last_name?: string | null
           location?: string | null
           marketing_consent?: boolean
+          marketing_prompted_at?: string | null
           marketing_push_consent?: boolean
           onboarding_completed?: boolean | null
           phone?: string | null
@@ -1722,6 +1724,7 @@ export type Database = {
           last_name?: string | null
           location?: string | null
           marketing_consent?: boolean
+          marketing_prompted_at?: string | null
           marketing_push_consent?: boolean
           onboarding_completed?: boolean | null
           phone?: string | null

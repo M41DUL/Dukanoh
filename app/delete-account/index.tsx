@@ -62,7 +62,8 @@ export default function DeleteAccountPreviewScreen() {
     if (rpcErr) {
       setError('Could not check your account. Try again in a moment.');
     } else {
-      setBlockers(Array.isArray(data?.blockers) ? data.blockers : []);
+      const payload = data as { blockers?: Blocker[] } | null;
+      setBlockers(Array.isArray(payload?.blockers) ? payload.blockers : []);
     }
     setLoading(false);
     setRefresh(false);
