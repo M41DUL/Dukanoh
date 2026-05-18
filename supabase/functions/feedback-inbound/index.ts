@@ -178,12 +178,25 @@ Deno.serve(async (req) => {
   // drop with 200 so we don't accumulate retries.
   const { data: feedback } = await supabase
     .from('feedback')
-    .select('id, status')
+    .select('id, status, email')
     .eq('id', feedbackId)
     .maybeSingle();
 
   if (!feedback) {
     return new Response(JSON.stringify({ skipped: 'feedback row not found', feedbackId }), { status: 200 });
+  }
+
+  // Forgery guard: a +tag UUID could leak via forwarded email, log
+  // aggregators, etc. If it does, anyone who knows the UUID could post
+  // arbitrary "inbound" replies into the thread and re-open it. Refuse to
+  // process inbound mail whose sender doesn't match the original submitter.
+  const originalEmail = (feedback.email as string | null)?.trim().toLowerCase();
+  const senderEmail   = sender.email.trim().toLowerCase();
+  if (!originalEmail || originalEmail !== senderEmail) {
+    return new Response(
+      JSON.stringify({ skipped: 'sender does not match feedback submitter', feedbackId }),
+      { status: 200 },
+    );
   }
 
   const now = new Date().toISOString();
