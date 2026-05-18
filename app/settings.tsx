@@ -129,26 +129,7 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete account',
-      'This will permanently remove your account and all your data. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!user) return;
-            const { error } = await supabase.rpc('delete_user_account');
-            if (error) {
-              Alert.alert('Error', 'Could not delete account. Please try again.');
-              return;
-            }
-            signOut();
-          },
-        },
-      ]
-    );
+    router.push('/delete-account');
   };
 
   const accountRows: MenuRow[] = [
@@ -258,7 +239,6 @@ export default function SettingsScreen() {
       title: 'Delete Account',
       subtitle: 'Permanently remove your data',
       onPress: handleDeleteAccount,
-      destructive: true,
     },
   ];
 

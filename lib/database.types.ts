@@ -529,6 +529,51 @@ export type Database = {
           },
         ]
       }
+      deletion_failures: {
+        Row: {
+          error: string
+          id: string
+          occurred_at: string | null
+          step: string
+          user_id: string | null
+        }
+        Insert: {
+          error: string
+          id?: string
+          occurred_at?: string | null
+          step: string
+          user_id?: string | null
+        }
+        Update: {
+          error?: string
+          id?: string
+          occurred_at?: string | null
+          step?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      deletion_feedback: {
+        Row: {
+          id: string
+          occurred_at: string | null
+          reason_code: string
+          reason_text: string | null
+        }
+        Insert: {
+          id?: string
+          occurred_at?: string | null
+          reason_code: string
+          reason_text?: string | null
+        }
+        Update: {
+          id?: string
+          occurred_at?: string | null
+          reason_code?: string
+          reason_text?: string | null
+        }
+        Relationships: []
+      }
       dispute_evidence: {
         Row: {
           created_at: string | null
@@ -1563,6 +1608,7 @@ export type Database = {
           city: string | null
           country: string | null
           created_at: string | null
+          deleted_at: string | null
           dob: string | null
           first_name: string | null
           full_name: string
@@ -1576,8 +1622,8 @@ export type Database = {
           last_name: string | null
           location: string | null
           marketing_consent: boolean
-          marketing_push_consent: boolean
           marketing_prompted_at: string | null
+          marketing_push_consent: boolean
           onboarding_completed: boolean | null
           phone: string | null
           postcode: string | null
@@ -1613,6 +1659,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           dob?: string | null
           first_name?: string | null
           full_name: string
@@ -1626,8 +1673,8 @@ export type Database = {
           last_name?: string | null
           location?: string | null
           marketing_consent?: boolean
-          marketing_push_consent?: boolean
           marketing_prompted_at?: string | null
+          marketing_push_consent?: boolean
           onboarding_completed?: boolean | null
           phone?: string | null
           postcode?: string | null
@@ -1663,6 +1710,7 @@ export type Database = {
           city?: string | null
           country?: string | null
           created_at?: string | null
+          deleted_at?: string | null
           dob?: string | null
           first_name?: string | null
           full_name?: string
@@ -1676,8 +1724,8 @@ export type Database = {
           last_name?: string | null
           location?: string | null
           marketing_consent?: boolean
-          marketing_push_consent?: boolean
           marketing_prompted_at?: string | null
+          marketing_push_consent?: boolean
           onboarding_completed?: boolean | null
           phone?: string | null
           postcode?: string | null
@@ -1719,7 +1767,9 @@ export type Database = {
         Args: { patch: Json; target_user_id: string }
         Returns: undefined
       }
+      anonymize_user_account: { Args: never; Returns: Json }
       auto_release_orders: { Args: never; Returns: undefined }
+      check_deletion_readiness: { Args: never; Returns: Json }
       claim_available_balance: {
         Args: { p_seller_id: string }
         Returns: number
@@ -1732,7 +1782,6 @@ export type Database = {
       }
       consume_invite: { Args: { p_code: string }; Returns: boolean }
       decrement_boosts_used: { Args: { p_user_id: string }; Returns: undefined }
-      delete_user_account: { Args: never; Returns: undefined }
       expire_pro_subscriptions: { Args: never; Returns: undefined }
       get_seller_response_rate: {
         Args: { p_seller_id: string }
