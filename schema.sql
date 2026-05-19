@@ -67,13 +67,39 @@ CREATE TABLE public.users (
   city                        TEXT,
   postcode                    TEXT,
   country                     TEXT DEFAULT 'United Kingdom',
-  -- DAC7 / UK PIRRR tax reporting
-  tax_id_type                 TEXT,           -- 'NI' or 'UTR'
-  tax_id_number               TEXT,           -- NI number or UTR
+  -- DAC7 / UK PIRRR tax reporting. The actual identifier and its type live
+  -- in public.user_tax_info (see further down) to keep them out of the
+  -- USING (true) public-profile SELECT policy. Only the timestamps and the
+  -- HMRC hold flag live here.
   tax_id_collected_at         TIMESTAMPTZ,
   tax_declaration_at          TIMESTAMPTZ,    -- timestamp of seller's accuracy declaration (HMRC due-diligence evidence)
   tax_hold                    BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+-- Sensitive tax identifiers — kept in a separate table because public.users
+-- has a USING (true) SELECT policy that would otherwise leak every seller's
+-- NI / UTR to any authenticated caller.
+CREATE TABLE public.user_tax_info (
+  user_id        UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  tax_id_type    TEXT,    -- 'NI' or 'UTR'
+  tax_id_number  TEXT,    -- NI number or UTR
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.user_tax_info ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own tax info"
+  ON public.user_tax_info FOR SELECT TO authenticated
+  USING ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users can insert their own tax info"
+  ON public.user_tax_info FOR INSERT TO authenticated
+  WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users can update their own tax info"
+  ON public.user_tax_info FOR UPDATE TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Invites (controls access to the platform)
 CREATE TABLE public.invites (
@@ -311,6 +337,74 @@ $$;
 
 REVOKE ALL ON FUNCTION public.admin_update_user_flags(uuid, jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_update_user_flags(uuid, jsonb) TO authenticated;
+
+-- Appeal submission. The mobile useAppealDispute mutation calls this instead
+-- of writing to orders directly. SECURITY DEFINER bypasses RLS and derives
+-- appeal_by from auth.uid() so a buyer can't impersonate a seller appeal,
+-- and a seller can actually appeal (their RLS UPDATE policy only allows
+-- status='cancelled', which would otherwise block them).
+CREATE OR REPLACE FUNCTION public.submit_order_appeal(
+  p_order_id uuid,
+  p_reason   text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_caller   uuid := auth.uid();
+  v_role     text;
+  v_buyer    uuid;
+  v_seller   uuid;
+  v_status   text;
+  v_appealed timestamptz;
+BEGIN
+  IF v_caller IS NULL THEN
+    RAISE EXCEPTION 'not authenticated';
+  END IF;
+
+  IF length(coalesce(btrim(p_reason), '')) < 20 THEN
+    RAISE EXCEPTION 'appeal reason too short';
+  END IF;
+
+  SELECT buyer_id, seller_id, status, appealed_at
+    INTO v_buyer, v_seller, v_status, v_appealed
+    FROM public.orders
+    WHERE id = p_order_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'order not found';
+  END IF;
+
+  IF v_status <> 'resolved' THEN
+    RAISE EXCEPTION 'order is not in a resolved state';
+  END IF;
+
+  IF v_appealed IS NOT NULL THEN
+    RAISE EXCEPTION 'order has already been appealed';
+  END IF;
+
+  IF v_caller = v_buyer THEN
+    v_role := 'buyer';
+  ELSIF v_caller = v_seller THEN
+    v_role := 'seller';
+  ELSE
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+
+  UPDATE public.orders
+  SET status        = 'disputed',
+      appealed_at   = NOW(),
+      appeal_by     = v_role,
+      appeal_reason = btrim(p_reason)
+  WHERE id = p_order_id
+    AND status = 'resolved';
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.submit_order_appeal(uuid, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.submit_order_appeal(uuid, text) TO authenticated;
 
 -- Invites
 CREATE POLICY "Anyone can check invite codes"

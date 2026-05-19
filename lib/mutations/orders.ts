@@ -13,10 +13,14 @@ function invalidateOrders(queryClient: ReturnType<typeof useQueryClient>) {
 //
 // Single-call state-transition wrappers (mark shipped, confirm receipt,
 // raise/withdraw dispute, appeal) plus the multi-step flows that compose
-// edge-function calls with row writes (useCancelOrder, useResolveDispute,
-// useCreateOrder). All invalidate `queryKeys.orders.all` and any other
-// caches the underlying writes touch (listings.all, myListings.all,
-// home.all where relevant).
+// edge-function calls with row writes (useCancelOrder, useCreateOrder).
+// All invalidate `queryKeys.orders.all` and any other caches the
+// underlying writes touch (listings.all, myListings.all, home.all where
+// relevant).
+//
+// Dispute resolution is admin-only and lives in dukanoh-web (uses
+// service-role to bypass RLS). The mobile app no longer ships an admin
+// resolution screen.
 //
 // State-gated updates (status filters in the WHERE clause) attach `.select('id')`
 // and assert a row came back — otherwise Supabase returns no error when the
@@ -227,91 +231,6 @@ export function useCancelOrder() {
   });
 }
 
-interface ResolveDisputeArgs {
-  orderId: string;
-  listingId: string | null;
-  outcome: 'release_seller' | 'refund_buyer';
-  note: string;
-}
-
-/**
- * Admin resolution of a disputed order.
- *
- * For `refund_buyer`, fires the Stripe refund edge function first and
- * relists the item (status → available, buyer_id null, sold_at null) so
- * it returns to the home feed. For `release_seller`, only writes the
- * resolution fields — the wallet credit is deferred until the 7-day
- * appeal window closes (handled by the auto_release_orders job).
- *
- * Both branches stamp `appeal_deadline_at` 7 days out. The orders update
- * is gated on `status = 'disputed'` and asserts a row came back; the
- * refund branch also pre-checks the order's status before issuing the
- * Stripe refund so we don't refund a buyer whose dispute was already
- * resolved on another admin's screen. (TOCTOU still possible across the
- * read → refund window, but the post-update assertion bounds the damage
- * to the rare race rather than the routine double-click case.)
- *
- * Invalidates adminDisputes.all (this screen), orders.all (buyer + seller
- * order lists, order detail), listings.all + home.all + myListings.all
- * (refunded path relists the item).
- */
-export function useResolveDispute() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ orderId, listingId, outcome, note }: ResolveDisputeArgs) => {
-      const now = new Date().toISOString();
-      const appealDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-      if (outcome === 'refund_buyer') {
-        const { data: current, error: readErr } = await supabase
-          .from('orders')
-          .select('status')
-          .eq('id', orderId)
-          .single();
-        if (readErr) throw readErr;
-        if (current?.status !== 'disputed') throw new OrderStateChangedError();
-
-        const refundRes = await edgeFetch('stripe-refund', { order_id: orderId });
-        if (!refundRes.ok) {
-          const err = await refundRes.json().catch(() => ({}));
-          throw new Error(err?.error ?? 'Could not process refund. Please try again.');
-        }
-      }
-
-      const { data: updated, error: orderErr } = await supabase
-        .from('orders')
-        .update({
-          status: 'resolved',
-          resolution_outcome: outcome,
-          resolution_note: note,
-          resolved_at: now,
-          appeal_deadline_at: appealDeadline,
-        })
-        .eq('id', orderId)
-        .eq('status', 'disputed')
-        .select('id');
-      if (orderErr) throw orderErr;
-      if (!updated || updated.length === 0) throw new OrderStateChangedError();
-
-      if (outcome === 'refund_buyer' && listingId) {
-        const { error: listingErr } = await supabase
-          .from('listings')
-          .update({ status: 'available', buyer_id: null, sold_at: null })
-          .eq('id', listingId);
-        if (listingErr) throw listingErr;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.adminDisputes.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
-    },
-  });
-}
-
 interface CreateOrderArgs {
   listingId: string;
   buyerId: string;
@@ -398,28 +317,23 @@ export function useCreateOrder() {
 
 interface AppealDisputeArgs {
   orderId: string;
-  appealedBy: 'buyer' | 'seller';
   reason: string;
 }
 
+// Calls the submit_order_appeal SECURITY DEFINER RPC, which derives
+// appeal_by from auth.uid() (so a buyer can't impersonate a seller appeal)
+// and bypasses RLS (so a seller can actually appeal, which their direct
+// UPDATE policy doesn't permit).
 export function useAppealDispute() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ orderId, appealedBy, reason }: AppealDisputeArgs) => {
-      const { data, error } = await supabase
-        .from('orders')
-        .update({
-          status: 'disputed',
-          appealed_at: new Date().toISOString(),
-          appeal_by: appealedBy,
-          appeal_reason: reason,
-        })
-        .eq('id', orderId)
-        .eq('status', 'resolved')
-        .select('id');
+    mutationFn: async ({ orderId, reason }: AppealDisputeArgs) => {
+      const { error } = await supabase.rpc('submit_order_appeal', {
+        p_order_id: orderId,
+        p_reason: reason,
+      });
       if (error) throw error;
-      if (!data || data.length === 0) throw new OrderStateChangedError();
     },
     onSuccess: () => invalidateOrders(queryClient),
   });

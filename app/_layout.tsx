@@ -203,10 +203,6 @@ function RootNavigator() {
           options={{ animation: 'slide_from_right' }}
         />
         <Stack.Screen
-          name="admin/disputes"
-          options={{ animation: 'slide_from_right' }}
-        />
-        <Stack.Screen
           name="tax-info"
           options={{ animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
         />

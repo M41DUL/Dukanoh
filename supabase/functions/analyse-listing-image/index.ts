@@ -1,5 +1,6 @@
 /* eslint-disable import/no-unresolved */
 import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.19';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 
 const CORS_HEADERS = {
@@ -53,6 +54,16 @@ Deno.serve(async (req) => {
       status,
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
     });
+
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { global: { headers: { Authorization: authHeader } } }
+  );
+  const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+  if (authError || !user) return json({ error: 'Unauthorized' }, 401);
 
   try {
     const { imageBase64: rawBase64, check } = await req.json();
@@ -128,8 +139,6 @@ Deno.serve(async (req) => {
     if (hasComplexBackground(labels))
       warnings.push('A plain background helps buyers focus on the item.');
 
-    // eslint-disable-next-line no-console
-    console.log('Quality — Brightness:', quality.Brightness, 'Sharpness:', quality.Sharpness);
     return json({ warnings });
 
   } catch (err) {

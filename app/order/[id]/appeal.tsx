@@ -16,13 +16,10 @@ import { Button } from '@/components/Button';
 import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
 import { useAppealDispute } from '@/lib/mutations';
 
 export default function AppealScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -36,20 +33,12 @@ export default function AppealScreen() {
       Alert.alert('More detail needed', 'Please explain why you are appealing in at least a few sentences.');
       return;
     }
-    if (!user || !id) return;
+    if (!id) return;
 
     setSubmitting(true);
     try {
-      const isBuyer = await supabase
-        .from('orders')
-        .select('buyer_id')
-        .eq('id', id)
-        .maybeSingle()
-        .then(({ data }) => data?.buyer_id === user.id);
-
       await appealDispute.mutateAsync({
         orderId: id,
-        appealedBy: isBuyer ? 'buyer' : 'seller',
         reason: reason.trim(),
       });
 

@@ -317,12 +317,6 @@ export default function SettingsScreen() {
 
         {isAdmin && renderSection([
           {
-            icon: 'shield-half-outline',
-            title: 'Disputes',
-            subtitle: 'Admin: resolve buyer/seller disputes',
-            onPress: () => router.push('/admin/disputes'),
-          },
-          {
             icon: 'chatbubble-ellipses-outline',
             title: 'Feedback',
             subtitle: 'Admin: view user submissions',

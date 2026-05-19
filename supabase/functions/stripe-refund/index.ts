@@ -74,9 +74,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Verify the caller is either the buyer, an admin user, or the web admin
-  if (!isWebAdmin) {
-    const isCallerBuyer = order.buyer_id === callerId;
+  // Verify the caller is either the buyer, an admin user, or the web admin.
+  // Track whether the caller has admin privileges so we can gate which order
+  // statuses they may refund (admins can refund 'disputed'; buyers cannot —
+  // otherwise a buyer could raise a dispute and self-issue a refund while
+  // keeping the item).
+  let isCallerAdmin = false;
+  let isCallerBuyer = false;
+
+  if (isWebAdmin) {
+    isCallerAdmin = true;
+  } else {
+    isCallerBuyer = order.buyer_id === callerId;
     if (!isCallerBuyer) {
       const { data: settings } = await supabase
         .from('platform_settings')
@@ -90,10 +99,16 @@ Deno.serve(async (req) => {
           headers: { 'Content-Type': 'application/json' },
         });
       }
+      isCallerAdmin = true;
     }
   }
 
-  const refundableStatuses = ['disputed', 'paid', 'created'];
+  // Buyers can only refund their own paid/created orders (the cancel-before-
+  // ship path). Disputed orders MUST go through admin adjudication — refunding
+  // a disputed order is the seller-loses outcome of a resolved dispute.
+  const refundableStatuses = isCallerAdmin
+    ? ['disputed', 'paid', 'created']
+    : ['paid', 'created'];
   if (!refundableStatuses.includes(order.status)) {
     return new Response(JSON.stringify({ error: `Order cannot be refunded in status: ${order.status}` }), {
       status: 409,

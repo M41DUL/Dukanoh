@@ -71,23 +71,34 @@ export default function TaxInfoScreen() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data } = await supabase
-        .from('users')
-        .select('full_name, dob, address_line1, address_line2, city, postcode, tax_id_type, tax_id_number, tax_id_collected_at')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (data) {
-        setLegalName(data.full_name ?? '');
-        setDobDisplay(isoToDisplay(data.dob));
-        setAddressLine1(data.address_line1 ?? '');
-        setAddressLine2(data.address_line2 ?? '');
-        setCity(data.city ?? '');
-        setPostcode(data.postcode ?? '');
-        if (data.tax_id_type) setTinType(data.tax_id_type as TinType);
-        if (data.tax_id_number) setTinNumber(data.tax_id_number);
-        const submitted = !!data.tax_id_collected_at;
+      // Tax identifier and its type live in user_tax_info (own-row RLS); the
+      // rest is on the users row.
+      const [{ data: profile }, { data: taxInfo }] = await Promise.all([
+        supabase
+          .from('users')
+          .select('full_name, dob, address_line1, address_line2, city, postcode, tax_id_collected_at')
+          .eq('id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('user_tax_info')
+          .select('tax_id_type, tax_id_number')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+      ]);
+      if (profile) {
+        setLegalName(profile.full_name ?? '');
+        setDobDisplay(isoToDisplay(profile.dob));
+        setAddressLine1(profile.address_line1 ?? '');
+        setAddressLine2(profile.address_line2 ?? '');
+        setCity(profile.city ?? '');
+        setPostcode(profile.postcode ?? '');
+        const submitted = !!profile.tax_id_collected_at;
         setAlreadySubmitted(submitted);
         if (submitted) setDeclared(true);
+      }
+      if (taxInfo) {
+        if (taxInfo.tax_id_type) setTinType(taxInfo.tax_id_type as TinType);
+        if (taxInfo.tax_id_number) setTinNumber(taxInfo.tax_id_number);
       }
       setLoading(false);
     })();
@@ -106,7 +117,26 @@ export default function TaxInfoScreen() {
   const handleSave = async () => {
     if (!user || !isValid) return;
     setSaving(true);
-    const { error } = await supabase
+    // The actual identifier lives in user_tax_info (own-row RLS); profile
+    // fields and the audit timestamps stay on the users row. We write the
+    // tax_info first so a transient failure mid-flow can't leave the user
+    // row stamped with tax_id_collected_at while the identifier is missing.
+    // tax_hold is intentionally not written here — RLS locks it server-side
+    // and only admin_update_user_flags can touch it.
+    const { error: taxErr } = await supabase
+      .from('user_tax_info')
+      .upsert({
+        user_id: user.id,
+        tax_id_type: tinType,
+        tax_id_number: tinNumber.trim().toUpperCase(),
+        updated_at: new Date().toISOString(),
+      });
+    if (taxErr) {
+      setSaving(false);
+      Alert.alert('Something went wrong', 'Please try again.');
+      return;
+    }
+    const { error: profileErr } = await supabase
       .from('users')
       .update({
         full_name: legalName.trim(),
@@ -115,15 +145,12 @@ export default function TaxInfoScreen() {
         address_line2: addressLine2.trim() || null,
         city: city.trim(),
         postcode: postcode.trim().toUpperCase(),
-        tax_id_type: tinType,
-        tax_id_number: tinNumber.trim().toUpperCase(),
         tax_id_collected_at: new Date().toISOString(),
         tax_declaration_at: new Date().toISOString(),
-        tax_hold: false,
       })
       .eq('id', user.id);
     setSaving(false);
-    if (error) {
+    if (profileErr) {
       Alert.alert('Something went wrong', 'Please try again.');
       return;
     }

@@ -1640,8 +1640,6 @@ export type Database = {
           tax_declaration_at: string | null
           tax_hold: boolean
           tax_id_collected_at: string | null
-          tax_id_number: string | null
-          tax_id_type: string | null
           username: string
           username_confirmed: boolean | null
         }
@@ -1691,8 +1689,6 @@ export type Database = {
           tax_declaration_at?: string | null
           tax_hold?: boolean
           tax_id_collected_at?: string | null
-          tax_id_number?: string | null
-          tax_id_type?: string | null
           username: string
           username_confirmed?: boolean | null
         }
@@ -1742,12 +1738,39 @@ export type Database = {
           tax_declaration_at?: string | null
           tax_hold?: boolean
           tax_id_collected_at?: string | null
-          tax_id_number?: string | null
-          tax_id_type?: string | null
           username?: string
           username_confirmed?: boolean | null
         }
         Relationships: []
+      }
+      user_tax_info: {
+        Row: {
+          tax_id_number: string | null
+          tax_id_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          tax_id_number?: string | null
+          tax_id_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          tax_id_number?: string | null
+          tax_id_type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tax_info_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {
@@ -1805,6 +1828,10 @@ export type Database = {
       record_fit_search: { Args: never; Returns: boolean }
       restore_available_balance: {
         Args: { p_amount: number; p_seller_id: string }
+        Returns: undefined
+      }
+      submit_order_appeal: {
+        Args: { p_order_id: string; p_reason: string }
         Returns: undefined
       }
     }

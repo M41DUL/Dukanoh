@@ -1,4 +1,4 @@
-const { withDangerousMod } = require('@expo/config-plugins');
+const { withAndroidManifest, withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -12,6 +12,32 @@ function withAdiRegistration(config) {
       return config;
     },
   ]);
+}
+
+// Strip over-broad permissions auto-injected by transitive libraries.
+// `tools:node="remove"` instructs the Android manifest merger to drop the
+// permission even when a library re-declares it.
+const PERMISSIONS_TO_REMOVE = [
+  'android.permission.RECORD_AUDIO',
+  'android.permission.SYSTEM_ALERT_WINDOW',
+  'android.permission.READ_EXTERNAL_STORAGE',
+  'android.permission.WRITE_EXTERNAL_STORAGE',
+];
+
+function withStrippedPermissions(config) {
+  return withAndroidManifest(config, (cfg) => {
+    const manifest = cfg.modResults.manifest;
+    manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools';
+    const existing = manifest['uses-permission'] ?? [];
+    const kept = existing.filter(
+      (p) => !PERMISSIONS_TO_REMOVE.includes(p.$['android:name'])
+    );
+    for (const name of PERMISSIONS_TO_REMOVE) {
+      kept.push({ $: { 'android:name': name, 'tools:node': 'remove' } });
+    }
+    manifest['uses-permission'] = kept;
+    return cfg;
+  });
 }
 
 module.exports = {
@@ -54,6 +80,7 @@ module.exports = {
     },
     plugins: [
       withAdiRegistration,
+      withStrippedPermissions,
       "expo-router",
       [
         "expo-image-picker",
