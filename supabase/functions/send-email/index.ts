@@ -5,6 +5,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
 const FROM = 'Dukanoh <orders@mail.dukanoh.com>';
+const REPLY_TO = 'hello@dukanoh.com';
 const BASE_URL = 'https://dukanoh.com';
 const ADMIN_EMAIL = 'support@mail.dukanoh.com';
 
@@ -344,7 +345,7 @@ async function sendEmail({ to, subject, html }: { to: string; subject: string; h
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from: FROM, to, subject, html }),
+      body: JSON.stringify({ from: FROM, reply_to: REPLY_TO, to, subject, html }),
     });
 
     if (!res.ok) {
