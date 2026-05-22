@@ -136,7 +136,10 @@ export default function SellScreen() {
     refreshProfile();
     reloadTaxStatus();
     return () => {
-      // Runs when tab loses focus — checked via ref to avoid stale closure
+      // Runs when tab loses focus — always drop the success screen so
+      // returning to Sell shows a fresh form, not a stale confirmation.
+      setShowSuccess(false);
+      // checked via ref to avoid stale closure
       if (formDirtyRef.current && !submittingRef.current) {
         Alert.alert(
           'Save draft?',
@@ -426,6 +429,7 @@ export default function SellScreen() {
       <ScreenWrapper>
         <ListingSuccessView
           listing={successListing}
+          onViewListing={() => router.push(`/listing/${successListing.id}`)}
           onViewProfile={() => handleSuccessDismiss('profile')}
           onListAnother={() => handleSuccessDismiss('another')}
         />

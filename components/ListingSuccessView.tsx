@@ -10,6 +10,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { Button } from '@/components/Button';
@@ -18,11 +19,12 @@ import { Typography, Spacing, FontFamily, BorderRadius } from '@/constants/theme
 
 interface Props {
   listing: Listing;
+  onViewListing: () => void;
   onViewProfile: () => void;
   onListAnother: () => void;
 }
 
-export function ListingSuccessView({ listing, onViewProfile, onListAnother }: Props) {
+export function ListingSuccessView({ listing, onViewListing, onViewProfile, onListAnother }: Props) {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
 
@@ -34,6 +36,9 @@ export function ListingSuccessView({ listing, onViewProfile, onListAnother }: Pr
 
    
   useEffect(() => {
+    // Celebratory "ta-da" the moment the success screen lands
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+
     // Card slides up and fades in
     cardY.value       = withSpring(0, { damping: 18, stiffness: 110 });
     cardScale.value   = withSpring(1, { damping: 18, stiffness: 110 });
@@ -70,7 +75,7 @@ export function ListingSuccessView({ listing, onViewProfile, onListAnother }: Pr
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Check out "${listing.title}" for £${listing.price} on Dukanoh 🛍`,
+        message: `Check out "${listing.title}" for £${listing.price.toFixed(2)} on Dukanoh 🛍`,
       });
     } catch {}
   };
@@ -94,7 +99,7 @@ export function ListingSuccessView({ listing, onViewProfile, onListAnother }: Pr
         <ListingCard
           listing={listing}
           variant="featured"
-          onPress={() => {}}
+          onPress={onViewListing}
         />
       </Animated.View>
 
