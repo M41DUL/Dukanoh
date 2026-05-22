@@ -52,9 +52,9 @@ Deno.serve(async (req) => {
   );
 
   const { data: userRow } = await supabase
-    .from('users')
+    .from('user_private')
     .select('stripe_account_id, stripe_onboarding_complete, first_name, last_name, phone, dob')
-    .eq('id', userId)
+    .eq('user_id', userId)
     .single();
 
   const { data: authUser } = await supabase.auth.admin.getUserById(userId);
@@ -106,9 +106,9 @@ Deno.serve(async (req) => {
     accountId = account.id;
 
     await supabase
-      .from('users')
+      .from('user_private')
       .update({ stripe_account_id: accountId })
-      .eq('id', userId);
+      .eq('user_id', userId);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';

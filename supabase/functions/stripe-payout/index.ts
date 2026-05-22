@@ -42,9 +42,9 @@ Deno.serve(async (req) => {
   );
 
   const { data: userRow } = await supabase
-    .from('users')
+    .from('user_private')
     .select('stripe_account_id, stripe_onboarding_complete')
-    .eq('id', userId)
+    .eq('user_id', userId)
     .single();
 
   if (!userRow?.stripe_account_id || !userRow?.stripe_onboarding_complete) {

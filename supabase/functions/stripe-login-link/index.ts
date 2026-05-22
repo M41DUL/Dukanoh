@@ -42,9 +42,9 @@ Deno.serve(async (req) => {
   );
 
   const { data: userRow } = await supabase
-    .from('users')
+    .from('user_private')
     .select('stripe_account_id')
-    .eq('id', userId)
+    .eq('user_id', userId)
     .single();
 
   const accountId = userRow?.stripe_account_id as string | null;

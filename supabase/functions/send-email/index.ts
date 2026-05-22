@@ -63,8 +63,8 @@ async function handleOrderEmail(
     sellerAuth,
   ] = await Promise.all([
     supabase.from('listings').select('title, images').eq('id', record.listing_id).single(),
-    supabase.from('users').select('full_name').eq('id', record.buyer_id).single(),
-    supabase.from('users').select('full_name').eq('id', record.seller_id).single(),
+    supabase.from('user_private').select('full_name').eq('user_id', record.buyer_id).single(),
+    supabase.from('user_private').select('full_name').eq('user_id', record.seller_id).single(),
     supabase.auth.admin.getUserById(record.buyer_id),
     supabase.auth.admin.getUserById(record.seller_id),
   ]);

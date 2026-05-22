@@ -71,13 +71,18 @@ export default function TaxInfoScreen() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      // Tax identifier and its type live in user_tax_info (own-row RLS); the
-      // rest is on the users row.
-      const [{ data: profile }, { data: taxInfo }] = await Promise.all([
+      // Tax identifier and its type live in user_tax_info (own-row RLS); PII
+      // fields live in user_private; the audit timestamp stays on users.
+      const [{ data: userRow }, { data: privateRow }, { data: taxInfo }] = await Promise.all([
         supabase
           .from('users')
-          .select('full_name, dob, address_line1, address_line2, city, postcode, tax_id_collected_at')
+          .select('tax_id_collected_at')
           .eq('id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('user_private')
+          .select('full_name, dob, address_line1, address_line2, city, postcode')
+          .eq('user_id', user.id)
           .maybeSingle(),
         supabase
           .from('user_tax_info')
@@ -85,9 +90,10 @@ export default function TaxInfoScreen() {
           .eq('user_id', user.id)
           .maybeSingle(),
       ]);
+      const profile = (userRow || privateRow) ? { ...userRow, ...privateRow } : null;
       if (profile) {
         setLegalName(profile.full_name ?? '');
-        setDobDisplay(isoToDisplay(profile.dob));
+        setDobDisplay(isoToDisplay(profile.dob ?? null));
         setAddressLine1(profile.address_line1 ?? '');
         setAddressLine2(profile.address_line2 ?? '');
         setCity(profile.city ?? '');
@@ -136,19 +142,27 @@ export default function TaxInfoScreen() {
       Alert.alert('Something went wrong', 'Please try again.');
       return;
     }
-    const { error: profileErr } = await supabase
-      .from('users')
-      .update({
-        full_name: legalName.trim(),
-        dob: dobIso,
-        address_line1: addressLine1.trim(),
-        address_line2: addressLine2.trim() || null,
-        city: city.trim(),
-        postcode: postcode.trim().toUpperCase(),
-        tax_id_collected_at: new Date().toISOString(),
-        tax_declaration_at: new Date().toISOString(),
-      })
-      .eq('id', user.id);
+    const [{ error: privateErr }, { error: userErr }] = await Promise.all([
+      supabase
+        .from('user_private')
+        .update({
+          full_name: legalName.trim(),
+          dob: dobIso,
+          address_line1: addressLine1.trim(),
+          address_line2: addressLine2.trim() || null,
+          city: city.trim(),
+          postcode: postcode.trim().toUpperCase(),
+        })
+        .eq('user_id', user.id),
+      supabase
+        .from('users')
+        .update({
+          tax_id_collected_at: new Date().toISOString(),
+          tax_declaration_at: new Date().toISOString(),
+        })
+        .eq('id', user.id),
+    ]);
+    const profileErr = privateErr || userErr;
     setSaving(false);
     if (profileErr) {
       Alert.alert('Something went wrong', 'Please try again.');

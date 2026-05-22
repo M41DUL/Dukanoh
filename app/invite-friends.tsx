@@ -62,9 +62,9 @@ export default function InviteFriendsScreen() {
       setLoading(true);
 
       const { data: profile } = await supabase
-        .from('users')
+        .from('user_private')
         .select('seller_invite_code')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       const code = profile?.seller_invite_code ?? '';

@@ -36,11 +36,19 @@ export default function EditProfileScreen() {
     if (!user) return;
     (async () => {
       try {
-        const { data } = await supabase
-          .from('users')
-          .select('full_name, first_name, last_name, bio, avatar_url, location, phone, dob')
-          .eq('id', user.id)
-          .maybeSingle();
+        const [{ data: userRow }, { data: privateRow }] = await Promise.all([
+          supabase
+            .from('users')
+            .select('bio, avatar_url')
+            .eq('id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('user_private')
+            .select('full_name, first_name, last_name, location, phone, dob')
+            .eq('user_id', user.id)
+            .maybeSingle(),
+        ]);
+        const data = (userRow || privateRow) ? { ...userRow, ...privateRow } : null;
         if (data) {
           // Prefer split fields; fall back to splitting full_name for existing accounts
           if (data.first_name || data.last_name) {
@@ -173,18 +181,26 @@ export default function EditProfileScreen() {
     setSaving(true);
     const fullName = [trimFirst, trimLast].filter(Boolean).join(' ') || 'New User';
 
-    const { error } = await supabase
-      .from('users')
-      .update({
-        first_name: trimFirst || null,
-        last_name: trimLast || null,
-        full_name: fullName,
-        bio: bio.trim() || null,
-        location: location.trim() || null,
-        phone: phone.trim() || null,
-        dob: dobForDb,
-      })
-      .eq('id', user.id);
+    const [{ error: privateErr }, { error: userErr }] = await Promise.all([
+      supabase
+        .from('user_private')
+        .update({
+          first_name: trimFirst || null,
+          last_name: trimLast || null,
+          full_name: fullName,
+          location: location.trim() || null,
+          phone: phone.trim() || null,
+          dob: dobForDb,
+        })
+        .eq('user_id', user.id),
+      supabase
+        .from('users')
+        .update({
+          bio: bio.trim() || null,
+        })
+        .eq('id', user.id),
+    ]);
+    const error = privateErr || userErr;
 
     setSaving(false);
     if (error) {

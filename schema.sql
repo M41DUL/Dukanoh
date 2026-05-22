@@ -14,23 +14,19 @@ GRANT USAGE ON SCHEMA cron TO postgres;
 -- TABLES
 -- =============================================================
 
--- Users (mirrors auth.users with extra profile fields)
+-- Users (mirrors auth.users with extra profile fields).
+-- Personal data (real name, contact, address, Stripe account) lives in
+-- public.user_private below — kept off this table because the SELECT policy is
+-- USING (true). See migration 20260522120100_move_pii_to_user_private.
 CREATE TABLE public.users (
   id                          UUID REFERENCES auth.users (id) ON DELETE CASCADE PRIMARY KEY,
   username                    TEXT UNIQUE NOT NULL,
   username_confirmed          BOOLEAN DEFAULT TRUE,
-  full_name                   TEXT NOT NULL,
-  first_name                  TEXT,
-  last_name                   TEXT,
-  phone                       TEXT,
-  dob                         DATE,
   avatar_url                  TEXT,
   bio                         TEXT,
   preferred_categories        TEXT[] DEFAULT '{}',
   onboarding_completed        BOOLEAN DEFAULT FALSE,
   is_seller                   BOOLEAN DEFAULT FALSE,
-  location                    TEXT,
-  seller_invite_code          TEXT UNIQUE,
   created_at                  TIMESTAMPTZ DEFAULT NOW(),
   -- Seller Hub Pro
   seller_tier                 TEXT DEFAULT 'free',
@@ -42,9 +38,6 @@ CREATE TABLE public.users (
   marketing_push_consent      BOOLEAN NOT NULL DEFAULT FALSE,  -- marketing push notifications (PECR)
   marketing_prompted_at       TIMESTAMPTZ,                     -- when we asked the user about marketing notifications (signup checkbox or in-app sheet); null = never asked
   last_active_at              TIMESTAMPTZ,                     -- bumped from useAuth on app open; powers "active in last X days" audience filter
-  -- Stripe Connect Express
-  stripe_account_id           TEXT,
-  stripe_onboarding_complete  BOOLEAN DEFAULT FALSE,
   -- Seller profile perks
   avg_response_time_mins      INT,
   -- Boosts
@@ -61,12 +54,6 @@ CREATE TABLE public.users (
   cancellation_strike_count   INT NOT NULL DEFAULT 0,
   account_status              TEXT NOT NULL DEFAULT 'active' CHECK (account_status IN ('active', 'warned', 'suspended', 'deleted')),
   deleted_at                  TIMESTAMPTZ,    -- NULL = active; set when account is anonymized
-  -- Delivery address (saved on profile, pre-fills at checkout)
-  address_line1               TEXT,
-  address_line2               TEXT,
-  city                        TEXT,
-  postcode                    TEXT,
-  country                     TEXT DEFAULT 'United Kingdom',
   -- DAC7 / UK PIRRR tax reporting. The actual identifier and its type live
   -- in public.user_tax_info (see further down) to keep them out of the
   -- USING (true) public-profile SELECT policy. Only the timestamps and the
@@ -74,6 +61,31 @@ CREATE TABLE public.users (
   tax_id_collected_at         TIMESTAMPTZ,
   tax_declaration_at          TIMESTAMPTZ,    -- timestamp of seller's accuracy declaration (HMRC due-diligence evidence)
   tax_hold                    BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+-- Private personal data — 1:1 with users, readable/writable only by its owner
+-- via own-row RLS. Kept separate so public.users can stay publicly
+-- SELECT-able for seller-profile reads without exposing PII.
+-- See migration 20260522120100_move_pii_to_user_private.
+CREATE TABLE public.user_private (
+  user_id                     UUID PRIMARY KEY REFERENCES public.users (id) ON DELETE CASCADE,
+  full_name                   TEXT NOT NULL DEFAULT 'New User',
+  first_name                  TEXT,
+  last_name                   TEXT,
+  phone                       TEXT,
+  dob                         DATE,
+  location                    TEXT,
+  -- Delivery address (saved on profile, pre-fills at checkout)
+  address_line1               TEXT,
+  address_line2               TEXT,
+  city                        TEXT,
+  postcode                    TEXT,
+  country                     TEXT DEFAULT 'United Kingdom',
+  -- Stripe Connect Express
+  stripe_account_id           TEXT,
+  stripe_onboarding_complete  BOOLEAN NOT NULL DEFAULT FALSE,
+  seller_invite_code          TEXT UNIQUE,
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Sensitive tax identifiers — kept in a separate table because public.users
@@ -100,6 +112,26 @@ CREATE POLICY "Users can update their own tax info"
   ON public.user_tax_info FOR UPDATE TO authenticated
   USING ((select auth.uid()) = user_id)
   WITH CHECK ((select auth.uid()) = user_id);
+
+ALTER TABLE public.user_private ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own private data"
+  ON public.user_private FOR SELECT TO authenticated
+  USING ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users can insert their own private data"
+  ON public.user_private FOR INSERT TO authenticated
+  WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users can update their own private data"
+  ON public.user_private FOR UPDATE TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
+
+-- Defence in depth: the `anon` role must never touch this table. RLS already
+-- denies it (no policy applies to anon); revoke the table grant outright too.
+REVOKE ALL ON public.user_private FROM anon;
+GRANT SELECT, INSERT, UPDATE ON public.user_private TO authenticated;
 
 -- Invites (controls access to the platform)
 CREATE TABLE public.invites (
@@ -220,11 +252,12 @@ BEGIN
     v_confirmed := FALSE;
   END IF;
 
-  INSERT INTO public.users (id, username, username_confirmed, full_name)
+  INSERT INTO public.users (id, username, username_confirmed)
+  VALUES (NEW.id, v_username, v_confirmed);
+
+  INSERT INTO public.user_private (user_id, full_name)
   VALUES (
     NEW.id,
-    v_username,
-    v_confirmed,
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', 'New User')
   );
   RETURN NEW;
@@ -261,8 +294,22 @@ ALTER TABLE public.conversations  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages       ENABLE ROW LEVEL SECURITY;
 
 -- Users
+-- The SELECT policy is USING (true) so any caller may read a row. PII columns
+-- have been moved to public.user_private; the columns left here are safe for
+-- cross-user (seller-profile) reads. As defence in depth the `anon` role is
+-- additionally restricted by column grant to the public subset only — any
+-- column added here in future is unreadable by `anon` until granted.
+-- See migration 20260522120000_revoke_anon_access_to_users_pii.
 CREATE POLICY "Public profiles are viewable"
   ON public.users FOR SELECT USING (true);
+
+REVOKE SELECT ON public.users FROM anon;
+GRANT SELECT (
+  id, username, avatar_url, bio, created_at,
+  is_seller, is_verified, is_official, seller_tier,
+  avg_response_time_mins, rating_avg, rating_count,
+  tax_hold, deleted_at
+) ON public.users TO anon;
 
 -- WITH CHECK prevents users from directly writing to:
 --   * rating_avg / rating_count   — only update_seller_rating (SECURITY DEFINER) writes these
@@ -1773,22 +1820,9 @@ BEGIN
   UPDATE public.users
      SET username                  = v_new_username,
          username_confirmed        = TRUE,
-         full_name                 = 'Deleted member',
-         first_name                = NULL,
-         last_name                 = NULL,
-         phone                     = NULL,
-         dob                       = NULL,
          avatar_url                = NULL,
          bio                       = NULL,
          preferred_categories      = '{}',
-         location                  = NULL,
-         seller_invite_code        = NULL,
-         address_line1             = NULL,
-         address_line2             = NULL,
-         city                      = NULL,
-         postcode                  = NULL,
-         country                   = NULL,
-         stripe_account_id         = NULL,
          marketing_consent         = FALSE,
          marketing_push_consent    = FALSE,
          analytics_consent         = FALSE,
@@ -1797,6 +1831,10 @@ BEGIN
          account_status            = 'deleted',
          deleted_at                = NOW()
    WHERE id = v_user_id;
+
+  -- Private PII (name, contact, address, Stripe refs) lives in user_private.
+  -- Removing the row is the anonymization.
+  DELETE FROM public.user_private WHERE user_id = v_user_id;
 
   DELETE FROM public.push_tokens   WHERE user_id    = v_user_id;
   DELETE FROM public.saved_items   WHERE user_id    = v_user_id;
@@ -1981,22 +2019,9 @@ BEGIN
   UPDATE public.users
      SET username                  = v_new_username,
          username_confirmed        = TRUE,
-         full_name                 = 'Deleted user',
-         first_name                = NULL,
-         last_name                 = NULL,
-         phone                     = NULL,
-         dob                       = NULL,
          avatar_url                = NULL,
          bio                       = NULL,
          preferred_categories      = '{}',
-         location                  = NULL,
-         seller_invite_code        = NULL,
-         address_line1             = NULL,
-         address_line2             = NULL,
-         city                      = NULL,
-         postcode                  = NULL,
-         country                   = NULL,
-         stripe_account_id         = NULL,
          marketing_consent         = FALSE,
          marketing_push_consent    = FALSE,
          analytics_consent         = FALSE,
@@ -2005,6 +2030,10 @@ BEGIN
          account_status            = 'deleted',
          deleted_at                = NOW()
    WHERE id = p_user_id;
+
+  -- Private PII (name, contact, address, Stripe refs) lives in user_private.
+  -- Removing the row is the anonymization.
+  DELETE FROM public.user_private WHERE user_id = p_user_id;
 
   DELETE FROM public.push_tokens   WHERE user_id    = p_user_id;
   DELETE FROM public.saved_items   WHERE user_id    = p_user_id;

@@ -42,14 +42,23 @@ export default function ProfileScreen() {
     queryKey: queryKeys.profile.overview(user?.id),
     enabled: !!user?.id,
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('full_name, avatar_url, rating_avg, rating_count, had_free_trial, pro_expires_at')
-        .eq('id', user!.id)
-        .abortSignal(signal)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+      const [{ data: userRow, error: userErr }, { data: privateRow, error: privateErr }] = await Promise.all([
+        supabase
+          .from('users')
+          .select('avatar_url, rating_avg, rating_count, had_free_trial, pro_expires_at')
+          .eq('id', user!.id)
+          .abortSignal(signal)
+          .maybeSingle(),
+        supabase
+          .from('user_private')
+          .select('full_name')
+          .eq('user_id', user!.id)
+          .abortSignal(signal)
+          .maybeSingle(),
+      ]);
+      if (userErr) throw userErr;
+      if (privateErr) throw privateErr;
+      return (userRow || privateRow) ? { ...userRow, ...privateRow } : null;
     },
   });
 

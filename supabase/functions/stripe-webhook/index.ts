@@ -103,9 +103,9 @@ Deno.serve(async (req) => {
     } = (pi.metadata ?? {}) as Record<string, string>;
 
     const { data: sellerData } = await supabase
-      .from('users')
+      .from('user_private')
       .select('stripe_account_id, stripe_onboarding_complete')
-      .eq('id', seller_id)
+      .eq('user_id', seller_id)
       .single();
     const sellerVerified = !!(sellerData?.stripe_account_id && sellerData?.stripe_onboarding_complete);
     const payoutPendingSentinel = sellerVerified ? null : '2099-01-01T00:00:00.000Z';
@@ -125,9 +125,9 @@ Deno.serve(async (req) => {
 
     // Fetch buyer's saved delivery address
     const { data: buyer } = await supabase
-      .from('users')
+      .from('user_private')
       .select('address_line1, address_line2, city, postcode, country')
-      .eq('id', buyer_id)
+      .eq('user_id', buyer_id)
       .single();
 
     const itemPricePence = parseInt(item_price_pence ?? '0', 10);

@@ -159,11 +159,11 @@ Deno.serve(async (req) => {
   // Service-role client: post-anonymize admin operations + failure logging.
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Cache the Stripe account id BEFORE anonymize wipes it from public.users.
+  // Cache the Stripe account id BEFORE anonymize wipes it from user_private.
   const { data: userRow } = await supabase
-    .from('users')
+    .from('user_private')
     .select('stripe_account_id')
-    .eq('id', userId)
+    .eq('user_id', userId)
     .single();
   const stripeAccountId: string | null = userRow?.stripe_account_id ?? null;
 

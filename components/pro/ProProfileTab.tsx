@@ -104,11 +104,19 @@ export function ProProfileTab() {
 
   const fetchProfile = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('users')
-      .select('full_name, avatar_url, rating_avg, rating_count')
-      .eq('id', user.id)
-      .maybeSingle();
+    const [{ data: userRow }, { data: privateRow }] = await Promise.all([
+      supabase
+        .from('users')
+        .select('avatar_url, rating_avg, rating_count')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('user_private')
+        .select('full_name')
+        .eq('user_id', user.id)
+        .maybeSingle(),
+    ]);
+    const data = (userRow || privateRow) ? { ...userRow, ...privateRow } : null;
     if (data) {
       setProfileName(data.full_name === 'New User' ? '' : (data.full_name ?? ''));
       setProfileAvatar(data.avatar_url ?? undefined);

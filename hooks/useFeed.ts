@@ -262,20 +262,31 @@ async function fetchFeedData(
 ): Promise<FeedData> {
   const profilePromise = supabase
     .from('users')
-    .select('preferred_categories, avatar_url, bio, full_name')
+    .select('preferred_categories, avatar_url, bio')
     .eq('id', userId)
     .abortSignal(signal)
     .maybeSingle();
 
-  const [profileRes, viewedCats, savedSignals, activeSeason] = await Promise.all([
+  const privateProfilePromise = supabase
+    .from('user_private')
+    .select('full_name')
+    .eq('user_id', userId)
+    .abortSignal(signal)
+    .maybeSingle();
+
+  const [profileRes, privateProfileRes, viewedCats, savedSignals, activeSeason] = await Promise.all([
     profilePromise,
+    privateProfilePromise,
     getViewedCategories(userId, signal),
     getSavedSignals(userId, signal),
     fetchActiveSeason(signal),
   ]);
 
   if (profileRes.error) throw profileRes.error;
-  const profile = profileRes.data;
+  if (privateProfileRes.error) throw privateProfileRes.error;
+  const profile = (profileRes.data || privateProfileRes.data)
+    ? { ...profileRes.data, ...privateProfileRes.data }
+    : null;
 
   const onboardingCats: string[] = profile?.preferred_categories ?? [];
   const allCats = [...new Set([...onboardingCats, ...viewedCats, ...savedSignals.categories])];

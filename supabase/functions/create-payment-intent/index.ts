@@ -87,9 +87,9 @@ Deno.serve(async (req) => {
   }
 
   const { data: seller } = await supabase
-    .from('users')
+    .from('user_private')
     .select('stripe_account_id, stripe_onboarding_complete')
-    .eq('id', listing.seller_id)
+    .eq('user_id', listing.seller_id)
     .single();
 
   const sellerVerified = !!(seller?.stripe_account_id && seller?.stripe_onboarding_complete);

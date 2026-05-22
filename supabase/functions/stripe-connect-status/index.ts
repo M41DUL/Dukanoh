@@ -42,9 +42,9 @@ Deno.serve(async (req) => {
   );
 
   const { data: userRow } = await supabase
-    .from('users')
+    .from('user_private')
     .select('stripe_account_id, stripe_onboarding_complete')
-    .eq('id', userId)
+    .eq('user_id', userId)
     .single();
 
   const accountId = userRow?.stripe_account_id as string | null;
@@ -70,15 +70,23 @@ Deno.serve(async (req) => {
   const isComplete = account.charges_enabled === true && account.details_submitted === true;
 
   if (isComplete) {
-    const { data: updatedUser } = await supabase
-      .from('users')
-      .update({ stripe_onboarding_complete: true, is_verified: true, is_seller: true })
-      .eq('id', userId)
+    // stripe_onboarding_complete moved to user_private; the guard on its prior
+    // value (false) makes this the idempotency gate for the whole block.
+    const { data: updatedPrivate } = await supabase
+      .from('user_private')
+      .update({ stripe_onboarding_complete: true })
+      .eq('user_id', userId)
       .eq('stripe_onboarding_complete', false)
-      .select('id')
+      .select('user_id')
       .single();
 
-    if (updatedUser) {
+    if (updatedPrivate) {
+      // is_verified / is_seller stay on users — update only after the gate.
+      await supabase
+        .from('users')
+        .update({ is_verified: true, is_seller: true })
+        .eq('id', userId);
+
       await supabase.from('seller_wallet').upsert(
         { seller_id: userId, available_balance: 0, pending_balance: 0, lifetime_earned: 0 },
         { onConflict: 'seller_id', ignoreDuplicates: true }

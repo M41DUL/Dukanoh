@@ -51,9 +51,9 @@ export default function DeliveryAddressScreen() {
       (async () => {
         setLoading(true);
         const { data } = await supabase
-          .from('users')
+          .from('user_private')
           .select('address_line1, address_line2, city, postcode, country')
-          .eq('id', user.id)
+          .eq('user_id', user.id)
           .single();
         if (data) {
           setForm({
@@ -83,7 +83,7 @@ export default function DeliveryAddressScreen() {
     if (!validate() || !user) return;
     setSaving(true);
     const { error } = await supabase
-      .from('users')
+      .from('user_private')
       .update({
         address_line1: form.address_line1.trim(),
         address_line2: form.address_line2.trim() || null,
@@ -91,7 +91,7 @@ export default function DeliveryAddressScreen() {
         postcode: form.postcode.trim().toUpperCase(),
         country: form.country.trim(),
       })
-      .eq('id', user.id);
+      .eq('user_id', user.id);
     setSaving(false);
     if (error) {
       Alert.alert('Error', 'Could not save address. Please try again.');

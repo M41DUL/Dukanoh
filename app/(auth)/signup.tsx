@@ -175,10 +175,14 @@ export default function SignUpScreen() {
       // get a second chance via the in-app sheet at their first save.
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        await supabase.from('users').update({
-          dob: dobIso,
-          ...(marketingPush ? { marketing_push_consent: true } : {}),
-        }).eq('id', user.id);
+        await Promise.all([
+          supabase.from('user_private').update({
+            dob: dobIso,
+          }).eq('user_id', user.id),
+          ...(marketingPush
+            ? [supabase.from('users').update({ marketing_push_consent: true }).eq('id', user.id)]
+            : []),
+        ]);
       }
       // Root layout auth effect handles navigation
     } catch (err) {

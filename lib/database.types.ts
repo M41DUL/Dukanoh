@@ -1596,8 +1596,6 @@ export type Database = {
       users: {
         Row: {
           account_status: string
-          address_line1: string | null
-          address_line2: string | null
           analytics_consent: boolean
           avatar_url: string | null
           avg_response_time_mins: number | null
@@ -1605,13 +1603,8 @@ export type Database = {
           boosts_reset_at: string | null
           boosts_used: number | null
           cancellation_strike_count: number
-          city: string | null
-          country: string | null
           created_at: string | null
           deleted_at: string | null
-          dob: string | null
-          first_name: string | null
-          full_name: string
           had_founder_subscription: boolean
           had_free_trial: boolean | null
           id: string
@@ -1619,24 +1612,17 @@ export type Database = {
           is_seller: boolean | null
           is_verified: boolean | null
           last_active_at: string | null
-          last_name: string | null
-          location: string | null
           marketing_consent: boolean
           marketing_prompted_at: string | null
           marketing_push_consent: boolean
           onboarding_completed: boolean | null
-          phone: string | null
-          postcode: string | null
           preferred_categories: string[] | null
           pro_expires_at: string | null
           rating_avg: number | null
           rating_count: number | null
           sale_mode_active: boolean | null
           sale_mode_discount_pct: number | null
-          seller_invite_code: string | null
           seller_tier: string | null
-          stripe_account_id: string | null
-          stripe_onboarding_complete: boolean | null
           tax_declaration_at: string | null
           tax_hold: boolean
           tax_id_collected_at: string | null
@@ -1645,8 +1631,6 @@ export type Database = {
         }
         Insert: {
           account_status?: string
-          address_line1?: string | null
-          address_line2?: string | null
           analytics_consent?: boolean
           avatar_url?: string | null
           avg_response_time_mins?: number | null
@@ -1654,13 +1638,8 @@ export type Database = {
           boosts_reset_at?: string | null
           boosts_used?: number | null
           cancellation_strike_count?: number
-          city?: string | null
-          country?: string | null
           created_at?: string | null
           deleted_at?: string | null
-          dob?: string | null
-          first_name?: string | null
-          full_name: string
           had_founder_subscription?: boolean
           had_free_trial?: boolean | null
           id: string
@@ -1668,24 +1647,17 @@ export type Database = {
           is_seller?: boolean | null
           is_verified?: boolean | null
           last_active_at?: string | null
-          last_name?: string | null
-          location?: string | null
           marketing_consent?: boolean
           marketing_prompted_at?: string | null
           marketing_push_consent?: boolean
           onboarding_completed?: boolean | null
-          phone?: string | null
-          postcode?: string | null
           preferred_categories?: string[] | null
           pro_expires_at?: string | null
           rating_avg?: number | null
           rating_count?: number | null
           sale_mode_active?: boolean | null
           sale_mode_discount_pct?: number | null
-          seller_invite_code?: string | null
           seller_tier?: string | null
-          stripe_account_id?: string | null
-          stripe_onboarding_complete?: boolean | null
           tax_declaration_at?: string | null
           tax_hold?: boolean
           tax_id_collected_at?: string | null
@@ -1694,8 +1666,6 @@ export type Database = {
         }
         Update: {
           account_status?: string
-          address_line1?: string | null
-          address_line2?: string | null
           analytics_consent?: boolean
           avatar_url?: string | null
           avg_response_time_mins?: number | null
@@ -1703,13 +1673,8 @@ export type Database = {
           boosts_reset_at?: string | null
           boosts_used?: number | null
           cancellation_strike_count?: number
-          city?: string | null
-          country?: string | null
           created_at?: string | null
           deleted_at?: string | null
-          dob?: string | null
-          first_name?: string | null
-          full_name?: string
           had_founder_subscription?: boolean
           had_free_trial?: boolean | null
           id?: string
@@ -1717,24 +1682,17 @@ export type Database = {
           is_seller?: boolean | null
           is_verified?: boolean | null
           last_active_at?: string | null
-          last_name?: string | null
-          location?: string | null
           marketing_consent?: boolean
           marketing_prompted_at?: string | null
           marketing_push_consent?: boolean
           onboarding_completed?: boolean | null
-          phone?: string | null
-          postcode?: string | null
           preferred_categories?: string[] | null
           pro_expires_at?: string | null
           rating_avg?: number | null
           rating_count?: number | null
           sale_mode_active?: boolean | null
           sale_mode_discount_pct?: number | null
-          seller_invite_code?: string | null
           seller_tier?: string | null
-          stripe_account_id?: string | null
-          stripe_onboarding_complete?: boolean | null
           tax_declaration_at?: string | null
           tax_hold?: boolean
           tax_id_collected_at?: string | null
@@ -1742,6 +1700,68 @@ export type Database = {
           username_confirmed?: boolean | null
         }
         Relationships: []
+      }
+      user_private: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          country: string | null
+          dob: string | null
+          first_name: string | null
+          full_name: string | null
+          last_name: string | null
+          location: string | null
+          phone: string | null
+          postcode: string | null
+          seller_invite_code: string | null
+          stripe_account_id: string | null
+          stripe_onboarding_complete: boolean | null
+          user_id: string
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          dob?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          last_name?: string | null
+          location?: string | null
+          phone?: string | null
+          postcode?: string | null
+          seller_invite_code?: string | null
+          stripe_account_id?: string | null
+          stripe_onboarding_complete?: boolean | null
+          user_id: string
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          dob?: string | null
+          first_name?: string | null
+          full_name?: string | null
+          last_name?: string | null
+          location?: string | null
+          phone?: string | null
+          postcode?: string | null
+          seller_invite_code?: string | null
+          stripe_account_id?: string | null
+          stripe_onboarding_complete?: boolean | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_private_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       user_tax_info: {
         Row: {

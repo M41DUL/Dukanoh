@@ -128,9 +128,9 @@ export default function CheckoutScreen() {
       if (!user) return;
       (async () => {
         const { data: userData } = await supabase
-          .from('users')
+          .from('user_private')
           .select('address_line1, address_line2, city, postcode, country')
-          .eq('id', user.id)
+          .eq('user_id', user.id)
           .single();
         if (userData?.address_line1) {
           setAddress({
