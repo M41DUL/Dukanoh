@@ -102,6 +102,11 @@ Deno.serve(async (req) => {
       protection_fee_pence,
     } = (pi.metadata ?? {}) as Record<string, string>;
 
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     const { data: sellerData } = await supabase
       .from('user_private')
       .select('stripe_account_id, stripe_onboarding_complete')
@@ -117,11 +122,6 @@ Deno.serve(async (req) => {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
     // Fetch buyer's saved delivery address
     const { data: buyer } = await supabase
