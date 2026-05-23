@@ -105,7 +105,10 @@ Deno.serve(async (req) => {
   const piParams = new URLSearchParams({
     amount: String(totalPence),
     currency: 'gbp',
-    'automatic_payment_methods[enabled]': 'true',
+    // Restrict to card only — no Link / Klarna / Amazon Pay / Revolut Pay in
+    // the PaymentSheet. Apple Pay / Google Pay are unaffected (they use the
+    // dedicated PlatformPay sheet, not the PaymentSheet method list).
+    'payment_method_types[]': 'card',
     'metadata[listing_id]': listing_id,
     'metadata[buyer_id]': buyerId,
     'metadata[seller_id]': listing.seller_id,
