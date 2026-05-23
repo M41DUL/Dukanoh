@@ -126,7 +126,10 @@ Deno.serve(async (req) => {
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Idempotency-Key': `pi-${listing_id}-${buyerId}`,
+      // Versioned: change the suffix any time the PaymentIntent params
+      // change. Stripe rejects reusing a key with different params for ~24h,
+      // which would otherwise lock buyers out of retrying a stale PI.
+      'Idempotency-Key': `pi-v2-${listing_id}-${buyerId}`,
     },
     body: piParams,
   });
