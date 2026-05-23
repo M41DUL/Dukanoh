@@ -73,9 +73,13 @@ export function ListingSuccessView({ listing, onViewListing, onViewProfile, onLi
   }));
 
   const handleShare = async () => {
+    const url = `https://dukanoh.com/listing/${listing.id}`;
     try {
       await Share.share({
-        message: `Check out "${listing.title}" for £${listing.price.toFixed(2)} on Dukanoh 🛍`,
+        // Plain `https://` link so iMessage / WhatsApp / etc. auto-linkify it
+        // and (with Open Graph tags on the landing page) render a rich preview.
+        message: `Check out "${listing.title}" for £${listing.price.toFixed(2)} on Dukanoh 🛍\n${url}`,
+        url, // iOS-only field; ignored on Android
       });
     } catch {}
   };
