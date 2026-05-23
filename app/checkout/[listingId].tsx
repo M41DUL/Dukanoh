@@ -287,9 +287,14 @@ export default function CheckoutScreen() {
               borderRadius: 24,
             },
           },
-          font: {
-            family: 'Inter',
-          },
+          // Stripe Android requires `font.family` to be the filename of a
+          // font baked into android/app/src/main/res/font (lowercase, no
+          // extension). We load Inter via JS at runtime, not as an Android
+          // font resource — so passing 'Inter' here crashes the PaymentSheet
+          // init on Android with a "should only contain lowercase
+          // alphanumeric characters" error. Set the custom family on iOS only
+          // and let Android fall back to its system font for the sheet.
+          ...(Platform.OS === 'ios' ? { font: { family: 'Inter' } } : {}),
         },
       });
 
