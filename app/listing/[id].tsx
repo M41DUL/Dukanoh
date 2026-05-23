@@ -432,8 +432,11 @@ export default function ListingDetailScreen() {
   };
 
   const handleShare = () => {
+    // URL in `message` only — keeps friendly text on every iOS share target
+    // and lets messengers auto-linkify the URL + fetch the OG preview card.
+    const url = `https://dukanoh.com/listing/${listing.id}`;
     Share.share({
-      message: `${listing.title}, £${listing.price.toFixed(2)} on Dukanoh`,
+      message: `Check out "${listing.title}" for £${listing.price.toFixed(2)} on Dukanoh 🛍\n${url}`,
     });
   };
 
