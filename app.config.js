@@ -53,6 +53,12 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.m41dul.dukanoh",
+      // Universal Links: pairs with /.well-known/apple-app-site-association
+      // served from dukanoh.com. Apple verifies the AASA on install; after
+      // that, tapping https://dukanoh.com/listing/* opens the app instead of
+      // Safari (falls back to Safari + the Phase A landing page if the app
+      // isn't installed).
+      associatedDomains: ["applinks:dukanoh.com"],
       entitlements: {
         "com.apple.developer.in-app-payments": ["merchant.com.m41dul.dukanoh"],
       },
@@ -73,6 +79,20 @@ module.exports = {
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
+      // App Links: pairs with /.well-known/assetlinks.json on dukanoh.com.
+      // autoVerify makes Android verify domain ownership at install; once
+      // verified, tapping https://dukanoh.com/listing/* opens the app
+      // directly. Falls back to Chrome + the Phase A page otherwise.
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [
+            { scheme: "https", host: "dukanoh.com", pathPrefix: "/listing/" },
+          ],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+      ],
     },
     web: {
       output: "static",
