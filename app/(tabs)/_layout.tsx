@@ -1,7 +1,8 @@
-import { Tabs, router } from 'expo-router';
+import { Tabs, router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
+import { useAuth } from '@/hooks/useAuth';
 
 /** If root stack screens are open above the tabs, dismiss them before switching tabs. */
 function dismissStackOnTabPress(e: { target?: string; preventDefault: () => void }) {
@@ -14,6 +15,16 @@ function dismissStackOnTabPress(e: { target?: string; preventDefault: () => void
 export default function TabLayout() {
   const colors = useThemeColors();
   const { count: unreadCount, refresh: refreshUnreadCount } = useUnreadCount();
+  const { session, loading, needsUsername, onboardingCompleted } = useAuth();
+
+  // Declarative auth guard — prevents the Tabs (and whatever route Android
+  // restored, e.g. /sell) from rendering even one frame when the user
+  // shouldn't be here. <Redirect> happens during render, so there's no
+  // post-mount useEffect race.
+  if (loading) return null;
+  if (!session) return <Redirect href="/(auth)/intro" />;
+  if (needsUsername) return <Redirect href="/username-picker" />;
+  if (!onboardingCompleted) return <Redirect href="/onboarding" />;
 
   const tabListeners = {
     tabPress: dismissStackOnTabPress,

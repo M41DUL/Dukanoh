@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { AppState, type AppStateStatus, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -48,6 +48,15 @@ onlineManager.setEventListener((setOnline) =>
 initErrorReporting();
 
 SplashScreen.preventAutoHideAsync();
+
+// Tells children whether the JS splash overlay is still visible. Lets screens
+// like (auth)/intro defer entrance animations until the user can actually
+// see them, instead of burning the animation under the splash.
+const SplashContext = createContext<{ splashVisible: boolean }>({ splashVisible: true });
+
+export function useSplashVisible() {
+  return useContext(SplashContext).splashVisible;
+}
 
 function RootNavigator() {
   const [fontsLoaded] = useFonts({
@@ -108,7 +117,7 @@ function RootNavigator() {
   if (!fontsLoaded || loading) return null;
 
   return (
-    <>
+    <SplashContext.Provider value={{ splashVisible }}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" options={{ animation: 'none' }} />
         <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
@@ -215,7 +224,7 @@ function RootNavigator() {
           onFadeOutDone={() => setSplashVisible(false)}
         />
       )}
-    </>
+    </SplashContext.Provider>
   );
 }
 

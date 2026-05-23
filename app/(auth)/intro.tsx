@@ -18,6 +18,7 @@ import {
 } from '@/constants/logoLayout';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { AuthSheet } from '@/components/AuthSheet';
+import { useSplashVisible } from '@/app/_layout';
 
 const LINE_HEIGHT = 50;
 const LINES = ['Your Fits.', 'Your Culture.', 'On Repeat.'];
@@ -38,6 +39,9 @@ export default function IntroScreen() {
   const isFocused = useIsFocused();
   const focusedRef = useRef(true);
   useEffect(() => { focusedRef.current = isFocused; }, [isFocused]);
+  // Don't run entrance animations under the launch splash — they'd play in
+  // the dark and the user would only see the still final frame.
+  const splashVisible = useSplashVisible();
 
   // Animated values for entrance
   const logoMarkOpacity = useRef(new Animated.Value(0)).current;
@@ -108,7 +112,10 @@ export default function IntroScreen() {
         });
       };
 
-      setTimeout(runCycle, i * 350 + Math.random() * 700);
+      // Pure-random initial delay (no `i *` stagger) so the badges enter in
+      // independent, overlapping order — the chaotic "already running" look,
+      // not a strict left-to-right cascade.
+      setTimeout(runCycle, Math.random() * 800);
     });
   };
 
@@ -118,8 +125,14 @@ export default function IntroScreen() {
     setSheetMode(null);
   };
 
-  // Entrance animation on mount
+  // Entrance animation — fires once the launch splash has lifted, so the
+  // user actually sees it. Guarded by a ref so it can't replay if the
+  // splash flag ever bounces.
+  const entranceStartedRef = useRef(false);
   useEffect(() => {
+    if (splashVisible || entranceStartedRef.current) return;
+    entranceStartedRef.current = true;
+
     // Slide both logos into position simultaneously
     logoMarkOpacity.setValue(1);
     Animated.parallel([
@@ -138,13 +151,22 @@ export default function IntroScreen() {
         animIn(taglineOpacity, taglineY),
         animIn(ctaOpacity, ctaY),
       ]).start(() => {
-        const lineTimer = setTimeout(() => startLineReveal(startBadges), 100);
+        const lineTimer = setTimeout(() => startLineReveal(), 100);
         timersRef.current.push(lineTimer);
       });
     }, 300);
     timersRef.current.push(contentTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // one-time entrance animation — animated values are stable refs
+  }, [splashVisible]); // animated values are stable refs; only splashVisible affects the gate
+
+  // Badges run from mount, NOT gated on splashVisible — by the time the
+  // launch splash lifts they're already cycling, matching the "already
+  // running" look the screen had before. (Primary entrance above stays
+  // gated so the user actually sees logos / tagline / lines play in.)
+  useEffect(() => {
+    startBadges();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // animated values + startBadges body depend only on stable refs
 
   // Restart badge animations when screen regains focus
   const badgesStartedRef = useRef(false);
