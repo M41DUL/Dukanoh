@@ -75,11 +75,12 @@ export function ListingSuccessView({ listing, onViewListing, onViewProfile, onLi
   const handleShare = async () => {
     const url = `https://dukanoh.com/listing/${listing.id}`;
     try {
+      // Put the URL inside `message` only (no separate `url` field). The iOS
+      // `url` field can cause some share targets to drop `message` entirely,
+      // losing the friendly text. Messengers auto-linkify https:// in text
+      // and still fetch the Open Graph preview.
       await Share.share({
-        // Plain `https://` link so iMessage / WhatsApp / etc. auto-linkify it
-        // and (with Open Graph tags on the landing page) render a rich preview.
         message: `Check out "${listing.title}" for £${listing.price.toFixed(2)} on Dukanoh 🛍\n${url}`,
-        url, // iOS-only field; ignored on Android
       });
     } catch {}
   };
