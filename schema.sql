@@ -2115,7 +2115,11 @@ CREATE TABLE public.app_error_issues (
   notes                TEXT,
   resolved_at          TIMESTAMPTZ,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- Cached symbolicated trace + the app_version it corresponds to,
+  -- populated by the /api/admin/symbolicate endpoint on detail-page render.
+  latest_symbolicated_trace   TEXT,
+  latest_symbolicated_version TEXT
 );
 
 ALTER TABLE public.app_error_issues ENABLE ROW LEVEL SECURITY;
@@ -2279,6 +2283,29 @@ CREATE TRIGGER app_error_issues_touch_updated_at_trg
   BEFORE UPDATE ON public.app_error_issues
   FOR EACH ROW
   EXECUTE FUNCTION public.app_error_issues_touch_updated_at();
+
+
+-- ─── source_maps: metadata for uploaded EAS source maps ────────────────────
+-- The map file itself lives in the 'source-maps' Supabase Storage bucket
+-- (private). This table makes /admin/source-maps cheap to render and gives
+-- us a place to attach the git sha for each release for source-link mapping.
+
+CREATE TABLE public.source_maps (
+  id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  app_version     TEXT         NOT NULL,
+  platform        TEXT         NOT NULL CHECK (platform IN ('ios', 'android')),
+  git_sha         TEXT,
+  storage_path    TEXT         NOT NULL,
+  file_size_bytes BIGINT,
+  uploaded_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  UNIQUE (app_version, platform)
+);
+
+ALTER TABLE public.source_maps ENABLE ROW LEVEL SECURITY;
+-- Service role only.
+
+CREATE INDEX idx_source_maps_uploaded_at
+  ON public.source_maps (uploaded_at DESC);
 
 
 -- ─── listing_views: unique constraint + update policy (enables upsert) ────────
