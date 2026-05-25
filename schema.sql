@@ -2093,6 +2093,22 @@ CREATE INDEX IF NOT EXISTS idx_app_errors_fingerprint_user
 CREATE INDEX IF NOT EXISTS idx_app_errors_fingerprint_created
   ON public.app_errors (fingerprint, created_at DESC);
 
+-- Full-text search over error_message + stack_trace. Powers the search
+-- box on /admin/errors. Generated column keeps it always-in-sync; the
+-- GIN index is what makes the lookup fast.
+ALTER TABLE public.app_errors
+  ADD COLUMN IF NOT EXISTS search_tsv tsvector
+    GENERATED ALWAYS AS (
+      to_tsvector(
+        'simple',
+        coalesce(error_message, '') || ' ' || coalesce(stack_trace, '')
+      )
+    ) STORED;
+
+CREATE INDEX IF NOT EXISTS idx_app_errors_search_tsv
+  ON public.app_errors
+  USING GIN (search_tsv);
+
 
 -- ─── app_error_issues: grouped crash reports for the admin panel ──────────────
 -- One row per unique error. Aggregated automatically from app_errors by the
