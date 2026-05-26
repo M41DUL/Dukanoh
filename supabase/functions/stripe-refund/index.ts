@@ -16,9 +16,9 @@ Deno.serve(async (req) => {
   // Two auth modes:
   //   1. Mobile app — buyer or admin user signed in via Supabase auth.
   //   2. Web admin (dukanoh-web) — no Supabase user; calls server-to-server
-  //      with X-Admin-Token: ADMIN_SESSION_SECRET. Treated as admin.
+  //      with X-Admin-Token: STRIPE_REFUND_TOKEN. Treated as admin.
   const adminToken = req.headers.get('X-Admin-Token') ?? '';
-  const adminSecret = Deno.env.get('ADMIN_SESSION_SECRET') ?? '';
+  const adminSecret = Deno.env.get('STRIPE_REFUND_TOKEN') ?? '';
   const isWebAdmin = !!adminSecret && adminToken === adminSecret;
 
   let callerId: string | null = null;
