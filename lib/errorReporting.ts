@@ -3,19 +3,6 @@ import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 
 const APP_VERSION = Constants.expoConfig?.version ?? 'unknown';
-const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
-
-// Lazy-load Sentry only when a DSN is configured. Touching @sentry/react-native
-// at module-load reaches into native, which crashes dev clients that haven't
-// been rebuilt to include Sentry's native module.
-let sentryModule: typeof import('@sentry/react-native') | null = null;
-function getSentry(): typeof import('@sentry/react-native') | null {
-  if (!SENTRY_DSN) return null;
-  if (!sentryModule) {
-    sentryModule = require('@sentry/react-native') as typeof import('@sentry/react-native');
-  }
-  return sentryModule;
-}
 
 // ── Internal sender ───────────────────────────────────────────
 // Fire-and-forget. Never throws — a crash in the crash reporter
@@ -49,15 +36,6 @@ async function send(
  */
 export function initErrorReporting(): void {
   if (__DEV__) return;
-
-  const Sentry = getSentry();
-  if (Sentry) {
-    Sentry.init({
-      dsn: SENTRY_DSN,
-      release: APP_VERSION,
-      tracesSampleRate: 0.1,
-    });
-  }
 
   // Unhandled JS errors (hard crashes)
   const previousHandler = ErrorUtils.getGlobalHandler();
@@ -99,8 +77,4 @@ export function reportError(error: unknown, context?: string): void {
   const err = error instanceof Error ? error : new Error(String(error));
   const message = context ? `[${context}] ${err.message}` : err.message;
   send(message, err.stack ?? null, false);
-  const Sentry = getSentry();
-  if (Sentry) {
-    Sentry.captureException(err, context ? { tags: { context } } : undefined);
-  }
 }
