@@ -457,8 +457,8 @@ GRANT EXECUTE ON FUNCTION public.submit_order_appeal(uuid, text) TO authenticate
 CREATE POLICY "Anyone can check invite codes"
   ON public.invites FOR SELECT USING (true);
 
-CREATE POLICY "Authenticated users can update invites"
-  ON public.invites FOR UPDATE USING ((select auth.role()) = 'authenticated');
+CREATE POLICY "Users can update invites they created"
+  ON public.invites FOR UPDATE USING ((select auth.uid()) = created_by);
 
 -- Listings
 CREATE POLICY "Listings are publicly viewable"
@@ -728,6 +728,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- Dead code (activate_seller does its own invite handling); service-role only.
+REVOKE ALL    ON FUNCTION public.consume_invite(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_invite(text) TO service_role;
+
 -- Atomically consume an invite code (if provided) and activate the user as a seller.
 -- p_code = NULL skips invite check (used when SELLER_INVITE_REQUIRED feature flag is off).
 -- Always generates 3 single-use invite codes for the newly activated seller.
@@ -740,6 +744,10 @@ DECLARE
   v_i INT;
   v_code TEXT;
 BEGIN
+  IF p_user_id IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+
   -- If a code was provided, consume it
   IF p_code IS NOT NULL THEN
     UPDATE public.invites
@@ -769,6 +777,9 @@ BEGIN
   RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.activate_seller(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.activate_seller(uuid, text) TO authenticated;
 
 -- =============================================================
 -- PUSH NOTIFICATION TOKENS
@@ -1177,6 +1188,10 @@ CREATE OR REPLACE FUNCTION public.mark_order_shipped(
 )
 RETURNS void AS $$
 BEGIN
+  IF p_seller_id IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+
   UPDATE public.orders
   SET
     status          = 'shipped',
@@ -1191,6 +1206,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+REVOKE ALL    ON FUNCTION public.mark_order_shipped(uuid, uuid, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.mark_order_shipped(uuid, uuid, text, text) TO authenticated;
+
 -- confirm_order_receipt RPC — uses server time, enforces shipped→delivered guard.
 -- Moves order to 'delivered' and resets auto_release_at to +2 days so the
 -- dispute window starts from confirmed delivery, not from shipping.
@@ -1200,6 +1218,10 @@ CREATE OR REPLACE FUNCTION public.confirm_order_receipt(
 )
 RETURNS void AS $$
 BEGIN
+  IF p_buyer_id IS DISTINCT FROM auth.uid() THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+
   UPDATE public.orders
   SET
     status          = 'delivered',
@@ -1211,6 +1233,9 @@ BEGIN
     AND status   = 'shipped';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.confirm_order_receipt(uuid, uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.confirm_order_receipt(uuid, uuid) TO authenticated;
 
 -- Atomically zeroes a seller's available_balance and returns the claimed amount.
 -- SELECT FOR UPDATE locks the row so concurrent payout requests queue behind each
@@ -1238,6 +1263,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- Service-role only: called from the stripe-payout Edge Function (auth.uid() is
+-- NULL there, so it must take p_seller_id). Never callable by app clients.
+REVOKE ALL    ON FUNCTION public.claim_available_balance(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_available_balance(uuid) TO service_role;
+
 -- Atomically adds an amount back to available_balance (used to restore a
 -- failed payout without overwriting earnings that arrived concurrently)
 CREATE OR REPLACE FUNCTION public.restore_available_balance(p_seller_id UUID, p_amount NUMERIC)
@@ -1248,6 +1278,25 @@ BEGIN
   WHERE seller_id = p_seller_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Service-role only: called from the stripe-payout Edge Function.
+REVOKE ALL    ON FUNCTION public.restore_available_balance(uuid, numeric) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.restore_available_balance(uuid, numeric) TO service_role;
+
+-- Adds an amount to a seller's pending_balance, creating the wallet row if needed.
+CREATE OR REPLACE FUNCTION public.increment_pending_balance(p_seller_id UUID, p_amount NUMERIC)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO public.seller_wallet (seller_id, pending_balance, available_balance, lifetime_earned)
+  VALUES (p_seller_id, p_amount, 0, 0)
+  ON CONFLICT (seller_id) DO UPDATE
+    SET pending_balance = seller_wallet.pending_balance + p_amount;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Service-role only: called from the stripe-connect-status Edge Function.
+REVOKE ALL    ON FUNCTION public.increment_pending_balance(uuid, numeric) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.increment_pending_balance(uuid, numeric) TO service_role;
 
 -- Auto-release function (called by Edge Function cron every hour)
 CREATE OR REPLACE FUNCTION public.auto_release_orders()
@@ -1273,7 +1322,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Dispatch deadline: set 5 days from payment on status → paid
 CREATE OR REPLACE FUNCTION public.set_dispatch_deadline()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SET search_path = public
+AS $$
 BEGIN
   IF NEW.status = 'paid' AND (OLD.status IS DISTINCT FROM 'paid') THEN
     NEW.dispatch_deadline_at := NOW() + INTERVAL '5 days';
@@ -2162,6 +2213,7 @@ CREATE OR REPLACE FUNCTION public.compute_error_fingerprint(
 RETURNS TEXT
 LANGUAGE plpgsql
 IMMUTABLE
+SET search_path = public
 AS $$
 DECLARE
   norm_msg    TEXT;
@@ -2196,6 +2248,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.app_errors_set_fingerprint()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   IF NEW.fingerprint IS NULL THEN
@@ -2288,6 +2341,7 @@ CREATE TRIGGER app_errors_aggregate_trg
 CREATE OR REPLACE FUNCTION public.app_error_issues_touch_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   NEW.updated_at := NOW();
@@ -3195,3 +3249,12 @@ $$;
 
 REVOKE ALL ON FUNCTION public.find_users_by_emails(TEXT[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.find_users_by_emails(TEXT[]) TO service_role;
+
+-- =============================================================
+-- DEFAULT PRIVILEGES
+-- Default-deny EXECUTE on FUTURE functions so a new RPC isn't auto-exposed to
+-- the anon/authenticated roles via PUBLIC. From now on every client-callable
+-- function needs an explicit GRANT EXECUTE ... TO authenticated (or service_role
+-- for server-only helpers). Existing functions are unaffected.
+-- =============================================================
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
