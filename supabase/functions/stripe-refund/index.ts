@@ -3,12 +3,22 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 
+// CORS: pin to the Dukanoh web origin (mobile + server-to-server callers don't
+// use CORS, so this only constrains browser callers). Echoes the request Origin
+// when it's in the allowlist, otherwise falls back to the apex domain.
+const ALLOWED_ORIGINS = ['https://dukanoh.com', 'https://www.dukanoh.com'];
+function corsOrigin(req: Request): string {
+  const origin = req.headers.get('Origin') ?? '';
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': corsOrigin(req),
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-admin-token',
+        'Vary': 'Origin',
       },
     });
   }
@@ -119,7 +129,7 @@ Deno.serve(async (req) => {
   if (!order.stripe_payment_id) {
     return new Response(JSON.stringify({ refunded: false, reason: 'no_payment_id' }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin(req), 'Vary': 'Origin' },
     });
   }
 
@@ -154,7 +164,7 @@ Deno.serve(async (req) => {
     JSON.stringify({ refunded: true, refund_id: refund.id, amount: order.item_price }),
     {
       status: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin(req), 'Vary': 'Origin' },
     }
   );
 });

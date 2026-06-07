@@ -83,12 +83,22 @@ async function sendPush(messages: object[], supabase: ReturnType<typeof createCl
   return { accepted, failed };
 }
 
+// CORS: pin to the Dukanoh web origin. This function is only called from the
+// mobile app (native, no CORS), so this is defense-in-depth against browser
+// callers from other origins.
+const ALLOWED_ORIGINS = ['https://dukanoh.com', 'https://www.dukanoh.com'];
+function corsOrigin(req: Request): string {
+  const origin = req.headers.get('Origin') ?? '';
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': corsOrigin(req),
         'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        'Vary': 'Origin',
       },
     });
   }
