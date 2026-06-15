@@ -13,7 +13,8 @@
     },
     "production": {
       "autoIncrement": true,
-      "environment": "production"
+      "environment": "production",
+      "ios": { "image": "latest" }
     },
     "production-apk": {
       "autoIncrement": true,

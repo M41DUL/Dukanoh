@@ -40,6 +40,36 @@ function withStrippedPermissions(config) {
   });
 }
 
+// iOS pod install fails because AppCheckCore (a Swift pod pulled in transitively
+// by Google Sign-In) depends on GoogleUtilities and RecaptchaInterop, which
+// don't define module maps — so they can't be imported from a Swift static lib.
+// Declare those pods with `:modular_headers => true` so CocoaPods generates the
+// module maps. Targeted (not global use_modular_headers!) to avoid disturbing
+// the New Architecture / prebuilt React Native pods.
+const PODS_NEEDING_MODULAR_HEADERS = ['GoogleUtilities', 'RecaptchaInterop', 'AppCheckCore'];
+
+function withIosModularHeaders(config) {
+  return withDangerousMod(config, [
+    'ios',
+    (cfg) => {
+      const podfilePath = path.join(cfg.modRequest.platformProjectRoot, 'Podfile');
+      let contents = fs.readFileSync(podfilePath, 'utf-8');
+      if (!contents.includes("pod 'GoogleUtilities', :modular_headers => true")) {
+        const inject = PODS_NEEDING_MODULAR_HEADERS
+          .map((p) => `  pod '${p}', :modular_headers => true`)
+          .join('\n');
+        // Insert just inside the first app target block.
+        contents = contents.replace(
+          /^(target ['"][^'"]+['"] do\s*\n)/m,
+          `$1${inject}\n`
+        );
+        fs.writeFileSync(podfilePath, contents);
+      }
+      return cfg;
+    },
+  ]);
+}
+
 module.exports = {
   expo: {
     name: "Dukanoh",
@@ -101,6 +131,7 @@ module.exports = {
     plugins: [
       withAdiRegistration,
       withStrippedPermissions,
+      withIosModularHeaders,
       "expo-router",
       [
         "expo-image-picker",
