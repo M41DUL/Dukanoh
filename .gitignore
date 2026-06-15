@@ -67,3 +67,8 @@ app-example
 # Vim swap files
 *.swp
 *.swo
+
+# Native build artifacts (binaries — never commit)
+*.ipa
+*.aab
+*.apk
