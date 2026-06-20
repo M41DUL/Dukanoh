@@ -94,28 +94,9 @@ Deno.serve(async (req) => {
 
   if (event.type === 'payment_intent.succeeded') {
     const pi = event.data.object;
-    const {
-      listing_id,
-      buyer_id,
-      seller_id,
-      item_price_pence,
-      protection_fee_pence,
-    } = (pi.metadata ?? {}) as Record<string, string>;
+    const { listing_id, buyer_id, seller_id } = (pi.metadata ?? {}) as Record<string, string>;
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    const { data: sellerData } = await supabase
-      .from('user_private')
-      .select('stripe_account_id, stripe_onboarding_complete')
-      .eq('user_id', seller_id)
-      .single();
-    const sellerVerified = !!(sellerData?.stripe_account_id && sellerData?.stripe_onboarding_complete);
-    const payoutPendingSentinel = sellerVerified ? null : '2099-01-01T00:00:00.000Z';
-
-    // Skip if not an order payment (e.g. a future subscription charge)
+    // Skip non-order payments (e.g. subscription charges carry no listing metadata)
     if (!listing_id || !buyer_id || !seller_id) {
       return new Response(JSON.stringify({ received: true }), {
         status: 200,
@@ -123,44 +104,69 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch buyer's saved delivery address
-    const { data: buyer } = await supabase
-      .from('user_private')
-      .select('address_line1, address_line2, city, postcode, country')
-      .eq('user_id', buyer_id)
-      .single();
-
-    const itemPricePence = parseInt(item_price_pence ?? '0', 10);
-    const protectionFeePence = parseInt(protection_fee_pence ?? '0', 10);
-
-    // Upsert order — idempotent via listing_id unique constraint.
-    // If the client already created the row, ignoreDuplicates means we do nothing.
-    await supabase.from('orders').upsert(
-      {
-        listing_id,
-        buyer_id,
-        seller_id,
-        status: 'paid',
-        item_price: itemPricePence / 100,
-        protection_fee: protectionFeePence / 100,
-        total_paid: (itemPricePence + protectionFeePence) / 100,
-        stripe_payment_id: pi.id,
-        seller_verify_deadline: payoutPendingSentinel,
-        delivery_address_line1: buyer?.address_line1 ?? null,
-        delivery_address_line2: buyer?.address_line2 ?? null,
-        delivery_city: buyer?.city ?? null,
-        delivery_postcode: buyer?.postcode ?? null,
-        delivery_country: buyer?.country ?? null,
-      },
-      { onConflict: 'listing_id', ignoreDuplicates: true }
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Mark listing as sold — guarded by status check so re-runs are safe
-    await supabase
-      .from('listings')
-      .update({ status: 'sold', buyer_id, sold_at: new Date().toISOString() })
-      .eq('id', listing_id)
-      .eq('status', 'available');
+    // Confirm the reservation created at checkout: flip the buyer's 'pending'
+    // order → 'paid'. The order row (delivery address, fees) already exists from
+    // create-payment-intent, so we only set status + the payment id. This UPDATE
+    // is the single source of truth and the atomic claim for the payment.
+    const { data: confirmed, error: confirmError } = await supabase
+      .from('orders')
+      .update({ status: 'paid', stripe_payment_id: pi.id })
+      .eq('listing_id', listing_id)
+      .eq('buyer_id', buyer_id)
+      .eq('status', 'pending')
+      .select('id');
+
+    if (confirmError) {
+      // Genuine DB error — return 5xx so Stripe RETRIES (never swallow + 200).
+      // eslint-disable-next-line no-console
+      console.error('order confirm failed', confirmError.message);
+      return new Response(JSON.stringify({ error: 'confirm failed' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (confirmed && confirmed.length > 0) {
+      // Reservation confirmed → mark listing sold (guarded so re-runs are safe).
+      await supabase
+        .from('listings')
+        .update({ status: 'sold', buyer_id, sold_at: new Date().toISOString() })
+        .eq('id', listing_id)
+        .eq('status', 'available');
+    } else {
+      // No 'pending' reservation matched. Either a Stripe REDELIVERY of an
+      // already-confirmed payment, or a genuine ORPHAN (reservation expired or
+      // never existed). Refund ONLY a true orphan — never a paid order.
+      const { data: alreadyRecorded } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('stripe_payment_id', pi.id)
+        .maybeSingle();
+
+      if (!alreadyRecorded) {
+        const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
+        await fetch('https://api.stripe.com/v1/refunds', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${stripeSecretKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Idempotency-Key': `orphan-refund-${pi.id}`,
+          },
+          body: new URLSearchParams({
+            payment_intent: pi.id,
+            'metadata[reason]': 'orphaned_payment_no_reservation',
+          }),
+        });
+        // eslint-disable-next-line no-console
+        console.error('orphaned payment auto-refunded (no reservation):', pi.id);
+      }
+      // else: redelivery of an already-recorded order → no-op.
+    }
   }
 
   // A full refund was issued — either via Stripe Dashboard or a dispute resolved

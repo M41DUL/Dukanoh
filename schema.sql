@@ -963,7 +963,7 @@ CREATE TABLE public.orders (
   buyer_id          UUID REFERENCES public.users (id) ON DELETE SET NULL,
   seller_id         UUID REFERENCES public.users (id) ON DELETE SET NULL,
   status            TEXT NOT NULL DEFAULT 'created'
-                    CHECK (status IN ('created','paid','shipped','delivered','completed','disputed','resolved','cancelled')),
+                    CHECK (status IN ('pending','created','paid','shipped','delivered','completed','disputed','resolved','cancelled')),
   item_price        NUMERIC(10,2) NOT NULL,
   protection_fee    NUMERIC(10,2) NOT NULL,
   total_paid        NUMERIC(10,2) NOT NULL,
@@ -1033,9 +1033,12 @@ CREATE INDEX idx_orders_seller  ON public.orders (seller_id);
 CREATE INDEX idx_orders_listing ON public.orders (listing_id);
 CREATE INDEX idx_orders_status  ON public.orders (status);
 
--- Prevent two orders for the same listing (race condition guard)
-ALTER TABLE public.orders
-  ADD CONSTRAINT orders_listing_id_unique UNIQUE (listing_id);
+-- One ACTIVE order per listing (race-condition / double-charge guard, and the
+-- reservation lock). Partial so 'cancelled' orders don't occupy the slot —
+-- otherwise a relisted item (after a cancelled reservation or refund) could
+-- never be bought again.
+CREATE UNIQUE INDEX orders_listing_id_active_unique
+  ON public.orders (listing_id) WHERE status <> 'cancelled';
 
 -- Partial index for the auto-release cron query
 CREATE INDEX IF NOT EXISTS idx_orders_auto_release
@@ -1320,6 +1323,29 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- Cancel abandoned checkout reservations: 'pending' orders older than 20 min
+-- (longer than a realistic 3DS / wallet / bank-app session) are cancelled and
+-- their listing freed back to 'available'. The buyer was never charged for a
+-- 'pending' order; a payment that lands later is auto-refunded by the webhook.
+CREATE OR REPLACE FUNCTION public.cancel_stale_pending_orders()
+RETURNS void AS $$
+BEGIN
+  WITH stale AS (
+    UPDATE public.orders
+    SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = 'system'
+    WHERE status = 'pending'
+      AND created_at < NOW() - INTERVAL '20 minutes'
+    RETURNING listing_id
+  )
+  UPDATE public.listings
+  SET status = 'available', buyer_id = NULL, sold_at = NULL
+  WHERE id IN (SELECT listing_id FROM stale WHERE listing_id IS NOT NULL)
+    AND status <> 'available';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+GRANT EXECUTE ON FUNCTION public.cancel_stale_pending_orders() TO postgres;
+
 -- Dispatch deadline: set 5 days from payment on status → paid
 CREATE OR REPLACE FUNCTION public.set_dispatch_deadline()
 RETURNS TRIGGER
@@ -1537,6 +1563,13 @@ SELECT cron.schedule(
   'auto-release-orders',
   '0 * * * *',
   'SELECT public.auto_release_orders()'
+);
+
+-- Runs every 5 minutes — releases abandoned 'pending' checkout reservations.
+SELECT cron.schedule(
+  'cancel-stale-pending-orders',
+  '*/5 * * * *',
+  'SELECT public.cancel_stale_pending_orders()'
 );
 
 

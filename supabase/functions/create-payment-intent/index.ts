@@ -94,6 +94,17 @@ Deno.serve(async (req) => {
 
   const sellerVerified = !!(seller?.stripe_account_id && seller?.stripe_onboarding_complete);
 
+  // Block checkout for unverified sellers BEFORE creating any charge — there is
+  // no Stripe Connect account to route the money to, so a buyer must never be
+  // charged for their item. The app already shows a "Seller not verified" alert
+  // for this exact error string.
+  if (!sellerVerified) {
+    return new Response(JSON.stringify({ error: 'Seller has not completed verification' }), {
+      status: 409,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const feeRow = (k: string) => feeSettings?.find((r: { key: string; value: string }) => r.key === k)?.value;
   const feePercent = parseFloat(feeRow('protection_fee_percent') ?? '6.5');
   const feeFlatPence = Math.round(parseFloat(feeRow('protection_fee_flat') ?? '0.80') * 100);
@@ -101,6 +112,67 @@ Deno.serve(async (req) => {
   const itemPricePence = Math.round(listing.price * 100);
   const protectionFeePence = calcProtectionFeePence(itemPricePence, feePercent, feeFlatPence);
   const totalPence = itemPricePence + protectionFeePence;
+
+  // Reserve the listing with a short-lived 'pending' order BEFORE charging.
+  // The partial unique index on (listing_id) WHERE status <> 'cancelled' makes
+  // this atomic: a second concurrent buyer's insert fails here, so only one
+  // buyer can ever reach a charge for a given listing.
+  const { data: buyerAddr } = await supabase
+    .from('user_private')
+    .select('address_line1, address_line2, city, postcode, country')
+    .eq('user_id', buyerId)
+    .single();
+
+  let orderId: string;
+  const { data: reserved, error: reserveError } = await supabase
+    .from('orders')
+    .insert({
+      listing_id,
+      buyer_id: buyerId,
+      seller_id: listing.seller_id,
+      status: 'pending',
+      item_price: itemPricePence / 100,
+      protection_fee: protectionFeePence / 100,
+      total_paid: totalPence / 100,
+      seller_verify_deadline: null,
+      delivery_address_line1: buyerAddr?.address_line1 ?? null,
+      delivery_address_line2: buyerAddr?.address_line2 ?? null,
+      delivery_city: buyerAddr?.city ?? null,
+      delivery_postcode: buyerAddr?.postcode ?? null,
+      delivery_country: buyerAddr?.country ?? null,
+    })
+    .select('id')
+    .single();
+
+  if (reserveError) {
+    // 23505 = an active (non-cancelled) order already exists for this listing.
+    if (reserveError.code === '23505') {
+      const { data: existing } = await supabase
+        .from('orders')
+        .select('id, buyer_id, status')
+        .eq('listing_id', listing_id)
+        .neq('status', 'cancelled')
+        .single();
+      // Same buyer resuming their own in-progress checkout → reuse it (the stable
+      // idempotency key returns the same PaymentIntent). Anyone else → it's taken.
+      if (existing && existing.buyer_id === buyerId) {
+        orderId = existing.id;
+      } else {
+        return new Response(JSON.stringify({ error: 'Listing is no longer available' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+    } else {
+      return new Response(JSON.stringify({ error: 'Could not start checkout. Please try again.' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    orderId = reserved!.id;
+  }
 
   const piParams = new URLSearchParams({
     amount: String(totalPence),
@@ -126,10 +198,10 @@ Deno.serve(async (req) => {
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
-      // Versioned: change the suffix any time the PaymentIntent params
-      // change. Stripe rejects reusing a key with different params for ~24h,
-      // which would otherwise lock buyers out of retrying a stale PI.
-      'Idempotency-Key': `pi-v2-${listing_id}-${buyerId}`,
+      // Keyed on the reservation (order id): a re-attempt after a stale
+      // reservation was cleaned up gets a fresh PaymentIntent, while a buyer
+      // resuming the same reservation reuses the same PI.
+      'Idempotency-Key': `pi-v3-${orderId}`,
     },
     body: piParams,
   });
@@ -148,6 +220,7 @@ Deno.serve(async (req) => {
     JSON.stringify({
       client_secret: pi.client_secret,
       payment_intent_id: pi.id,
+      order_id: orderId,
       amount: totalPence,
       item_price: itemPricePence,
       protection_fee: protectionFeePence,

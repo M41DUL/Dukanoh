@@ -97,7 +97,10 @@ Deno.serve(async (req) => {
         .update({ seller_verify_deadline: null })
         .eq('seller_id', userId)
         .not('seller_verify_deadline', 'is', null)
-        .not('status', 'in', '("cancelled","refunded")')
+        // Only ever transfer for CHARGED orders — never a 'pending' reservation
+        // (uncharged), a stale 'created', or a 'cancelled' order. ('refunded' is
+        // not a real status; the old filter excluded nothing.)
+        .not('status', 'in', '("cancelled","pending","created")')
         .select('id, item_price, stripe_payment_id');
 
       for (const order of claimedOrders ?? []) {
