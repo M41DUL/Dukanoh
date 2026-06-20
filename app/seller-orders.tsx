@@ -14,7 +14,7 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/queryKeys';
 
-type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
+type OrderStatus = 'pending' | 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'cancelled';
 
 interface Order {
   id: string;
@@ -27,6 +27,7 @@ interface Order {
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
+  pending: 'Processing',
   created: 'Placed',
   paid: 'Paid. Ready to ship',
   shipped: 'Shipped. Awaiting confirmation',
@@ -38,6 +39,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 
 function getStatusColor(status: OrderStatus, colors: ColorTokens): string {
   const map: Record<OrderStatus, string> = {
+    pending: colors.amber,
     created: colors.amber,
     paid: colors.primary,
     shipped: colors.primary,

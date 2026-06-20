@@ -34,7 +34,7 @@ type OrderTab = 'sold' | 'bought';
 type FilterKey = 'all' | 'in_progress' | 'completed' | 'cancelled';
 
 type OrderStatus =
-  | 'created' | 'paid' | 'shipped' | 'delivered'
+  | 'pending' | 'created' | 'paid' | 'shipped' | 'delivered'
   | 'completed' | 'disputed' | 'cancelled';
 
 interface Order {
@@ -65,12 +65,13 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 
 const FILTER_STATUSES: Record<FilterKey, OrderStatus[] | null> = {
   all: null,
-  in_progress: ['created', 'paid', 'shipped', 'delivered', 'disputed'],
+  in_progress: ['pending', 'created', 'paid', 'shipped', 'delivered', 'disputed'],
   completed: ['completed'],
   cancelled: ['cancelled'],
 };
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
+  pending: 'Processing',
   created: 'Placed',
   paid: 'Paid',
   shipped: 'Shipped',
@@ -82,6 +83,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 
 function getStatusColor(status: OrderStatus, colors: ColorTokens): string {
   const map: Record<OrderStatus, string> = {
+    pending: colors.amber,
     created: colors.amber,
     paid: colors.primary,
     shipped: colors.primary,

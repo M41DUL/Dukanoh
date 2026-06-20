@@ -39,7 +39,7 @@ import {
   useCancelOrder,
 } from '@/lib/mutations';
 
-type OrderStatus = 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'resolved' | 'cancelled';
+type OrderStatus = 'pending' | 'created' | 'paid' | 'shipped' | 'delivered' | 'completed' | 'disputed' | 'resolved' | 'cancelled';
 
 interface Order {
   id: string;
@@ -118,6 +118,7 @@ function getCourierTrackingUrl(courier: string | null, trackingNumber: string): 
 }
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
+  pending:   'Processing payment',
   created:   'Order placed',
   paid:      'Payment received',
   shipped:   'Shipped',
@@ -129,6 +130,7 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 const STATUS_COLOR: Record<OrderStatus, string> = {
+  pending:   '#F59E0B',
   created:   '#F59E0B',
   paid:      '#3735C5',
   shipped:   '#3735C5',

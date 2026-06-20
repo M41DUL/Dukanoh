@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -85,6 +85,12 @@ export default function CheckoutScreen() {
   const [googlePaySupported, setGooglePaySupported] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(DEFAULT_METHOD);
   const [protectionSheetVisible, setProtectionSheetVisible] = useState(false);
+  // Once the buyer has begun paying, the listing flipping to `sold` is the
+  // expected result of THEIR OWN purchase (the webhook marks it sold the moment
+  // payment succeeds). Without this guard, the focus-refetch below sees `sold`
+  // and fires the "Unavailable" alert + router.back(), clobbering the success
+  // navigation to the order screen. Set true at checkout start; never reset.
+  const checkoutStartedRef = useRef(false);
 
   // Check platform pay support on mount
   useEffect(() => {
@@ -150,6 +156,9 @@ export default function CheckoutScreen() {
   // on this screen.
   useEffect(() => {
     if (!user || !listing) return;
+    // Don't bounce the buyer once their own checkout is underway — the listing
+    // going `sold` here is their successful purchase, not someone else's.
+    if (checkoutStartedRef.current) return;
     if (listing.status !== 'available') {
       Alert.alert('Unavailable', 'This listing is no longer available.');
       router.back();
@@ -180,6 +189,9 @@ export default function CheckoutScreen() {
       return;
     }
 
+    // From here on, a listing → `sold` transition is this buyer's own purchase,
+    // so suppress the "Unavailable" validation bounce (see checkoutStartedRef).
+    checkoutStartedRef.current = true;
     setPlacing(true);
 
     // Step 1 — Create PaymentIntent via Edge Function
