@@ -15,7 +15,7 @@ import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
-import Purchases from 'react-native-purchases';
+import Purchases, { PRODUCT_CATEGORY } from 'react-native-purchases';
 import { getImageUrl } from '@/lib/imageUtils';
 import {
   useCreateConversation,
@@ -360,7 +360,11 @@ export default function ListingDetailScreen() {
 
   const purchaseBoostConsumable = async (): Promise<boolean> => {
     try {
-      const products = await Purchases.getProducts(['boost_single']);
+      // boost_single is a ONE-TIME product. getProducts defaults its type to
+      // PRODUCT_CATEGORY.SUBSCRIPTION, so without this the store is queried for a
+      // *subscription* named boost_single, finds none, and returns [] → the
+      // "Purchase unavailable" alert. Must pass NON_SUBSCRIPTION for consumables.
+      const products = await Purchases.getProducts(['boost_single'], PRODUCT_CATEGORY.NON_SUBSCRIPTION);
       if (products.length === 0) {
         Alert.alert('Purchase unavailable', 'Please try again later.');
         return false;
