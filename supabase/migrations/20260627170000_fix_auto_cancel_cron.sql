@@ -22,7 +22,13 @@
 --                         secret (the function checks it against the x-dukanoh-key
 --                         header). Rotated 2026-06-27.
 
-SELECT cron.unschedule('auto-cancel-unverified-orders');
+-- Guarded: cron.unschedule throws if the job is absent (fresh DB / CI run).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'auto-cancel-unverified-orders') THEN
+    PERFORM cron.unschedule('auto-cancel-unverified-orders');
+  END IF;
+END $$;
 
 SELECT cron.schedule(
   'auto-cancel-unverified-orders',
