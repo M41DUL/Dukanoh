@@ -101,18 +101,22 @@ Deno.serve(async (req) => {
       // orders maintenance cron. The wallet's available_balance was already
       // credited by the order-status trigger at completion — we do NOT touch the
       // wallet here (doing so double-counted against that trigger).
-      const { data: claimedOrders } = await supabase
+      // Read first, transfer, then clear the flag PER ORDER only once the money
+      // has actually moved. Clearing before the transfer would strand a seller's
+      // funds permanently if a transfer fails (e.g. charge funds still pending) —
+      // the maintenance cron + JIT payout only retry orders that still carry the
+      // flag, so a prematurely-cleared order would never be retried.
+      const { data: heldOrders } = await supabase
         .from('orders')
-        .update({ seller_verify_deadline: null })
+        .select('id, item_price, stripe_payment_id')
         .eq('seller_id', userId)
         .not('seller_verify_deadline', 'is', null)
-        .eq('status', 'completed')
-        .select('id, item_price, stripe_payment_id');
+        .eq('status', 'completed');
 
-      for (const order of claimedOrders ?? []) {
+      for (const order of heldOrders ?? []) {
         if (!order.stripe_payment_id) continue;
         const itemPricePence = Math.round(order.item_price * 100);
-        await fetch('https://api.stripe.com/v1/transfers', {
+        const transferRes = await fetch('https://api.stripe.com/v1/transfers', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${stripeSecretKey}`,
@@ -129,6 +133,12 @@ Deno.serve(async (req) => {
             'metadata[payment_intent_id]': order.stripe_payment_id,
           }),
         });
+        if (transferRes.ok) {
+          await supabase
+            .from('orders')
+            .update({ seller_verify_deadline: null })
+            .eq('id', order.id);
+        }
       }
     }
   }
