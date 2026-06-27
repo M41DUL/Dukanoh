@@ -69,6 +69,12 @@ Deno.serve(async (req) => {
       email,
       'capabilities[card_payments][requested]': 'true',
       'capabilities[transfers][requested]': 'true',
+      // Manual payouts: Stripe never auto-pays the seller. Money stays in their
+      // Connect account until the app's Withdraw button (stripe-payout) fires,
+      // which is gated by seller_wallet.available_balance — only unlocked once an
+      // order completes. This makes the buyer-protection escrow real and lets a
+      // refund/clawback (reverse_transfer) always succeed before funds leave.
+      'settings[payouts][schedule][interval]': 'manual',
       'business_type': 'individual',
       'business_profile[url]': 'https://dukanoh.com',
       'business_profile[product_description]': 'South Asian clothing resale on Dukanoh marketplace',

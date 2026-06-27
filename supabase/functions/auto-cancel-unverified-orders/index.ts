@@ -109,7 +109,72 @@ Deno.serve(async (req) => {
     if (ok) cancelledCount++;
   }
 
-  return new Response(JSON.stringify({ cancelled: cancelledCount }), {
+  // ── Settlement: pay verified sellers for their completed unverified-origin
+  // orders ─────────────────────────────────────────────────────────────────
+  // An unverified seller can sell and ship; their money is held on the platform
+  // (flagged with seller_verify_deadline) until the order COMPLETES and they
+  // verify. We settle only 'completed' orders, so there is never a transfer to
+  // reverse on a refund. Money moves platform → seller's Connect account; the
+  // wallet's available_balance was already credited by the order-status trigger
+  // at completion, so we only clear the flag here (no wallet write).
+  let settledCount = 0;
+  const { data: settleable } = await supabase
+    .from('orders')
+    .select('id, item_price, stripe_payment_id, seller_id')
+    .eq('status', 'completed')
+    .not('seller_verify_deadline', 'is', null);
+
+  if (settleable && settleable.length > 0) {
+    const sellerIds = [...new Set(settleable.map(o => o.seller_id).filter(Boolean))];
+    const { data: sellers } = await supabase
+      .from('user_private')
+      .select('user_id, stripe_account_id, stripe_onboarding_complete')
+      .in('user_id', sellerIds);
+
+    const verifiedAccount = new Map<string, string>();
+    for (const s of sellers ?? []) {
+      if (s.stripe_account_id && s.stripe_onboarding_complete) {
+        verifiedAccount.set(s.user_id, s.stripe_account_id);
+      }
+    }
+
+    for (const order of settleable) {
+      const accountId = order.seller_id ? verifiedAccount.get(order.seller_id) : undefined;
+      // Seller not verified yet → leave the flag set; settle on a later run once
+      // they verify (or it's picked up immediately by stripe-connect-status).
+      if (!accountId || !order.stripe_payment_id) continue;
+
+      const transferRes = await fetch('https://api.stripe.com/v1/transfers', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          // Same key as the stripe-connect-status catch-up — settling an order
+          // twice is a no-op.
+          'Idempotency-Key': `transfer-${order.id}`,
+        },
+        body: new URLSearchParams({
+          amount: String(Math.round(order.item_price * 100)),
+          currency: 'gbp',
+          destination: accountId,
+          'metadata[order_id]': order.id,
+          'metadata[payment_intent_id]': order.stripe_payment_id,
+        }),
+      });
+
+      // Only clear the flag once the money has actually moved, so a failed
+      // transfer is retried on the next run rather than silently dropped.
+      if (transferRes.ok) {
+        await supabase
+          .from('orders')
+          .update({ seller_verify_deadline: null })
+          .eq('id', order.id);
+        settledCount++;
+      }
+    }
+  }
+
+  return new Response(JSON.stringify({ cancelled: cancelledCount, settled: settledCount }), {
     status: 200,
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   });

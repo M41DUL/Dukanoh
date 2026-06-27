@@ -203,9 +203,6 @@ export default function CheckoutScreen() {
       if (err?.error === 'Listing is no longer available') {
         Alert.alert('No longer available', 'This listing was just sold. Please browse other items.');
         router.back();
-      } else if (err?.error === 'Seller has not completed verification') {
-        Alert.alert('Seller not verified', 'This seller has not completed verification yet. Try messaging them.');
-        router.back();
       } else {
         Alert.alert('Payment error', err?.error ?? 'Could not start checkout. Please try again.');
       }

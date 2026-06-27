@@ -122,13 +122,17 @@ async function handleOrder(
 
   switch (record.status) {
     case 'paid': {
-      // Notify seller
+      // Notify seller. An unverified seller can still ship, but their money is
+      // held on the platform until they verify — so nudge them to verify.
+      const sellerVerified = await isSellerVerified(supabase, record.seller_id);
       const tokens = await getTokens(supabase, record.seller_id);
       tokens.forEach(t => messages.push({
         to: t,
         sound: 'default',
         title: 'Item sold!',
-        body: `${itemTitle} has been purchased. Ship it to the buyer.`,
+        body: sellerVerified
+          ? `${itemTitle} has been purchased. Ship it to the buyer.`
+          : `${itemTitle} has been purchased. Verify your account to get paid.`,
         data: { order_id: record.id },
       }));
       break;
@@ -150,9 +154,10 @@ async function handleOrder(
     }
     case 'completed': {
       // Notify both
-      const [buyerTokens, sellerTokens] = await Promise.all([
+      const [buyerTokens, sellerTokens, sellerVerified] = await Promise.all([
         getTokens(supabase, record.buyer_id),
         getTokens(supabase, record.seller_id),
+        isSellerVerified(supabase, record.seller_id),
       ]);
       buyerTokens.forEach(t => messages.push({
         to: t,
@@ -164,8 +169,12 @@ async function handleOrder(
       sellerTokens.forEach(t => messages.push({
         to: t,
         sound: 'default',
-        title: 'Payment released!',
-        body: `Payment for ${itemTitle} has been added to your wallet.`,
+        // Verified: money is settled and withdrawable. Unverified: it's earned
+        // but locked until they verify, so frame it as a verify prompt.
+        title: sellerVerified ? 'Payment released!' : 'You’ve earned money!',
+        body: sellerVerified
+          ? `Payment for ${itemTitle} has been added to your wallet.`
+          : `Your ${itemTitle} earnings are waiting. Verify your account to withdraw.`,
         data: { order_id: record.id },
       }));
       break;
@@ -416,6 +425,19 @@ async function getTokens(supabase: ReturnType<typeof createClient>, userId: stri
     .select('token')
     .eq('user_id', userId);
   return data?.map((r: { token: string }) => r.token) ?? [];
+}
+
+// True once the seller has completed Stripe Connect onboarding (can receive
+// payouts). Used to tailor order notifications for unverified sellers, whose
+// earnings are held until they verify.
+async function isSellerVerified(supabase: ReturnType<typeof createClient>, sellerId: string): Promise<boolean> {
+  if (!sellerId) return false;
+  const { data } = await supabase
+    .from('user_private')
+    .select('stripe_onboarding_complete')
+    .eq('user_id', sellerId)
+    .maybeSingle();
+  return data?.stripe_onboarding_complete === true;
 }
 
 async function sendPush(messages: object[], supabase: ReturnType<typeof createClient>) {

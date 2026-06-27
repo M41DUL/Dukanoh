@@ -94,16 +94,12 @@ Deno.serve(async (req) => {
 
   const sellerVerified = !!(seller?.stripe_account_id && seller?.stripe_onboarding_complete);
 
-  // Block checkout for unverified sellers BEFORE creating any charge — there is
-  // no Stripe Connect account to route the money to, so a buyer must never be
-  // charged for their item. The app already shows a "Seller not verified" alert
-  // for this exact error string.
-  if (!sellerVerified) {
-    return new Response(JSON.stringify({ error: 'Seller has not completed verification' }), {
-      status: 409,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  // NOTE: an unverified seller is NOT blocked. Their charge is created as a plain
+  // charge into the platform balance (no transfer_data below), and the order is
+  // flagged via seller_verify_deadline so the money is settled to the seller's
+  // Connect account once the order COMPLETES and they have verified (see
+  // auto-cancel-unverified-orders settlement + stripe-connect-status catch-up).
+  // Verification thus becomes a reward after a sale, not a wall before one.
 
   const feeRow = (k: string) => feeSettings?.find((r: { key: string; value: string }) => r.key === k)?.value;
   const feePercent = parseFloat(feeRow('protection_fee_percent') ?? '6.5');
@@ -134,7 +130,12 @@ Deno.serve(async (req) => {
       item_price: itemPricePence / 100,
       protection_fee: protectionFeePence / 100,
       total_paid: totalPence / 100,
-      seller_verify_deadline: null,
+      // Flag (non-null = "money is in the platform balance, owed to the seller,
+      // not yet settled to their Connect account"). Verified sellers use a
+      // destination charge (transfer_data below) so their money is already routed
+      // — flag stays null. Unverified sellers' money is held on the platform and
+      // settled later; any non-null timestamp marks it (read as IS NOT NULL).
+      seller_verify_deadline: sellerVerified ? null : new Date().toISOString(),
       delivery_address_line1: buyerAddr?.address_line1 ?? null,
       delivery_address_line2: buyerAddr?.address_line2 ?? null,
       delivery_city: buyerAddr?.city ?? null,

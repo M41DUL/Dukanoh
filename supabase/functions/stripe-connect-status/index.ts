@@ -92,15 +92,21 @@ Deno.serve(async (req) => {
         { onConflict: 'seller_id', ignoreDuplicates: true }
       );
 
+      // Catch-up settlement: pay out the seller for any of their unverified-origin
+      // orders that have ALREADY COMPLETED while they were unverified. We settle
+      // ONLY 'completed' orders — money is moved to the seller exactly when the
+      // order is irreversibly theirs, so there is never a transfer to claw back on
+      // a refund (refunds only happen pre-completion). Orders still in flight keep
+      // their flag and are settled at completion by the auto-cancel-unverified-
+      // orders maintenance cron. The wallet's available_balance was already
+      // credited by the order-status trigger at completion — we do NOT touch the
+      // wallet here (doing so double-counted against that trigger).
       const { data: claimedOrders } = await supabase
         .from('orders')
         .update({ seller_verify_deadline: null })
         .eq('seller_id', userId)
         .not('seller_verify_deadline', 'is', null)
-        // Only ever transfer for CHARGED orders — never a 'pending' reservation
-        // (uncharged), a stale 'created', or a 'cancelled' order. ('refunded' is
-        // not a real status; the old filter excluded nothing.)
-        .not('status', 'in', '("cancelled","pending","created")')
+        .eq('status', 'completed')
         .select('id, item_price, stripe_payment_id');
 
       for (const order of claimedOrders ?? []) {
@@ -111,6 +117,8 @@ Deno.serve(async (req) => {
           headers: {
             Authorization: `Bearer ${stripeSecretKey}`,
             'Content-Type': 'application/x-www-form-urlencoded',
+            // Idempotent across the verify catch-up AND the maintenance cron —
+            // whichever runs first wins, the other is a no-op for this order.
             'Idempotency-Key': `transfer-${order.id}`,
           },
           body: new URLSearchParams({
@@ -120,14 +128,6 @@ Deno.serve(async (req) => {
             'metadata[order_id]': order.id,
             'metadata[payment_intent_id]': order.stripe_payment_id,
           }),
-        });
-      }
-
-      if ((claimedOrders ?? []).length > 0) {
-        const totalPending = (claimedOrders ?? []).reduce((sum, o) => sum + o.item_price, 0);
-        await supabase.rpc('increment_pending_balance', {
-          p_seller_id: userId,
-          p_amount: totalPending,
         });
       }
     }
