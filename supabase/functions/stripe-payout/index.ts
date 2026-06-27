@@ -54,6 +54,49 @@ Deno.serve(async (req) => {
     });
   }
 
+  const accountId = userRow.stripe_account_id;
+
+  // Just-in-time settlement. Unverified-origin orders are charged to the PLATFORM
+  // balance and flagged (seller_verify_deadline); their money only reaches the
+  // seller's Connect account once settled. The maintenance cron settles these in
+  // the background, but we also settle here — synchronously, right before paying
+  // out — so a seller is never told their balance is withdrawable while the funds
+  // aren't yet in their Connect account (which would make the payout below fail).
+  // We settle ONLY 'completed' orders (irreversibly the seller's, so no clawback
+  // is ever needed). Idempotent with the cron + verify catch-up via the shared
+  // transfer key; the flag is cleared only once the money has actually moved.
+  const { data: heldOrders } = await supabase
+    .from('orders')
+    .select('id, item_price, stripe_payment_id')
+    .eq('seller_id', userId)
+    .eq('status', 'completed')
+    .not('seller_verify_deadline', 'is', null);
+
+  for (const order of heldOrders ?? []) {
+    if (!order.stripe_payment_id) continue;
+    const transferRes = await fetch('https://api.stripe.com/v1/transfers', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stripeSecretKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Idempotency-Key': `transfer-${order.id}`,
+      },
+      body: new URLSearchParams({
+        amount: String(Math.round(order.item_price * 100)),
+        currency: 'gbp',
+        destination: accountId,
+        'metadata[order_id]': order.id,
+        'metadata[payment_intent_id]': order.stripe_payment_id,
+      }),
+    });
+    if (transferRes.ok) {
+      await supabase
+        .from('orders')
+        .update({ seller_verify_deadline: null })
+        .eq('id', order.id);
+    }
+  }
+
   const { data: claimedAmount, error: claimError } = await supabase
     .rpc('claim_available_balance', { p_seller_id: userId });
 
