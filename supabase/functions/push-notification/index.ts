@@ -192,6 +192,13 @@ async function handleOrder(
       break;
     }
     case 'cancelled': {
+      // Skip abandoned-checkout cleanup: a 'pending' reservation that never got
+      // paid (released by cancel-stale-pending-orders) was never a real order to
+      // the buyer/seller — notifying "Order cancelled" is alarming and confusing.
+      // Only notify when a genuine, charged order is cancelled.
+      if (old_record?.status === 'pending') {
+        return new Response(JSON.stringify({ skipped: 'stale pending reservation released' }), { status: 200 });
+      }
       // Notify both
       const [buyerTokens, sellerTokens] = await Promise.all([
         getTokens(supabase, record.buyer_id),
