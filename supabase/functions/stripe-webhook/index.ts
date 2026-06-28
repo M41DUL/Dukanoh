@@ -5,6 +5,15 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const WEBHOOK_TOLERANCE_SECONDS = 300; // 5 minutes — reject replays older than this
 
+// Constant-time equality for equal-length hex strings — avoids leaking, via
+// comparison timing, how much of a forged signature matched.
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return mismatch === 0;
+}
+
 async function verifyStripeSignature(
   rawBody: string,
   signatureHeader: string,
@@ -50,7 +59,7 @@ async function verifyStripeSignature(
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 
-  return signatures.some(sig => sig === computedSig);
+  return signatures.some(sig => timingSafeEqualHex(sig, computedSig));
 }
 
 Deno.serve(async (req) => {
@@ -176,6 +185,16 @@ Deno.serve(async (req) => {
 
       if (!alreadyRecorded) {
         const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
+        const orphanRefundBody: Record<string, string> = {
+          payment_intent: pi.id,
+          'metadata[reason]': 'orphaned_payment_no_reservation',
+        };
+        // If this orphan was a destination charge (verified seller), the money
+        // already went to the seller — reverse it too so the platform isn't out.
+        if (pi.transfer_data?.destination) {
+          orphanRefundBody.reverse_transfer = 'true';
+          orphanRefundBody.refund_application_fee = 'true';
+        }
         await fetch('https://api.stripe.com/v1/refunds', {
           method: 'POST',
           headers: {
@@ -183,10 +202,7 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Idempotency-Key': `orphan-refund-${pi.id}`,
           },
-          body: new URLSearchParams({
-            payment_intent: pi.id,
-            'metadata[reason]': 'orphaned_payment_no_reservation',
-          }),
+          body: new URLSearchParams(orphanRefundBody),
         });
         // eslint-disable-next-line no-console
         console.error('orphaned payment auto-refunded (no reservation):', pi.id);
@@ -231,6 +247,63 @@ Deno.serve(async (req) => {
             .update({ status: 'available', buyer_id: null, sold_at: null })
             .eq('id', order.listing_id);
         }
+      }
+    }
+  }
+
+  // Bank chargeback opened — the buyer disputed the charge with their card
+  // issuer (NOT the in-app dispute). Stripe withholds the funds automatically, so
+  // we do NOT issue a refund. We flag the order, mirror the clawback in the
+  // wallet, and — for destination charges — reverse the seller's transfer so the
+  // chargeback liability lands on the seller rather than the platform.
+  // Requires the endpoint to be subscribed to charge.dispute.created.
+  if (event.type === 'charge.dispute.created') {
+    const dispute = event.data.object;
+    const paymentIntentId = dispute.payment_intent as string | null;
+    const chargeId = dispute.charge as string | null;
+
+    if (paymentIntentId) {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+      const { data: order } = await supabase
+        .from('orders')
+        .select('id, chargeback_at, is_destination_charge, seller_verify_deadline')
+        .eq('stripe_payment_id', paymentIntentId)
+        .maybeSingle();
+
+      if (order && !order.chargeback_at) {
+        await supabase.from('orders').update({ chargeback_at: new Date().toISOString() }).eq('id', order.id);
+
+        // We do NOT touch the wallet here — the real clawback is the transfer
+        // reversal below (destination charges) or Stripe withholding the funds
+        // (platform-balance charges). An overstated mirror self-corrects: a
+        // withdrawal would fail against the reduced Connect balance and restore.
+        const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
+        // Destination charge -> reverse the seller's transfer (claw back).
+        if (order.is_destination_charge && chargeId && stripeSecretKey) {
+          try {
+            const chRes = await fetch(`https://api.stripe.com/v1/charges/${chargeId}`, {
+              headers: { Authorization: `Bearer ${stripeSecretKey}` },
+            });
+            const transferId = chRes.ok ? (await chRes.json())?.transfer : undefined;
+            if (transferId) {
+              await fetch(`https://api.stripe.com/v1/transfers/${transferId}/reversals`, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${stripeSecretKey}`,
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Idempotency-Key': `chargeback-rev-${order.id}`,
+                },
+                body: new URLSearchParams({ 'metadata[order_id]': order.id, 'metadata[reason]': 'chargeback' }),
+              });
+            }
+          } catch { /* best-effort — admin alerted via the log below */ }
+        }
+        // eslint-disable-next-line no-console
+        console.error('CHARGEBACK opened on order', order.id, '— review in Stripe Dashboard. PI:', paymentIntentId,
+          order.is_destination_charge ? '' : '(unverified-origin: if already settled, reverse the transfer manually)');
       }
     }
   }

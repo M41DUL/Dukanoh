@@ -116,7 +116,13 @@ Deno.serve(async (req) => {
   }
 
   const amountPence = Math.round(availableBalance * 100);
-  const idempotencyKey = `payout-${userId}-${amountPence}`;
+  // Unique per withdrawal. A key of just user+amount collided across two
+  // legitimate same-amount withdrawals within Stripe's 24h idempotency window —
+  // the second returned the cached first payout (no money sent) while the wallet
+  // had already been claimed, stranding the funds. The claim_available_balance
+  // FOR UPDATE lock (above) is what prevents double-submit double-payout, so a
+  // fresh key here is safe and fixes the collision.
+  const idempotencyKey = `payout-${userId}-${amountPence}-${crypto.randomUUID()}`;
 
   const payoutRes = await fetch('https://api.stripe.com/v1/payouts', {
     method: 'POST',

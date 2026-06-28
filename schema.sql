@@ -985,6 +985,7 @@ CREATE TABLE public.orders (
   funds_available_on TIMESTAMPTZ,      -- Stripe charge clear date (set by stripe-webhook)
   wallet_released_at TIMESTAMPTZ,      -- set once pending->available has been applied
   is_destination_charge BOOLEAN NOT NULL DEFAULT FALSE, -- money routed to seller's Connect acct at charge time (verified sellers); drives refund reverse_transfer
+  chargeback_at      TIMESTAMPTZ,      -- set by stripe-webhook on a bank chargeback (charge.dispute.created)
   shipped_at        TIMESTAMPTZ,
   delivered_at      TIMESTAMPTZ,
   auto_release_at   TIMESTAMPTZ,

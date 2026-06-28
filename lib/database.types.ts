@@ -1222,6 +1222,7 @@ export type Database = {
           buyer_id: string | null
           cancelled_at: string | null
           cancelled_by: string | null
+          chargeback_at: string | null
           completed_at: string | null
           courier: string | null
           created_at: string | null
@@ -1262,6 +1263,7 @@ export type Database = {
           buyer_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          chargeback_at?: string | null
           completed_at?: string | null
           courier?: string | null
           created_at?: string | null
@@ -1302,6 +1304,7 @@ export type Database = {
           buyer_id?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          chargeback_at?: string | null
           completed_at?: string | null
           courier?: string | null
           created_at?: string | null
