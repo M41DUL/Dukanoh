@@ -24,6 +24,7 @@ import { Spacing, BorderRadius, FontFamily, proColorsDark } from '@/constants/th
 import { ENTITLEMENT_ID, syncProEntitlement } from '@/lib/revenuecat';
 import { HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
 import { supabase } from '@/lib/supabase';
+import { reportError } from '@/lib/errorReporting';
 
 // Paywall always uses the dark Pro palette — it's a premium destination
 // regardless of the user's system theme preference.
@@ -64,7 +65,13 @@ export function ProPaywallSheet({
       setStandardPkg(standard);
       if (standard) setStandardMonthlyPrice(standard.product.priceString);
       if (founder) setFounderMonthlyPrice(founder.product.priceString);
-    }).catch(() => {}).finally(() => setPackagesLoading(false));
+      // No purchasable package => RevenueCat offering / store products aren't
+      // configured. Log so the cause is visible in the crash dashboard.
+      if (!standard && !founder) {
+        reportError(new Error(`Pro offerings empty (current=${offerings.current?.identifier ?? 'none'})`), 'pro/getOfferings');
+      }
+    }).catch(e => reportError(new Error(`Pro getOfferings failed: ${e?.code ?? '?'} ${e?.message ?? e}`), 'pro/getOfferings'))
+      .finally(() => setPackagesLoading(false));
   }, []);
 
   const seeAllOpacity = useRef(new Animated.Value(1)).current;
@@ -127,6 +134,7 @@ export function ProPaywallSheet({
       }
     } catch (e: any) {
       if (!e.userCancelled) {
+        reportError(new Error(`Pro purchase failed: ${e?.code ?? '?'} ${e?.message ?? e}`), 'pro/purchase');
         Alert.alert('Something went wrong', 'Your subscription could not be processed. Please try again.');
       }
     } finally {

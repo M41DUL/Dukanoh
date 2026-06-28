@@ -134,6 +134,19 @@ module.exports = {
       withIosModularHeaders,
       "expo-router",
       [
+        // Required for Apple Pay (iOS) and Google Pay (Android). Without it the
+        // native wallet capabilities aren't wired: Android lacks the
+        // com.google.android.gms.wallet.api.enabled manifest flag, so Google Pay
+        // is silently unsupported (card payments work without it — which is why
+        // only Google Pay was broken). merchantIdentifier must match
+        // StripeProvider + the iOS in-app-payments entitlement. Native rebuild required.
+        "@stripe/stripe-react-native",
+        {
+          merchantIdentifier: "merchant.com.m41dul.dukanoh",
+          enableGooglePay: true,
+        },
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Allow Dukanoh to access your photos to add listing images.",

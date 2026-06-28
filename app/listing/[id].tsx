@@ -15,6 +15,7 @@ import { useSaved } from '@/context/SavedContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import { reportError } from '@/lib/errorReporting';
 import Purchases, { PRODUCT_CATEGORY } from 'react-native-purchases';
 import { getImageUrl } from '@/lib/imageUtils';
 import {
@@ -366,6 +367,11 @@ export default function ListingDetailScreen() {
       // "Purchase unavailable" alert. Must pass NON_SUBSCRIPTION for consumables.
       const products = await Purchases.getProducts(['boost_single'], PRODUCT_CATEGORY.NON_SUBSCRIPTION);
       if (products.length === 0) {
+        // No store product returned — almost always a store/RevenueCat config
+        // issue (boost_single not set up as a NON_SUBSCRIPTION in App Store
+        // Connect / Play Console, or RevenueCat not configured). Log so the
+        // exact state shows in the crash dashboard.
+        reportError(new Error('boost_single returned no products'), 'boost/getProducts');
         Alert.alert('Purchase unavailable', 'Please try again later.');
         return false;
       }
@@ -373,6 +379,10 @@ export default function ListingDetailScreen() {
       return true;
     } catch (e: any) {
       if (!e.userCancelled) {
+        // Capture the real RevenueCat error (code + message) so we can tell a
+        // config problem (PRODUCT_NOT_AVAILABLE, CONFIGURATION_ERROR, ...) from
+        // a genuine payment decline.
+        reportError(new Error(`boost purchase failed: ${e?.code ?? '?'} ${e?.message ?? e}`), 'boost/purchase');
         Alert.alert('Purchase failed', 'Something went wrong. Please try again.');
       }
       return false;
@@ -426,10 +436,18 @@ export default function ListingDetailScreen() {
     }
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    await supabase.from('boosts').upsert(
+    const { error: boostErr } = await supabase.from('boosts').upsert(
       { listing_id: id, seller_id: user.id, expires_at: expiresAt, amount_paid: amountPaid },
       { onConflict: 'listing_id' }
     );
+    if (boostErr) {
+      // Payment already succeeded (or a free quota boost was claimed) but the
+      // boost row didn't save — surface it instead of silently showing a boost
+      // that vanishes on refresh, and log for follow-up.
+      reportError(new Error(`boost saved failed after payment: ${boostErr.message}`), 'boost/upsert');
+      Alert.alert('Boost not applied', 'Your payment went through but we couldn’t apply the boost. Please contact support and we’ll sort it out.');
+      return;
+    }
     setBoostExpiry(new Date(expiresAt));
     setActiveBoostCount(prev => prev + 1);
     setBoostVisible(false);
