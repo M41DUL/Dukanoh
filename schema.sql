@@ -982,6 +982,8 @@ CREATE TABLE public.orders (
   appeal_by           TEXT,          -- 'buyer' | 'seller'
   appeal_reason       TEXT,
   dispatch_deadline_at TIMESTAMPTZ,
+  funds_available_on TIMESTAMPTZ,      -- Stripe charge clear date (set by stripe-webhook)
+  wallet_released_at TIMESTAMPTZ,      -- set once pending->available has been applied
   shipped_at        TIMESTAMPTZ,
   delivered_at      TIMESTAMPTZ,
   auto_release_at   TIMESTAMPTZ,
@@ -1098,34 +1100,28 @@ ALTER TABLE public.platform_ledger ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "No direct access to platform ledger"
   ON public.platform_ledger FOR ALL TO authenticated USING (false);
 
--- Wallet update trigger (credits/debits seller_wallet on order status changes)
+-- Wallet update trigger (Wallet model v2). Money enters PENDING when the order
+-- is paid (the sale), and leaves pending if a not-yet-released order is
+-- cancelled. The pending->available move is NOT done here — it happens in
+-- release_cleared_wallet_funds() once the order is completed AND Stripe has
+-- cleared the funds. Only item_price is tracked (platform keeps the fee).
 CREATE OR REPLACE FUNCTION public.handle_order_wallet_update()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF OLD.status = 'paid' AND NEW.status = 'shipped' THEN
+  -- Sale confirmed -> money enters pending.
+  IF NEW.status = 'paid' AND OLD.status IS DISTINCT FROM 'paid' THEN
     UPDATE public.seller_wallet
-    SET pending_balance = pending_balance + NEW.item_price
+    SET pending_balance = pending_balance + NEW.item_price, updated_at = NOW()
     WHERE seller_id = NEW.seller_id;
   END IF;
-  IF OLD.status IN ('shipped', 'delivered') AND NEW.status = 'completed' THEN
+  -- Cancelled before release -> remove from pending. Only for prior states that
+  -- had been counted in pending (paid onward); reservation 'pending'/'created'
+  -- never added to the wallet.
+  IF NEW.status = 'cancelled' AND OLD.status IS DISTINCT FROM 'cancelled'
+     AND NEW.wallet_released_at IS NULL
+     AND OLD.status IN ('paid','shipped','delivered','disputed','resolved') THEN
     UPDATE public.seller_wallet
-    SET
-      pending_balance   = GREATEST(0, pending_balance - NEW.item_price),
-      available_balance = available_balance + NEW.item_price,
-      lifetime_earned   = lifetime_earned + NEW.item_price,
-      updated_at        = NOW()
-    WHERE seller_id = NEW.seller_id;
-
-    -- Record platform protection fee in ledger
-    INSERT INTO public.platform_ledger (order_id, fee_type, amount)
-    VALUES (NEW.id, 'buyer_protection', NEW.protection_fee)
-    ON CONFLICT (order_id) DO NOTHING;
-  END IF;
-  IF OLD.status = 'shipped' AND NEW.status = 'cancelled' THEN
-    UPDATE public.seller_wallet
-    SET
-      pending_balance = GREATEST(0, pending_balance - NEW.item_price),
-      updated_at      = NOW()
+    SET pending_balance = GREATEST(0, pending_balance - NEW.item_price), updated_at = NOW()
     WHERE seller_id = NEW.seller_id;
   END IF;
   RETURN NEW;
@@ -1137,6 +1133,50 @@ CREATE TRIGGER order_wallet_update
   AFTER UPDATE ON public.orders
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_order_wallet_update();
+
+-- Release pending -> available once an order is COMPLETED and its funds have
+-- CLEARED in Stripe (funds_available_on). wallet_released_at makes this exactly
+-- once per order. The NULL-clear-date branch is a no-stranding safety net.
+CREATE OR REPLACE FUNCTION public.release_cleared_wallet_funds()
+RETURNS void AS $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN
+    SELECT id, seller_id, item_price, protection_fee
+    FROM public.orders
+    WHERE status = 'completed'
+      AND wallet_released_at IS NULL
+      AND (
+        funds_available_on <= NOW()
+        OR (funds_available_on IS NULL AND completed_at < NOW() - INTERVAL '14 days')
+      )
+    FOR UPDATE SKIP LOCKED
+  LOOP
+    UPDATE public.seller_wallet
+    SET pending_balance   = GREATEST(0, pending_balance - r.item_price),
+        available_balance = available_balance + r.item_price,
+        lifetime_earned   = lifetime_earned + r.item_price,
+        updated_at        = NOW()
+    WHERE seller_id = r.seller_id;
+
+    INSERT INTO public.platform_ledger (order_id, fee_type, amount)
+    VALUES (r.id, 'buyer_protection', r.protection_fee)
+    ON CONFLICT (order_id) DO NOTHING;
+
+    UPDATE public.orders SET wallet_released_at = NOW() WHERE id = r.id;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.release_cleared_wallet_funds() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_cleared_wallet_funds() TO postgres;
+
+CREATE INDEX IF NOT EXISTS idx_orders_pending_release
+  ON public.orders (status, funds_available_on)
+  WHERE wallet_released_at IS NULL;
+
+-- Runs every 15 minutes.
+SELECT cron.schedule('release-cleared-wallet-funds', '*/15 * * * *', 'SELECT public.release_cleared_wallet_funds()');
 
 -- Tax threshold trigger — auto-sets tax_hold when a seller crosses DAC7 limits on order completion
 CREATE OR REPLACE FUNCTION public.handle_order_tax_threshold()

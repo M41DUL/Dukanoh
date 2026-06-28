@@ -109,13 +109,39 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Capture when these funds clear in Stripe — drives the wallet's
+    // pending→available release (release_cleared_wallet_funds). Best-effort: this
+    // must NEVER block confirming the payment, so any failure falls back to a
+    // conservative +7 days (the release also has a 14-day no-stranding net).
+    let fundsAvailableOn: string;
+    try {
+      const sk = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
+      const chargeId = (pi.latest_charge ?? pi.charges?.data?.[0]?.id) as string | undefined;
+      let availableOnUnix: number | undefined;
+      if (chargeId && sk) {
+        const chRes = await fetch(
+          `https://api.stripe.com/v1/charges/${chargeId}?expand[]=balance_transaction`,
+          { headers: { Authorization: `Bearer ${sk}` } }
+        );
+        if (chRes.ok) {
+          const ch = await chRes.json();
+          availableOnUnix = ch?.balance_transaction?.available_on;
+        }
+      }
+      fundsAvailableOn = availableOnUnix
+        ? new Date(availableOnUnix * 1000).toISOString()
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    } catch {
+      fundsAvailableOn = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
     // Confirm the reservation created at checkout: flip the buyer's 'pending'
     // order → 'paid'. The order row (delivery address, fees) already exists from
     // create-payment-intent, so we only set status + the payment id. This UPDATE
     // is the single source of truth and the atomic claim for the payment.
     const { data: confirmed, error: confirmError } = await supabase
       .from('orders')
-      .update({ status: 'paid', stripe_payment_id: pi.id })
+      .update({ status: 'paid', stripe_payment_id: pi.id, funds_available_on: fundsAvailableOn })
       .eq('listing_id', listing_id)
       .eq('buyer_id', buyer_id)
       .eq('status', 'pending')
