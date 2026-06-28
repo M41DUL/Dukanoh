@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('id, stripe_payment_id, item_price, status, buyer_id')
+    .select('id, stripe_payment_id, item_price, total_paid, status, buyer_id, is_destination_charge')
     .eq('id', order_id)
     .single();
 
@@ -133,21 +133,37 @@ Deno.serve(async (req) => {
     });
   }
 
-  const refundAmountPence = Math.round(order.item_price * 100);
+  // stripe-refund is only ever called when the buyer should be made whole
+  // (pre-ship cancellation or a buyer-favoured dispute), so we refund the FULL
+  // amount including the protection fee — matching marketplace norms (Vinted /
+  // eBay refund the buyer-protection fee on a successful claim). The platform
+  // keeps its fee only on seller-wins, which never call this function.
+  const refundAmountPence = Math.round(order.total_paid * 100);
+
+  const refundBody: Record<string, string> = {
+    payment_intent: order.stripe_payment_id,
+    amount: String(refundAmountPence),
+    'metadata[order_id]': order_id,
+    'metadata[reason]': 'buyer_refund',
+  };
+  // For a destination charge the seller's cut already left to their Connect
+  // account at charge time — reverse that transfer (and the application fee) so
+  // the platform doesn't eat the loss. Omitted for platform-balance charges
+  // (unverified-origin), where no transfer exists yet at refund time.
+  if (order.is_destination_charge) {
+    refundBody.reverse_transfer = 'true';
+    refundBody.refund_application_fee = 'true';
+  }
 
   const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Idempotency-Key': `refund-${order.status}-${order_id}`,
+      // Keyed on the order only: a given order is refunded at most once.
+      'Idempotency-Key': `refund-${order_id}`,
     },
-    body: new URLSearchParams({
-      payment_intent: order.stripe_payment_id,
-      amount: String(refundAmountPence),
-      'metadata[order_id]': order_id,
-      'metadata[reason]': 'dispute_resolved_for_buyer',
-    }),
+    body: new URLSearchParams(refundBody),
   });
 
   if (!refundRes.ok) {
@@ -161,7 +177,7 @@ Deno.serve(async (req) => {
   const refund = await refundRes.json();
 
   return new Response(
-    JSON.stringify({ refunded: true, refund_id: refund.id, amount: order.item_price }),
+    JSON.stringify({ refunded: true, refund_id: refund.id, amount: order.total_paid }),
     {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin(req), 'Vary': 'Origin' },

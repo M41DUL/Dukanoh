@@ -984,6 +984,7 @@ CREATE TABLE public.orders (
   dispatch_deadline_at TIMESTAMPTZ,
   funds_available_on TIMESTAMPTZ,      -- Stripe charge clear date (set by stripe-webhook)
   wallet_released_at TIMESTAMPTZ,      -- set once pending->available has been applied
+  is_destination_charge BOOLEAN NOT NULL DEFAULT FALSE, -- money routed to seller's Connect acct at charge time (verified sellers); drives refund reverse_transfer
   shipped_at        TIMESTAMPTZ,
   delivered_at      TIMESTAMPTZ,
   auto_release_at   TIMESTAMPTZ,
@@ -1146,6 +1147,9 @@ BEGIN
     FROM public.orders
     WHERE status = 'completed'
       AND wallet_released_at IS NULL
+      -- never release while an appeal is pending or its window is still open
+      AND appealed_at IS NULL
+      AND (appeal_deadline_at IS NULL OR appeal_deadline_at <= NOW())
       AND (
         funds_available_on <= NOW()
         OR (funds_available_on IS NULL AND completed_at < NOW() - INTERVAL '14 days')
@@ -1177,6 +1181,65 @@ CREATE INDEX IF NOT EXISTS idx_orders_pending_release
 
 -- Runs every 15 minutes.
 SELECT cron.schedule('release-cleared-wallet-funds', '*/15 * * * *', 'SELECT public.release_cleared_wallet_funds()');
+
+-- Order status-change RPCs. All buyer/seller order status transitions go through
+-- these SECURITY DEFINER functions (with auth.uid() + from-state guards) rather
+-- than direct UPDATEs, so illegal transitions and skipped side effects are
+-- impossible. (The orders RLS UPDATE policies are dropped in
+-- 20260628150000_lock_orders_status_writes.sql once the RPC-based app build ships.)
+CREATE OR REPLACE FUNCTION public.raise_dispute(p_order_id UUID, p_reason TEXT, p_description TEXT)
+RETURNS void AS $$
+DECLARE v_rows INT;
+BEGIN
+  UPDATE public.orders
+  SET status = 'disputed', dispute_reason = p_reason,
+      dispute_description = p_description, disputed_at = NOW()
+  WHERE id = p_order_id AND buyer_id = auth.uid() AND status IN ('shipped','delivered');
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows = 0 THEN RAISE EXCEPTION 'Order cannot be disputed in its current state'; END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+REVOKE ALL    ON FUNCTION public.raise_dispute(uuid, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.raise_dispute(uuid, text, text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.withdraw_dispute(p_order_id UUID)
+RETURNS void AS $$
+DECLARE v_rows INT;
+BEGIN
+  UPDATE public.orders
+  SET status = 'completed', delivered_at = COALESCE(delivered_at, NOW()), completed_at = NOW()
+  WHERE id = p_order_id AND buyer_id = auth.uid() AND status = 'disputed';
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows = 0 THEN RAISE EXCEPTION 'No disputed order to withdraw'; END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+REVOKE ALL    ON FUNCTION public.withdraw_dispute(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.withdraw_dispute(uuid) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.cancel_order(p_order_id UUID, p_cancelled_by TEXT)
+RETURNS void AS $$
+DECLARE v_order public.orders; v_rows INT;
+BEGIN
+  IF p_cancelled_by NOT IN ('buyer','seller') THEN RAISE EXCEPTION 'invalid canceller'; END IF;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+  IF v_order.id IS NULL THEN RAISE EXCEPTION 'order not found'; END IF;
+  IF p_cancelled_by = 'buyer'  AND v_order.buyer_id  IS DISTINCT FROM auth.uid() THEN RAISE EXCEPTION 'not allowed'; END IF;
+  IF p_cancelled_by = 'seller' AND v_order.seller_id IS DISTINCT FROM auth.uid() THEN RAISE EXCEPTION 'not allowed'; END IF;
+  UPDATE public.orders
+  SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = p_cancelled_by
+  WHERE id = p_order_id AND status IN ('paid','shipped');
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows = 0 THEN RAISE EXCEPTION 'order not cancellable in its current state'; END IF;
+  IF v_order.listing_id IS NOT NULL THEN
+    UPDATE public.listings SET status = 'available', buyer_id = NULL, sold_at = NULL WHERE id = v_order.listing_id;
+  END IF;
+  IF p_cancelled_by = 'seller' THEN
+    INSERT INTO public.cancellation_strikes (seller_id, order_id) VALUES (v_order.seller_id, p_order_id);
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+REVOKE ALL    ON FUNCTION public.cancel_order(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.cancel_order(uuid, text) TO authenticated;
 
 -- Tax threshold trigger — auto-sets tax_hold when a seller crosses DAC7 limits on order completion
 CREATE OR REPLACE FUNCTION public.handle_order_tax_threshold()

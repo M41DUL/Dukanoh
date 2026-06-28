@@ -136,6 +136,10 @@ Deno.serve(async (req) => {
       // — flag stays null. Unverified sellers' money is held on the platform and
       // settled later; any non-null timestamp marks it (read as IS NOT NULL).
       seller_verify_deadline: sellerVerified ? null : new Date().toISOString(),
+      // Verified sellers are charged with transfer_data[destination] below, so
+      // their money goes to their Connect account at charge time. Refund paths
+      // use this to reverse the transfer (clawback) on a buyer-favoured outcome.
+      is_destination_charge: sellerVerified,
       delivery_address_line1: buyerAddr?.address_line1 ?? null,
       delivery_address_line2: buyerAddr?.address_line2 ?? null,
       delivery_city: buyerAddr?.city ?? null,

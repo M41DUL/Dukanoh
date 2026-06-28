@@ -92,21 +92,14 @@ export function useRaiseDispute() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ orderId, buyerId, reason, description }: RaiseDisputeArgs) => {
-      const { data, error } = await supabase
-        .from('orders')
-        .update({
-          status: 'disputed',
-          dispute_reason: reason,
-          dispute_description: description,
-          disputed_at: new Date().toISOString(),
-        })
-        .eq('id', orderId)
-        .eq('buyer_id', buyerId)
-        .in('status', ['shipped', 'delivered'])
-        .select('id');
-      if (error) throw error;
-      if (!data || data.length === 0) throw new OrderStateChangedError();
+    mutationFn: async ({ orderId, reason, description }: RaiseDisputeArgs) => {
+      // SECURITY DEFINER RPC enforces buyer = auth.uid() and status in shipped/delivered.
+      const { error } = await supabase.rpc('raise_dispute', {
+        p_order_id: orderId,
+        p_reason: reason,
+        p_description: description,
+      });
+      if (error) throw new OrderStateChangedError();
     },
     onSuccess: () => invalidateOrders(queryClient),
   });
@@ -121,21 +114,10 @@ export function useWithdrawDispute() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ orderId, buyerId }: WithdrawDisputeArgs) => {
-      const now = new Date().toISOString();
-      const { data, error } = await supabase
-        .from('orders')
-        .update({
-          status: 'completed',
-          delivered_at: now,
-          completed_at: now,
-        })
-        .eq('id', orderId)
-        .eq('buyer_id', buyerId)
-        .eq('status', 'disputed')
-        .select('id');
-      if (error) throw error;
-      if (!data || data.length === 0) throw new OrderStateChangedError();
+    mutationFn: async ({ orderId }: WithdrawDisputeArgs) => {
+      // SECURITY DEFINER RPC enforces buyer = auth.uid() and status = disputed.
+      const { error } = await supabase.rpc('withdraw_dispute', { p_order_id: orderId });
+      if (error) throw new OrderStateChangedError();
     },
     onSuccess: () => invalidateOrders(queryClient),
   });
@@ -177,7 +159,7 @@ export function useCancelOrder() {
 
   return useMutation({
     mutationFn: async (args: CancelOrderArgs) => {
-      const { orderId, listingId, cancelledBy } = args;
+      const { orderId, cancelledBy } = args;
 
       const { data: current, error: readErr } = await supabase
         .from('orders')
@@ -194,31 +176,14 @@ export function useCancelOrder() {
         const err = await refundRes.json().catch(() => ({}));
         throw new Error(err?.error ?? 'Refund failed');
       }
-      const { data: updated, error: orderErr } = await supabase
-        .from('orders')
-        .update({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancelled_by: cancelledBy,
-        })
-        .eq('id', orderId)
-        .in('status', [...CANCELLABLE_ORDER_STATUSES])
-        .select('id');
-      if (orderErr) throw orderErr;
-      if (!updated || updated.length === 0) throw new OrderStateChangedError();
-      if (listingId) {
-        const { error: listingErr } = await supabase
-          .from('listings')
-          .update({ status: 'available', buyer_id: null, sold_at: null })
-          .eq('id', listingId);
-        if (listingErr) throw listingErr;
-      }
-      if (args.cancelledBy === 'seller') {
-        const { error: strikeErr } = await supabase
-          .from('cancellation_strikes')
-          .insert({ seller_id: args.sellerId, order_id: orderId });
-        if (strikeErr) throw strikeErr;
-      }
+      // SECURITY DEFINER RPC enforces caller = buyer/seller + cancellable state,
+      // and atomically flips status, relists the item, and (seller) records the
+      // cancellation strike — replacing the previous direct UPDATEs.
+      const { error: cancelErr } = await supabase.rpc('cancel_order', {
+        p_order_id: orderId,
+        p_cancelled_by: cancelledBy,
+      });
+      if (cancelErr) throw new OrderStateChangedError();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });

@@ -52,11 +52,21 @@ Deno.serve(async (req) => {
   const now = new Date().toISOString();
 
   async function cancelAndRefund(
-    order: { id: string; listing_id: string | null; seller_id: string | null; stripe_payment_id: string | null; total_paid: number },
+    order: { id: string; listing_id: string | null; seller_id: string | null; stripe_payment_id: string | null; total_paid: number; is_destination_charge?: boolean },
     reason: string,
     clearField: Record<string, null>,
   ): Promise<boolean> {
     if (order.stripe_payment_id) {
+      const refundBody: Record<string, string> = {
+        payment_intent: order.stripe_payment_id,
+        'metadata[order_id]': order.id,
+        'metadata[reason]': reason,
+      };
+      // Destination charge -> the seller already has the money; reverse it.
+      if (order.is_destination_charge) {
+        refundBody.reverse_transfer = 'true';
+        refundBody.refund_application_fee = 'true';
+      }
       const refundRes = await fetch('https://api.stripe.com/v1/refunds', {
         method: 'POST',
         headers: {
@@ -64,11 +74,7 @@ Deno.serve(async (req) => {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Idempotency-Key': `refund-${order.id}-${reason}`,
         },
-        body: new URLSearchParams({
-          payment_intent: order.stripe_payment_id,
-          'metadata[order_id]': order.id,
-          'metadata[reason]': reason,
-        }),
+        body: new URLSearchParams(refundBody),
       });
       if (!refundRes.ok) return false;
     }
@@ -99,7 +105,7 @@ Deno.serve(async (req) => {
   // Dispatch deadline expired — seller did not ship within 5 days of payment
   const { data: undispatchedOrders } = await supabase
     .from('orders')
-    .select('id, listing_id, seller_id, stripe_payment_id, total_paid')
+    .select('id, listing_id, seller_id, stripe_payment_id, total_paid, is_destination_charge')
     .not('dispatch_deadline_at', 'is', null)
     .lt('dispatch_deadline_at', now)
     .eq('status', 'paid');

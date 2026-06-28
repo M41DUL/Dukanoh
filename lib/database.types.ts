@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_deletion_requests: {
+        Row: {
+          created_at: string | null
+          email: string
+          handled_at: string | null
+          handled_note: string | null
+          id: string
+          message: string | null
+          name: string
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          handled_at?: string | null
+          handled_note?: string | null
+          id?: string
+          message?: string | null
+          name: string
+          status?: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          handled_at?: string | null
+          handled_note?: string | null
+          id?: string
+          message?: string | null
+          name?: string
+          status?: string
+        }
+        Relationships: []
+      }
       admin_compliance_log: {
         Row: {
           confirmed_at: string
@@ -148,15 +181,104 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          ip: string | null
+          revoked_at: string | null
+          token_hash: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip?: string | null
+          revoked_at?: string | null
+          token_hash: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      app_error_issues: {
+        Row: {
+          affected_user_count: number
+          any_fatal: boolean
+          app_versions: string[]
+          created_at: string
+          error_message: string | null
+          event_count: number
+          fingerprint: string
+          first_seen: string | null
+          last_seen: string | null
+          latest_symbolicated_trace: string | null
+          latest_symbolicated_version: string | null
+          notes: string | null
+          platforms: string[]
+          resolved_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          affected_user_count?: number
+          any_fatal?: boolean
+          app_versions?: string[]
+          created_at?: string
+          error_message?: string | null
+          event_count?: number
+          fingerprint: string
+          first_seen?: string | null
+          last_seen?: string | null
+          latest_symbolicated_trace?: string | null
+          latest_symbolicated_version?: string | null
+          notes?: string | null
+          platforms?: string[]
+          resolved_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          affected_user_count?: number
+          any_fatal?: boolean
+          app_versions?: string[]
+          created_at?: string
+          error_message?: string | null
+          event_count?: number
+          fingerprint?: string
+          first_seen?: string | null
+          last_seen?: string | null
+          latest_symbolicated_trace?: string | null
+          latest_symbolicated_version?: string | null
+          notes?: string | null
+          platforms?: string[]
+          resolved_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       app_errors: {
         Row: {
           app_version: string | null
           created_at: string | null
           error_message: string
+          fingerprint: string | null
           id: string
           is_fatal: boolean | null
           os_version: string | null
           platform: string | null
+          search_tsv: unknown
           stack_trace: string | null
           user_id: string | null
         }
@@ -164,10 +286,12 @@ export type Database = {
           app_version?: string | null
           created_at?: string | null
           error_message: string
+          fingerprint?: string | null
           id?: string
           is_fatal?: boolean | null
           os_version?: string | null
           platform?: string | null
+          search_tsv?: unknown
           stack_trace?: string | null
           user_id?: string | null
         }
@@ -175,10 +299,12 @@ export type Database = {
           app_version?: string | null
           created_at?: string | null
           error_message?: string
+          fingerprint?: string | null
           id?: string
           is_fatal?: boolean | null
           os_version?: string | null
           platform?: string | null
+          search_tsv?: unknown
           stack_trace?: string | null
           user_id?: string | null
         }
@@ -618,9 +744,11 @@ export type Database = {
           created_at: string | null
           email: string | null
           id: string
+          last_reply_at: string | null
           message: string
           name: string | null
           source: string
+          status: string
           type: string
           user_id: string | null
         }
@@ -628,9 +756,11 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
+          last_reply_at?: string | null
           message: string
           name?: string | null
           source?: string
+          status?: string
           type: string
           user_id?: string | null
         }
@@ -638,9 +768,11 @@ export type Database = {
           created_at?: string | null
           email?: string | null
           id?: string
+          last_reply_at?: string | null
           message?: string
           name?: string | null
           source?: string
+          status?: string
           type?: string
           user_id?: string | null
         }
@@ -650,6 +782,53 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_replies: {
+        Row: {
+          body_html: string | null
+          body_text: string | null
+          created_at: string | null
+          direction: string
+          feedback_id: string
+          id: string
+          resend_id: string | null
+          sender_email: string
+          sender_name: string | null
+          subject: string | null
+        }
+        Insert: {
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string | null
+          direction: string
+          feedback_id: string
+          id?: string
+          resend_id?: string | null
+          sender_email: string
+          sender_name?: string | null
+          subject?: string | null
+        }
+        Update: {
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string | null
+          direction?: string
+          feedback_id?: string
+          id?: string
+          resend_id?: string | null
+          sender_email?: string
+          sender_name?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_replies_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "feedback"
             referencedColumns: ["id"]
           },
         ]
@@ -1056,7 +1235,9 @@ export type Database = {
           dispute_description: string | null
           dispute_reason: string | null
           disputed_at: string | null
+          funds_available_on: string | null
           id: string
+          is_destination_charge: boolean
           item_price: number
           listing_id: string | null
           protection_fee: number
@@ -1070,6 +1251,7 @@ export type Database = {
           stripe_payment_id: string | null
           total_paid: number
           tracking_number: string | null
+          wallet_released_at: string | null
         }
         Insert: {
           appeal_by?: string | null
@@ -1093,7 +1275,9 @@ export type Database = {
           dispute_description?: string | null
           dispute_reason?: string | null
           disputed_at?: string | null
+          funds_available_on?: string | null
           id?: string
+          is_destination_charge?: boolean
           item_price: number
           listing_id?: string | null
           protection_fee: number
@@ -1107,6 +1291,7 @@ export type Database = {
           stripe_payment_id?: string | null
           total_paid: number
           tracking_number?: string | null
+          wallet_released_at?: string | null
         }
         Update: {
           appeal_by?: string | null
@@ -1130,7 +1315,9 @@ export type Database = {
           dispute_description?: string | null
           dispute_reason?: string | null
           disputed_at?: string | null
+          funds_available_on?: string | null
           id?: string
+          is_destination_charge?: boolean
           item_price?: number
           listing_id?: string | null
           protection_fee?: number
@@ -1144,6 +1331,7 @@ export type Database = {
           stripe_payment_id?: string | null
           total_paid?: number
           tracking_number?: string | null
+          wallet_released_at?: string | null
         }
         Relationships: [
           {
@@ -1156,7 +1344,7 @@ export type Database = {
           {
             foreignKeyName: "orders_listing_id_fkey"
             columns: ["listing_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "listings"
             referencedColumns: ["id"]
           },
@@ -1505,6 +1693,36 @@ export type Database = {
           },
         ]
       }
+      source_maps: {
+        Row: {
+          app_version: string
+          file_size_bytes: number | null
+          git_sha: string | null
+          id: string
+          platform: string
+          storage_path: string
+          uploaded_at: string
+        }
+        Insert: {
+          app_version: string
+          file_size_bytes?: number | null
+          git_sha?: string | null
+          id?: string
+          platform: string
+          storage_path: string
+          uploaded_at?: string
+        }
+        Update: {
+          app_version?: string
+          file_size_bytes?: number | null
+          git_sha?: string | null
+          id?: string
+          platform?: string
+          storage_path?: string
+          uploaded_at?: string
+        }
+        Relationships: []
+      }
       story_views: {
         Row: {
           id: string
@@ -1588,6 +1806,100 @@ export type Database = {
             foreignKeyName: "transactions_seller_id_fkey"
             columns: ["seller_id"]
             isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_private: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          country: string | null
+          dob: string | null
+          first_name: string | null
+          full_name: string
+          last_name: string | null
+          location: string | null
+          phone: string | null
+          postcode: string | null
+          seller_invite_code: string | null
+          stripe_account_id: string | null
+          stripe_onboarding_complete: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          dob?: string | null
+          first_name?: string | null
+          full_name?: string
+          last_name?: string | null
+          location?: string | null
+          phone?: string | null
+          postcode?: string | null
+          seller_invite_code?: string | null
+          stripe_account_id?: string | null
+          stripe_onboarding_complete?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          country?: string | null
+          dob?: string | null
+          first_name?: string | null
+          full_name?: string
+          last_name?: string | null
+          location?: string | null
+          phone?: string | null
+          postcode?: string | null
+          seller_invite_code?: string | null
+          stripe_account_id?: string | null
+          stripe_onboarding_complete?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_private_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_tax_info: {
+        Row: {
+          tax_id_number: string | null
+          tax_id_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          tax_id_number?: string | null
+          tax_id_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          tax_id_number?: string | null
+          tax_id_type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_tax_info_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
@@ -1701,117 +2013,91 @@ export type Database = {
         }
         Relationships: []
       }
-      user_private: {
-        Row: {
-          address_line1: string | null
-          address_line2: string | null
-          city: string | null
-          country: string | null
-          dob: string | null
-          first_name: string | null
-          full_name: string | null
-          last_name: string | null
-          location: string | null
-          phone: string | null
-          postcode: string | null
-          seller_invite_code: string | null
-          stripe_account_id: string | null
-          stripe_onboarding_complete: boolean | null
-          user_id: string
-        }
-        Insert: {
-          address_line1?: string | null
-          address_line2?: string | null
-          city?: string | null
-          country?: string | null
-          dob?: string | null
-          first_name?: string | null
-          full_name?: string | null
-          last_name?: string | null
-          location?: string | null
-          phone?: string | null
-          postcode?: string | null
-          seller_invite_code?: string | null
-          stripe_account_id?: string | null
-          stripe_onboarding_complete?: boolean | null
-          user_id: string
-        }
-        Update: {
-          address_line1?: string | null
-          address_line2?: string | null
-          city?: string | null
-          country?: string | null
-          dob?: string | null
-          first_name?: string | null
-          full_name?: string | null
-          last_name?: string | null
-          location?: string | null
-          phone?: string | null
-          postcode?: string | null
-          seller_invite_code?: string | null
-          stripe_account_id?: string | null
-          stripe_onboarding_complete?: boolean | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_private_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      user_tax_info: {
-        Row: {
-          tax_id_number: string | null
-          tax_id_type: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          tax_id_number?: string | null
-          tax_id_type?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          tax_id_number?: string | null
-          tax_id_type?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_tax_info_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
     }
     Views: {
-      [_ in never]: never
+      admin_boosts_summary: {
+        Row: {
+          active_count: number | null
+          all_time_revenue: number | null
+          thirty_day_count: number | null
+          thirty_day_revenue: number | null
+        }
+        Relationships: []
+      }
+      admin_finance_summary: {
+        Row: {
+          active_escrow: number | null
+          all_time_expenses: number | null
+          all_time_revenue: number | null
+          gmv: number | null
+          mtd_expenses: number | null
+          mtd_revenue: number | null
+          refund_count: number | null
+          refund_value: number | null
+        }
+        Relationships: []
+      }
+      admin_ledger_monthly: {
+        Row: {
+          month: string | null
+          revenue: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      activate_seller:
-        | { Args: { p_code: string; p_user_id: string }; Returns: boolean }
-        | { Args: { p_code?: string; p_user_id: string }; Returns: boolean }
+      activate_seller: {
+        Args: { p_code?: string; p_user_id: string }
+        Returns: boolean
+      }
+      admin_anonymize_user_account: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
+      admin_check_deletion_readiness: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
       admin_count_broadcast_audience: {
         Args: { filters: Json }
         Returns: number
       }
       admin_delete_app_story: { Args: { p_id: string }; Returns: undefined }
       admin_save_app_story: { Args: { payload: Json }; Returns: string }
+      admin_search_orders: {
+        Args: {
+          p_from?: string
+          p_limit?: number
+          p_q?: string
+          p_status?: string
+          p_to?: string
+        }
+        Returns: {
+          buyer_username: string
+          cancelled_at: string
+          completed_at: string
+          created_at: string
+          disputed_at: string
+          id: string
+          item_price: number
+          listing_title: string
+          protection_fee: number
+          seller_username: string
+          status: string
+          total_paid: number
+        }[]
+      }
       admin_update_user_flags: {
         Args: { patch: Json; target_user_id: string }
         Returns: undefined
       }
       anonymize_user_account: { Args: never; Returns: Json }
       auto_release_orders: { Args: never; Returns: undefined }
+      cancel_order: {
+        Args: { p_cancelled_by: string; p_order_id: string }
+        Returns: undefined
+      }
+      cancel_stale_pending_orders: { Args: never; Returns: undefined }
       check_deletion_readiness: { Args: never; Returns: Json }
       claim_available_balance: {
         Args: { p_seller_id: string }
@@ -1819,6 +2105,10 @@ export type Database = {
       }
       cleanup_abandoned_drafts: { Args: never; Returns: undefined }
       cleanup_messages: { Args: never; Returns: undefined }
+      compute_error_fingerprint: {
+        Args: { msg: string; stack: string }
+        Returns: string
+      }
       confirm_order_receipt: {
         Args: { p_buyer_id: string; p_order_id: string }
         Returns: undefined
@@ -1826,9 +2116,41 @@ export type Database = {
       consume_invite: { Args: { p_code: string }; Returns: boolean }
       decrement_boosts_used: { Args: { p_user_id: string }; Returns: undefined }
       expire_pro_subscriptions: { Args: never; Returns: undefined }
+      find_users_by_emails: {
+        Args: { p_emails: string[] }
+        Returns: {
+          account_status: string
+          email: string
+          user_id: string
+          username: string
+        }[]
+      }
+      generate_due_recurring_expenses: { Args: never; Returns: number }
+      get_admin_nav_counts: {
+        Args: never
+        Returns: {
+          account_deletion_count: number
+          disputes_count: number
+          feedback_count: number
+          old_disputes: number
+          open_errors_count: number
+          reports_count: number
+          stuck_paid: number
+          stuck_shipped: number
+        }[]
+      }
       get_seller_response_rate: {
         Args: { p_seller_id: string }
         Returns: number
+      }
+      get_top_boosters: {
+        Args: { p_days?: number; p_limit?: number }
+        Returns: {
+          boost_count: number
+          seller_id: string
+          spent: number
+          username: string
+        }[]
       }
       increment_boosts_used: { Args: { p_user_id: string }; Returns: boolean }
       increment_pending_balance: {
@@ -1845,7 +2167,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      raise_dispute: {
+        Args: { p_description: string; p_order_id: string; p_reason: string }
+        Returns: undefined
+      }
       record_fit_search: { Args: never; Returns: boolean }
+      release_cleared_wallet_funds: { Args: never; Returns: undefined }
       restore_available_balance: {
         Args: { p_amount: number; p_seller_id: string }
         Returns: undefined
@@ -1854,6 +2181,7 @@ export type Database = {
         Args: { p_order_id: string; p_reason: string }
         Returns: undefined
       }
+      withdraw_dispute: { Args: { p_order_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
@@ -1986,4 +2314,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
