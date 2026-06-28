@@ -1126,6 +1126,15 @@ BEGIN
     SET pending_balance = GREATEST(0, pending_balance - NEW.item_price), updated_at = NOW()
     WHERE seller_id = NEW.seller_id;
   END IF;
+  -- Dispute resolved FOR THE BUYER -> seller won't be paid; remove from pending.
+  -- Guarded on OLD.resolution_outcome so it fires once (appeals keep the outcome).
+  IF NEW.status = 'resolved' AND NEW.resolution_outcome = 'refund_buyer'
+     AND OLD.resolution_outcome IS DISTINCT FROM 'refund_buyer'
+     AND NEW.wallet_released_at IS NULL THEN
+    UPDATE public.seller_wallet
+    SET pending_balance = GREATEST(0, pending_balance - NEW.item_price), updated_at = NOW()
+    WHERE seller_id = NEW.seller_id;
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

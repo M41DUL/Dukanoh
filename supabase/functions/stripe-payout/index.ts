@@ -124,20 +124,36 @@ Deno.serve(async (req) => {
   // fresh key here is safe and fixes the collision.
   const idempotencyKey = `payout-${userId}-${amountPence}-${crypto.randomUUID()}`;
 
-  const payoutRes = await fetch('https://api.stripe.com/v1/payouts', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${stripeSecretKey}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Stripe-Account': userRow.stripe_account_id,
-      'Idempotency-Key': idempotencyKey,
-    },
-    body: new URLSearchParams({
-      amount: String(amountPence),
-      currency: 'gbp',
-      'metadata[user_id]': userId,
-    }),
-  });
+  let payoutRes: Response;
+  try {
+    payoutRes = await fetch('https://api.stripe.com/v1/payouts', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stripeSecretKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Stripe-Account': userRow.stripe_account_id,
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: new URLSearchParams({
+        amount: String(amountPence),
+        currency: 'gbp',
+        'metadata[user_id]': userId,
+      }),
+    });
+  } catch {
+    // Network-level throw: we genuinely DON'T know whether Stripe created the
+    // payout. We must NOT auto-restore — a retry would re-claim and (with the
+    // unique idempotency key) could create a SECOND payout if the first had
+    // actually succeeded. Leave the balance claimed and surface for manual
+    // reconciliation rather than risk a double-payout. (A returned error status,
+    // below, is unambiguous — Stripe did not pay — so that path DOES restore.)
+    // eslint-disable-next-line no-console
+    console.error('PAYOUT network failure — balance left claimed, needs manual reconciliation. user:', userId, 'amountPence:', amountPence);
+    return new Response(
+      JSON.stringify({ error: "We couldn't reach the payment processor. If your balance looks wrong, contact support — we'll sort it out." }),
+      { status: 502, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
   if (!payoutRes.ok) {
     const err = await payoutRes.json();
