@@ -206,14 +206,11 @@ export default function InboxScreen() {
   };
 
   const formatLastMessage = (msg: string) => {
-    if (msg.startsWith('__OFFER_ACCEPTED__:') || msg.startsWith('__OFFER_DECLINED__:')) {
-      const isAccepted = msg.startsWith('__OFFER_ACCEPTED__:');
-      const payload = msg.slice(isAccepted ? '__OFFER_ACCEPTED__:'.length : '__OFFER_DECLINED__:'.length);
-      const parts = payload.split(':');
-      const amount = parts.length >= 2 ? parts.slice(1).join(':') : parts[0];
-      return `Offer of £${amount} ${isAccepted ? 'accepted' : 'declined'}`;
+    // Legacy bidding messages from the removed offer feature — show a neutral
+    // preview instead of the raw "__OFFER__:40" protocol string.
+    if (msg.startsWith('__OFFER__:') || msg.startsWith('__OFFER_ACCEPTED__:') || msg.startsWith('__OFFER_DECLINED__:')) {
+      return 'Message';
     }
-    if (msg.startsWith('__OFFER__:')) return `Offer: £${msg.slice('__OFFER__:'.length)}`;
     return msg;
   };
 

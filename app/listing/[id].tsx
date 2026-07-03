@@ -23,7 +23,6 @@ import {
   useDuplicateListing,
   useRecordListingView,
   useReportListing,
-  useSendMessage,
   useUpdateListingStatus,
 } from '@/lib/mutations';
 import { queryKeys } from '@/lib/queryKeys';
@@ -44,7 +43,6 @@ import {
   Share,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -78,12 +76,6 @@ export default function ListingDetailScreen() {
   const queryClient = useQueryClient();
   const [imageIndex, setImageIndex] = useState(0);
   const [priceBreakdownVisible, setPriceBreakdownVisible] = useState(false);
-  const [offerVisible, setOfferVisible] = useState(false);
-  const [offerAmount, setOfferAmount] = useState('');
-  const [offerSending, setOfferSending] = useState(false);
-  const [offerError, setOfferError] = useState('');
-  const [offerPreset, setOfferPreset] = useState<'10' | '20' | 'custom'>('custom');
-  const offerInputRef = useRef<TextInput>(null);
   const [boostVisible, setBoostVisible] = useState(false);
   // Boost-flow local state — handleBoost mutates these directly. Boost
   // mutations aren't part of this migration, so the local-state pattern
@@ -148,7 +140,6 @@ export default function ListingDetailScreen() {
         { count: sold },
         { data: others },
         { data: similar },
-        { data: msgs },
         { data: boost },
         sellerBoostData,
       ] = await Promise.all([
@@ -156,7 +147,6 @@ export default function ListingDetailScreen() {
         supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', sellerId).eq('status', 'sold'),
         supabase.from('listings').select('id, title, price, original_price, price_dropped_at, images, status, condition, size, occasion, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier)').eq('seller_id', sellerId).eq('status', 'available').neq('id', id!).order('created_at', { ascending: false }).limit(4),
         simQ,
-        supabase.from('messages').select('content').eq('listing_id', id!),
         supabase.from('boosts').select('expires_at').eq('listing_id', id!).gte('expires_at', new Date().toISOString()).maybeSingle(),
         isOwnerView
           ? Promise.all([
@@ -177,7 +167,6 @@ export default function ListingDetailScreen() {
         soldCount: sold ?? 0,
         sellerListings: (others as Listing[] | null) ?? [],
         similarListings: similarSorted,
-        offerCount: msgs?.filter(m => m.content?.startsWith('__OFFER__')).length ?? 0,
         boostExpiry: boost ? new Date(boost.expires_at) : null,
         sellerBoosts: sellerBoostData
           ? {
@@ -195,7 +184,6 @@ export default function ListingDetailScreen() {
   const soldCount = extras?.soldCount ?? null;
   const sellerListings = extras?.sellerListings ?? [];
   const similarListings = extras?.similarListings ?? [];
-  const offerCount = extras?.offerCount ?? 0;
   const saveCount = listing?.save_count ?? 0;
 
   // Seed the local boost-flow state from extras on first arrival. handleBoost
@@ -212,7 +200,6 @@ export default function ListingDetailScreen() {
 
   const recordListingView = useRecordListingView();
   const createConversation = useCreateConversation();
-  const sendMessage = useSendMessage();
   const updateStatus = useUpdateListingStatus();
   const duplicate = useDuplicateListing();
   const reportListing = useReportListing();
@@ -264,12 +251,6 @@ export default function ListingDetailScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const { feePercent, feeFlat } = useFeeConfig();
-
-  useEffect(() => {
-    if (offerVisible) {
-      setTimeout(() => offerInputRef.current?.focus(), 100);
-    }
-  }, [offerVisible]);
 
   if (listingQuery.isLoading || listingQuery.isError || !listing) {
     return (
@@ -553,48 +534,6 @@ export default function ListingDetailScreen() {
     toggleSave(id, listing.price);
   };
 
-  const handleOffer = async () => {
-    const amount = parseFloat(offerAmount.replace(/[^0-9.]/g, ''));
-    if (!amount || amount <= 0) { setOfferError('Please enter a valid amount.'); return; }
-    if (amount > 99999) { setOfferError('Offer amount is too high.'); return; }
-    if (amount >= listing.price) { setOfferError(`Offer must be less than £${listing.price.toFixed(2)}.`); return; }
-    if (!user || !id) return;
-    setOfferError('');
-    setOfferSending(true);
-    let convId: string;
-    try {
-      convId = await createConversation.mutateAsync({
-        listingId: id,
-        buyerId: user.id,
-        sellerId: listing.seller_id,
-      });
-    } catch {
-      setOfferError('Could not send offer. The listing may no longer be available.');
-      setOfferSending(false);
-      return;
-    }
-    try {
-      await sendMessage.mutateAsync({
-        conversationId: convId,
-        listingId: id,
-        senderId: user.id,
-        receiverId: listing.seller_id,
-        content: `__OFFER__:${amount.toFixed(2)}`,
-      });
-    } catch {
-      setOfferSending(false);
-      setOfferError('Failed to send offer. Please try again.');
-      return;
-    }
-    setOfferSending(false);
-    setOfferVisible(false);
-    setOfferAmount('');
-    Alert.alert('Offer sent!', `Your offer of £${amount.toFixed(2)} has been sent to the seller.`, [
-      { text: 'View conversation', onPress: () => router.push(`/conversation/${convId}`) },
-      { text: 'Stay here', style: 'cancel' },
-    ]);
-  };
-
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar style="light" />
@@ -674,14 +613,7 @@ export default function ListingDetailScreen() {
             style={styles.imageScrim}
           />
           <View style={styles.imageBottomBar}>
-            {offerCount > 0 && user?.id !== listing.seller_id ? (
-              <View style={styles.demandBanner}>
-                <Ionicons name="flame" size={16} color={colors.amber} />
-                <Text style={styles.demandText}>{offerCount} Offers!</Text>
-              </View>
-            ) : (
-              <View style={styles.savePillPlaceholder} />
-            )}
+            <View style={styles.savePillPlaceholder} />
             {(listing.images?.length ?? 0) > 1 ? (
               <View style={styles.dotsRow}>
                 {(listing.images ?? []).map((_, i) => (
@@ -727,13 +659,6 @@ export default function ListingDetailScreen() {
                 <Text style={[styles.analyticsValue, { color: colors.primaryText }]}>{saveCount}</Text>
                 <Text style={styles.analyticsLabel}>Saves</Text>
               </View>
-              <TouchableOpacity style={styles.analyticsCell} onPress={() => router.push('/(tabs)/inbox')} activeOpacity={0.7}>
-                <Text style={[styles.analyticsValue, { color: colors.primaryText }]}>{offerCount}</Text>
-                <View style={styles.analyticsLabelRow}>
-                  <Text style={styles.analyticsLabel}>Offers</Text>
-                  <Ionicons name="chevron-forward" size={10} color={colors.textSecondary} />
-                </View>
-              </TouchableOpacity>
               {listing.status !== 'draft' && listing.created_at && (
                 <View style={styles.analyticsCell}>
                   <Text style={[styles.analyticsValue, { color: colors.primaryText }]}>
@@ -998,85 +923,6 @@ export default function ListingDetailScreen() {
         </Text>
       </BottomSheet>
 
-      {/* BOOST MODAL */}
-
-      <BottomSheet
-        visible={offerVisible}
-        onClose={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); setOfferPreset('custom'); }}
-      >
-        <Text style={styles.modalTitle}>Make an offer</Text>
-
-        {/* Item card */}
-        <View style={[styles.offerItemCard, { backgroundColor: colors.surface }]}>
-          {listing.images?.[0] ? (
-            <Image source={{ uri: getImageUrl(listing.images[0], 'thumbnail') }} style={styles.offerThumb} contentFit="cover" transition={200} />
-          ) : (
-            <View style={[styles.offerThumb, { backgroundColor: colors.border }]} />
-          )}
-          <View style={styles.offerItemInfo}>
-            <Text style={styles.offerItemTitle} numberOfLines={1}>{listing.title}</Text>
-            <Text style={styles.offerItemPrice}>Asking: £{listing.price.toFixed(2)}</Text>
-          </View>
-        </View>
-
-        {/* Presets */}
-        <View style={styles.offerPresets}>
-          {([['10', '10% off'], ['20', '20% off']] as const).map(([pct, label]) => {
-            const amount = (listing.price * (1 - Number(pct) / 100)).toFixed(2);
-            const active = offerPreset === pct;
-            return (
-              <TouchableOpacity
-                key={pct}
-                style={[styles.offerPreset, active && styles.offerPresetActive]}
-                onPress={() => { setOfferPreset(pct); setOfferAmount(amount); setOfferError(''); }}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.offerPresetPrice, active && { color: colors.primaryText }]}>£{amount}</Text>
-                <Text style={[styles.offerPresetLabel, active && { color: colors.primaryText }]}>{label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-          <TouchableOpacity
-            style={[styles.offerPreset, offerPreset === 'custom' && styles.offerPresetActive]}
-            onPress={() => { setOfferPreset('custom'); setOfferAmount(''); setOfferError(''); }}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.offerPresetPrice, offerPreset === 'custom' && { color: colors.primaryText }]}>Custom</Text>
-            <Text style={[styles.offerPresetLabel, offerPreset === 'custom' && { color: colors.primaryText }]}>Set a price</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Amount input */}
-        <View style={styles.amountRow}>
-          <Text style={styles.currencySymbol}>£</Text>
-          <TextInput
-            ref={offerInputRef}
-            style={styles.amountInput}
-            value={offerAmount}
-            onChangeText={(v) => { setOfferAmount(v); setOfferPreset('custom'); setOfferError(''); }}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            placeholderTextColor={colors.textSecondary}
-          />
-        </View>
-        {offerError ? <Text style={styles.modalError}>{offerError}</Text> : null}
-
-        <Button
-          label="Send offer"
-          onPress={handleOffer}
-          disabled={!offerAmount || offerSending}
-          loading={offerSending}
-          style={{ alignSelf: 'stretch', marginTop: Spacing.xl }}
-        />
-        <TouchableOpacity
-          onPress={() => { setOfferVisible(false); setOfferAmount(''); setOfferError(''); setOfferPreset('custom'); }}
-          activeOpacity={0.7}
-          style={{ paddingTop: Spacing.base, alignSelf: 'center' }}
-        >
-          <Text style={[Typography.body, { color: colors.textSecondary }]}>Cancel</Text>
-        </TouchableOpacity>
-      </BottomSheet>
-
       {/* BOOST SHEET */}
       <BottomSheet visible={boostVisible} onClose={handleCloseBoost}>
         <Text style={styles.boostTitle}>Boost listing</Text>
@@ -1260,19 +1106,6 @@ function getStyles(colors: ColorTokens) {
     totalPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     totalPrice: { ...Typography.body, fontSize: 16, ...FontFamily.semibold, color: colors.textPrimary },
     pillRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
-    demandBanner: {
-      width: 100,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: Spacing.xs,
-      paddingHorizontal: Spacing.md,
-      paddingVertical: Spacing.sm,
-      backgroundColor: 'rgba(0,0,0,0.55)',
-      borderRadius: BorderRadius.full,
-      minHeight: 44,
-    },
-    demandText: { ...Typography.body, color: colors.amber, ...FontFamily.regular },
     draftBadge: { backgroundColor: colors.surface, borderColor: colors.border },
 
     // CTAs
@@ -1302,12 +1135,6 @@ function getStyles(colors: ColorTokens) {
       ...Typography.caption,
       color: colors.textSecondary,
     },
-    analyticsLabelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 2,
-    },
-
     boostedPill: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1490,7 +1317,7 @@ function getStyles(colors: ColorTokens) {
     // Footer meta
     footerMeta: { ...Typography.caption, color: colors.textSecondary, textAlign: 'center' },
 
-    // Offer sheet
+    // Price breakdown sheet
     modalTitle: { ...Typography.subheading, color: colors.textPrimary, marginBottom: Spacing.base, textAlign: 'center' },
     breakdownRow: {
       flexDirection: 'row',
@@ -1531,60 +1358,5 @@ function getStyles(colors: ColorTokens) {
       marginTop: Spacing.xl,
       lineHeight: 18,
     },
-    offerItemRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.base,
-      marginBottom: Spacing.base,
-    },
-    offerItemCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: Spacing.base,
-      borderRadius: BorderRadius.medium,
-      padding: Spacing.base,
-      marginBottom: Spacing.base,
-    },
-    offerThumb: {
-      width: 56,
-      height: 56,
-      borderRadius: BorderRadius.medium,
-      overflow: 'hidden',
-    },
-    offerItemInfo: { flex: 1, gap: 3 },
-    offerItemTitle: { ...Typography.body, color: colors.textPrimary, ...FontFamily.semibold },
-    offerItemPrice: { ...Typography.caption, color: colors.textSecondary },
-    offerPresets: {
-      flexDirection: 'row',
-      gap: Spacing.sm,
-      marginBottom: Spacing.base,
-    },
-    offerPreset: {
-      flex: 1,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: BorderRadius.medium,
-      paddingVertical: Spacing.sm,
-      alignItems: 'center',
-      gap: 2,
-    },
-    offerPresetActive: {
-      borderColor: colors.primary,
-      borderWidth: 2,
-    },
-    offerPresetPrice: { fontSize: 14, ...FontFamily.semibold, color: colors.textPrimary },
-    offerPresetLabel: { ...Typography.caption, color: colors.textSecondary },
-    amountRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      borderBottomWidth: 2,
-      borderBottomColor: colors.primary,
-      paddingBottom: Spacing.sm,
-      gap: Spacing.xs,
-      marginTop: Spacing.sm,
-    },
-    currencySymbol: { fontSize: 20, ...FontFamily.semibold, color: colors.textPrimary },
-    amountInput: { fontSize: 20, ...FontFamily.semibold, color: colors.textPrimary, flex: 1, padding: 0 },
-    modalError: { ...Typography.caption, color: colors.error },
   });
 }
