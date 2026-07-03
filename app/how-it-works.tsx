@@ -33,7 +33,7 @@ const STEPS: Step[] = [
   {
     icon: 'chatbubble-outline',
     title: 'Message',
-    description: 'Message any member directly. Ask about condition, measurements, or make an offer.',
+    description: 'Message any member directly. Ask about fit, condition, or measurements before you buy.',
   },
   {
     icon: 'shield-checkmark-outline',

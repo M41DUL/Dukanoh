@@ -4,9 +4,9 @@ import { Typography, Spacing, BorderRadius, FontFamily, ColorTokens } from '@/co
 import { useThemeColors } from '@/hooks/useThemeColors';
 
 const STEPS = [
-  'Message the seller to express interest',
-  'Agree on price and payment directly',
-  'Arrange collection or delivery between yourselves',
+  'Pay securely with Safe Checkout',
+  'Your payment\'s protected until your piece arrives',
+  'Not as described? Raise a dispute and we\'ll step in',
 ];
 
 export function HowItWorks() {
