@@ -27,6 +27,7 @@ import { useSendMessage, useMarkConversationRead } from '@/lib/mutations';
 import { useAuth } from '@/hooks/useAuth';
 import { getImageUrl } from '@/lib/imageUtils';
 import { formatGBP } from '@/lib/paymentHelpers';
+import { buildSuggestedQuestions } from '@/lib/suggestedQuestions';
 import { Ionicons } from '@expo/vector-icons';
 
 interface Message {
@@ -83,16 +84,6 @@ interface ConversationRow {
 }
 
 const PAGE_SIZE = 40;
-
-// A measurements object counts as "filled" only if at least one field has a
-// real value — sellers can leave it as an empty/all-null object.
-function hasMeasurements(m: Record<string, unknown> | null): boolean {
-  if (!m) return false;
-  return Object.values(m).some(v => v !== null && v !== undefined && String(v).trim() !== '');
-}
-
-// Occasions where delivery timing matters enough to prompt the buyer to ask.
-const TIME_SENSITIVE_OCCASIONS = ['Wedding', 'Festive', 'Partywear'];
 
 // Legacy protocol messages from the removed bidding feature. Any that linger in
 // old threads are hidden so they never render as raw "__OFFER__:40" text.
@@ -219,32 +210,20 @@ export default function ConversationScreen() {
   );
 
   // Gap-driven prompts shown to the buyer only, and only early in a thread on a
-  // buyable listing. Each chip surfaces a question the listing doesn't already
-  // answer; chips the buyer has already sent are dropped, capped at 4.
+  // buyable listing. See lib/suggestedQuestions for the rules.
   const suggestedQuestions = useMemo<string[]>(() => {
-    if (!meta || !meta.is_buyer || !meta.can_buy) return [];
-    if (messages.length >= 6) return [];
-    const asked = new Set(messages.map(m => m.content.trim().toLowerCase()));
-
-    const candidates: string[] = [];
-    if (!hasMeasurements(meta.listing_measurements)) candidates.push('What are the measurements?');
-    if (meta.listing_image_count <= 1) candidates.push('Can you send more photos?');
-    if (meta.listing_condition && !/^new/i.test(meta.listing_condition)) candidates.push('Any flaws or damage?');
-    if (meta.listing_category === 'Shoes') candidates.push('Is it true to size?');
-    if (meta.listing_occasion && TIME_SENSITIVE_OCCASIONS.includes(meta.listing_occasion)) candidates.push('Will it arrive in time?');
-    if (meta.listing_occasion === 'Wedding') candidates.push('Is this authentic?');
-    candidates.push('Is this still available?'); // always-available fallback, last
-
-    const out: string[] = [];
-    const seen = new Set<string>();
-    for (const q of candidates) {
-      const key = q.toLowerCase();
-      if (seen.has(key) || asked.has(key)) continue;
-      seen.add(key);
-      out.push(q);
-      if (out.length >= 4) break;
-    }
-    return out;
+    if (!meta) return [];
+    return buildSuggestedQuestions({
+      isBuyer: meta.is_buyer,
+      canBuy: meta.can_buy,
+      messageCount: messages.length,
+      askedContents: messages.map(m => m.content),
+      measurements: meta.listing_measurements,
+      imageCount: meta.listing_image_count,
+      condition: meta.listing_condition,
+      category: meta.listing_category,
+      occasion: meta.listing_occasion,
+    });
   }, [meta, messages]);
 
   // Realtime: any new message in this thread invalidates the messages cache so
