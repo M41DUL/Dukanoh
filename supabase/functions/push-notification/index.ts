@@ -476,18 +476,14 @@ async function sendPush(messages: object[], supabase: ReturnType<typeof createCl
 }
 
 function formatMessageContent(content: string): string {
-  if (content.startsWith('__OFFER__:')) {
-    return `Made an offer: £${content.slice('__OFFER__:'.length)}`;
-  }
-  if (content.startsWith('__OFFER_ACCEPTED__:')) {
-    const parts = content.slice('__OFFER_ACCEPTED__:'.length).split(':');
-    const amount = parts.length >= 2 ? parts.slice(1).join(':') : parts[0];
-    return `Accepted your offer of £${amount}`;
-  }
-  if (content.startsWith('__OFFER_DECLINED__:')) {
-    const parts = content.slice('__OFFER_DECLINED__:'.length).split(':');
-    const amount = parts.length >= 2 ? parts.slice(1).join(':') : parts[0];
-    return `Declined your offer of £${amount}`;
+  // Legacy bidding messages (feature removed) — show a neutral preview instead
+  // of the raw protocol string.
+  if (
+    content.startsWith('__OFFER__:') ||
+    content.startsWith('__OFFER_ACCEPTED__:') ||
+    content.startsWith('__OFFER_DECLINED__:')
+  ) {
+    return 'New message';
   }
   return content.length > 100 ? content.substring(0, 97) + '...' : content;
 }

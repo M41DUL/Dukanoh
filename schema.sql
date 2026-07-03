@@ -337,6 +337,40 @@ CREATE TRIGGER on_message_redact
   BEFORE INSERT ON public.messages
   FOR EACH ROW EXECUTE FUNCTION public.redact_message_content();
 
+-- Same redaction for public free-text (listing title/description, profile bio),
+-- a bigger leak vector than chat since it's public and persistent. BEFORE
+-- INSERT OR UPDATE OF the relevant columns so it only fires on real writes.
+CREATE OR REPLACE FUNCTION public.redact_listing_text()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.title IS NOT NULL THEN
+    NEW.title := public.redact_contact_info(NEW.title);
+  END IF;
+  IF NEW.description IS NOT NULL THEN
+    NEW.description := public.redact_contact_info(NEW.description);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+CREATE TRIGGER on_listing_redact
+  BEFORE INSERT OR UPDATE OF title, description ON public.listings
+  FOR EACH ROW EXECUTE FUNCTION public.redact_listing_text();
+
+CREATE OR REPLACE FUNCTION public.redact_user_text()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.bio IS NOT NULL THEN
+    NEW.bio := public.redact_contact_info(NEW.bio);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+CREATE TRIGGER on_user_redact
+  BEFORE INSERT OR UPDATE OF bio ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.redact_user_text();
+
 -- =============================================================
 -- ROW LEVEL SECURITY
 -- =============================================================
