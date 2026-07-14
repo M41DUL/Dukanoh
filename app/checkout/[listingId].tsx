@@ -7,8 +7,9 @@ import {
   Alert,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { useStripe, usePlatformPay, PlatformPay, isPlatformPaySupported } from '@stripe/stripe-react-native';
+import { useStripe, usePlatformPay, PlatformPay, PlatformPayButton, isPlatformPaySupported } from '@stripe/stripe-react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -382,6 +383,11 @@ export default function CheckoutScreen() {
   };
 
   const hasAddress = !!address?.address_line1;
+  // Show the native wallet button only when a supported wallet is the selected
+  // method; card checkout keeps the custom "Pay" button.
+  const useNativeWallet =
+    (Platform.OS === 'ios' && applePaySupported && selectedMethod === 'apple_pay') ||
+    (Platform.OS === 'android' && googlePaySupported && selectedMethod === 'google_pay');
   const addressLine2 = address?.address_line2 ? `, ${address.address_line2}` : '';
   const addressOneLine = hasAddress
     ? `${address?.address_line1}${addressLine2}, ${address?.city}, ${address?.postcode}`
@@ -559,12 +565,34 @@ export default function CheckoutScreen() {
         backgroundColor: colors.background,
         paddingBottom: insets.bottom + Spacing.sm,
       }]}>
-        <Button
-          label={applePaySupported && Platform.OS === 'ios' ? ` Pay · ${formatGBP(total)}` : `Pay · ${formatGBP(total)}`}
-          onPress={handlePlaceOrder}
-          loading={placing}
-          disabled={!hasAddress}
-        />
+        {useNativeWallet ? (
+          // Apple / Google guidelines require the native wallet button (not a
+          // custom "Pay" button) to initiate a wallet payment. The native button
+          // has no loading state, so we overlay a spinner while the order is being
+          // created and dim it via `disabled`.
+          <View>
+            <PlatformPayButton
+              type={PlatformPay.ButtonType.Buy}
+              appearance={PlatformPay.ButtonStyle.Automatic}
+              borderRadius={BorderRadius.full}
+              disabled={!hasAddress || placing}
+              onPress={handlePlaceOrder}
+              style={styles.walletButton}
+            />
+            {placing && (
+              <View style={styles.walletButtonSpinner} pointerEvents="none">
+                <ActivityIndicator color={colors.textPrimary} />
+              </View>
+            )}
+          </View>
+        ) : (
+          <Button
+            label={`Pay · ${formatGBP(total)}`}
+            onPress={handlePlaceOrder}
+            loading={placing}
+            disabled={!hasAddress}
+          />
+        )}
         {!hasAddress && (
           <Text style={[styles.disabledNote, { color: colors.textSecondary }]}>
             Add a delivery address to continue
@@ -818,6 +846,15 @@ function getStyles(colors: ColorTokens) {
       fontSize: 12,
       fontFamily: 'Inter_400Regular',
       textAlign: 'center',
+    },
+    walletButton: {
+      width: '100%',
+      height: 52, // matches the lg Button height for a consistent CTA
+    },
+    walletButtonSpinner: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
   });
 }
