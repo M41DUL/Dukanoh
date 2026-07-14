@@ -24,6 +24,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { QueryStateView } from '@/components/QueryStateView';
 import { Spacing, BorderRadius, FontFamily, Typography, ColorTokens } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTheme } from '@/context/ThemeContext';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
@@ -84,6 +85,7 @@ export default function CheckoutScreen() {
   const { listingId } = useLocalSearchParams<{ listingId: string }>();
   const { user } = useAuth();
   const colors = useThemeColors();
+  const { isDark } = useTheme();
   const { feePercent, feeFlat } = useFeeConfig();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
@@ -573,7 +575,11 @@ export default function CheckoutScreen() {
           <View>
             <PlatformPayButton
               type={PlatformPay.ButtonType.Buy}
-              appearance={PlatformPay.ButtonStyle.Automatic}
+              // Follow the app's own theme, not the OS. `Automatic` keys off the
+              // system appearance, which can disagree with our in-app theme toggle
+              // and render a white button on a white bar (invisible). Black on
+              // light, white on dark always contrasts with the sticky bar.
+              appearance={isDark ? PlatformPay.ButtonStyle.White : PlatformPay.ButtonStyle.Black}
               borderRadius={BorderRadius.full}
               disabled={!hasAddress || placing}
               onPress={handlePlaceOrder}
