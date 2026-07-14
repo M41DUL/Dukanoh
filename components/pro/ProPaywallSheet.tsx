@@ -8,6 +8,7 @@ import {
   Animated,
   Alert,
   Platform,
+  Linking,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -109,8 +110,8 @@ export function ProPaywallSheet({
   const ctaNote = !isVerified
     ? 'Verify your account first, then enjoy a 14-day free trial.'
     : hadFreeTrial
-      ? `Billed via the ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}. By subscribing, you confirm you want immediate access and waive your 14-day right to withdraw.`
-      : 'Free for 14 days. No charge until your trial ends. Cancel anytime.';
+      ? `${monthlyPrice}/month, auto-renews until cancelled. Billed via the ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}. By subscribing, you confirm you want immediate access and waive your 14-day right to withdraw.`
+      : `Free for 14 days, then ${monthlyPrice}/month. Auto-renews until cancelled — cancel anytime before renewal.`;
 
   const handleCta = async () => {
     if (!isVerified) {
@@ -139,6 +140,24 @@ export function ProPaywallSheet({
       }
     } finally {
       setPurchasing(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      const isActive = customerInfo.entitlements.active[ENTITLEMENT_ID] != null;
+      if (isActive) {
+        await syncProEntitlement(userId);
+        await onSuccess();
+        Alert.alert('Purchases restored', 'Your Dukanoh Pro subscription is active.');
+        onClose();
+      } else {
+        Alert.alert('Nothing to restore', 'We couldn’t find an active subscription on this account.');
+      }
+    } catch (e: any) {
+      reportError(new Error(`Pro restore failed: ${e?.code ?? '?'} ${e?.message ?? e}`), 'pro/restore');
+      Alert.alert('Restore failed', 'Please try again in a moment.');
     }
   };
 
@@ -316,6 +335,23 @@ export function ProPaywallSheet({
           disabled={purchasing || packagesLoading}
         />
         {ctaNote ? <Text style={styles.trialNote}>{ctaNote}</Text> : null}
+        <View style={styles.legalRow} pointerEvents="box-none">
+          <Text style={styles.legalLink} onPress={handleRestore}>Restore purchases</Text>
+          <Text style={styles.legalSep}> · </Text>
+          <Text
+            style={styles.legalLink}
+            onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}
+          >
+            Terms
+          </Text>
+          <Text style={styles.legalSep}> · </Text>
+          <Text
+            style={styles.legalLink}
+            onPress={() => Linking.openURL('https://www.dukanoh.com/privacy-policy')}
+          >
+            Privacy
+          </Text>
+        </View>
       </LinearGradient>
     </BottomSheet>
   );
@@ -502,5 +538,22 @@ const styles = StyleSheet.create({
     color: P.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  legalLink: {
+    fontSize: 11,
+    ...FontFamily.regular,
+    color: P.textSecondary,
+    opacity: 0.8,
+  },
+  legalSep: {
+    fontSize: 11,
+    ...FontFamily.regular,
+    color: P.textSecondary,
+    opacity: 0.5,
   },
 });
