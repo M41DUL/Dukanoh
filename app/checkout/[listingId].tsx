@@ -99,6 +99,9 @@ export default function CheckoutScreen() {
   const [googlePaySupported, setGooglePaySupported] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(DEFAULT_METHOD);
   const [protectionSheetVisible, setProtectionSheetVisible] = useState(false);
+  // The native wallet button needs a concrete numeric width — a percentage
+  // width renders it invisible (but still tappable). Measure the CTA container.
+  const [ctaWidth, setCtaWidth] = useState(0);
   // Once the buyer has begun paying, the listing flipping to `sold` is the
   // expected result of THEIR OWN purchase (the webhook marks it sold the moment
   // payment succeeds). Without this guard, the focus-refetch below sees `sold`
@@ -572,19 +575,26 @@ export default function CheckoutScreen() {
           // custom "Pay" button) to initiate a wallet payment. The native button
           // has no loading state, so we overlay a spinner while the order is being
           // created and dim it via `disabled`.
-          <View>
-            <PlatformPayButton
-              type={PlatformPay.ButtonType.Buy}
-              // Follow the app's own theme, not the OS. `Automatic` keys off the
-              // system appearance, which can disagree with our in-app theme toggle
-              // and render a white button on a white bar (invisible). Black on
-              // light, white on dark always contrasts with the sticky bar.
-              appearance={isDark ? PlatformPay.ButtonStyle.White : PlatformPay.ButtonStyle.Black}
-              borderRadius={BorderRadius.full}
-              disabled={!hasAddress || placing}
-              onPress={handlePlaceOrder}
-              style={styles.walletButton}
-            />
+          <View
+            style={styles.walletButtonWrap}
+            onLayout={e => setCtaWidth(e.nativeEvent.layout.width)}
+          >
+            {ctaWidth > 0 && (
+              <PlatformPayButton
+                type={PlatformPay.ButtonType.Buy}
+                // Follow the app's own theme, not the OS. `Automatic` keys off the
+                // system appearance, which can disagree with our in-app theme toggle
+                // and render a white button on a white bar (invisible). Black on
+                // light, white on dark always contrasts with the sticky bar.
+                appearance={isDark ? PlatformPay.ButtonStyle.White : PlatformPay.ButtonStyle.Black}
+                borderRadius={BorderRadius.full}
+                disabled={!hasAddress || placing}
+                onPress={handlePlaceOrder}
+                // Concrete numeric width — a percentage width makes the native
+                // Apple/Google Pay button render invisible (but tappable).
+                style={{ width: ctaWidth, height: 52 }}
+              />
+            )}
             {placing && (
               <View style={styles.walletButtonSpinner} pointerEvents="none">
                 <ActivityIndicator color={colors.textPrimary} />
@@ -853,9 +863,9 @@ function getStyles(colors: ColorTokens) {
       fontFamily: 'Inter_400Regular',
       textAlign: 'center',
     },
-    walletButton: {
+    walletButtonWrap: {
       width: '100%',
-      height: 52, // matches the lg Button height for a consistent CTA
+      height: 52, // matches the lg Button height; reserves space before the native button mounts
     },
     walletButtonSpinner: {
       ...StyleSheet.absoluteFillObject,
