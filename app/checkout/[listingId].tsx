@@ -560,7 +560,7 @@ export default function CheckoutScreen() {
         paddingBottom: insets.bottom + Spacing.sm,
       }]}>
         <Button
-          label="Buy now"
+          label="Buy Now"
           onPress={handlePlaceOrder}
           loading={placing}
           disabled={!hasAddress}

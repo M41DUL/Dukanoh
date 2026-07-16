@@ -423,7 +423,7 @@ export default function ConversationScreen() {
                   onPress={() => router.push(`/checkout/${meta.listing_id}`)}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.buyBtnText}>Buy now</Text>
+                  <Text style={styles.buyBtnText}>Buy Now</Text>
                 </TouchableOpacity>
                 <View style={styles.protectedRow}>
                   <Ionicons name="shield-checkmark" size={11} color={colors.success} />
