@@ -94,6 +94,9 @@ export default function CheckoutScreen() {
   const [placing, setPlacing] = useState(false);
   const [applePaySupported, setApplePaySupported] = useState(false);
   const [googlePaySupported, setGooglePaySupported] = useState(false);
+  // Whether the wallet-support probe has resolved. Until it has, we can't tell
+  // "unsupported" from "not checked yet", so we don't act on the result.
+  const [walletChecked, setWalletChecked] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(DEFAULT_METHOD);
   const [protectionSheetVisible, setProtectionSheetVisible] = useState(false);
   // Once the buyer has begun paying, the listing flipping to `sold` is the
@@ -106,11 +109,36 @@ export default function CheckoutScreen() {
   // Check platform pay support on mount
   useEffect(() => {
     if (Platform.OS === 'ios') {
-      isPlatformPaySupported().then(setApplePaySupported);
+      isPlatformPaySupported()
+        .then(setApplePaySupported)
+        .catch(() => setApplePaySupported(false))
+        .finally(() => setWalletChecked(true));
     } else if (Platform.OS === 'android') {
-      isPlatformPaySupported({ googlePay: { testEnv: __DEV__ } }).then(setGooglePaySupported);
+      isPlatformPaySupported({ googlePay: { testEnv: __DEV__ } })
+        .then(setGooglePaySupported)
+        .catch(() => setGooglePaySupported(false))
+        .finally(() => setWalletChecked(true));
+    } else {
+      setWalletChecked(true);
     }
   }, []);
+
+  // Only offer a wallet this device can actually use. Otherwise the option is
+  // shown regardless of support and picking it silently falls back to the card
+  // sheet — the buyer gets a payment method they didn't choose.
+  const walletSupported = Platform.OS === 'ios' ? applePaySupported : googlePaySupported;
+
+  const paymentOptions = useMemo(
+    () => PAYMENT_OPTIONS.filter(o => o.key === 'card' || walletSupported),
+    [walletSupported]
+  );
+
+  // Default is the wallet; fall back to card once we know it's unavailable.
+  useEffect(() => {
+    if (walletChecked && !walletSupported && selectedMethod !== 'card') {
+      setSelectedMethod('card');
+    }
+  }, [walletChecked, walletSupported, selectedMethod]);
 
   // Listing read shares the queryKeys.listings.detail cache with listing/[id]
   // and the browse caches — arriving from the listing page is an instant cache
@@ -463,7 +491,7 @@ export default function CheckoutScreen() {
           </View>
 
           <View style={styles.paymentOptions}>
-            {PAYMENT_OPTIONS.map(option => {
+            {paymentOptions.map(option => {
               const active = selectedMethod === option.key;
               return (
                 <TouchableOpacity
