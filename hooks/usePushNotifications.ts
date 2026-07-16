@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { reportError } from '@/lib/errorReporting';
 
 // Tracks the conversation ID the user is currently viewing.
 // Set by the conversation screen on mount/unmount.
@@ -51,11 +52,12 @@ export function usePushNotifications() {
       // Remove this token from any other user (handles device re-use after login switch)
       await supabase.from('push_tokens').delete().eq('token', token).neq('user_id', user.id);
       // Save token for current user
-      await supabase.from('push_tokens').upsert(
+      const { error } = await supabase.from('push_tokens').upsert(
         { user_id: user.id, token, updated_at: new Date().toISOString() },
         { onConflict: 'user_id,token' }
       );
-    }).catch(() => {});
+      if (error) reportError(new Error(`push_tokens upsert failed: ${error.message}`), 'push/save');
+    }).catch(e => reportError(e, 'push/register'));
 
     // Navigate when user taps a notification
     responseListener.current =
@@ -91,18 +93,41 @@ async function registerForPushNotifications(): Promise<string | null> {
     finalStatus = status;
   }
 
-  if (finalStatus !== 'granted') return null;
+  // Report rather than bail silently: a denied permission is the difference
+  // between "push is off for this user" and "push is broken", and we had no way
+  // to tell them apart.
+  if (finalStatus !== 'granted') {
+    reportError(new Error(`permission not granted (status=${finalStatus})`), 'push/permission');
+    return null;
+  }
 
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-    });
+    try {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+      });
+    } catch (e) {
+      reportError(e, 'push/channel');
+    }
   }
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-  const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+  if (!projectId) {
+    reportError(new Error('missing EAS projectId in expoConfig.extra'), 'push/projectId');
+  }
 
-  return tokenData.data;
+  try {
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    return tokenData.data;
+  } catch (e: any) {
+    // The one that matters: on Android this is where FCM/Play Services failures
+    // surface, and it was being swallowed by the caller's empty catch.
+    reportError(
+      new Error(`getExpoPushToken failed (code=${e?.code ?? '?'}) ${e?.message ?? e}`),
+      'push/getToken'
+    );
+    return null;
+  }
 }
