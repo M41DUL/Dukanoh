@@ -36,4 +36,13 @@ module.exports = defineConfig([
       'react/no-unescaped-entities': 'off',
     },
   },
+  {
+    // Supabase Edge Functions run on Deno, server-side. `console` is the only
+    // way to reach the function logs there — the rule above exists to keep
+    // logging out of the app bundle, which doesn't apply here.
+    files: ['supabase/functions/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 ]);
