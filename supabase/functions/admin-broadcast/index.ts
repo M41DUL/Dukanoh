@@ -2,13 +2,12 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
+import { sendExpoPush } from '../_shared/expoPush.ts';
 
 // Sends a marketing push notification to a filtered cohort of users.
 // Auth: verify_jwt is false at the gateway (see project memory); we
 // manually verify the caller's JWT and check admin status. The actual
 // query + Expo send uses the service-role client to bypass RLS.
-
-const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 interface BroadcastBody {
   title?: string;
@@ -41,46 +40,6 @@ function destinationToRoute(dest: string | null | undefined, listingId: string |
       return listingId ? `/listing/${listingId}` : undefined;
     default:             return undefined;
   }
-}
-
-async function sendPush(messages: object[], supabase: ReturnType<typeof createClient>): Promise<{ accepted: number; failed: number }> {
-  // Expo recommends batches of 100 messages. We chunk to be safe.
-  const CHUNK_SIZE = 100;
-  let accepted = 0;
-  let failed = 0;
-  const staleTokens: string[] = [];
-
-  for (let i = 0; i < messages.length; i += CHUNK_SIZE) {
-    const chunk = messages.slice(i, i + CHUNK_SIZE);
-    const response = await fetch(EXPO_PUSH_URL, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Accept-Encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(chunk),
-    });
-    const result = await response.json();
-    const tickets: { status: string; details?: { error?: string } }[] = result.data ?? [];
-    tickets.forEach((ticket, idx) => {
-      if (ticket.status === 'ok') {
-        accepted++;
-      } else {
-        failed++;
-        if (ticket.details?.error === 'DeviceNotRegistered') {
-          const msg = chunk[idx] as { to: string };
-          if (msg?.to) staleTokens.push(msg.to);
-        }
-      }
-    });
-  }
-
-  if (staleTokens.length > 0) {
-    await supabase.from('push_tokens').delete().in('token', staleTokens);
-  }
-
-  return { accepted, failed };
 }
 
 // CORS: pin to the Dukanoh web origin. This function is only called from the
@@ -215,7 +174,7 @@ Deno.serve(async (req) => {
       data: route ? { route } : {},
     }));
 
-    const { accepted, failed } = await sendPush(messages, supabase);
+    const { accepted, failed } = await sendExpoPush(messages, supabase);
 
     await supabase
       .from('broadcasts')

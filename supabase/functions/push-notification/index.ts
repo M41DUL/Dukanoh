@@ -2,17 +2,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
-
-const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
-const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
-
-// Expo accepts a message (ticket says "ok") before it has spoken to FCM/APNs.
-// Delivery failures — DeviceNotRegistered above all — only surface later, in the
-// receipt. Tickets alone therefore report success for a dead token, which is how
-// Android push stayed broken here from May to July unnoticed.
-const RECEIPT_DELAY_MS = 10_000;
-const PUSH_CHUNK_SIZE = 100;      // Expo's documented per-request maximum
-const RECEIPT_CHUNK_SIZE = 300;
+import { sendExpoPush } from '../_shared/expoPush.ts';
 
 // Constant-time string comparison to prevent timing attacks
 function timingSafeEqual(a: string, b: string): boolean {
@@ -456,115 +446,9 @@ async function isSellerVerified(supabase: ReturnType<typeof createClient>, selle
   return data?.stripe_onboarding_complete === true;
 }
 
-type Ticket = { status: string; id?: string; message?: string; details?: { error?: string } };
-
-async function deleteTokens(
-  supabase: ReturnType<typeof createClient>,
-  tokens: string[],
-  reason: string,
-) {
-  if (tokens.length === 0) return;
-  const { error } = await supabase.from('push_tokens').delete().in('token', tokens);
-  if (error) {
-    console.error(`[push] failed to purge ${tokens.length} token(s) (${reason}): ${error.message}`);
-    return;
-  }
-  console.log(`[push] purged ${tokens.length} token(s) (${reason})`);
-}
-
-// Second half of the send: ask Expo what actually happened to each accepted
-// message. Runs after the response is returned (see waitUntil below) because the
-// calling DB trigger has a 5s timeout and receipts are not ready that quickly.
-async function reconcileReceipts(
-  receiptIdToToken: Map<string, string>,
-  supabase: ReturnType<typeof createClient>,
-) {
-  await new Promise((resolve) => setTimeout(resolve, RECEIPT_DELAY_MS));
-
-  const ids = [...receiptIdToToken.keys()];
-  const stale: string[] = [];
-
-  for (let i = 0; i < ids.length; i += RECEIPT_CHUNK_SIZE) {
-    const batch = ids.slice(i, i + RECEIPT_CHUNK_SIZE);
-    try {
-      const response = await fetch(EXPO_RECEIPTS_URL, {
-        method: 'POST',
-        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: batch }),
-      });
-      const json = await response.json();
-      const receipts: Record<string, Ticket> = json.data ?? {};
-
-      for (const [id, receipt] of Object.entries(receipts)) {
-        if (receipt.status !== 'error') continue;
-        const token = receiptIdToToken.get(id);
-        if (receipt.details?.error === 'DeviceNotRegistered' && token) {
-          stale.push(token);
-        } else {
-          // MismatchSenderId, MessageRateExceeded, InvalidCredentials… Previously
-          // discarded; these are the errors that explain an outage.
-          console.error(
-            `[push] receipt error (${receipt.details?.error ?? 'unknown'}): ${receipt.message ?? ''}`,
-          );
-        }
-      }
-    } catch (e) {
-      console.error(`[push] receipt fetch failed: ${e instanceof Error ? e.message : e}`);
-    }
-  }
-
-  await deleteTokens(supabase, stale, 'DeviceNotRegistered/receipt');
-}
-
 async function sendPush(messages: object[], supabase: ReturnType<typeof createClient>) {
-  const allTickets: Ticket[] = [];
-  const receiptIdToToken = new Map<string, string>();
-  const staleFromTickets: string[] = [];
-
-  for (let i = 0; i < messages.length; i += PUSH_CHUNK_SIZE) {
-    const chunk = messages.slice(i, i + PUSH_CHUNK_SIZE);
-    const response = await fetch(EXPO_PUSH_URL, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Accept-Encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(chunk),
-    });
-    const result = await response.json();
-    const tickets: Ticket[] = result.data ?? [];
-
-    if (!response.ok || result.errors) {
-      console.error(`[push] Expo rejected a batch: ${JSON.stringify(result.errors ?? result)}`);
-    }
-
-    tickets.forEach((ticket, j) => {
-      const token = (chunk[j] as { to?: string })?.to;
-      if (ticket.status === 'error') {
-        if (ticket.details?.error === 'DeviceNotRegistered' && token) {
-          staleFromTickets.push(token);
-        } else {
-          console.error(
-            `[push] ticket error (${ticket.details?.error ?? 'unknown'}): ${ticket.message ?? ''}`,
-          );
-        }
-      } else if (ticket.id && token) {
-        receiptIdToToken.set(ticket.id, token);
-      }
-    });
-
-    allTickets.push(...tickets);
-  }
-
-  await deleteTokens(supabase, staleFromTickets, 'DeviceNotRegistered/ticket');
-
-  // Keep the isolate alive for the receipt pass without blocking the trigger.
-  if (receiptIdToToken.size > 0) {
-    EdgeRuntime.waitUntil(reconcileReceipts(receiptIdToToken, supabase));
-  }
-
-  return new Response(JSON.stringify({ data: allTickets }), { status: 200 });
+  const { tickets } = await sendExpoPush(messages, supabase);
+  return new Response(JSON.stringify({ data: tickets }), { status: 200 });
 }
 
 function formatMessageContent(content: string): string {
