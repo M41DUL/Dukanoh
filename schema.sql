@@ -897,10 +897,45 @@ CREATE POLICY "Users can delete own tokens"
 
 CREATE INDEX idx_push_tokens_user ON public.push_tokens (user_id);
 
--- NOTE: A Database Webhook must be configured in Supabase Dashboard:
--- Table: public.messages, Event: INSERT
--- URL: <project-ref>.supabase.co/functions/v1/push-notification
--- Header: Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
+-- Registration RPC. A push token identifies a device, not an account; when a
+-- device switches accounts the token must be detached from the previous owner.
+-- RLS blocks a client from deleting another user's row, so that privileged step
+-- lives here. The caller can only ever claim a token for themselves (user_id is
+-- auth.uid(), never a parameter). Keeps the UNIQUE (user_id, token) upsert path
+-- working for already-installed app versions.
+CREATE OR REPLACE FUNCTION public.register_push_token(p_token text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+  IF p_token IS NULL OR p_token = '' THEN
+    RAISE EXCEPTION 'token is required';
+  END IF;
+
+  DELETE FROM public.push_tokens
+  WHERE token = p_token AND user_id <> v_uid;
+
+  INSERT INTO public.push_tokens (user_id, token, updated_at)
+  VALUES (v_uid, p_token, now())
+  ON CONFLICT (user_id, token) DO UPDATE SET updated_at = now();
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.register_push_token(text) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.register_push_token(text) TO authenticated;
+
+-- NOTE: A Database Webhook (or table trigger) invokes push-notification on
+-- INSERT/UPDATE of messages, orders, listings, conversations, saved_items,
+-- reviews. The function authenticates the caller against the WEBHOOK_SECRET
+-- env var, so the trigger must send:
+-- Header: Authorization: Bearer <WEBHOOK_SECRET>
 
 -- =============================================================
 -- REALTIME
