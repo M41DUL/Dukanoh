@@ -49,14 +49,11 @@ export function usePushNotifications() {
 
     registerForPushNotifications().then(async (token) => {
       if (!token) return;
-      // Remove this token from any other user (handles device re-use after login switch)
-      await supabase.from('push_tokens').delete().eq('token', token).neq('user_id', user.id);
-      // Save token for current user
-      const { error } = await supabase.from('push_tokens').upsert(
-        { user_id: user.id, token, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id,token' }
-      );
-      if (error) reportError(new Error(`push_tokens upsert failed: ${error.message}`), 'push/save');
+      // A push token identifies this device. register_push_token detaches it from
+      // any other account (a client can't, under RLS) and claims it for the
+      // current user — one atomic, server-side step.
+      const { error } = await supabase.rpc('register_push_token', { p_token: token });
+      if (error) reportError(new Error(`register_push_token failed: ${error.message}`), 'push/save');
     }).catch(e => reportError(e, 'push/register'));
 
     // Navigate when user taps a notification

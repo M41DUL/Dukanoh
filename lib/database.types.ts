@@ -2175,6 +2175,7 @@ export type Database = {
         Returns: undefined
       }
       record_fit_search: { Args: never; Returns: boolean }
+      register_push_token: { Args: { p_token: string }; Returns: undefined }
       release_cleared_wallet_funds: { Args: never; Returns: undefined }
       restore_available_balance: {
         Args: { p_amount: number; p_seller_id: string }

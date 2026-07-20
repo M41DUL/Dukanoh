@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 import { queryClient } from '@/lib/queryClient';
 
@@ -78,13 +79,16 @@ export function useAuth() {
     if (user) {
       try {
         const Notifications = await import('expo-notifications');
-        const { data: tokenData } = await Notifications.getExpoPushTokenAsync();
-        if (tokenData) {
+        // projectId is required in bare/EAS builds; without it this call throws
+        // and the swallowed error left the token registered after sign-out.
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+        const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
+        if (token) {
           await supabase
             .from('push_tokens')
             .delete()
             .eq('user_id', user.id)
-            .eq('token', tokenData);
+            .eq('token', token);
         }
       } catch {}
     }
