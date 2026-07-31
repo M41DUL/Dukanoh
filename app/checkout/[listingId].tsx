@@ -8,14 +8,14 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
-import { useStripe, usePlatformPay, PlatformPay, isPlatformPaySupported } from '@stripe/stripe-react-native';
+import { useStripe, usePlatformPay, PlatformPay, PaymentIntent, isPlatformPaySupported } from '@stripe/stripe-react-native';
 import { Image } from 'expo-image';
 import { getImageUrl } from '@/lib/imageUtils';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import type { ComponentProps } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ScreenWrapper } from '@/components/ScreenWrapper';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
@@ -28,7 +28,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/queryKeys';
-import { useCreateOrder } from '@/lib/mutations';
 import { calcProtectionFee, calcOrderTotal, formatGBP } from '@/lib/paymentHelpers';
 import { useFeeConfig } from '@/context/FeeConfigContext';
 import { edgeFetch } from '@/lib/edgeFetch';
@@ -88,7 +87,7 @@ export default function CheckoutScreen() {
   const styles = useMemo(() => getStyles(colors), [colors]);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { confirmPlatformPayPayment } = usePlatformPay();
-  const createOrder = useCreateOrder();
+  const queryClient = useQueryClient();
 
   const [address, setAddress] = useState<AddressState | null>(null);
   const [placing, setPlacing] = useState(false);
@@ -248,11 +247,18 @@ export default function CheckoutScreen() {
       return;
     }
 
-    const { client_secret, payment_intent_id, seller_verified } = await piRes.json();
+    // `order_id` is the reservation row create-payment-intent already inserted
+    // (status 'pending') to lock the listing before charging. It is the order —
+    // there is no second row to create once payment succeeds.
+    const { client_secret, order_id } = await piRes.json();
+
+    // Wallet sheets hand back the PaymentIntent; PaymentSheet doesn't. Stays
+    // null on the card path, which is fine — see the check below.
+    let intentStatus: PaymentIntent.Status | null = null;
 
     // Step 2 — Pay: native wallet if supported, else card PaymentSheet
     if (applePaySupported && Platform.OS === 'ios' && selectedMethod !== 'card') {
-      const { error: applePayError } = await confirmPlatformPayPayment(client_secret, {
+      const { error: applePayError, paymentIntent } = await confirmPlatformPayPayment(client_secret, {
         applePay: {
           cartItems: [
             {
@@ -283,8 +289,9 @@ export default function CheckoutScreen() {
         }
         return;
       }
+      intentStatus = paymentIntent?.status ?? null;
     } else if (googlePaySupported && Platform.OS === 'android' && selectedMethod !== 'card') {
-      const { error: googlePayError } = await confirmPlatformPayPayment(client_secret, {
+      const { error: googlePayError, paymentIntent } = await confirmPlatformPayPayment(client_secret, {
         googlePay: {
           testEnv: __DEV__,
           merchantName: 'Dukanoh',
@@ -300,6 +307,7 @@ export default function CheckoutScreen() {
         }
         return;
       }
+      intentStatus = paymentIntent?.status ?? null;
     } else {
       // Fallback: card PaymentSheet (Android / no Apple Pay)
       const { error: initError } = await initPaymentSheet({
@@ -363,50 +371,38 @@ export default function CheckoutScreen() {
       }
     }
 
-    // Step 4 — Payment succeeded: insert the order record + flip listing to sold
-    // For unverified sellers, set a far-future sentinel so stripe-connect-status
-    // can find and transfer these funds once they complete onboarding.
-    const payoutPendingSentinel = seller_verified
-      ? null
-      : '2099-01-01T00:00:00.000Z';
-
-    try {
-      const order = await createOrder.mutateAsync({
-        listingId: listing.id,
-        buyerId: user.id,
-        sellerId: listing.seller_id,
-        itemPrice: listing.price,
-        protectionFee,
-        totalPaid: total,
-        stripePaymentId: payment_intent_id,
-        sellerVerifyDeadline: payoutPendingSentinel,
-        deliveryAddressLine1: address!.address_line1,
-        deliveryAddressLine2: address?.address_line2 ?? null,
-        deliveryCity: address!.city,
-        deliveryPostcode: address!.postcode,
-        deliveryCountry: address!.country,
-      });
+    // Step 3 — Sanity-check what the wallet actually confirmed. Both wallet
+    // branches above only bail on an explicit error, but a PaymentIntent can
+    // come back error-free in a state that isn't money taken (RequiresAction,
+    // RequiresPaymentMethod...). Treating those as a sale would show the buyer
+    // a confirmed order they never paid for. `Processing` IS a real payment —
+    // it just hasn't settled yet — so it passes, and the order screen shows its
+    // true status from the row. A null status is the card path, where
+    // presentPaymentSheet resolves only once the payment is complete.
+    if (
+      intentStatus !== null &&
+      intentStatus !== PaymentIntent.Status.Succeeded &&
+      intentStatus !== PaymentIntent.Status.Processing
+    ) {
       setPlacing(false);
-      router.replace(`/order/${order.id}?fromCheckout=true`);
-    } catch (err) {
-      setPlacing(false);
-      if ((err as { code?: string })?.code === '23505') {
-        // Unique constraint on listing_id fired — check if it's our own order
-        const { data: existing } = await supabase
-          .from('orders')
-          .select('id, buyer_id')
-          .eq('listing_id', listing.id)
-          .single();
-        if (existing?.buyer_id === user.id) {
-          router.replace(`/order/${existing.id}?fromCheckout=true`);
-        } else {
-          Alert.alert('Just missed it', 'Someone just bought this item. Browse to find something else.');
-          router.back();
-        }
-      } else {
-        Alert.alert('Error', 'Payment taken but order could not be saved. Please contact support.');
-      }
+      Alert.alert('Payment not completed', "This payment didn't go through. Please try again.");
+      return;
     }
+
+    // Step 4 — Payment succeeded. Nothing to write: the order row already
+    // exists (create-payment-intent inserted it as the 'pending' reservation
+    // that locked the listing), and stripe-webhook owns the rest — flipping it
+    // to 'paid', setting the payment id, and marking the listing sold. All this
+    // screen has to do is refresh the caches that a purchase invalidates and
+    // hand the buyer over to their order.
+    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.listings.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.myListings.all });
+    // Sold listing should drop out of Suggested / New arrivals on home.
+    queryClient.invalidateQueries({ queryKey: queryKeys.home.all });
+
+    setPlacing(false);
+    router.replace(`/order/${order_id}?fromCheckout=true`);
   };
 
   const hasAddress = !!address?.address_line1;
