@@ -1095,7 +1095,12 @@ CREATE TABLE public.orders (
   total_paid        NUMERIC(10,2) NOT NULL,
   tracking_number   TEXT,
   courier           TEXT,
-  stripe_payment_id TEXT UNIQUE,
+  stripe_payment_id TEXT UNIQUE,        -- set ONLY once the charge is confirmed; presence means "this order was paid"
+  -- PaymentIntent this reservation reached, written by create-payment-intent
+  -- BEFORE the buyer pays. Marks "reached Stripe", not "was paid" — it is how
+  -- the maintenance jobs split abandoned checkouts (cancel_stale_pending_orders)
+  -- from reservations that may have been charged (reconcile-stale-payments).
+  reserved_payment_intent_id TEXT,
   seller_verify_deadline TIMESTAMPTZ,
   dispute_reason      TEXT,
   dispute_description TEXT,
@@ -1574,6 +1579,11 @@ BEGIN
     SET status = 'cancelled', cancelled_at = NOW(), cancelled_by = 'system'
     WHERE status = 'pending'
       AND created_at < NOW() - INTERVAL '20 minutes'
+      -- Never touch a reservation that reached Stripe: it may have been paid,
+      -- and only reconcile-stale-payments can tell. Cancelling a paid order
+      -- here loses the sale — the webhook then finds no reservation, refunds
+      -- the payment as an orphan, and the buyer's purchase vanishes.
+      AND reserved_payment_intent_id IS NULL
     RETURNING listing_id
   )
   UPDATE public.listings
@@ -1804,11 +1814,33 @@ SELECT cron.schedule(
   'SELECT public.auto_release_orders()'
 );
 
--- Runs every 5 minutes — releases abandoned 'pending' checkout reservations.
+-- Runs every 5 minutes — releases abandoned 'pending' checkout reservations
+-- that never reached Stripe (no reserved_payment_intent_id).
 SELECT cron.schedule(
   'cancel-stale-pending-orders',
   '*/5 * * * *',
   'SELECT public.cancel_stale_pending_orders()'
+);
+
+-- Runs every 15 minutes — reconciles the reservations the SQL sweep can't
+-- safely judge: those that DID reach Stripe. Asks Stripe for the real
+-- PaymentIntent status and confirms a paid order the webhook missed, releases a
+-- genuinely abandoned one, or leaves an in-flight payment alone.
+-- Invoked over HTTP (pg_net + Vault) — see the reconcile_stale_payments
+-- migration for the full net.http_post body and its Vault prerequisites.
+SELECT cron.schedule(
+  'reconcile-stale-payments',
+  '*/15 * * * *',
+  $cmd$
+  SELECT net.http_post(
+    url := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'supabase_url') || '/functions/v1/reconcile-stale-payments',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-dukanoh-key', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'INTERNAL_API_KEY')
+    ),
+    body := '{}'::jsonb
+  );
+  $cmd$
 );
 
 

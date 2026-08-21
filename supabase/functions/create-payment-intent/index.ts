@@ -221,6 +221,19 @@ Deno.serve(async (req) => {
 
   const pi = await piRes.json();
 
+  // Record which PaymentIntent this reservation reached. This is NOT a payment
+  // record — stripe_payment_id stays untouched until the charge is confirmed —
+  // it is how the maintenance jobs tell "buyer never made it to the sheet" from
+  // "buyer may have paid": cancel_stale_pending_orders() only releases
+  // reservations without one, and reconcile-stale-payments asks Stripe about the
+  // rest. Best-effort: a buyer must never be blocked from paying because this
+  // write failed. Worst case the reservation looks like it never reached Stripe
+  // and the sweep releases it, which is the behaviour we had before.
+  await supabase
+    .from('orders')
+    .update({ reserved_payment_intent_id: pi.id })
+    .eq('id', orderId);
+
   return new Response(
     JSON.stringify({
       client_secret: pi.client_secret,
