@@ -226,13 +226,28 @@ Deno.serve(async (req) => {
   // it is how the maintenance jobs tell "buyer never made it to the sheet" from
   // "buyer may have paid": cancel_stale_pending_orders() only releases
   // reservations without one, and reconcile-stale-payments asks Stripe about the
-  // rest. Best-effort: a buyer must never be blocked from paying because this
-  // write failed. Worst case the reservation looks like it never reached Stripe
-  // and the sweep releases it, which is the behaviour we had before.
-  await supabase
+  // rest.
+  //
+  // This write is load-bearing, so its failure is fatal rather than best-effort.
+  // A reservation missing the id looks like it never reached Stripe: the sweep
+  // cancels it at 20 minutes and, if the buyer had by then paid, stripe-webhook
+  // finds no reservation and refunds a genuine purchase as an orphan. Failing
+  // HERE costs nothing — the PaymentIntent exists but has not been confirmed, so
+  // no money has moved and the buyer simply retries. The abandoned reservation
+  // carries no id, so the sweep tidies it up.
+  const { error: reserveIdError } = await supabase
     .from('orders')
     .update({ reserved_payment_intent_id: pi.id })
     .eq('id', orderId);
+
+  if (reserveIdError) {
+     
+    console.error('could not record reservation payment intent', orderId, reserveIdError.message);
+    return new Response(JSON.stringify({ error: 'Could not start checkout. Please try again.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   return new Response(
     JSON.stringify({

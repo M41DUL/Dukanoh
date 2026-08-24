@@ -20,11 +20,21 @@
 -- Existing rows have a NULL reserved_payment_intent_id and so keep falling to
 -- the SQL sweep exactly as before — no backfill needed.
 --
--- PREREQUISITE (set out-of-band — secrets must not live in version control):
--- the same two Vault secrets the auto-cancel cron already uses:
---   • supabase_url      = https://<project-ref>.supabase.co
---   • INTERNAL_API_KEY  = matches the edge function's INTERNAL_API_KEY secret
---                         (checked against the x-dukanoh-key header).
+-- PREREQUISITES (set out-of-band — secrets must not live in version control):
+--
+--   1. The same two Vault secrets the auto-cancel cron already uses:
+--        • supabase_url      = https://<project-ref>.supabase.co
+--        • INTERNAL_API_KEY  = matches the edge function's INTERNAL_API_KEY
+--                              secret (checked against the x-dukanoh-key header).
+--
+--   2. reconcile-stale-payments must be deployed with JWT verification DISABLED
+--      (dashboard setting — this project has no [functions.*] block in
+--      config.toml). The cron below authenticates with x-dukanoh-key alone and
+--      sends no Authorization header, so with verify_jwt left on every run 401s
+--      at the gateway. Nothing surfaces that: the job reports success, the
+--      function never executes, and paid-but-unconfirmed orders quietly stop
+--      being reconciled. Confirm after deploying by invoking the function with
+--      the key and checking for a 200.
 
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS reserved_payment_intent_id TEXT;
