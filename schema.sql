@@ -1822,6 +1822,12 @@ SELECT cron.schedule(
   'SELECT public.cancel_stale_pending_orders()'
 );
 
+-- Supports the reconciler's only query: stale pending reservations that have a
+-- PaymentIntent to look up.
+CREATE INDEX IF NOT EXISTS idx_orders_pending_reservations
+  ON public.orders (created_at)
+  WHERE status = 'pending' AND reserved_payment_intent_id IS NOT NULL;
+
 -- Runs every 15 minutes — reconciles the reservations the SQL sweep can't
 -- safely judge: those that DID reach Stripe. Asks Stripe for the real
 -- PaymentIntent status and confirms a paid order the webhook missed, releases a
