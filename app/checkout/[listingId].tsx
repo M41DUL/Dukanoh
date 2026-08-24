@@ -83,6 +83,20 @@ const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; icon: IoniconName }[
 // On iOS default to Apple Pay, on Android default to Google Pay
 const DEFAULT_METHOD: PaymentMethod = Platform.OS === 'ios' ? 'apple_pay' : 'google_pay';
 
+// Google Pay refuses production payments until the app's integration is granted
+// production access in the Google Pay & Wallet Console, and surfaces it as
+// "error 405: This merchant has not completed registration" / OR_BIBED_11.
+// PlatformPayError only carries Canceled / Failed / Unknown, so the message text
+// is the only signal we get.
+const MERCHANT_NOT_REGISTERED = /error 405|not completed registration|OR_BIBED/i;
+
+// Set the first time Google Pay tells us that. Module-scoped so it outlives this
+// screen: a member who hits it once shouldn't be dropped back into a method we
+// know will fail on their next checkout. Google Pay stays in the payment list
+// either way — we only stop pre-selecting it. Nothing sets this once production
+// access is granted, so it reverts itself with no code change.
+let googlePayUnavailable = false;
+
 export default function CheckoutScreen() {
   const { listingId } = useLocalSearchParams<{ listingId: string }>();
   const { user } = useAuth();
@@ -105,7 +119,9 @@ export default function CheckoutScreen() {
   // Whether the wallet-support probe has resolved. Until it has, we can't tell
   // "unsupported" from "not checked yet", so we don't act on the result.
   const [walletChecked, setWalletChecked] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(DEFAULT_METHOD);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(
+    googlePayUnavailable && DEFAULT_METHOD === 'google_pay' ? 'card' : DEFAULT_METHOD
+  );
   const [protectionSheetVisible, setProtectionSheetVisible] = useState(false);
   // Once the buyer has begun paying, the listing flipping to `sold` is the
   // expected result of THEIR OWN purchase (the webhook marks it sold the moment
@@ -317,9 +333,21 @@ export default function CheckoutScreen() {
 
       if (googlePayError) {
         setPlacing(false);
-        if (googlePayError.code !== 'Canceled') {
-          Alert.alert('Payment failed', googlePayError.message);
+        if (googlePayError.code === 'Canceled') return;
+        // Google's own copy here tells the member to go and verify a merchant
+        // registration in the Business Console, which is meaningless to someone
+        // trying to buy a piece. Move them to card and say so plainly — the
+        // reservation and PaymentIntent are reused on the retry.
+        if (MERCHANT_NOT_REGISTERED.test(googlePayError.message ?? '')) {
+          googlePayUnavailable = true;
+          setSelectedMethod('card');
+          Alert.alert(
+            "Google Pay isn't available yet",
+            "We've switched you to card. Tap Buy Now to finish your order."
+          );
+          return;
         }
+        Alert.alert('Payment failed', googlePayError.message);
         return;
       }
       intentStatus = paymentIntent?.status ?? null;
