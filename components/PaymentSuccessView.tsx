@@ -52,6 +52,14 @@ interface Props {
 // dispatch_deadline_at is still null here.
 const DISPATCH_DAYS = 5;
 
+// Acceptance marks are sized by height and never smaller than the other payment
+// identities on screen — Google's guidelines require parity ("don't make the
+// Google Pay mark smaller than the other brand identities"). Widths come from
+// each mark's own viewBox: Google 1094×742, Apple 165.52×105.97.
+const MARK_HEIGHT = 26;
+const GOOGLE_MARK_RATIO = 1094 / 742;
+const APPLE_MARK_RATIO = 165.52107 / 105.9651;
+
 export function PaymentSuccessView({
   orderId,
   itemTitle,
@@ -209,18 +217,18 @@ function PaidWithMark({ paidWith, colors }: { paidWith: PaidWith; colors: ColorT
       </View>
     );
   }
-  // Both networks require their own acceptance mark rather than plain text or a
-  // generic logo. The marks are drawn on white, so they keep a light pill in
-  // dark mode instead of being tinted.
+  // Rendered bare. Each acceptance mark already carries its own background and
+  // outline, so wrapping it in another pill would be altering the mark — which
+  // both brands' guidelines forbid, and which Google reviews for. Width is
+  // derived from the mark's own viewBox so it is neither distorted nor
+  // letterboxed inside an ill-fitting box.
   const isGoogle = paidWith === 'google_pay';
   return (
-    <View style={[markStyles.pill, { backgroundColor: '#FFFFFF', borderColor: colors.border }]}>
-      <SvgXml
-        xml={isGoogle ? GOOGLE_PAY_MARK : APPLE_PAY_MARK}
-        width={isGoogle ? 54 : 44}
-        height={isGoogle ? 26 : 26}
-      />
-    </View>
+    <SvgXml
+      xml={isGoogle ? GOOGLE_PAY_MARK : APPLE_PAY_MARK}
+      height={MARK_HEIGHT}
+      width={Math.round(MARK_HEIGHT * (isGoogle ? GOOGLE_MARK_RATIO : APPLE_MARK_RATIO))}
+    />
   );
 }
 
@@ -233,14 +241,6 @@ const markStyles = StyleSheet.create({
   label: {
     ...FontFamily.medium,
     fontSize: Typography.body.fontSize,
-  },
-  pill: {
-    borderRadius: BorderRadius.small,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
 
