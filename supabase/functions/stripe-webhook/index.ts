@@ -2,6 +2,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
+import { walletToPaymentMethod } from '../_shared/paymentMethod.ts';
 
 const WEBHOOK_TOLERANCE_SECONDS = 300; // 5 minutes — reject replays older than this
 
@@ -123,6 +124,11 @@ Deno.serve(async (req) => {
     // must NEVER block confirming the payment, so any failure falls back to a
     // conservative +7 days (the release also has a 14-day no-stranding net).
     let fundsAvailableOn: string;
+    // How the buyer actually paid, read off the same charge. Recorded so the
+    // order can still say "Paid with Google Pay" long after checkout, where
+    // today only the success screen knows. Same best-effort footing as the
+    // clear date: never worth failing a confirmed payment over.
+    let paymentMethod: string | null = null;
     try {
       const sk = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
       const chargeId = (pi.latest_charge ?? pi.charges?.data?.[0]?.id) as string | undefined;
@@ -135,6 +141,7 @@ Deno.serve(async (req) => {
         if (chRes.ok) {
           const ch = await chRes.json();
           availableOnUnix = ch?.balance_transaction?.available_on;
+          paymentMethod = walletToPaymentMethod(ch?.payment_method_details?.card?.wallet?.type);
         }
       }
       fundsAvailableOn = availableOnUnix
@@ -150,7 +157,12 @@ Deno.serve(async (req) => {
     // is the single source of truth and the atomic claim for the payment.
     const { data: confirmed, error: confirmError } = await supabase
       .from('orders')
-      .update({ status: 'paid', stripe_payment_id: pi.id, funds_available_on: fundsAvailableOn })
+      .update({
+        status: 'paid',
+        stripe_payment_id: pi.id,
+        funds_available_on: fundsAvailableOn,
+        ...(paymentMethod ? { payment_method: paymentMethod } : {}),
+      })
       .eq('listing_id', listing_id)
       .eq('buyer_id', buyer_id)
       .eq('status', 'pending')
@@ -158,7 +170,7 @@ Deno.serve(async (req) => {
 
     if (confirmError) {
       // Genuine DB error — return 5xx so Stripe RETRIES (never swallow + 200).
-      // eslint-disable-next-line no-console
+       
       console.error('order confirm failed', confirmError.message);
       return new Response(JSON.stringify({ error: 'confirm failed' }), {
         status: 500,
@@ -204,7 +216,7 @@ Deno.serve(async (req) => {
           },
           body: new URLSearchParams(orphanRefundBody),
         });
-        // eslint-disable-next-line no-console
+         
         console.error('orphaned payment auto-refunded (no reservation):', pi.id);
       }
       // else: redelivery of an already-recorded order → no-op.
@@ -301,7 +313,7 @@ Deno.serve(async (req) => {
             }
           } catch { /* best-effort — admin alerted via the log below */ }
         }
-        // eslint-disable-next-line no-console
+         
         console.error('CHARGEBACK opened on order', order.id, '— review in Stripe Dashboard. PI:', paymentIntentId,
           order.is_destination_charge ? '' : '(unverified-origin: if already settled, reverse the transfer manually)');
       }

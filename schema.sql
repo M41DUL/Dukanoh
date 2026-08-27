@@ -1096,6 +1096,11 @@ CREATE TABLE public.orders (
   tracking_number   TEXT,
   courier           TEXT,
   stripe_payment_id TEXT UNIQUE,        -- set ONLY once the charge is confirmed; presence means "this order was paid"
+  -- How the buyer paid: card | google_pay | apple_pay. Derived from the Stripe
+  -- charge's wallet type by whichever path confirms the payment (stripe-webhook,
+  -- or reconcile-stale-payments when the webhook is missed). NULL on orders that
+  -- predate the column.
+  payment_method    TEXT CHECK (payment_method IN ('card','google_pay','apple_pay')),
   -- PaymentIntent this reservation reached, written by create-payment-intent
   -- BEFORE the buyer pays. Marks "reached Stripe", not "was paid" — it is how
   -- the maintenance jobs split abandoned checkouts (cancel_stale_pending_orders)

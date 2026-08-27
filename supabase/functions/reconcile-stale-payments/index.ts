@@ -2,6 +2,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
+import { walletToPaymentMethod } from '../_shared/paymentMethod.ts';
 
 // Called every 15 minutes by a pg_cron job (see the reconcile_stale_payments
 // migration).
@@ -194,6 +195,11 @@ Deno.serve(async (req) => {
           status: 'paid',
           stripe_payment_id: pi.id,
           funds_available_on: fundsAvailableOn,
+          // Same derivation the webhook uses, so an order confirmed down this
+          // path is indistinguishable from one confirmed normally.
+          payment_method: walletToPaymentMethod(
+            pi.latest_charge?.payment_method_details?.card?.wallet?.type
+          ),
         })
         .eq('id', order.id)
         .eq('status', 'pending')

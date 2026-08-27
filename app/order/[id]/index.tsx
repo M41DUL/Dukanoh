@@ -50,6 +50,7 @@ interface Order {
   item_price: number;
   protection_fee: number;
   total_paid: number;
+  payment_method: 'card' | 'google_pay' | 'apple_pay' | null;
   tracking_number: string | null;
   courier: string | null;
   dispute_reason: string | null;
@@ -88,9 +89,12 @@ function relativeTime(dateStr: string): string {
   if (diff <= 0) return 'overdue';
   const mins = Math.floor(diff / 60000);
   const hrs  = Math.floor(mins / 60);
-  const days = Math.floor(hrs / 24);
-  if (days >= 2) return `${days} days`;
-  if (days === 1) return 'tomorrow';
+  // Round days UP. A deadline five days out is four-point-something days away,
+  // and flooring it read "4 days" seconds after the success screen promised 5 —
+  // two screens contradicting each other about the same date. Rounding up also
+  // never undersells the time a seller actually has.
+  if (hrs >= 48) return `${Math.ceil(hrs / 24)} days`;
+  if (hrs >= 24) return 'tomorrow';
   if (hrs  >= 2) return `${hrs} hours`;
   if (hrs  === 1) return '1 hour';
   if (mins > 0) return `${mins} min`;
@@ -127,6 +131,13 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   disputed:  'Disputed',
   resolved:  'Resolved',
   cancelled: 'Cancelled',
+};
+
+// Orders placed before payment_method existed have none, and the row is hidden.
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  card:       'Card',
+  google_pay: 'Google Pay',
+  apple_pay:  'Apple Pay',
 };
 
 const STATUS_COLOR: Record<OrderStatus, string> = {
@@ -498,8 +509,13 @@ export default function OrderDetailScreen() {
                 <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={2}>
                   {order.listing?.title ?? 'Listing removed'}
                 </Text>
+                {/* Lead with the number that means something to whoever is
+                    looking: what the buyer was charged, what the seller is owed.
+                    Showing item_price to a buyer made the largest figure on the
+                    screen one they never paid. The DETAILS breakdown below
+                    itemises both either way. */}
                 <Text style={[styles.itemPrice, { color: colors.textPrimary }]}>
-                  {formatGBP(order.item_price)}
+                  {formatGBP(isBuyer ? order.total_paid : order.item_price)}
                 </Text>
               </View>
             </View>
@@ -599,6 +615,14 @@ export default function OrderDetailScreen() {
             <MetaRow icon="shield-checkmark-outline" label="Dukanoh Safe Checkout" value={formatGBP(order.protection_fee)} colors={colors} />
             <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
             <MetaRow icon="cash-outline" label="Total paid" value={formatGBP(order.total_paid)} bold colors={colors} />
+            {order.payment_method && (
+              <MetaRow
+                icon="card-outline"
+                label="Paid with"
+                value={PAYMENT_METHOD_LABEL[order.payment_method] ?? 'Card'}
+                colors={colors}
+              />
+            )}
             {order.status === 'completed' && (
               <MetaRow
                 icon="checkmark-circle-outline"
