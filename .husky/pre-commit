@@ -1,1 +1,25 @@
+# Keep schema.sql honest.
+#
+# Migrations are what actually run against the database; schema.sql is the
+# readable mirror of the result, and the comments in it are the only place a
+# lot of this reasoning is written down. Keeping two files in sync is a
+# discipline, and disciplines fail — this drifted twice in one day, once
+# leaving an index in a migration that schema.sql never learned about.
+#
+# So: staging a migration without staging schema.sql stops the commit. Override
+# with `git commit --no-verify` when a migration genuinely changes nothing
+# schema.sql describes (a data backfill, a cron reschedule).
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^supabase/migrations/'; then
+  if ! git diff --cached --name-only --diff-filter=ACMR | grep -q '^schema\.sql$'; then
+    echo "✗ Migration staged without schema.sql."
+    echo ""
+    echo "  Staged migrations:"
+    git diff --cached --name-only --diff-filter=ACMR | grep '^supabase/migrations/' | sed 's/^/    /'
+    echo ""
+    echo "  Mirror the change into schema.sql and stage it, or re-run with"
+    echo "  --no-verify if this migration changes nothing schema.sql describes."
+    exit 1
+  fi
+fi
+
 npx lint-staged
