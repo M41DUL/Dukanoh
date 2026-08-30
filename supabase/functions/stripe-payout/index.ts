@@ -3,6 +3,29 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 
+// Stripe writes its payout errors for developers. `balance_insufficient` arrives
+// complete with a reference to the /v1/balance endpoint and a link to the API
+// docs — which is what a seller trying to get paid was being shown. Map the
+// cases we understand to something a person can act on, and keep the raw text
+// in the logs where it is actually useful.
+//
+// The default deliberately says nothing about cause: an unrecognised Stripe
+// error is exactly the situation where guessing at an explanation is most
+// likely to mislead. Every branch reassures about the balance, because it IS
+// restored below before any of these are returned.
+function payoutErrorMessage(err: { code?: string; message?: string } | undefined): string {
+  switch (err?.code) {
+    case 'balance_insufficient':
+      return "Your money hasn't cleared yet. Sales take a few working days to settle. Your balance is safe — try again in a day or two.";
+    case 'payouts_not_allowed':
+    case 'account_invalid':
+    case 'account_closed':
+      return 'Your payout account needs finishing before you can withdraw. Open payout settings to complete it.';
+    default:
+      return "Something went wrong with this withdrawal. Your balance is untouched — try again shortly, and get in touch if it keeps happening.";
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -147,7 +170,7 @@ Deno.serve(async (req) => {
     // actually succeeded. Leave the balance claimed and surface for manual
     // reconciliation rather than risk a double-payout. (A returned error status,
     // below, is unambiguous — Stripe did not pay — so that path DOES restore.)
-    // eslint-disable-next-line no-console
+     
     console.error('PAYOUT network failure — balance left claimed, needs manual reconciliation. user:', userId, 'amountPence:', amountPence);
     return new Response(
       JSON.stringify({ error: "We couldn't reach the payment processor. If your balance looks wrong, contact support — we'll sort it out." }),
@@ -159,7 +182,14 @@ Deno.serve(async (req) => {
     const err = await payoutRes.json();
     await supabase.rpc('restore_available_balance', { p_seller_id: userId, p_amount: availableBalance });
 
-    return new Response(JSON.stringify({ error: err?.error?.message ?? 'Payout failed' }), {
+    console.error(
+      'PAYOUT refused by Stripe. user:', userId,
+      'amountPence:', amountPence,
+      'code:', err?.error?.code,
+      'message:', err?.error?.message,
+    );
+
+    return new Response(JSON.stringify({ error: payoutErrorMessage(err?.error) }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
