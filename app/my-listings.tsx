@@ -13,6 +13,7 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/queryKeys';
 import { ActiveOrderExistsError, useDeleteListing } from '@/lib/mutations';
+import { reportListingError } from '@/lib/listingErrors';
 import {
   Spacing,
   BorderRadius,
@@ -147,7 +148,7 @@ export default function MyItemsScreen() {
                           Alert.alert('Cannot delete', 'This listing has an active order in progress.');
                           return;
                         }
-                        Alert.alert('Error', err instanceof Error ? err.message : 'Failed to delete listing.');
+                        reportListingError('delete', err);
                       },
                     },
                   );

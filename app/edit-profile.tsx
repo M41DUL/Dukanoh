@@ -89,7 +89,12 @@ export default function EditProfileScreen() {
       .upload(path, formData, { contentType: 'multipart/form-data', upsert: true });
 
     if (error) {
-      Alert.alert('Upload failed', error.message);
+      // Storage errors are database-shaped ("new row violates row-level
+      // security policy", "Payload too large") — useful to us, meaningless to
+      // whoever is changing their photo.
+      // eslint-disable-next-line no-console
+      console.error('avatar upload failed:', error.message);
+      Alert.alert('Upload failed', "That didn't go through — give it another try.");
       return;
     }
 

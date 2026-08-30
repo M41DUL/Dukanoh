@@ -400,7 +400,14 @@ export default function CheckoutScreen() {
 
       if (initError) {
         setPlacing(false);
-        Alert.alert('Payment error', initError.message);
+        // Unlike the errors below, this one is a CONFIGURATION failure, not a
+        // payment one — the sheet never opened. Stripe's text here is written
+        // for whoever wired it up (the Android font-family crash noted above
+        // surfaced as "should only contain lowercase alphanumeric characters"),
+        // so it goes to the log rather than to the member.
+        // eslint-disable-next-line no-console
+        console.error('initPaymentSheet failed:', initError.code, initError.message);
+        Alert.alert('Payment error', "We couldn't open the payment form. Please try again.");
         return;
       }
 

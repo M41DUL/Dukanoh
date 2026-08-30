@@ -37,6 +37,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { queryKeys } from '@/lib/queryKeys';
+import { reportListingError } from '@/lib/listingErrors';
 import {
   ActiveOrderExistsError,
   useDeleteListing,
@@ -231,7 +232,7 @@ function EditListingForm({ listing, listingId }: EditListingFormProps) {
                     Alert.alert('Cannot delete', 'This listing has an active order in progress.');
                     return;
                   }
-                  Alert.alert('Error', err instanceof Error ? err.message : 'Failed to delete listing.');
+                  reportListingError('delete', err);
                 },
               },
             );
@@ -274,7 +275,7 @@ function EditListingForm({ listing, listingId }: EditListingFormProps) {
       {
         onSuccess: () => router.dismissTo('/my-listings'),
         onError: err => {
-          Alert.alert('Error', err instanceof Error ? err.message : 'Failed to save listing.');
+          reportListingError('save', err);
         },
       },
     );
