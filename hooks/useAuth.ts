@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 import { queryClient } from '@/lib/queryClient';
+import { toSellerTier } from '@/lib/tiers';
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
@@ -21,7 +22,7 @@ export function useAuth() {
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('users')
-      .select('onboarding_completed, is_seller, username_confirmed, username, is_verified, is_official, seller_tier')
+      .select('onboarding_completed, is_seller, username_confirmed, username, is_verified, is_official, seller_tier, pro_expires_at')
       .eq('id', userId)
       .maybeSingle();
     setOnboardingCompleted(data?.onboarding_completed ?? false);
@@ -30,7 +31,15 @@ export function useAuth() {
     setUsername(data?.username ?? '');
     setIsVerified(data?.is_verified ?? false);
     setIsOfficial(data?.is_official ?? false);
-    setSellerTier((data?.seller_tier as 'free' | 'pro' | 'founder') ?? 'free');
+    // Treat an expired subscription as free even while seller_tier still
+    // says otherwise. The nightly sweep is the thing that rewrites the
+    // column, so without this a member whose EXPIRATION webhook was missed
+    // keeps the Pro UI for up to 24 hours — and every server-side gate
+    // (has_pro_access) would already be refusing them, which reads as the
+    // app being broken rather than the subscription having lapsed.
+    const expiresAt = data?.pro_expires_at ? new Date(data.pro_expires_at as string) : null;
+    const lapsed = expiresAt !== null && expiresAt <= new Date();
+    setSellerTier(lapsed ? 'free' : toSellerTier(data?.seller_tier));
   }, []);
 
   const refreshProfile = useCallback(async () => {

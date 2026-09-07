@@ -23,6 +23,7 @@ import { useAddBoost, useRemoveBoost, BoostQuotaExceededError } from '@/lib/muta
 import { QueryStateView } from '@/components/QueryStateView';
 import { FontFamily, Spacing, BorderRadius, Typography } from '@/constants/theme';
 import { isBoostActive } from '@/utils/boostHelpers';
+import { isProTier } from '@/lib/tiers';
 
 // Pro users get 3 story boosts per calendar month (matches HUB_FEATURES copy)
 const MONTHLY_BOOST_LIMIT = 3;
@@ -49,7 +50,7 @@ interface BoostsData {
 export default function BoostsScreen() {
   const P = useProColors();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, sellerTier } = useAuth();
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -181,6 +182,32 @@ export default function BoostsScreen() {
 
   const activeBoosted = listings.filter(l => isBoostActive(l));
   const unboosted = listings.filter(l => !isBoostActive(l));
+
+  // This route is reachable by deep link, not just from the Pro dashboard.
+  // increment_boosts_used refuses non-subscribers server-side, so without
+  // this the screen would render a quota it can never spend.
+  if (!isProTier(sellerTier)) {
+    return (
+      <LinearGradient colors={[P.gradientTop, P.gradientBottom]} style={styles.root}>
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={16}>
+            <Ionicons name="chevron-back" size={22} color={P.textPrimary} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: P.textPrimary }]}>Story Boosts</Text>
+          <View style={styles.backBtn} />
+        </View>
+        <View style={styles.lockedWrap}>
+          <Ionicons name="flash-outline" size={40} color={P.textSecondary} />
+          <Text style={[styles.lockedTitle, { color: P.textPrimary }]}>
+            Boosts come with Dukanoh Pro
+          </Text>
+          <Text style={[styles.lockedBody, { color: P.textSecondary }]}>
+            Three Story boosts every month, so your best pieces show first.
+          </Text>
+        </View>
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient
@@ -416,6 +443,25 @@ function getStyles(P: ReturnType<typeof useProColors>) {
       backgroundColor: P.surface,
       borderRadius: BorderRadius.large,
       padding: Spacing.xl,
+    },
+    lockedWrap: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: Spacing.xl,
+      gap: Spacing.sm,
+    },
+    lockedTitle: {
+      fontSize: 18,
+      ...FontFamily.semibold,
+      textAlign: 'center',
+      marginTop: Spacing.sm,
+    },
+    lockedBody: {
+      fontSize: 14,
+      ...FontFamily.regular,
+      textAlign: 'center',
+      lineHeight: 20,
     },
     quotaRow: {
       flexDirection: 'row',

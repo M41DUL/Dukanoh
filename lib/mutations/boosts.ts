@@ -13,12 +13,16 @@ import { queryKeys } from '../queryKeys';
 // match the inline flow on app/boosts.tsx — there is no transaction, but the
 // caller can refetch and reconcile after a partial failure.
 //
-// Tier-gating (free vs Pro vs founder) is NOT enforced here — this hook is
-// only called from the Pro-paywalled boosts screen and from places that have
-// already checked the tier. Server-side RLS is the real gate. The simpler
-// listing-detail boost flow at app/listing/[id].tsx mixes RevenueCat consumable
-// purchases with the same writes and is intentionally NOT migrated here — its
-// shape diverges enough that a single hook would balloon.
+// Tier-gating is enforced in the database, not here: increment_boosts_used
+// raises 'Dukanoh Pro required' for anyone without a live subscription, and
+// checks pro_expires_at so a lapsed member is refused immediately rather than
+// at the next nightly sweep. This comment used to claim RLS was the gate —
+// it wasn't, and a free member calling the RPC directly got three boosts a
+// month. The callers still check the tier so the UI never offers a quota it
+// can't spend. The simpler listing-detail boost flow at app/listing/[id].tsx
+// mixes RevenueCat consumable purchases with the same writes and is
+// intentionally NOT migrated here — its shape diverges enough that a single
+// hook would balloon.
 
 interface AddBoostArgs {
   listingId: string;

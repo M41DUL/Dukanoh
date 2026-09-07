@@ -188,8 +188,36 @@ ALTER TABLE public.collections ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Collections are publicly readable"
   ON public.collections FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Sellers can create their own collections"
-  ON public.collections FOR INSERT TO authenticated WITH CHECK ((select auth.uid()) = seller_id);
+-- Single source of truth for "is this member entitled to Pro".
+--
+-- Expiry-aware on purpose: gating on seller_tier alone means a missed
+-- EXPIRATION webhook grants free Pro until the nightly sweep catches it.
+-- Checking pro_expires_at here closes that window everywhere at once.
+CREATE OR REPLACE FUNCTION public.has_pro_access(p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = p_user_id
+      AND seller_tier IN ('pro', 'founder')
+      AND (pro_expires_at IS NULL OR pro_expires_at > NOW())
+  );
+$$;
+
+-- Called from RLS policies, which run as the querying member.
+REVOKE ALL   ON FUNCTION public.has_pro_access(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.has_pro_access(UUID) TO authenticated, service_role;
+
+-- Collections are a Pro feature. Creating one requires a live subscription;
+-- editing and deleting stay open to the owner, so a lapsed subscriber can
+-- still tidy up what they already made.
+CREATE POLICY "Pro sellers can create their own collections"
+  ON public.collections FOR INSERT TO authenticated
+  WITH CHECK ((select auth.uid()) = seller_id AND public.has_pro_access(seller_id));
 CREATE POLICY "Sellers can update their own collections"
   ON public.collections FOR UPDATE TO authenticated USING ((select auth.uid()) = seller_id) WITH CHECK ((select auth.uid()) = seller_id);
 CREATE POLICY "Sellers can delete their own collections"
@@ -3521,6 +3549,13 @@ DECLARE
 BEGIN
   IF p_user_id IS NULL OR p_user_id <> auth.uid() THEN
     RAISE EXCEPTION 'Cannot modify another user''s boost counter';
+  END IF;
+
+  -- The free monthly quota is a paid feature. lib/mutations/boosts.ts used to
+  -- claim "server-side RLS is the real gate" — it wasn't, and a free member
+  -- calling this RPC directly got three boosts a month.
+  IF NOT public.has_pro_access(p_user_id) THEN
+    RAISE EXCEPTION 'Dukanoh Pro required';
   END IF;
 
   SELECT boosts_used, boosts_reset_at
