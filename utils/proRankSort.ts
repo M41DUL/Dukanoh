@@ -1,8 +1,11 @@
+import { isProTier } from '@/lib/tiers';
+
 /**
  * Pro ranking boost — applied post-fetch in JS.
  *
  * Rules:
  * - Pro sellers' listings appear higher in feed / search results
+ *   (both paid tiers — `pro` and `founder` — qualify)
  * - Guardrails:
  *   1. Max 25% of results can be Pro-boosted (dilution cap)
  *   2. Listing must be < 30 days old to qualify for boost (recency floor)
@@ -24,7 +27,7 @@ export function proRankSort<T extends {
   const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
   const isEligible = (l: T) =>
-    l.seller?.seller_tier === 'pro' &&
+    isProTier(l.seller?.seller_tier) &&
     !!l.created_at &&
     now - new Date(l.created_at).getTime() < thirtyDaysMs;
 

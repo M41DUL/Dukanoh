@@ -15,6 +15,7 @@ import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { isProTier } from '@/lib/tiers';
 import { useTaxStatus } from '@/hooks/useTaxStatus';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { queryKeys } from '@/lib/queryKeys';
@@ -149,7 +150,7 @@ export default function ProfileScreen() {
   }, [refreshProfile, reloadTaxStatus, profileQuery, pricingQuery]);
 
   // Pro users get a dedicated business dashboard UI
-  if (sellerTier === 'pro' || sellerTier === 'founder') {
+  if (isProTier(sellerTier)) {
     return <ProProfileTab />;
   }
 

@@ -22,6 +22,7 @@ import { SellerCollectionSheet } from '@/components/profile/SellerCollectionShee
 import { Typography, Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
+import { isProTier } from '@/lib/tiers';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlocked } from '@/context/BlockedContext';
 
@@ -310,12 +311,12 @@ export default function SellerProfileScreen() {
                     <Text style={[styles.badgePillText, { color: colors.primaryText }]}>✓ Verified</Text>
                   </View>
                 )}
-                {seller.seller_tier === 'pro' && (
+                {isProTier(seller.seller_tier) && (
                   <View style={[styles.badgePill, { backgroundColor: '#201A04' }]}>
                     <Text style={[styles.badgePillText, { color: '#C7A84F' }]}>◆ Pro</Text>
                   </View>
                 )}
-                {seller.seller_tier === 'pro' &&
+                {isProTier(seller.seller_tier) &&
                   seller.avg_response_time_mins != null &&
                   seller.avg_response_time_mins <= 120 && (
                   <View style={[styles.badgePill, { backgroundColor: '#1F2D08' }]}>
@@ -375,7 +376,7 @@ export default function SellerProfileScreen() {
         </View>
 
         {/* COLLECTIONS — Pro sellers only, only if they have collections */}
-        {seller.seller_tier === 'pro' && collections.length > 0 && (
+        {isProTier(seller.seller_tier) && collections.length > 0 && (
           <>
             <View style={[styles.hairline, { backgroundColor: colors.border }]} />
             <View style={styles.section}>

@@ -93,9 +93,14 @@ export default function ListingDetailScreen() {
   const imageScrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const sellerTier: 'pro' | 'free' = (
-    authSellerTier === 'pro' || authSellerTier === 'founder' ? authSellerTier : 'free'
-  ) as 'pro' | 'free';
+  // Founder is a paid tier with identical boost entitlements to Pro.
+  //
+  // This used to normalise the tier through `as 'pro' | 'free'`, which
+  // silenced the compiler while letting 'founder' pass through the ternary
+  // untouched — so every `=== 'pro'` check below quietly failed for founders,
+  // charging them £0.99 for boosts their subscription already covers. Route
+  // tier checks through isProTier; never compare the string directly.
+  const hasPro = isProTier(authSellerTier);
 
   const listingQuery = useQuery({
     queryKey: queryKeys.listings.detail(id),
@@ -380,7 +385,7 @@ export default function ListingDetailScreen() {
     if (boostExpiry) { setBoostVisible(false); return; }
 
     // Check simultaneous active boost limit
-    const simultaneousLimit = sellerTier === 'pro' ? 10 : 5;
+    const simultaneousLimit = hasPro ? 10 : 5;
     if (activeBoostCount >= simultaneousLimit) {
       Alert.alert(
         'Boost limit reached',
@@ -391,7 +396,7 @@ export default function ListingDetailScreen() {
 
     let amountPaid = 0;
 
-    if (sellerTier === 'pro') {
+    if (hasPro) {
       // Atomic check-and-increment. RPC takes a row lock, folds in monthly
       // rollover, and returns FALSE when the quota is exhausted — so two
       // concurrent taps can't both slip a 4th free boost through.
@@ -440,7 +445,7 @@ export default function ListingDetailScreen() {
   // Pro sellers sharing their OWN listing get the branded share kit (image
   // sized for Instagram Stories / a square post). Everyone else — and Pro
   // sellers sharing someone else's listing — gets the plain link share.
-  const canUseShareKit = isProTier(authSellerTier) && listing.seller_id === user?.id;
+  const canUseShareKit = hasPro && listing.seller_id === user?.id;
 
   const handleShare = () => {
     if (canUseShareKit) {
@@ -794,7 +799,7 @@ export default function ListingDetailScreen() {
               <View style={styles.sellerNameRow}>
                 <Text style={styles.sellerName}>@{listing.seller?.username}</Text>
                 <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
-                {listing.seller?.seller_tier === 'pro' && (
+                {isProTier(listing.seller?.seller_tier) && (
                   <View style={styles.featuredBadge}>
                     <Text style={styles.featuredBadgeText}>Featured</Text>
                   </View>
@@ -949,7 +954,7 @@ export default function ListingDetailScreen() {
         <View style={styles.boostDetailRow}>
           <Text style={styles.boostDetailKey}>Price</Text>
           <View style={styles.boostPriceRow}>
-            {sellerTier === 'pro' && boostsUsed < 3 ? (
+            {hasPro && boostsUsed < 3 ? (
               <>
                 <Text style={[styles.boostDetailVal, { color: colors.textPrimary }]}>Free</Text>
                 <View style={styles.betaBadge}>

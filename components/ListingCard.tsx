@@ -2,6 +2,7 @@ import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/co
 import { calcOrderTotal } from '@/lib/paymentHelpers';
 import { useFeeConfig } from '@/context/FeeConfigContext';
 import { getImageUrl } from '@/lib/imageUtils';
+import { isProTier } from '@/lib/tiers';
 import { useSaved } from '@/context/SavedContext';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
@@ -120,7 +121,7 @@ export function ListingCard({
             <Text style={styles.soldLabel}>SOLD</Text>
           </View>
         )}
-        {(listing.isBoosted || listing.seller?.seller_tier === 'pro') && listing.status !== 'sold' && (
+        {(listing.isBoosted || isProTier(listing.seller?.seller_tier)) && listing.status !== 'sold' && (
           <View style={styles.featuredBadge}>
             <Text style={styles.featuredText}>Featured</Text>
           </View>

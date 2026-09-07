@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { isProTier, tierLabel } from '@/lib/tiers';
 
 export default function EditProfileScreen() {
   const { user, refreshProfile, sellerTier } = useAuth();
@@ -233,11 +234,14 @@ export default function EditProfileScreen() {
         </TouchableOpacity>
 
         {/* Founder / Pro tier pill */}
-        {(sellerTier === 'founder' || sellerTier === 'pro') && (
+        {/* Your OWN profile names the real plan ("Founder" / "Dukanoh Pro").
+            The public badge on user/[id].tsx stays "◆ Pro" for both tiers so
+            billing status isn't broadcast to buyers. */}
+        {isProTier(sellerTier) && (
           <View style={[styles.tierPill, { backgroundColor: proColorsDark.proAccent + '22', borderColor: proColorsDark.proAccent + '60' }]}>
             <Ionicons name="checkmark-circle" size={14} color={proColorsLight.proAccentText} />
             <Text style={[styles.tierPillText, { color: proColorsLight.proAccentText }]}>
-              {sellerTier === 'founder' ? 'Founder' : 'Dukanoh Pro'}
+              {tierLabel(sellerTier)}
             </Text>
           </View>
         )}
