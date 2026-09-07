@@ -16,6 +16,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { reportError } from '@/lib/errorReporting';
+import { isProTier } from '@/lib/tiers';
+import { ShareKitSheet } from '@/components/pro/ShareKitSheet';
 import Purchases, { PRODUCT_CATEGORY } from 'react-native-purchases';
 import { getImageUrl } from '@/lib/imageUtils';
 import {
@@ -85,6 +87,7 @@ export default function ListingDetailScreen() {
   // boosts_reset_at no longer needs client tracking — increment_boosts_used
   // owns the rollover atomically and the boosts.tsx screen reads its own copy.
   const [activeBoostCount, setActiveBoostCount] = useState(0);
+  const [shareKitVisible, setShareKitVisible] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const imageScrollRef = useRef<ScrollView>(null);
@@ -434,7 +437,16 @@ export default function ListingDetailScreen() {
     setBoostVisible(false);
   };
 
+  // Pro sellers sharing their OWN listing get the branded share kit (image
+  // sized for Instagram Stories / a square post). Everyone else — and Pro
+  // sellers sharing someone else's listing — gets the plain link share.
+  const canUseShareKit = isProTier(authSellerTier) && listing.seller_id === user?.id;
+
   const handleShare = () => {
+    if (canUseShareKit) {
+      setShareKitVisible(true);
+      return;
+    }
     // URL in `message` only — keeps friendly text on every iOS share target
     // and lets messengers auto-linkify the URL + fetch the OG preview card.
     const url = `https://dukanoh.com/listing/${listing.id}`;
@@ -959,6 +971,20 @@ export default function ListingDetailScreen() {
           </TouchableOpacity>
         </View>
       </BottomSheet>
+
+      {canUseShareKit && (
+        <ShareKitSheet
+          visible={shareKitVisible}
+          onClose={() => setShareKitVisible(false)}
+          listing={{
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            images: listing.images ?? [],
+          }}
+          username={listing.seller?.username ?? ''}
+        />
+      )}
     </View>
   );
 }

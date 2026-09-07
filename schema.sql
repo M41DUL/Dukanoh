@@ -1770,6 +1770,8 @@ CREATE INDEX IF NOT EXISTS idx_listings_collection_id               ON public.li
 CREATE INDEX IF NOT EXISTS idx_messages_sender_id                   ON public.messages (sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver_id                 ON public.messages (receiver_id);
 CREATE INDEX IF NOT EXISTS idx_messages_listing_id                  ON public.messages (listing_id);
+-- Supports refresh_avg_response_times()'s first-reply lookup.
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_sender_created ON public.messages (conversation_id, sender_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id                ON public.notifications (user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_listing_id             ON public.notifications (listing_id);
 CREATE INDEX IF NOT EXISTS idx_platform_ledger_order_id             ON public.platform_ledger (order_id);
@@ -1788,6 +1790,78 @@ CREATE INDEX IF NOT EXISTS idx_transactions_listing_id              ON public.tr
 -- =============================================================
 -- SCHEDULED JOBS
 -- =============================================================
+
+-- Recompute sellers' average first-response time (powers the Pro
+-- "⚡ Fast Responder" badge on public profiles).
+--
+-- Metric: per conversation, minutes from the buyer's FIRST message to the
+-- seller's first reply after it, averaged per seller over a 90-day window.
+-- Only ANSWERED conversations count (an unanswered thread has no reply
+-- timestamp). Minimum 3 answered conversations, so one lucky fast reply
+-- can't earn the badge. Sellers who fall out of the window are reset to
+-- NULL by the same statement, so the badge decays instead of sticking.
+CREATE OR REPLACE FUNCTION public.refresh_avg_response_times()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  UPDATE public.users u
+     SET avg_response_time_mins = target.avg_mins
+    FROM (
+      SELECT
+        s.id AS seller_id,
+        -- Below the sample floor => NULL => no badge.
+        CASE WHEN calc.sample_size >= 3 THEN calc.avg_mins END AS avg_mins
+      FROM public.users s
+      LEFT JOIN (
+        SELECT
+          per_conv.seller_id,
+          ROUND(AVG(per_conv.response_mins))::INT AS avg_mins,
+          COUNT(*)                                AS sample_size
+        FROM (
+          SELECT
+            fb.seller_id,
+            EXTRACT(EPOCH FROM (MIN(reply.created_at) - fb.asked_at)) / 60.0
+              AS response_mins
+          FROM (
+            -- Earliest buyer message per conversation inside the window.
+            SELECT DISTINCT ON (m.conversation_id)
+                   m.conversation_id,
+                   c.seller_id,
+                   m.created_at AS asked_at
+            FROM public.messages m
+            JOIN public.conversations c ON c.id = m.conversation_id
+            WHERE m.sender_id = c.buyer_id
+              AND m.created_at >= NOW() - INTERVAL '90 days'
+            ORDER BY m.conversation_id, m.created_at
+          ) fb
+          JOIN public.messages reply
+            ON reply.conversation_id = fb.conversation_id
+           AND reply.sender_id       = fb.seller_id
+           AND reply.created_at      > fb.asked_at
+          GROUP BY fb.conversation_id, fb.seller_id, fb.asked_at
+        ) per_conv
+        GROUP BY per_conv.seller_id
+      ) calc ON calc.seller_id = s.id
+      WHERE s.is_seller = TRUE
+    ) target
+   WHERE u.id = target.seller_id
+     AND u.avg_response_time_mins IS DISTINCT FROM target.avg_mins;
+END;
+$$;
+
+-- Cron-only: no client calls this, and it writes a column users must not be
+-- able to set for themselves.
+REVOKE EXECUTE ON FUNCTION public.refresh_avg_response_times() FROM PUBLIC, anon, authenticated;
+
+-- Runs nightly at 03:15 UTC
+SELECT cron.schedule(
+  'refresh-avg-response-times',
+  '15 3 * * *',
+  'SELECT public.refresh_avg_response_times()'
+);
 
 -- Downgrade users whose Pro/Founder subscription has expired
 CREATE OR REPLACE FUNCTION expire_pro_subscriptions()
