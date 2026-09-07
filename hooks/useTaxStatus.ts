@@ -34,10 +34,11 @@ export function useTaxStatus(userId: string | undefined) {
     const taxHold = !!userRes.data?.tax_hold;
     const overThreshold = yearCount >= 29 || yearSales >= 1690;
 
-    // Auto-set tax_hold in DB when threshold is crossed and no TIN on file
-    if (overThreshold && !hasTin && !taxHold) {
-      await supabase.from('users').update({ tax_hold: true }).eq('id', userId);
-    }
+    // The hold itself is applied by the apply_tax_hold_on_threshold trigger
+    // on `orders`. This used to write tax_hold from here, but tax_hold is a
+    // pinned column and the write was silently refused every time — the
+    // automatic hold never once applied. `overThreshold` below still drives
+    // the banner immediately, without waiting for the next completed order.
 
     setStatus({
       yearCount,

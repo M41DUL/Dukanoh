@@ -154,13 +154,11 @@ export default function TaxInfoScreen() {
           postcode: postcode.trim().toUpperCase(),
         })
         .eq('user_id', user.id),
-      supabase
-        .from('users')
-        .update({
-          tax_id_collected_at: new Date().toISOString(),
-          tax_declaration_at: new Date().toISOString(),
-        })
-        .eq('id', user.id),
+      // Stamped by record_tax_declaration, not written directly: these
+      // timestamps are what lift a tax hold, so leaving them client-writable
+      // would let a seller release their own held funds without ever
+      // supplying an identifier. The RPC verifies user_tax_info first.
+      supabase.rpc('record_tax_declaration'),
     ]);
     const profileErr = privateErr || userErr;
     setSaving(false);

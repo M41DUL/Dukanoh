@@ -1889,6 +1889,115 @@ CREATE TRIGGER trg_enforce_price_drop_tier
   ON public.listings
   FOR EACH ROW EXECUTE FUNCTION public.enforce_price_drop_tier();
 
+-- ── Least privilege on public.users ──────────────────────────────────
+--
+-- The UPDATE policy above pins a set of columns via WITH CHECK, but that is a
+-- DENY-list: it fails open for every column added afterwards. It had already
+-- drifted — a member could set their own boosts_used to 0 for unlimited free
+-- boosts, clear had_founder_subscription to retake founder pricing, and set
+-- avg_response_time_mins to award themselves the Fast Responder badge.
+--
+-- Inverted to an allow-list. Anything absent is writable only by a SECURITY
+-- DEFINER function (which runs as the owner, so existing RPCs are unaffected)
+-- or the service role.
+REVOKE UPDATE ON public.users FROM authenticated, anon;
+
+GRANT UPDATE (
+  avatar_url,             -- edit-profile
+  bio,                    -- edit-profile
+  username,               -- username-picker
+  username_confirmed,     -- username-picker
+  preferred_categories,   -- onboarding, settings reset
+  onboarding_completed,   -- onboarding, settings reset
+  marketing_push_consent, -- privacy settings, signup, consent sheet
+  marketing_prompted_at,  -- consent sheet
+  last_active_at          -- useAuth, on app open
+) ON public.users TO authenticated;
+
+-- ── Tax hold lifecycle (HMRC digital-platform reporting) ─────────────
+--
+-- hooks/useTaxStatus.ts used to write tax_hold from the client when a seller
+-- crossed the threshold. tax_hold is pinned, so that write was silently
+-- refused every time and the automatic hold NEVER applied. Compliance can't
+-- depend on a client rendering a screen, so the database applies it.
+CREATE OR REPLACE FUNCTION public.apply_tax_hold_on_threshold()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+DECLARE
+  v_count INT;
+  v_sales NUMERIC;
+BEGIN
+  IF NEW.status <> 'completed' OR NEW.seller_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COUNT(*), COALESCE(SUM(item_price), 0)
+    INTO v_count, v_sales
+  FROM public.orders
+  WHERE seller_id = NEW.seller_id
+    AND status = 'completed'
+    AND created_at >= DATE_TRUNC('year', NOW());
+
+  IF (v_count >= 29 OR v_sales >= 1690)
+     AND NOT EXISTS (
+       SELECT 1 FROM public.users
+       WHERE id = NEW.seller_id AND tax_id_collected_at IS NOT NULL
+     )
+  THEN
+    UPDATE public.users
+       SET tax_hold = TRUE
+     WHERE id = NEW.seller_id
+       AND tax_hold IS DISTINCT FROM TRUE;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_apply_tax_hold ON public.orders;
+CREATE TRIGGER trg_apply_tax_hold
+  AFTER INSERT OR UPDATE OF status ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.apply_tax_hold_on_threshold();
+
+-- Stamping tax_id_collected_at is what RELEASES a hold, so it can't be a
+-- client column write — a seller would just stamp it and free their own held
+-- funds without ever supplying an identifier.
+CREATE OR REPLACE FUNCTION public.record_tax_declaration()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.user_tax_info
+    WHERE user_id = v_uid
+      AND COALESCE(TRIM(tax_id_number), '') <> ''
+      AND COALESCE(TRIM(tax_id_type),   '') <> ''
+  ) THEN
+    RAISE EXCEPTION 'No tax identifier on file';
+  END IF;
+
+  UPDATE public.users
+     SET tax_id_collected_at = COALESCE(tax_id_collected_at, NOW()),
+         tax_declaration_at  = NOW(),
+         tax_hold            = FALSE
+   WHERE id = v_uid;
+END;
+$$;
+
+REVOKE ALL   ON FUNCTION public.record_tax_declaration() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_tax_declaration() TO authenticated;
+
 -- =============================================================
 -- SCHEDULED JOBS
 -- =============================================================

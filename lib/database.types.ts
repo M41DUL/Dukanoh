@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -1105,6 +1105,35 @@ export type Database = {
           },
         ]
       }
+      message_redactions: {
+        Row: {
+          created_at: string | null
+          id: string
+          message_id: string
+          original_content: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message_id: string
+          original_content: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message_id?: string
+          original_content?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_redactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
@@ -1241,7 +1270,9 @@ export type Database = {
           is_destination_charge: boolean
           item_price: number
           listing_id: string | null
+          payment_method: string | null
           protection_fee: number
+          reserved_payment_intent_id: string | null
           resolution_note: string | null
           resolution_outcome: string | null
           resolved_at: string | null
@@ -1282,7 +1313,9 @@ export type Database = {
           is_destination_charge?: boolean
           item_price: number
           listing_id?: string | null
+          payment_method?: string | null
           protection_fee: number
+          reserved_payment_intent_id?: string | null
           resolution_note?: string | null
           resolution_outcome?: string | null
           resolved_at?: string | null
@@ -1323,7 +1356,9 @@ export type Database = {
           is_destination_charge?: boolean
           item_price?: number
           listing_id?: string | null
+          payment_method?: string | null
           protection_fee?: number
+          reserved_payment_intent_id?: string | null
           resolution_note?: string | null
           resolution_outcome?: string | null
           resolved_at?: string | null
@@ -1539,6 +1574,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      revenuecat_events: {
+        Row: {
+          app_user_id: string | null
+          environment: string | null
+          event_id: string
+          event_type: string
+          product_id: string | null
+          received_at: string
+        }
+        Insert: {
+          app_user_id?: string | null
+          environment?: string | null
+          event_id: string
+          event_type: string
+          product_id?: string | null
+          received_at?: string
+        }
+        Update: {
+          app_user_id?: string | null
+          environment?: string | null
+          event_id?: string
+          event_type?: string
+          product_id?: string | null
+          received_at?: string
+        }
+        Relationships: []
       }
       reviews: {
         Row: {
@@ -2106,6 +2168,7 @@ export type Database = {
         Args: { p_seller_id: string }
         Returns: number
       }
+      claim_founder_slot: { Args: { p_user_id: string }; Returns: boolean }
       cleanup_abandoned_drafts: { Args: never; Returns: undefined }
       cleanup_messages: { Args: never; Returns: undefined }
       compute_error_fingerprint: {
@@ -2155,6 +2218,7 @@ export type Database = {
           username: string
         }[]
       }
+      has_pro_access: { Args: { p_user_id: string }; Returns: boolean }
       increment_boosts_used: { Args: { p_user_id: string }; Returns: boolean }
       increment_pending_balance: {
         Args: { p_amount: number; p_seller_id: string }
@@ -2175,8 +2239,12 @@ export type Database = {
         Returns: undefined
       }
       record_fit_search: { Args: never; Returns: boolean }
+      record_tax_declaration: { Args: never; Returns: undefined }
+      redact_contact_info: { Args: { txt: string }; Returns: string }
+      refresh_avg_response_times: { Args: never; Returns: undefined }
       register_push_token: { Args: { p_token: string }; Returns: undefined }
       release_cleared_wallet_funds: { Args: never; Returns: undefined }
+      release_founder_slot: { Args: { p_user_id: string }; Returns: undefined }
       restore_available_balance: {
         Args: { p_amount: number; p_seller_id: string }
         Returns: undefined
@@ -2204,12 +2272,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2233,11 +2301,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2258,11 +2326,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2283,11 +2351,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2300,11 +2368,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
