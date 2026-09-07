@@ -1002,6 +1002,17 @@ CREATE POLICY "Profile owners can read their views"
 
 CREATE INDEX idx_profile_views_profile ON public.profile_views (profile_user_id);
 
+-- One view per viewer per day. The client inserts on every profile visit;
+-- without this a refresh-happy viewer inflates the Pro dashboard's count.
+-- AT TIME ZONE 'UTC' because timestamptz::date is only STABLE, and a unique
+-- index expression must be IMMUTABLE.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_views_daily_unique
+  ON public.profile_views (
+    profile_user_id,
+    viewer_user_id,
+    ((viewed_at AT TIME ZONE 'UTC')::date)
+  );
+
 -- Transactions (Stripe Connect — buyer to seller payments)
 CREATE TABLE public.transactions (
   id               UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -1809,6 +1820,47 @@ CREATE INDEX IF NOT EXISTS idx_transactions_buyer_id                ON public.tr
 CREATE INDEX IF NOT EXISTS idx_transactions_seller_id               ON public.transactions (seller_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_listing_id              ON public.transactions (listing_id);
 
+-- ── Price Drop badge is a paid feature ───────────────────────────────
+--
+-- The badge columns (original_price, price_dropped_at) were only ever written
+-- by the Pro bulk-edit sheet, so entitlement was enforced by nothing more than
+-- which screen a member could reach — anyone can call PostgREST directly.
+--
+-- Expiry-aware on purpose: a lapsed subscriber stops earning new badges the
+-- moment pro_expires_at passes, rather than waiting for the nightly sweep.
+CREATE OR REPLACE FUNCTION public.enforce_price_drop_tier()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+BEGIN
+  IF NEW.price_dropped_at IS NULL AND NEW.original_price IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = NEW.seller_id
+      AND seller_tier IN ('pro', 'founder')
+      AND (pro_expires_at IS NULL OR pro_expires_at > NOW())
+  ) THEN
+    -- Strip silently rather than raise: the price change itself is
+    -- legitimate, only the badge isn't.
+    NEW.price_dropped_at := NULL;
+    NEW.original_price   := NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_price_drop_tier ON public.listings;
+CREATE TRIGGER trg_enforce_price_drop_tier
+  BEFORE INSERT OR UPDATE OF price, original_price, price_dropped_at
+  ON public.listings
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_price_drop_tier();
+
 -- =============================================================
 -- SCHEDULED JOBS
 -- =============================================================
@@ -2004,6 +2056,13 @@ BEGIN
     END IF;
 
     UPDATE public.users SET seller_tier = 'free' WHERE id = r.id;
+
+    -- price_dropped_at is stored, not derived, so without this a lapsed Pro
+    -- seller keeps the badge on every listing indefinitely.
+    UPDATE public.listings
+       SET original_price = NULL, price_dropped_at = NULL
+     WHERE seller_id = r.id
+       AND (price_dropped_at IS NOT NULL OR original_price IS NOT NULL);
   END LOOP;
 END;
 $$;

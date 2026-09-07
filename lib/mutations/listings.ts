@@ -6,6 +6,7 @@ import { compressImage, extractStoragePath } from '../imageUtils';
 import { buildMeasurements, type ListingForm } from '../sellHelpers';
 import { supabase } from '../supabase';
 import { queryKeys } from '../queryKeys';
+import { priceDropPatch } from '../priceDrop';
 
 // ─── Listings ─────────────────────────────────────────────────
 
@@ -580,13 +581,9 @@ export function useBulkUpdatePrices() {
 
   return useMutation({
     mutationFn: async ({ updates }: BulkUpdatePricesArgs) => {
-      const now = new Date().toISOString();
       const results = await Promise.allSettled(
         updates.map(async ({ listingId, currentPrice, newPrice }) => {
-          const isPriceDrop = newPrice < currentPrice;
-          const patch = isPriceDrop
-            ? { price: newPrice, original_price: currentPrice, price_dropped_at: now }
-            : { price: newPrice, original_price: null, price_dropped_at: null };
+          const patch = { price: newPrice, ...priceDropPatch(currentPrice, newPrice) };
           const { error } = await supabase
             .from('listings')
             .update(patch)

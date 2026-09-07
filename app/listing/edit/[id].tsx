@@ -36,6 +36,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { priceDropPatch } from '@/lib/priceDrop';
 import { queryKeys } from '@/lib/queryKeys';
 import { reportListingError } from '@/lib/listingErrors';
 import {
@@ -258,6 +259,11 @@ function EditListingForm({ listing, listingId }: EditListingFormProps) {
           title: form.title.trim(),
           description: form.description.trim() || null,
           price: parseFloat(form.price),
+          // Keep the Pro price-drop badge in lockstep with the price. Without
+          // this, lowering a price here silently produced no badge — it only
+          // ever worked through the Pro bulk-edit sheet. Entitlement is
+          // enforced by the enforce_price_drop_tier trigger, not the client.
+          ...priceDropPatch(listing.price ?? parseFloat(form.price), parseFloat(form.price)),
           gender: form.gender || undefined,
           category: form.category,
           condition: form.condition,

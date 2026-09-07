@@ -2,7 +2,7 @@ import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/co
 import { calcOrderTotal } from '@/lib/paymentHelpers';
 import { useFeeConfig } from '@/context/FeeConfigContext';
 import { getImageUrl } from '@/lib/imageUtils';
-import { isProTier } from '@/lib/tiers';
+import { showsPriceDrop } from '@/lib/priceDrop';
 import { useSaved } from '@/context/SavedContext';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
@@ -91,6 +91,11 @@ export function ListingCard({
   const { isSaved, toggleSave } = useSaved();
   const { feePercent, feeFlat } = useFeeConfig();
   const isGrid = variant === 'grid';
+
+  // Non-null only while the drop is still true: price below the original, and
+  // stamped inside the recency window. Computed once so the strikethrough and
+  // the label can never disagree.
+  const droppedFrom = showsPriceDrop(listing) ? listing.original_price ?? null : null;
   const meta = [listing.condition, listing.size].filter(Boolean).join(' · ');
   const saved = isSaved(listing.id);
 
@@ -121,7 +126,11 @@ export function ListingCard({
             <Text style={styles.soldLabel}>SOLD</Text>
           </View>
         )}
-        {(listing.isBoosted || isProTier(listing.seller?.seller_tier)) && listing.status !== 'sold' && (
+        {/* "Featured" means this listing has a live Story boost. It used to
+            show on every Pro seller's listing permanently, while proRankSort
+            only ever promotes 25% of them — so listings claimed to be
+            featured while sitting in the same place as everyone else. */}
+        {listing.isBoosted && listing.status !== 'sold' && (
           <View style={styles.featuredBadge}>
             <Text style={styles.featuredText}>Featured</Text>
           </View>
@@ -155,15 +164,15 @@ export function ListingCard({
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}
         <View style={styles.priceRow}>
           <Text style={styles.price}>£{listing.price.toFixed(2)}</Text>
-          {listing.price_dropped_at && listing.original_price && listing.original_price > listing.price && (
-            <Text style={styles.originalPrice}>£{listing.original_price.toFixed(2)}</Text>
+          {droppedFrom !== null && (
+            <Text style={styles.originalPrice}>£{droppedFrom.toFixed(2)}</Text>
           )}
         </View>
         <View style={styles.totalRow}>
           <Text style={styles.totalPrice}>£{calcOrderTotal(listing.price, feePercent, feeFlat).toFixed(2)} incl.</Text>
           <Ionicons name="shield-checkmark-outline" size={13} color={colors.textPrimary} />
         </View>
-        {listing.price_dropped_at && (
+        {droppedFrom !== null && (
           <Text style={styles.priceDropLabel}>↓ Price dropped</Text>
         )}
       </View>

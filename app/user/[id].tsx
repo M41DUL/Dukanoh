@@ -85,6 +85,19 @@ export default function SellerProfileScreen() {
     }
   }, [id, isBlocked]);
 
+  // Record the visit. profile_views has been read by the Pro dashboard since
+  // the feature shipped, but nothing ever wrote to it — every Pro subscriber
+  // saw "0 profile views" forever. Fire-and-forget: a failed view count must
+  // never block the screen, and a unique index dedupes repeat visits to one
+  // per viewer per day.
+  useEffect(() => {
+    if (!id || !user?.id || user.id === id) return;
+    supabase
+      .from('profile_views')
+      .insert({ profile_user_id: id, viewer_user_id: user.id })
+      .then(() => {});
+  }, [id, user?.id]);
+
   useEffect(() => {
     if (!id) return;
 

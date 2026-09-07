@@ -799,7 +799,10 @@ export default function ListingDetailScreen() {
               <View style={styles.sellerNameRow}>
                 <Text style={styles.sellerName}>@{listing.seller?.username}</Text>
                 <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
-                {isProTier(listing.seller?.seller_tier) && (
+                {/* "Featured" = this listing has a live Story boost, not
+                    "the seller pays for Pro". See ListingCard for the same
+                    rule on the grid. */}
+                {boostExpiry !== null && (
                   <View style={styles.featuredBadge}>
                     <Text style={styles.featuredBadgeText}>Featured</Text>
                   </View>

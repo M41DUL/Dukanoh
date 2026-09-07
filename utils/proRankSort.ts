@@ -9,12 +9,13 @@ import { isProTier } from '@/lib/tiers';
  * - Guardrails:
  *   1. Max 25% of results can be Pro-boosted (dilution cap)
  *   2. Listing must be < 30 days old to qualify for boost (recency floor)
- *   3. Max 1 listing per Pro seller in the promoted slots (seller diversity cap)
+ *   3. Max 1 listing per Pro seller near the top (seller diversity cap)
  *      — since results arrive newest-first, the first listing seen per seller
- *        is always their most recent eligible one.
+ *        is always their most recent eligible one. Their remaining listings
+ *        are deferred to the tail so one seller can't dominate the feed.
  *
- * Overflow Pro listings (beyond cap or seller already represented) drop back
- * to their original position relative to the rest.
+ * Overflow Pro listings (beyond the cap) sit after the rest; a seller's
+ * second and subsequent listings sit after those.
  */
 export function proRankSort<T extends {
   seller_id?: string;
@@ -33,6 +34,7 @@ export function proRankSort<T extends {
 
   const eligible: T[] = [];
   const rest: T[] = [];
+  const deferred: T[] = [];
   const seenProSellers = new Set<string>();
 
   for (const l of listings) {
@@ -43,8 +45,12 @@ export function proRankSort<T extends {
         seenProSellers.add(sid);
         eligible.push(l);
       } else {
-        // Pro seller already has a promoted slot — drop back to rest
-        rest.push(l);
+        // This seller already holds a promoted slot. Defer their remaining
+        // listings past everyone else's rather than returning them to their
+        // original position — results arrive newest-first, so a seller who
+        // lists several pieces in one sitting would otherwise take the whole
+        // top of the feed: one promoted, the rest clustered right behind it.
+        deferred.push(l);
       }
     } else {
       rest.push(l);
@@ -55,6 +61,7 @@ export function proRankSort<T extends {
   const promoted = eligible.slice(0, cap);
   const overflow = eligible.slice(cap);
 
-  // Overflow Pro listings go back into rest in their relative order
-  return [...promoted, ...rest, ...overflow];
+  // Tail order: Pro sellers who didn't fit the cap still rank above a seller's
+  // second and subsequent listings.
+  return [...promoted, ...rest, ...overflow, ...deferred];
 }

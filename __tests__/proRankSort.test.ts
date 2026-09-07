@@ -96,20 +96,37 @@ describe('proRankSort — guardrails still hold for founders', () => {
     expect(ids(proRankSort(input))).toEqual(['x1', 'a', 'b', 'c', 'd', 'e', 'f', 'x2']);
   });
 
-  test('the diversity cap limits PROMOTED slots, not adjacency', () => {
-    // Documented behaviour, worth pinning: `rest` preserves input order, so a
-    // seller's skipped listing can still sit next to their promoted one when
-    // it came next in the input. The cap bounds promotion, not clustering.
+  test('a seller listing several pieces in a row cannot take the top of the feed', () => {
+    // Results arrive newest-first, so without deferral this seller's four
+    // listings would occupy positions 0-3: one promoted, three clustered
+    // behind it because `rest` preserved input order.
     const input = [
       row('x1', 'founder', { seller: 'same' }),
       row('x2', 'founder', { seller: 'same' }),
+      row('x3', 'founder', { seller: 'same' }),
+      row('x4', 'founder', { seller: 'same' }),
       row('a', 'free'), row('b', 'free'),
       row('c', 'free'), row('d', 'free'),
-      row('e', 'free'), row('f', 'free'),
+    ];
+    expect(ids(proRankSort(input))).toEqual(
+      ['x1', 'a', 'b', 'c', 'd', 'x2', 'x3', 'x4'],
+    );
+  });
+
+  test('overflow Pro sellers still outrank a seller\'s repeat listings', () => {
+    // 8 rows => cap 2. p1/p2 promote; p3 is a distinct seller who overflowed
+    // the cap; x2 is p1's second listing. Overflow ranks above repeats.
+    const input = [
+      row('p1', 'pro', { seller: 's1' }),
+      row('x2', 'pro', { seller: 's1' }),
+      row('p2', 'pro', { seller: 's2' }),
+      row('p3', 'pro', { seller: 's3' }),
+      row('a', 'free'), row('b', 'free'),
+      row('c', 'free'), row('d', 'free'),
     ];
     const out = ids(proRankSort(input));
-    expect(out[0]).toBe('x1');
-    expect(out[1]).toBe('x2'); // adjacent, but x2 was never *promoted*
+    expect(out.slice(0, 2)).toEqual(['p1', 'p2']);
+    expect(out.indexOf('p3')).toBeLessThan(out.indexOf('x2'));
   });
 
   test('mixed pro and founder sellers each get one slot', () => {
