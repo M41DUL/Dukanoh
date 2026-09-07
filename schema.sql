@@ -1668,6 +1668,12 @@ CREATE POLICY "Authenticated users can read platform settings"
   ON public.platform_settings FOR SELECT TO authenticated
   USING (true);
 
+-- NOTE: the *_monthly_price / *_annual_price rows are DEPRECATED and read by
+-- nothing. Displayed pricing now comes from the store package's priceString,
+-- which is localised to the buyer's storefront; these plain numbers were
+-- rendered with a hardcoded "£" and quoted non-UK buyers a currency they
+-- would never be charged. Kept only so historical migrations still apply —
+-- do not wire them back into the UI.
 INSERT INTO public.platform_settings (key, value) VALUES
   ('founder_limit', '150'),
   ('founder_count', '0'),

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, ComponentProps } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, ComponentProps } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, Share, Platform } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import Purchases from 'react-native-purchases';
 import { isProTier } from '@/lib/tiers';
 import { useTaxStatus } from '@/hooks/useTaxStatus';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
@@ -69,7 +70,7 @@ export default function ProfileScreen() {
       const { data, error } = await supabase
         .from('platform_settings')
         .select('key, value')
-        .in('key', ['founder_count', 'founder_limit', 'founder_monthly_price', 'pro_monthly_price'])
+        .in('key', ['founder_count', 'founder_limit'])
         .abortSignal(signal);
       if (error) throw error;
       return data ?? [];
@@ -87,6 +88,35 @@ export default function ProfileScreen() {
     return new Date(profileData.pro_expires_at) < new Date();
   }, [profileData?.pro_expires_at]);
 
+  // Prices come from the store, never from platform_settings. The DB values
+  // are plain numbers that were rendered with a hardcoded "£", so a buyer on
+  // a non-GB storefront was quoted a price and a currency they'd never be
+  // charged. priceString is already localised; if the store hasn't answered
+  // we show no price rather than a wrong one.
+  const [storePrices, setStorePrices] = useState<{ founder: string | null; standard: string | null }>(
+    { founder: null, standard: null },
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    Purchases.getOfferings()
+      .then(offerings => {
+        if (cancelled) return;
+        const founder = offerings.current?.availablePackages
+          .find(pkg => pkg.identifier === 'founder_monthly') ?? null;
+        const standard = offerings.current?.monthly ?? null;
+        setStorePrices({
+          founder: founder?.product.priceString ?? null,
+          standard: standard?.product.priceString ?? null,
+        });
+      })
+      .catch(() => {
+        // Native module missing (Expo Go) or offline — the card just omits
+        // the price. Not worth reporting; the paywall logs offering failures.
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   const { proCardPrice, proFounderAvailable } = useMemo(() => {
     const rows = pricingQuery.data;
     if (!rows) return { proCardPrice: null as string | null, proFounderAvailable: false };
@@ -94,13 +124,12 @@ export default function ProfileScreen() {
     const count = parseInt(row('founder_count') ?? '0', 10);
     const limit = parseInt(row('founder_limit') ?? '150', 10);
     const founderAvail = count < limit;
+    const price = founderAvail ? storePrices.founder : storePrices.standard;
     return {
-      proCardPrice: founderAvail
-        ? `£${row('founder_monthly_price') ?? '6.99'}/month`
-        : `£${row('pro_monthly_price') ?? '9.99'}/month`,
+      proCardPrice: price ? `${price}/month` : null,
       proFounderAvailable: founderAvail,
     };
-  }, [pricingQuery.data]);
+  }, [pricingQuery.data, storePrices]);
 
   // Auto-open paywall if stripe-onboarding signalled it
   useFocusEffect(useCallback(() => {

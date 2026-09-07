@@ -23,6 +23,7 @@ import { Button } from '@/components/Button';
 import { DukanohLogo } from '@/components/DukanohLogo';
 import { Spacing, BorderRadius, FontFamily, proColorsDark } from '@/constants/theme';
 import { ENTITLEMENT_ID, syncProEntitlement } from '@/lib/revenuecat';
+import { isProTier } from '@/lib/tiers';
 import { HUB_FEATURES, CORE_FEATURE_LABELS } from '@/components/hub/hubTheme';
 import { supabase } from '@/lib/supabase';
 import { reportError } from '@/lib/errorReporting';
@@ -40,6 +41,32 @@ interface ProPaywallSheetProps {
   userId: string;
 }
 
+/**
+ * Wait for the RevenueCat webhook to land the tier in our own database.
+ *
+ * The purchase completing and the tier existing are two different events: the
+ * store confirms in-process, then RevenueCat calls our webhook out-of-band.
+ * Refetching once — which is what this used to do — almost always lost that
+ * race, so a member paid and watched the paywall close with nothing changed
+ * until they pulled to refresh.
+ *
+ * The client deliberately does NOT write the tier itself. That column is
+ * locked by RLS precisely so a member can't grant themselves Pro, and the
+ * webhook is the only thing authorised to move it.
+ */
+async function waitForProTier(userId: string, timeoutMs = 15_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let delay = 500;
+  while (Date.now() < deadline) {
+    const { data } = await supabase
+      .from('users').select('seller_tier').eq('id', userId).maybeSingle();
+    if (isProTier(data?.seller_tier)) return true;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    delay = Math.min(delay * 2, 3000);
+  }
+  return false;
+}
+
 export function ProPaywallSheet({
   visible,
   onClose,
@@ -51,8 +78,15 @@ export function ProPaywallSheet({
   const insets = useSafeAreaInsets();
   const [founderCount, setFounderCount] = useState<number | null>(null);
   const [founderLimit, setFounderLimit] = useState(150);
-  const [founderMonthlyPrice, setFounderMonthlyPrice] = useState('£6.99');
-  const [standardMonthlyPrice, setStandardMonthlyPrice] = useState('£9.99');
+  // Null until the store answers. These MUST come from the package's
+  // priceString — it's already localised to the buyer's storefront currency.
+  // They used to be seeded from platform_settings with a hardcoded "£"
+  // prefix, in a second effect that raced this one, so a buyer outside the
+  // UK could be shown "£6.99" while the App Store charged them in USD. That
+  // string also feeds the auto-renew disclosure the paywall is required to
+  // display (App Store Guideline 3.1.2).
+  const [founderMonthlyPrice, setFounderMonthlyPrice] = useState<string | null>(null);
+  const [standardMonthlyPrice, setStandardMonthlyPrice] = useState<string | null>(null);
   const [founderPkg, setFounderPkg] = useState<PurchasesPackage | null>(null);
   const [standardPkg, setStandardPkg] = useState<PurchasesPackage | null>(null);
   const [packagesLoading, setPackagesLoading] = useState(true);
@@ -85,19 +119,20 @@ export function ProPaywallSheet({
     supabase
       .from('platform_settings')
       .select('key, value')
-      .in('key', ['founder_count', 'founder_limit', 'founder_monthly_price', 'pro_monthly_price'])
+      .in('key', ['founder_count', 'founder_limit'])
       .then(({ data, error }) => {
         if (error || !data) {
-          setFounderCount(founderLimit);
+          // Unknown slot count => fall back to standard pricing rather than
+          // advertising founder pricing we can't substantiate.
+          setFounderLimit(limit => { setFounderCount(limit); return limit; });
           return;
         }
         const row = (k: string) => data.find(r => r.key === k)?.value;
+        // Slot counts only — pricing comes from the store, never from here.
         setFounderCount(parseInt(row('founder_count') ?? '0', 10));
         setFounderLimit(parseInt(row('founder_limit') ?? '150', 10));
-        if (row('founder_monthly_price')) setFounderMonthlyPrice(`£${row('founder_monthly_price')}`);
-        if (row('pro_monthly_price')) setStandardMonthlyPrice(`£${row('pro_monthly_price')}`);
       });
-  }, [visible, founderLimit]);
+  }, [visible]);
 
   const isFounderAvailable = founderCount !== null && founderCount < founderLimit;
   const founderSlotsLeft = founderLimit - (founderCount ?? 0);
@@ -107,11 +142,15 @@ export function ProPaywallSheet({
     ? 'Get verified to unlock Pro'
     : hadFreeTrial ? 'Subscribe now' : 'Start 14-day free trial';
 
+  // No price, no disclosure, no purchase — showing the required auto-renew
+  // terms without a price would be worse than showing nothing.
   const ctaNote = !isVerified
     ? 'Verify your account first, then enjoy a 14-day free trial.'
-    : hadFreeTrial
-      ? `${monthlyPrice}/month, auto-renews until cancelled. Billed via the ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}. By subscribing, you confirm you want immediate access and waive your 14-day right to withdraw.`
-      : `Free for 14 days, then ${monthlyPrice}/month. Auto-renews until cancelled — cancel anytime before renewal.`;
+    : monthlyPrice === null
+      ? null
+      : hadFreeTrial
+        ? `${monthlyPrice}/month, auto-renews until cancelled. Billed via the ${Platform.OS === 'ios' ? 'App Store' : 'Google Play'}. By subscribing, you confirm you want immediate access and waive your 14-day right to withdraw.`
+        : `Free for 14 days, then ${monthlyPrice}/month. Auto-renews until cancelled — cancel anytime before renewal.`;
 
   const handleCta = async () => {
     if (!isVerified) {
@@ -128,10 +167,33 @@ export function ProPaywallSheet({
       setPurchasing(true);
       const { customerInfo } = await Purchases.purchasePackage(pkgToUse);
       const isActive = customerInfo.entitlements.active[ENTITLEMENT_ID] != null;
-      if (isActive) {
-        await syncProEntitlement(userId);
-        await onSuccess();
-        onClose();
+
+      if (!isActive) {
+        // Purchase went through but the entitlement isn't attached. This used
+        // to fall through silently — no alert, no error, the sheet just sat
+        // there — which reads as the payment having failed when it didn't.
+        reportError(
+          new Error(`Purchase succeeded but ${ENTITLEMENT_ID} inactive`),
+          'pro/purchase',
+        );
+        Alert.alert(
+          'Payment received',
+          'Your subscription is being activated. This can take a moment — pull to refresh if Pro doesn’t appear.',
+        );
+        return;
+      }
+
+      await syncProEntitlement(userId);
+
+      const landed = await waitForProTier(userId);
+      await onSuccess();
+      onClose();
+
+      if (!landed) {
+        Alert.alert(
+          'Payment received',
+          'Your subscription is being activated. This can take a moment — pull to refresh if Pro doesn’t appear.',
+        );
       }
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -149,6 +211,7 @@ export function ProPaywallSheet({
       const isActive = customerInfo.entitlements.active[ENTITLEMENT_ID] != null;
       if (isActive) {
         await syncProEntitlement(userId);
+        await waitForProTier(userId);
         await onSuccess();
         Alert.alert('Purchases restored', 'Your Dukanoh Pro subscription is active.');
         onClose();
@@ -231,7 +294,7 @@ export function ProPaywallSheet({
           </View>
           <View>
             <View style={styles.priceRow}>
-              <Text style={styles.price}>{monthlyPrice}</Text>
+              <Text style={styles.price}>{monthlyPrice ?? '—'}</Text>
               <Text style={styles.pricePer}>/month</Text>
             </View>
             {isFounderAvailable && (
@@ -332,7 +395,7 @@ export function ProPaywallSheet({
           style={{ width: '100%' }}
           backgroundColor={P.primary}
           textColor={P.gradientBottom}
-          disabled={purchasing || packagesLoading}
+          disabled={purchasing || packagesLoading || (isVerified && monthlyPrice === null)}
         />
         {ctaNote ? <Text style={styles.trialNote}>{ctaNote}</Text> : null}
         <View style={styles.legalRow} pointerEvents="box-none">
