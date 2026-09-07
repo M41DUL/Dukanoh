@@ -1640,6 +1640,28 @@ INSERT INTO public.platform_settings (key, value) VALUES
   ('protection_fee_percent', '6.5'),
   ('protection_fee_flat', '0.80');
 
+-- RevenueCat webhook event log — idempotency guard + audit trail.
+--
+-- RevenueCat retries on non-2xx and on timeout; without a seen-events table a
+-- retried INITIAL_PURCHASE re-runs founder eligibility and can take a second
+-- slot. Also records which environment each event came from, so SANDBOX /
+-- TestFlight purchases are never mistaken for real revenue.
+CREATE TABLE IF NOT EXISTS public.revenuecat_events (
+  event_id     TEXT PRIMARY KEY,
+  event_type   TEXT NOT NULL,
+  app_user_id  UUID,
+  environment  TEXT,
+  product_id   TEXT,
+  received_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- RLS on with NO policies => default-deny for anon/authenticated. Only
+-- service_role (BYPASSRLS) touches this table.
+ALTER TABLE public.revenuecat_events ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_revenuecat_events_user
+  ON public.revenuecat_events (app_user_id, received_at DESC);
+
 -- Cancellation strikes (seller accountability)
 CREATE TABLE public.cancellation_strikes (
   id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -1863,19 +1885,126 @@ SELECT cron.schedule(
   'SELECT public.refresh_avg_response_times()'
 );
 
--- Downgrade users whose Pro/Founder subscription has expired
+-- ── Founder slot accounting ──────────────────────────────────────────
+--
+-- Founder is the discounted early-adopter price for Dukanoh Pro, capped at
+-- platform_settings.founder_limit (150). The webhook used to do
+-- SELECT founder_count -> compute +1 -> UPDATE, which two concurrent
+-- purchases can interleave, overshooting the cap. Both RPCs below take row
+-- locks in the same order (users, then platform_settings) so they can't
+-- interleave or deadlock against each other.
+--
+-- Service-role only: auth.uid() is NULL under the service key, so there is
+-- deliberately no identity guard (same pattern as the wallet helpers).
+CREATE OR REPLACE FUNCTION public.claim_founder_slot(p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+DECLARE
+  v_had   BOOLEAN;
+  v_tier  TEXT;
+  v_count INT;
+  v_limit INT;
+BEGIN
+  SELECT had_founder_subscription, seller_tier INTO v_had, v_tier
+  FROM public.users WHERE id = p_user_id FOR UPDATE;
+
+  IF NOT FOUND THEN RETURN FALSE; END IF;
+
+  -- Cancelled a founder sub before => never eligible again.
+  IF v_had IS TRUE THEN RETURN FALSE; END IF;
+
+  -- Already holding a slot (duplicate INITIAL_PURCHASE, or a re-purchase
+  -- while still active). Report success so the caller still grants the tier,
+  -- but don't take a second slot out of the 150.
+  IF v_tier = 'founder' THEN RETURN TRUE; END IF;
+
+  SELECT value::INT INTO v_count
+  FROM public.platform_settings WHERE key = 'founder_count' FOR UPDATE;
+  SELECT value::INT INTO v_limit
+  FROM public.platform_settings WHERE key = 'founder_limit';
+
+  IF v_count IS NULL OR v_limit IS NULL THEN RETURN FALSE; END IF;
+  IF v_count >= v_limit          THEN RETURN FALSE; END IF;
+
+  UPDATE public.platform_settings
+     SET value = (v_count + 1)::TEXT
+   WHERE key = 'founder_count';
+
+  RETURN TRUE;
+END;
+$$;
+
+REVOKE ALL   ON FUNCTION public.claim_founder_slot(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_founder_slot(UUID) TO service_role;
+
+-- Idempotent by design: had_founder_subscription doubles as the "already
+-- released" marker, so a retried EXPIRATION — or the expiry sweep running
+-- after the webhook already handled it — can't decrement founder_count twice
+-- and hand out phantom slots.
+CREATE OR REPLACE FUNCTION public.release_founder_slot(p_user_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+DECLARE
+  v_had   BOOLEAN;
+  v_count INT;
+BEGIN
+  SELECT had_founder_subscription INTO v_had
+  FROM public.users WHERE id = p_user_id FOR UPDATE;
+
+  IF NOT FOUND THEN RETURN; END IF;
+  IF v_had IS TRUE THEN RETURN; END IF;   -- already released
+
+  UPDATE public.users
+     SET had_founder_subscription = TRUE
+   WHERE id = p_user_id;
+
+  SELECT value::INT INTO v_count
+  FROM public.platform_settings WHERE key = 'founder_count' FOR UPDATE;
+
+  IF v_count IS NOT NULL THEN
+    UPDATE public.platform_settings
+       SET value = GREATEST(0, v_count - 1)::TEXT
+     WHERE key = 'founder_count';
+  END IF;
+END;
+$$;
+
+REVOKE ALL   ON FUNCTION public.release_founder_slot(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_founder_slot(UUID) TO service_role;
+
+-- Downgrade users whose Pro/Founder subscription has expired.
+--
+-- This is the backstop for a missed EXPIRATION webhook. It used to downgrade
+-- expired founders without releasing their slot, so every missed webhook
+-- leaked one of the 150 permanently.
 CREATE OR REPLACE FUNCTION expire_pro_subscriptions()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = 'public'
 AS $$
+DECLARE
+  r RECORD;
 BEGIN
-  UPDATE users
-  SET seller_tier = 'free'
-  WHERE seller_tier IN ('pro', 'founder')
-    AND pro_expires_at IS NOT NULL
-    AND pro_expires_at < NOW();
+  FOR r IN
+    SELECT id, seller_tier
+    FROM public.users
+    WHERE seller_tier IN ('pro', 'founder')
+      AND pro_expires_at IS NOT NULL
+      AND pro_expires_at < NOW()
+  LOOP
+    IF r.seller_tier = 'founder' THEN
+      PERFORM public.release_founder_slot(r.id);
+    END IF;
+
+    UPDATE public.users SET seller_tier = 'free' WHERE id = r.id;
+  END LOOP;
 END;
 $$;
 
@@ -2848,6 +2977,13 @@ SELECT cron.schedule(
   'cleanup-old-app-errors',
   '30 4 * * 0',
   'DELETE FROM public.app_errors WHERE created_at < now() - interval ''90 days'''
+);
+
+-- Runs weekly — keeps the RevenueCat event log bounded
+SELECT cron.schedule(
+  'cleanup-old-revenuecat-events',
+  '45 4 * * 0',
+  $$DELETE FROM public.revenuecat_events WHERE received_at < now() - interval '90 days'$$
 );
 
 -- ─── Cleanup: messages from fully-deleted conversations + old messages ────────
