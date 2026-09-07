@@ -2960,7 +2960,13 @@ BEGIN
   norm_frames := regexp_replace(norm_frames, '0x[0-9a-f]+',  '', 'gi');
   norm_frames := lower(norm_frames);
 
-  RETURN encode(digest(norm_msg || '|' || norm_frames, 'sha256'), 'hex');
+  -- Schema-qualified: pgcrypto is installed in `extensions`, and this
+  -- function's search_path is pinned to `public` by the SECURITY DEFINER
+  -- hardening. An unqualified digest() here silently broke every insert into
+  -- app_errors from 2026-06-07 until 2026-09-07 — the trigger raised, the
+  -- insert failed, and errorReporting.ts swallows everything by design, so
+  -- the empty table read as "no crashes" rather than "reporting is broken".
+  RETURN encode(extensions.digest(norm_msg || '|' || norm_frames, 'sha256'), 'hex');
 END;
 $$;
 
