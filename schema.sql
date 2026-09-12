@@ -1322,7 +1322,10 @@ CREATE TRIGGER order_wallet_update
 
 -- Release pending -> available once an order is COMPLETED and its funds have
 -- CLEARED in Stripe (funds_available_on). wallet_released_at makes this exactly
--- once per order. The NULL-clear-date branch is a no-stranding safety net.
+-- once per order. The NULL-clear-date branch is a no-stranding safety net, and
+-- it requires a stripe_payment_id: no receipt means no charge was ever made, so
+-- there is no money to release and crediting it would strand an unpayable
+-- balance in the wallet.
 CREATE OR REPLACE FUNCTION public.release_cleared_wallet_funds()
 RETURNS void AS $$
 DECLARE r RECORD;
@@ -1337,7 +1340,12 @@ BEGIN
       AND (appeal_deadline_at IS NULL OR appeal_deadline_at <= NOW())
       AND (
         funds_available_on <= NOW()
-        OR (funds_available_on IS NULL AND completed_at < NOW() - INTERVAL '14 days')
+        OR (
+          funds_available_on IS NULL
+          -- no Stripe receipt = no charge = no money to release
+          AND stripe_payment_id IS NOT NULL
+          AND completed_at < NOW() - INTERVAL '14 days'
+        )
       )
     FOR UPDATE SKIP LOCKED
   LOOP
