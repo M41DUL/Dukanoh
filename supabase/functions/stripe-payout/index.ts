@@ -26,6 +26,44 @@ function payoutErrorMessage(err: { code?: string; message?: string } | undefined
   }
 }
 
+// Reads the connected account's own GBP balance. Stripe keeps two buckets:
+// `available` (payable now) and `pending` (charge settled but still inside the
+// chargeback-risk window). A payout can only draw on `available`, but for
+// TELLING THE MEMBER WHAT HAPPENED we care about the sum: if the money is there
+// at all, waiting is genuinely the answer.
+//
+// Called only after a payout has already been refused, never before one. A
+// pre-flight check would be worse than useless here: the just-in-time transfers
+// above land in this same balance, and whether they arrive as available or
+// pending depends on the account's own settings — so a pre-flight gate could
+// block a payout that Stripe would have honoured. Stripe stays the authority on
+// whether the payout happens; this only explains a "no".
+//
+// Returns null on any failure. A diagnostic must never change the outcome.
+async function gbpBalancePence(
+  secretKey: string,
+  accountId: string,
+): Promise<{ available: number; pending: number } | null> {
+  try {
+    const res = await fetch('https://api.stripe.com/v1/balance', {
+      headers: { Authorization: `Bearer ${secretKey}`, 'Stripe-Account': accountId },
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    // Both buckets are per-currency arrays; a GB account can still hold other
+    // currencies, and summing across them would compare apples to pears.
+    const sumGbp = (rows: unknown): number =>
+      Array.isArray(rows)
+        ? rows
+            .filter((r) => (r as { currency?: string })?.currency === 'gbp')
+            .reduce((total: number, r) => total + ((r as { amount?: number })?.amount ?? 0), 0)
+        : 0;
+    return { available: sumGbp(body?.available), pending: sumGbp(body?.pending) };
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -182,14 +220,42 @@ Deno.serve(async (req) => {
     const err = await payoutRes.json();
     await supabase.rpc('restore_available_balance', { p_seller_id: userId, p_amount: availableBalance });
 
+    // `balance_insufficient` has two causes that Stripe reports identically, and
+    // they need opposite advice:
+    //
+    //   • The money is in Stripe, still inside the settlement window. Waiting
+    //     works. This is the common case and what the default copy says.
+    //   • Stripe holds less than the wallet claims. Waiting NEVER works, and the
+    //     default copy sends a member round the same loop forever — which is
+    //     exactly what happened to the seller who hit this first.
+    //
+    // Asking Stripe what it actually holds separates them. A shortfall means the
+    // wallet and Stripe disagree, which no member can fix themselves: route them
+    // to support and shout in the logs, because nothing else here will tell us.
+    let message = payoutErrorMessage(err?.error);
+    let balance: { available: number; pending: number } | null = null;
+    if (err?.error?.code === 'balance_insufficient') {
+      balance = await gbpBalancePence(stripeSecretKey, accountId);
+      // Null (the balance lookup itself failed) keeps the default wait-and-retry
+      // copy — the common case stays right when the diagnostic is unavailable.
+      if (balance && balance.available + balance.pending < amountPence) {
+        message = "This withdrawal needs a manual check before it can go through. Your balance is safe — get in touch and we'll sort it out.";
+      }
+    }
+
     console.error(
       'PAYOUT refused by Stripe. user:', userId,
       'amountPence:', amountPence,
       'code:', err?.error?.code,
       'message:', err?.error?.message,
+      'stripeAvailablePence:', balance?.available ?? 'unknown',
+      'stripePendingPence:', balance?.pending ?? 'unknown',
+      balance && balance.available + balance.pending < amountPence
+        ? '*** WALLET/STRIPE MISMATCH — member told to contact support ***'
+        : '',
     );
 
-    return new Response(JSON.stringify({ error: payoutErrorMessage(err?.error) }), {
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
