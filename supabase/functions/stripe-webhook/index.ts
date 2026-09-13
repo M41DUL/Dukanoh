@@ -263,16 +263,39 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Bank chargeback opened — the buyer disputed the charge with their card
-  // issuer (NOT the in-app dispute). Stripe withholds the funds automatically, so
-  // we do NOT issue a refund. We flag the order, mirror the clawback in the
-  // wallet, and — for destination charges — reverse the seller's transfer so the
-  // chargeback liability lands on the seller rather than the platform.
-  // Requires the endpoint to be subscribed to charge.dispute.created.
+  // Bank chargeback opened — the buyer disputed the charge with their card issuer
+  // (NOT the in-app dispute). Stripe has already withheld the funds from the
+  // PLATFORM balance by the time this arrives, so there is no refund to issue.
+  //
+  // This handler deliberately MOVES NO MONEY. It records the chargeback and
+  // leaves the decision to a person. Do not add a transfer reversal here without
+  // reading the note below first.
+  //
+  // An earlier version reversed the seller's transfer, clawing the sale back out
+  // of their Connect account so the liability landed on them rather than the
+  // platform. That is the industry-standard outcome and it will probably be the
+  // right one eventually, but it is not something we can do yet:
+  //
+  //   • The seller terms don't authorise it. Clause 8.2 permits recovery only
+  //     "from funds held by Stripe that have not yet been released to the
+  //     Seller", and explicitly concedes that once funds ARE released we cannot
+  //     guarantee recovery. A reversal reaches past that limit.
+  //   • Most sellers here are private individuals, so a clause letting us debit
+  //     their balance is a consumer term and needs drafting to be enforceable.
+  //   • Reversing without also decrementing seller_wallet leaves the wallet
+  //     overstating what Stripe holds, and every future withdrawal fails.
+  //
+  // So: reversal stays out until the terms carry a chargeback/set-off clause and
+  // the wallet decrement (plus a charge.dispute.closed handler to restore a
+  // seller who WINS their dispute) ships alongside it. Until then the platform
+  // absorbs chargebacks — visibly, which is the point of this handler.
+  //
+  // The order appears in the admin Health dashboard's "Bank chargebacks" section
+  // as soon as chargeback_at is set. Requires the Stripe endpoint to be
+  // subscribed to charge.dispute.created.
   if (event.type === 'charge.dispute.created') {
     const dispute = event.data.object;
     const paymentIntentId = dispute.payment_intent as string | null;
-    const chargeId = dispute.charge as string | null;
 
     if (paymentIntentId) {
       const supabase = createClient(
@@ -281,41 +304,29 @@ Deno.serve(async (req) => {
       );
       const { data: order } = await supabase
         .from('orders')
-        .select('id, chargeback_at, is_destination_charge, seller_verify_deadline')
+        .select('id, chargeback_at, total_paid')
         .eq('stripe_payment_id', paymentIntentId)
         .maybeSingle();
 
       if (order && !order.chargeback_at) {
         await supabase.from('orders').update({ chargeback_at: new Date().toISOString() }).eq('id', order.id);
 
-        // We do NOT touch the wallet here — the real clawback is the transfer
-        // reversal below (destination charges) or Stripe withholding the funds
-        // (platform-balance charges). An overstated mirror self-corrects: a
-        // withdrawal would fail against the reduced Connect balance and restore.
-        const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
-        // Destination charge -> reverse the seller's transfer (claw back).
-        if (order.is_destination_charge && chargeId && stripeSecretKey) {
-          try {
-            const chRes = await fetch(`https://api.stripe.com/v1/charges/${chargeId}`, {
-              headers: { Authorization: `Bearer ${stripeSecretKey}` },
-            });
-            const transferId = chRes.ok ? (await chRes.json())?.transfer : undefined;
-            if (transferId) {
-              await fetch(`https://api.stripe.com/v1/transfers/${transferId}/reversals`, {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${stripeSecretKey}`,
-                  'Content-Type': 'application/x-www-form-urlencoded',
-                  'Idempotency-Key': `chargeback-rev-${order.id}`,
-                },
-                body: new URLSearchParams({ 'metadata[order_id]': order.id, 'metadata[reason]': 'chargeback' }),
-              });
-            }
-          } catch { /* best-effort — admin alerted via the log below */ }
-        }
-         
-        console.error('CHARGEBACK opened on order', order.id, '— review in Stripe Dashboard. PI:', paymentIntentId,
-          order.is_destination_charge ? '' : '(unverified-origin: if already settled, reverse the transfer manually)');
+        // Evidence is due back to the card issuer within days, and missing that
+        // window loses the dispute by default — so this logs at error level with
+        // everything needed to act on it.
+        console.error(
+          'CHARGEBACK opened — ACTION NEEDED. order:', order.id,
+          'amount:', order.total_paid,
+          'paymentIntent:', paymentIntentId,
+          'dispute:', dispute.id,
+          'reason:', dispute.reason,
+          'evidenceDueBy:', dispute.evidence_details?.due_by
+            ? new Date(dispute.evidence_details.due_by * 1000).toISOString()
+            : 'unknown',
+          '— contest it in the Stripe Dashboard with the tracking number and delivery',
+          'confirmation on the order, or accept the loss. The seller keeps their payout;',
+          'the platform absorbs this until the terms allow a clawback.',
+        );
       }
     }
   }
