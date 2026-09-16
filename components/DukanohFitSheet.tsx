@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -20,6 +21,8 @@ import { supabase } from '@/lib/supabase';
 interface DukanohFitSheetProps {
   visible: boolean;
   onClose: () => void;
+  /** Called once a photo passes the check, right before the form opens. */
+  onProceed?: () => void;
 }
 
 const HOW_IT_WORKS = [
@@ -28,16 +31,25 @@ const HOW_IT_WORKS = [
   { icon: 'bag-handle-outline',    key: 'Your matches', val: 'Pieces that go with it, ready to shop' },
 ] as const;
 
-export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
+export function DukanohFitSheet({ visible, onClose, onProceed }: DukanohFitSheetProps) {
   const colors = useThemeColors();
   const { isDark } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const [validating, setValidating] = useState(false);
 
   const handleTakePhoto = useCallback(async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Camera access needed', 'Please allow camera access in your settings.');
+      Alert.alert(
+        'Camera access needed',
+        'Allow camera access to snap a piece.',
+        canAskAgain
+          ? [{ text: 'OK' }]
+          : [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => { Linking.openSettings().catch(() => {}); } },
+            ]
+      );
       return;
     }
 
@@ -69,7 +81,7 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
       const rawBase64 = compressed.base64;
       const imageBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
 
-      // 15 second timeout — if network is slow we fail gracefully (fix #5)
+      // 15 second timeout — if network is slow we fail gracefully
       const invokeWithTimeout = Promise.race([
         supabase.functions.invoke('validate-clothing', {
           body: { imageBase64 },
@@ -79,9 +91,16 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
         ),
       ]);
 
-      const { data } = await invokeWithTimeout;
+      const { data, error } = await invokeWithTimeout;
 
       setValidating(false);
+
+      // A failed check (network, server, Rekognition down) is not a verdict
+      // on the photo — don't tell the member it isn't clothing.
+      if (error || data?.error) {
+        Alert.alert("Can't check the photo right now", 'Check your connection and try again.');
+        return;
+      }
 
       if (!data?.isClothing) {
         Alert.alert(
@@ -93,6 +112,7 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
       }
 
       // Validated — close sheet and navigate to the form
+      onProceed?.();
       onClose();
       router.push({
         pathname: '/dukanoh-fit',
@@ -106,7 +126,7 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
       setValidating(false);
       Alert.alert('Something went wrong', 'Please try again.');
     }
-  }, [onClose]);
+  }, [onClose, onProceed]);
 
   return (
     <BottomSheet visible={visible} onClose={onClose} useModal>
@@ -136,6 +156,9 @@ export function DukanohFitSheet({ visible, onClose }: DukanohFitSheetProps) {
           disabled={validating}
           style={{ alignSelf: 'stretch' }}
         />
+        <Text style={styles.disclosure}>
+          We keep a copy of your photo, with no link to your account, to improve how Fit recognises pieces.
+        </Text>
         <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.maybeLater}>
           <Text style={styles.maybeLaterText}>Maybe later</Text>
         </TouchableOpacity>
@@ -189,8 +212,15 @@ function getStyles(colors: ColorTokens) {
       marginTop: Spacing.base,
       gap: Spacing.sm,
     },
+    disclosure: {
+      ...Typography.micro,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 16,
+      paddingHorizontal: Spacing.sm,
+    },
     maybeLater: {
-      paddingTop: Spacing.base,
+      paddingTop: Spacing.sm,
     },
     maybeLaterText: {
       ...Typography.body,

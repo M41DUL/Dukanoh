@@ -150,7 +150,7 @@ module.exports = {
         "expo-image-picker",
         {
           "photosPermission": "Allow Dukanoh to access your photos to add listing images.",
-          "cameraPermission": "Allow Dukanoh to use your camera to take listing photos.",
+          "cameraPermission": "Allow Dukanoh to use your camera to photograph pieces for your listings and for Dukanoh Fit.",
           // We never use video / audio in the listing flow — only stills. Setting
           // this to false drops NSMicrophoneUsageDescription from iOS Info.plist
           // (so Apple review can't reject a placeholder string) and adds

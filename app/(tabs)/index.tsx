@@ -65,7 +65,8 @@ export default function HomeScreen() {
         icon: 'camera-outline' as const,
         title: 'Dukanoh Fit',
         subtitle: 'Snap a piece and find what matches it',
-        onPress: () => { markFitSeen(); setFitSheetVisible(true); },
+        onPress: () => setFitSheetVisible(true),
+        onDismiss: markFitSeen,
         gradientColors: (isDark ? ['rgba(199,247,94,0.12)', colors.surface] : ['#E8FBC5', colors.surface]) as [string, string],
         iconColor: isDark ? colors.secondary : colors.textPrimary,
         iconBg: isDark ? 'rgba(199,247,94,0.15)' : 'rgba(0,0,0,0.1)',
@@ -200,7 +201,7 @@ export default function HomeScreen() {
         )}
         {JUST_SOLD_TOAST_ENABLED && <JustSoldToast />}
       </View>
-      <DukanohFitSheet visible={fitSheetVisible} onClose={() => setFitSheetVisible(false)} />
+      <DukanohFitSheet visible={fitSheetVisible} onClose={() => setFitSheetVisible(false)} onProceed={markFitSeen} />
     </ScreenWrapper>
   );
 }

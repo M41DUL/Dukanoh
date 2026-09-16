@@ -2,92 +2,30 @@
 import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.19';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
+import {
+  detectCategory,
+  detectColour,
+  isClothingLabel,
+  type RekognitionLabel,
+} from './_lib.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ─── Clothing detection ───────────────────────────────────────────────────────
-
-const CLOTHING_ROOT_LABELS = new Set([
-  'Clothing', 'Apparel', 'Fashion', 'Textile', 'Fabric',
-  'Silk', 'Lace', 'Saree', 'Sari', 'Lehenga', 'Kurta', 'Dupatta',
-]);
-
-interface RekognitionLabel {
-  Name: string;
-  Confidence: number;
-  Parents?: { Name: string }[];
-}
-
-function isClothingLabel(label: RekognitionLabel): boolean {
-  if (CLOTHING_ROOT_LABELS.has(label.Name)) return true;
-  return label.Parents?.some(p => p.Name === 'Clothing' || p.Name === 'Apparel') ?? false;
-}
-
-const LABEL_TO_CATEGORY: [string, string][] = [
-  ['Lehenga',   'Lehenga'],
-  ['Lehnga',    'Lehenga'],
-  ['Saree',     'Saree'],
-  ['Sari',      'Saree'],
-  ['Anarkali',  'Anarkali'],
-  ['Sherwani',  'Sherwani'],
-  ['Dupatta',   'Dupatta'],
-  ['Scarf',     'Dupatta'],
-  ['Shawl',     'Dupatta'],
-  ['Veil',      'Dupatta'],
-  ['Blouse',    'Blouse'],
-  ['Kurta',     'Kurta'],
-  ['Shirt',     'Kurta'],
-  ['Top',       'Kurta'],
-  ['Tunic',     'Kurta'],
-  ['Gown',      'Lehenga'],
-  ['Dress',     'Lehenga'],
-  ['Skirt',     'Lehenga'],
-  ['Suit',      'Sherwani'],
-  ['Tuxedo',    'Sherwani'],
-  ['Jacket',    'Nehru Jacket'],
-  ['Blazer',    'Nehru Jacket'],
-  ['Pants',     'Salwar'],
-  ['Trousers',  'Salwar'],
-];
-
-function detectCategory(labels: string[]): string | null {
-  const labelSet = new Set(labels);
-  for (const [rekLabel, appCategory] of LABEL_TO_CATEGORY) {
-    if (labelSet.has(rekLabel)) return appCategory;
-  }
-  return null;
-}
-
-const SIMPLIFIED_TO_COLOUR: Record<string, string> = {
-  red:    'Red',
-  pink:   'Pink',
-  orange: 'Other',
-  yellow: 'Gold',
-  green:  'Green',
-  blue:   'Blue',
-  purple: 'Other',
-  white:  'White',
-  black:  'Black',
-  grey:   'Other',
-  gray:   'Other',
-  brown:  'Beige',
-  beige:  'Beige',
-  gold:   'Gold',
-  maroon: 'Maroon',
-};
-
-function detectColour(dominantColors: { SimplifiedColor?: string }[]): string | null {
-  for (const c of dominantColors) {
-    const simplified = c.SimplifiedColor?.toLowerCase();
-    if (simplified && SIMPLIFIED_TO_COLOUR[simplified]) return SIMPLIFIED_TO_COLOUR[simplified];
-  }
-  return null;
-}
-
 // ─── Handler ──────────────────────────────────────────────────────────────────
+//
+// Response contract:
+//   200 { isClothing, detectedCategory, detectedColour }  — a verdict
+//   400 { error }                                         — bad input
+//   401 { error }                                         — no / invalid JWT
+//   500 { error: 'Server misconfigured' }                 — AWS secrets missing
+//   503 { error: 'validation_unavailable' }               — Rekognition failed
+//
+// A 503 is not a verdict on the photo. Clients must not read it as "not
+// clothing": Dukanoh Fit tells the member the check couldn't run; the sell
+// form fails open.
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -145,9 +83,9 @@ Deno.serve(async (req) => {
     });
 
     if (!response.ok) {
-      // eslint-disable-next-line no-console
+       
       console.error('Rekognition error status:', response.status);
-      return json({ isClothing: false });
+      return json({ error: 'validation_unavailable' }, 503);
     }
 
     const data = await response.json();
@@ -162,8 +100,8 @@ Deno.serve(async (req) => {
     });
 
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.error('validate-clothing error:', (err as Error).message);
-    return json({ isClothing: false });
+    return json({ error: 'validation_unavailable' }, 503);
   }
 });

@@ -833,6 +833,42 @@ export type Database = {
           },
         ]
       }
+      fit_result_taps: {
+        Row: {
+          id: string
+          listing_id: string
+          tapped_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          listing_id: string
+          tapped_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          listing_id?: string
+          tapped_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fit_result_taps_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fit_result_taps_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fit_search_logs: {
         Row: {
           id: string

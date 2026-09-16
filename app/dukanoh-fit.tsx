@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   FlatList,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -18,16 +19,22 @@ import { Select } from '@/components/Select';
 import { ListingCard, Listing } from '@/components/ListingCard';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { BorderRadius, Categories, ColorTokens, Colours, FontFamily, Occasions, Spacing, Typography } from '@/constants/theme';
+import { BorderRadius, Categories, ColorTokens, Colours, FontFamily, Genders, Occasions, Spacing, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlocked } from '@/context/BlockedContext';
 import { supabase } from '@/lib/supabase';
 import { proRankSort } from '@/utils/proRankSort';
 import {
+  fabricToWeight,
   getComplementaryCategories,
   getCompatibleColours,
+  inferGenderForCategory,
+  isColourCompatible,
+  isNeutralBaseColour,
+  MIN_STRICT_RESULTS,
   scoreMatch,
+  type FabricWeight,
   type MatchInput,
 } from '@/utils/styleMatch';
 
@@ -39,8 +46,24 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const CATEGORIES = Categories.filter(c => !['All', 'Casualwear', 'Shoes'].includes(c));
 const FABRIC_WEIGHTS = ['Light', 'Structured', 'Heavy'] as const;
 
-type FabricWeight = typeof FABRIC_WEIGHTS[number];
+// gender + fabric feed the filter and scoring; tax_hold mirrors the feed —
+// a tax-held seller's pieces can't be bought, so they aren't suggested.
+const LISTING_SELECT =
+  'id, title, price, original_price, price_dropped_at, images, status, category, gender, condition, size, occasion, colour, fabric, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)';
+
 type Step = 'form' | 'results';
+
+interface SearchInput extends MatchInput {
+  gender: string;
+}
+
+interface ResultsState {
+  listings: Listing[];
+  widened: boolean;
+  failed: boolean;
+}
+
+const EMPTY_RESULTS: ResultsState = { listings: [], widened: false, failed: false };
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -63,6 +86,9 @@ export default function DukanohFitScreen() {
   const [step, setStep] = useState<Step>('form');
 
   const [category, setCategory] = useState(detectedCategory ?? '');
+  const [gender, setGender] = useState<string>(
+    () => (detectedCategory ? inferGenderForCategory(detectedCategory) ?? '' : '')
+  );
   const [colour, setColour] = useState(detectedColour ?? '');
   const [occasion, setOccasion] = useState('');
   const [fabricWeight, setFabricWeight] = useState('');
@@ -75,71 +101,127 @@ export default function DukanohFitScreen() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<Listing[]>([]);
+  const [results, setResults] = useState<ResultsState>(EMPTY_RESULTS);
+
+  // Single-gender categories (Lehenga, Sherwani…) settle who wears the piece.
+  // Kurta and Salwar are listed under both, so the member picks.
+  const inferredGender = category ? inferGenderForCategory(category) : null;
+  const effectiveGender = inferredGender ?? gender;
+  const canSubmit = !!category && !!colour && !!effectiveGender;
+
+  // Ignore responses from a search the member has already moved on from.
+  const searchSeq = useRef(0);
+  // One training upload per photo — re-submitting the same shot must not
+  // store it again.
+  const uploadedPhotoRef = useRef<string | null>(null);
+
+  const backToForm = useCallback(() => setStep('form'), []);
+
+  // Android hardware back on results returns to the form rather than leaving.
+  useEffect(() => {
+    if (step !== 'results') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setStep('form');
+      return true;
+    });
+    return () => sub.remove();
+  }, [step]);
 
   // ─── Run match ─────────────────────────────────────────────────────────────
-  const runMatch = useCallback(async (input: MatchInput) => {
-    if (!user) return;
+  // Resolves true when a search was allowed and ran (even if it returned
+  // nothing), false when it never started.
+  const runMatch = useCallback(async (input: SearchInput): Promise<boolean> => {
+    if (!user) return false;
 
-    // Server-side rate limit — atomic check + insert via DB RPC (fixes #2 + #4)
+    // Server-side rate limit — atomic check + insert via DB RPC. A transport
+    // or permission error is not the daily limit, so say so.
     const { data: allowed, error: rpcError } = await supabase.rpc('record_fit_search');
-    if (rpcError || !allowed) {
-      Alert.alert('Daily limit reached', 'You\'ve used all 10 Dukanoh Fit searches for today. Come back tomorrow.');
-      return;
+    if (rpcError) {
+      Alert.alert("Can't connect right now", 'Check your connection and try again.');
+      return false;
+    }
+    if (!allowed) {
+      Alert.alert('Daily limit reached', "You've used all 10 Dukanoh Fit searches for today. Come back tomorrow.");
+      return false;
     }
 
+    const seq = ++searchSeq.current;
     setLoading(true);
     setStep('results');
+    setResults(EMPTY_RESULTS);
 
     const complementary = getComplementaryCategories(input.category);
     if (complementary.length === 0) {
-      setResults([]);
       setLoading(false);
-      return;
+      return true;
     }
 
-    const compat = getCompatibleColours(input.colour);
-    const allCompatibleColours = [...compat.primary, ...compat.secondary];
-
-    // Validate blockedIds are UUIDs before using in query (fix #3)
+    // Validate blockedIds are UUIDs before using in query
     const safeBlockedIds = blockedIds.filter(id => UUID_REGEX.test(id));
 
-    let q = supabase
-      .from('listings')
-      .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified)')
-      .eq('status', 'available')
-      .in('category', complementary)
-      .neq('seller_id', user.id);
+    const buildBase = () => {
+      let q = supabase
+        .from('listings')
+        .select(LISTING_SELECT)
+        .eq('status', 'available')
+        .in('category', complementary)
+        .eq('gender', input.gender)
+        .neq('seller_id', user.id);
+      if (safeBlockedIds.length > 0) q = q.not('seller_id', 'in', `(${safeBlockedIds.join(',')})`);
+      return q.order('save_count', { ascending: false });
+    };
 
-    if (safeBlockedIds.length > 0) q = q.not('seller_id', 'in', `(${safeBlockedIds.join(',')})`);
+    // Strict pass: only colour-compatible pieces (neutrals included). A
+    // neutral base colour pairs with everything, so no filter applies.
+    const compat = getCompatibleColours(input.colour);
+    const strictColours = [...compat.primary, ...compat.secondary];
+    const useColourFilter = !isNeutralBaseColour(input.colour) && strictColours.length > 0;
 
-    if (allCompatibleColours.length > 0 && !['Beige', 'White', 'Other'].includes(input.colour)) {
-      q = q.in('colour', allCompatibleColours);
-    }
-
-    // Handle query errors explicitly (fix #6)
-    const { data, error: queryError } = await q.order('save_count', { ascending: false }).limit(100);
-    if (queryError) {
-      setResults([]);
+    const strictQuery = useColourFilter ? buildBase().in('colour', strictColours) : buildBase();
+    const strictRes = await strictQuery.limit(100);
+    if (seq !== searchSeq.current) return true;
+    if (strictRes.error) {
+      setResults({ listings: [], widened: false, failed: true });
       setLoading(false);
-      return;
+      return true;
     }
 
-    const listings = data ?? [];
+    let candidates = strictRes.data ?? [];
+    let widened = false;
 
-    const scored = listings
+    // Widen pass: with a thin catalogue the colour filter empties the grid.
+    // Pull in pieces whose colour is unknown or outside the compatible set;
+    // they rank below every strict match.
+    if (useColourFilter && candidates.length < MIN_STRICT_RESULTS) {
+      const widenRes = await buildBase()
+        .or(`colour.is.null,colour.not.in.(${strictColours.join(',')})`)
+        .limit(50);
+      if (seq !== searchSeq.current) return true;
+      if (!widenRes.error && widenRes.data && widenRes.data.length > 0) {
+        candidates = [...candidates, ...widenRes.data];
+        widened = true;
+      }
+    }
+
+    const scored = candidates
+      .filter(l => !l.seller?.tax_hold)
       .map(l => ({
         listing: l,
+        compatible: isColourCompatible(input.colour, l.colour),
         score: scoreMatch(input, {
           category: l.category ?? '',
           colour: l.colour,
           occasion: l.occasion,
-          fabricWeight: undefined,
+          fabricWeight: fabricToWeight(l.fabric),
           save_count: l.save_count,
         }),
         save_count: l.save_count ?? 0,
       }))
-      .sort((a, b) => b.score - a.score || b.save_count - a.save_count)
+      .sort((a, b) =>
+        Number(b.compatible) - Number(a.compatible) ||
+        b.score - a.score ||
+        b.save_count - a.save_count
+      )
       .map(s => s.listing);
 
     const sellerCount = new Map<string, number>();
@@ -151,8 +233,9 @@ export default function DukanohFitScreen() {
       return true;
     });
 
-    setResults(proRankSort(diverse));
+    setResults({ listings: proRankSort(diverse), widened, failed: false });
     setLoading(false);
+    return true;
   }, [user, blockedIds]);
 
   // ─── Training image (silent, background) ──────────────────────────────────
@@ -171,44 +254,73 @@ export default function DukanohFitScreen() {
     }).catch(() => {});
   }, []);
 
+  // ─── Result tap (success metric) ───────────────────────────────────────────
+  const logResultTap = useCallback((listingId: string) => {
+    if (!user) return;
+    // Fire-and-forget analytics — never blocks navigation, never surfaces.
+    supabase
+      .from('fit_result_taps')
+      .insert({ user_id: user.id, listing_id: listingId })
+      .then(() => {}, () => {});
+  }, [user]);
+
   // ─── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
-    if (!category || !colour) {
+    if (!category || !colour || !effectiveGender) {
       Alert.alert('Almost there', 'Please select a category and colour to continue.');
       return;
     }
-    await runMatch({
+    const ran = await runMatch({
       category,
       colour,
+      gender: effectiveGender,
       occasion: occasion || undefined,
       fabricWeight: (fabricWeight as FabricWeight) || undefined,
     });
-    // Fire training image upload in background — user never waits for this
-    if (paramPhotoUri && category) {
+    // Training upload only after a search actually ran, and once per photo.
+    if (ran && paramPhotoUri && uploadedPhotoRef.current !== paramPhotoUri) {
+      uploadedPhotoRef.current = paramPhotoUri;
       storeTrainingImage(paramPhotoUri, category);
     }
-  }, [category, colour, occasion, fabricWeight, runMatch, paramPhotoUri, storeTrainingImage]);
+  }, [category, colour, effectiveGender, occasion, fabricWeight, runMatch, paramPhotoUri, storeTrainingImage]);
 
   // ─── Results ───────────────────────────────────────────────────────────────
   if (step === 'results') {
     return (
       <ScreenWrapper>
-        <Header title="Dukanoh Fit" showBack />
+        <Header title="Dukanoh Fit" showBack onBack={backToForm} />
         {loading ? (
           <LoadingSpinner />
+        ) : results.failed ? (
+          <EmptyState
+            heading="Something went wrong"
+            subtext="That didn't go through — give it another try."
+            ctaLabel="Try again"
+            onCta={backToForm}
+          />
         ) : (
           <FlatList
-            data={results}
+            data={results.listings}
             keyExtractor={item => item.id}
             numColumns={2}
             columnWrapperStyle={styles.gridRow}
             contentContainerStyle={styles.gridContent}
             showsVerticalScrollIndicator={false}
+            ListHeaderComponent={
+              results.widened ? (
+                <Text style={styles.widenedNote}>
+                  Not many exact colour matches yet, so we've widened the search.
+                </Text>
+              ) : null
+            }
             renderItem={({ item }) => (
               <ListingCard
                 listing={item}
                 variant="grid"
-                onPress={() => router.push(`/listing/${item.id}`)}
+                onPress={() => {
+                  logResultTap(item.id);
+                  router.push(`/listing/${item.id}`);
+                }}
               />
             )}
             ListEmptyComponent={
@@ -216,7 +328,7 @@ export default function DukanohFitScreen() {
                 heading="No matches found"
                 subtext="Try a different colour or occasion and we'll find the right pieces."
                 ctaLabel="Try again"
-                onCta={() => { setStep('form'); setResults([]); }}
+                onCta={backToForm}
               />
             }
           />
@@ -250,9 +362,26 @@ export default function DukanohFitScreen() {
             placeholder="Select category"
             value={category}
             options={CATEGORIES}
-            onSelect={v => setCategory(v)}
+            onSelect={v => {
+              setCategory(v);
+              const g = inferGenderForCategory(v);
+              if (g) setGender(g);
+            }}
           />
         </View>
+
+        {/* Who wears it — only when the category doesn't settle it */}
+        {category && !inferredGender ? (
+          <View style={styles.section}>
+            <Select
+              label="Who's it for? *"
+              placeholder="Select"
+              value={gender}
+              options={Genders}
+              onSelect={v => setGender(v)}
+            />
+          </View>
+        ) : null}
 
         {/* Colour */}
         <View style={styles.section}>
@@ -299,7 +428,7 @@ export default function DukanohFitScreen() {
           label="Find my fit"
           variant="primary"
           onPress={handleSubmit}
-          disabled={!category || !colour}
+          disabled={!canSubmit}
           style={{ flex: 1 }}
         />
       </BottomBar>
@@ -343,6 +472,11 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.full,
     },
     required: { color: colors.error },
+    widenedNote: {
+      ...Typography.caption,
+      color: colors.textSecondary,
+      marginBottom: Spacing.sm,
+    },
     gridRow: { gap: Spacing.sm, marginBottom: Spacing.sm },
     gridContent: { flexGrow: 1, paddingTop: Spacing.base, paddingBottom: Spacing['4xl'] },
   });

@@ -10,11 +10,13 @@ interface HeaderProps {
   subtitle?: string;
   onSubtitlePress?: () => void;
   showBack?: boolean;
+  /** Overrides the default router.back() when the arrow is pressed. */
+  onBack?: () => void;
   rightAction?: React.ReactNode;
   titleStyle?: TextStyle;
 }
 
-export function Header({ title, subtitle, onSubtitlePress, showBack = false, rightAction, titleStyle }: HeaderProps) {
+export function Header({ title, subtitle, onSubtitlePress, showBack = false, onBack, rightAction, titleStyle }: HeaderProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -22,7 +24,7 @@ export function Header({ title, subtitle, onSubtitlePress, showBack = false, rig
     <View style={styles.container}>
       <View style={styles.side}>
         {showBack ? (
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton} hitSlop={8}>
+          <TouchableOpacity onPress={onBack ?? (() => router.back())} style={styles.backButton} hitSlop={8}>
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
         ) : null}

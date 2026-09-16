@@ -553,48 +553,58 @@ Whether buyers who see similar listings tap through and save or purchase one. A 
 ## 13. Dukanoh Fit
 
 **What it does**
-A buyer-facing outfit matching tool. The user photographs a clothing piece they own; AWS Rekognition validates it is clothing and auto-detects the category and colour. The user confirms or overrides the form, then the algorithm finds complementary listings from the platform's inventory.
+A buyer-facing outfit matching tool. The member photographs a clothing piece they own; AWS Rekognition validates it is clothing and auto-detects the category and colour. The member confirms or overrides the form (category, who it's for, colour, optional occasion and fabric weight), then the algorithm finds complementary listings from the platform's inventory.
 
 **Where it lives**
 - Screen: `app/dukanoh-fit.tsx`
-- Matching logic: `utils/styleMatch.ts`
-- Clothing validation: `supabase/functions/validate-clothing/index.ts` (AWS Rekognition)
-- Entry points: camera icon in search bar (`app/(tabs)/search.tsx`) and card on home feed (`app/(tabs)/index.tsx`)
+- Intro sheet + photo check: `components/DukanohFitSheet.tsx`
+- Matching logic: `utils/styleMatch.ts` (tests: `__tests__/styleMatch.test.ts`)
+- Clothing validation: `supabase/functions/validate-clothing/index.ts` (AWS Rekognition; pure logic in `_lib.ts`, tests in `__tests__/validateClothing.test.ts`)
+- Training photos: `supabase/functions/store-training-image/index.ts` → S3 bucket `dukanoh-fit-training`, tracked in `fit_training_images`
+- Entry points: camera icon in search bar (`app/(tabs)/search.tsx`), nudge card on home feed (`app/(tabs)/index.tsx`), and the `dukanoh-fit` deep-link destination for app stories / broadcasts
 
 **Data it uses**
 | Source | What it tells us |
 |--------|-----------------|
 | AWS Rekognition `DetectLabels` | Whether the photo is clothing; detected category and dominant colour |
 | `listings.category` | Complementary category filter |
-| `listings.colour` | Colour compatibility filter |
+| `listings.gender` | Who the piece is for — hard filter, so a Sherwani search never returns women's Salwars |
+| `listings.colour` | Colour compatibility filter and score |
 | `listings.occasion` | Occasion scoring signal |
-| `listings.fabric_weight` | Fabric weight scoring signal |
+| `listings.fabric` | Mapped to a fabric weight (Light / Structured / Heavy) for scoring — there is no `fabric_weight` column |
 | `listings.save_count` | Popularity signal |
 | `users.seller_tier` | Pro seller ranking |
+| `users.tax_hold` | Tax-held sellers are excluded — their pieces can't be bought |
 
 **How it works — validation**
-1. User takes a photo. Image is compressed to 800px wide, 0.7 JPEG quality, sent as base64 to the `validate-clothing` Edge Function.
+1. Member takes a photo. Image is compressed to 800px wide, 0.7 JPEG quality, sent as base64 to the `validate-clothing` Edge Function.
 2. Rekognition `DetectLabels` runs with `MinConfidence: 60`, `MaxLabels: 30`, features `GENERAL_LABELS` + `IMAGE_PROPERTIES`.
 3. A label is classified as clothing if its `Name` is in the root set (`Clothing`, `Apparel`, `Silk`, `Saree` etc.) **or** any of its `Parents` has `Name: 'Clothing'` or `Name: 'Apparel'`. This catches generic Western labels like `Dress` or `Shirt` which Rekognition returns with `Clothing` as a parent rather than as a top-level label.
-4. If not clothing → user is shown an alert and asked to retake. If clothing → form is pre-filled with detected category and colour; user can override either.
+4. If not clothing → member is shown an alert and asked to retake. If clothing → form is pre-filled with detected category and colour; member can override either.
+5. If the check itself fails (network, Rekognition down — the function returns 503 `validation_unavailable`), the member is told the photo couldn't be checked and to try again. A failed check is never reported as "not clothing". The sell form, which calls the same function, fails open.
+6. After a search runs, the photo is uploaded once, in the background, to S3 for training (`store-training-image`, capped at 200 per category, stored with no link to the member). The sheet discloses this and the privacy policy covers it.
+
+**How it works — who it's for**
+Single-gender categories settle it (Lehenga → Women, Sherwani → Men — from `CategoriesByGender` in `constants/theme.ts`). Kurta and Salwar are listed under both genders, so the form asks "Who's it for?". The listings query filters on `gender`, so cross-gender suggestions cannot appear.
 
 **How it ranks — matching**
 1. Look up complementary categories for the base piece using `COMPLEMENTARY_CATEGORIES` map (e.g. Lehenga → Dupatta, Blouse).
-2. DB query: fetch top 100 listings by `save_count DESC` in complementary categories, status = available, excluding own listings and blocked sellers.
-3. **Colour is a hard DB filter** — only listings with colour-compatible values are fetched. Neutrals (Beige, White, Other) match everything and bypass the filter. This ensures no visually clashing combinations appear in results.
-4. Score each listing client-side:
+2. **Strict pass**: fetch top 100 listings by `save_count DESC` in complementary categories, matching gender, status = available, excluding own listings and blocked sellers, and **only colour-compatible pieces**. Beige and White are compatible with every base colour. A neutral base colour (Beige, White, Other) applies no colour filter at all.
+3. **Widen pass**: if the strict pass returns fewer than `MIN_STRICT_RESULTS` (8), fetch up to 50 more pieces whose colour is unset, 'Other', or outside the compatible set. The results screen tells the member the search was widened.
+4. Drop pieces from tax-held sellers.
+5. Score each listing client-side:
 
 | Signal | Points |
 |--------|--------|
 | Occasion matches exactly | +3 |
 | Colour is a primary compatible match | +2 |
-| Colour is a secondary compatible match | +1 |
-| Fabric weight is compatible | +1 |
+| Colour is a secondary compatible match (incl. Beige / White) | +1 |
+| Fabric weight (from `listings.fabric`) is compatible | +1 |
 | `save_count` ≥ 5 (popularity boost) | +1 |
 
-5. Sort by score descending, then `save_count` descending as tiebreaker.
-6. Apply seller diversity cap: max 2 listings per seller.
-7. Apply Pro Seller Ranking (`proRankSort`).
+6. Sort: colour-compatible pieces first, then score descending, then `save_count` descending.
+7. Apply seller diversity cap: max 2 listings per seller.
+8. Apply Pro Seller Ranking (`proRankSort`).
 
 **Complementary categories**
 Defined in `utils/styleMatch.ts` (`COMPLEMENTARY_CATEGORIES`). Each base category maps to what should be paired with it:
@@ -614,36 +624,44 @@ Defined in `utils/styleMatch.ts` (`COMPLEMENTARY_CATEGORIES`). Each base categor
 | Salwar | Kurta, Achkan, Sherwani, Pathani Suit |
 | Nehru Jacket | Kurta |
 
+The gender filter trims these per search: a men's Kurta only ever gets Salwar and Nehru Jacket; a women's Kurta gets Dupatta, Salwar and Sharara.
+
 **Colour compatibility**
-Defined in `utils/styleMatch.ts` (`COLOUR_MAP`). Two tiers — primary (+2) and secondary (+1):
+Defined in `utils/styleMatch.ts` (`COLOUR_MAP`). Two tiers — primary (+2) and secondary (+1). Beige and White are added as secondary matches for every non-neutral base unless the map already ranks them as primary (Black → White):
 
 | Base colour | Primary matches | Secondary matches |
 |-------------|----------------|-----------------|
-| Red | Gold, Maroon | Beige, Pink, Black |
+| Red | Gold, Maroon | Beige, Pink, Black, White |
 | Maroon | Gold, Pink | Beige, White, Red |
 | Pink | Gold, Beige | White, Red, Multi |
 | Green | Gold, Beige | Multi, White |
 | Blue | Gold, Beige | White, Multi |
-| Gold | Red, Maroon, Green | Blue, Pink, Beige |
+| Gold | Red, Maroon, Green | Blue, Pink, Beige, White |
 | Black | Gold, White | Beige, Multi |
-| Beige / White | — (neutral, matches everything) | — |
+| Beige / White / Other | — (neutral, matches everything) | — |
 | Multi | Beige, White, Black | Gold |
 
+**Fabric weight**
+Sellers pick a fabric, not a weight. `fabricToWeight()` maps it: Chiffon / Georgette / Net → Light; Silk / Cotton / Linen → Structured; Velvet / Brocade → Heavy; Other or unset → no weight (signal skipped).
+
 **Rate limiting**
-10 searches per user per calendar day, enforced server-side via the `record_fit_search()` Postgres RPC. Uses `pg_advisory_xact_lock` to atomically check-and-insert — no race condition. Resets at midnight UTC (calendar day boundary in the DB).
+10 searches per member per calendar day, enforced server-side via the `record_fit_search()` Postgres RPC. Uses `pg_advisory_xact_lock` to atomically check-and-insert — no race condition. Resets at midnight UTC (calendar day boundary in the DB). The RPC rejects unauthenticated callers and is granted to `authenticated` only. A transport error from the RPC is shown as a connection problem, never as the daily limit.
 
 **Success metric**
-Whether users who complete a Dukanoh Fit search tap through to a result listing and save or purchase it. A high abandon rate after seeing results suggests the matches aren't relevant enough.
+Tap-through. `fit_result_taps` records every result a member opens (user, listing, time). Tap-through rate = taps ÷ rows in `fit_search_logs`; join taps to `saved_items` / `orders` on `listing_id` + `user_id` to see whether tapped pieces were saved or bought. A high abandon rate after seeing results suggests the matches aren't relevant enough.
 
 **Current limitations**
 - Rekognition is a Western-trained model — South Asian garments (lehenga, sherwani) are rarely identified by name. The function falls back to Western equivalents (Dress → Lehenga, Suit → Sherwani) which are close but not exact.
 - No price range signal — the algorithm doesn't try to match the price tier of the uploaded piece.
 - Colour detection is from the full image, not just the garment — background colour can skew the dominant colour result.
+- Colour and fabric are optional on the sell form. Pieces without a colour only appear via the widen pass; pieces without a fabric never earn the fabric-weight point.
+- Camera only — a member can't pick an existing photo from their library.
+- The training upload has never been observed succeeding in production (`fit_training_images` is empty despite logged searches); the S3 bucket needs a manual check.
 
 **Improvement ideas**
-- **Fallback retry**: if fewer than 8 results are returned after the colour filter, retry without the colour filter (show a "we widened your search" message). Relevant once inventory is larger.
 - **Price tier matching**: infer a price band from the photo (e.g. fabric richness, embroidery) and filter suggestions to a similar range.
-- **Size preference**: if the user's profile has a saved size, prioritise listings in that size.
+- **Size preference**: if the member's profile has a saved size, prioritise listings in that size.
+- **Choose from library**: let members match a photo they already have.
 
 **Change log**
 | Date | Change | Reason |
@@ -658,6 +676,14 @@ Whether users who complete a Dukanoh Fit search tap through to a result listing 
 | 2026-04-10 | Rate limiting moved from AsyncStorage (client-only) to server-side `record_fit_search()` RPC with advisory lock | Client-side limit was trivially bypassable; server-side is authoritative and race-condition-free |
 | 2026-04-10 | Added JWT auth to `validate-clothing` and `store-training-image` Edge Functions | Functions were publicly callable without authentication, exposing free AWS Rekognition access |
 | 2026-04-10 | Removed recent looks feature | Simplified form flow; feature added complexity without clear user value at this stage |
+| 2026-09-16 | Gender filter on the listings query; form asks "Who's it for?" when the category is Kurta or Salwar | No gender was ever applied — a Sherwani search returned women's Salwars, a men's Kurta search only women's Salwars |
+| 2026-09-16 | Beige / White compatible with every base colour; widen pass when fewer than 8 strict results, with a note on the results screen | Colour hard filter emptied results on a thin catalogue (9 of 17 live pieces had colour Other or unset; Red and Gold bases also excluded White) |
+| 2026-09-16 | Fabric weight derived from `listings.fabric` via `fabricToWeight()` | Scoring always received `undefined` — the form's fabric-weight input did nothing; docs referenced a `fabric_weight` column that doesn't exist |
+| 2026-09-16 | Tax-held sellers excluded | Matches feed / stories / listings; their pieces can't be bought, so the detail page was a dead end |
+| 2026-09-16 | `validate-clothing` returns 503 when Rekognition fails and imports its tested `_lib.ts`; the sheet distinguishes "couldn't check" from "not clothing"; RPC transport errors no longer shown as the daily limit | Server failures were being reported to members as verdicts on their photo or their quota |
+| 2026-09-16 | Results header and Android back return to the form; query failure shows a retry state; training upload once per photo and only after a search ran; home nudge card has an explicit dismiss and stays until Fit is used | UX gaps from the launch review |
+| 2026-09-16 | `fit_result_taps` table; sheet discloses the training copy; camera permission string covers Fit | Success metric was unmeasurable; photo retention was undisclosed; purpose string only mentioned listings |
+| 2026-09-16 | `record_fit_search()` guards `auth.uid()` and is granted to `authenticated` only | Predated the June default-deny; was executable by anon |
 
 ---
 

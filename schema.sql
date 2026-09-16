@@ -2330,6 +2330,8 @@ CREATE POLICY "fit_search_logs_own"
 
 -- Atomically checks and records a fit search for the calling user.
 -- Returns true if the search is allowed (under 10/day), false if limit reached.
+-- Client-called RPC: rejects unauthenticated callers in-body and is granted
+-- to authenticated only (post-June default-deny convention).
 CREATE OR REPLACE FUNCTION public.record_fit_search()
 RETURNS boolean
 LANGUAGE plpgsql
@@ -2339,6 +2341,10 @@ AS $$
 DECLARE
   today_count INTEGER;
 BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'not allowed';
+  END IF;
+
   PERFORM pg_advisory_xact_lock(hashtext(auth.uid()::text));
 
   SELECT COUNT(*) INTO today_count
@@ -2354,6 +2360,38 @@ BEGIN
   RETURN true;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.record_fit_search() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.record_fit_search() TO authenticated;
+
+-- ─── Fit Result Taps ──────────────────────────────────────────────────────────
+-- One row per Dukanoh Fit result a member opens — the feature's success
+-- metric (tap-through from a Fit search). Written fire-and-forget by
+-- app/dukanoh-fit.tsx; join to saved_items / orders for saves and purchases.
+
+CREATE TABLE IF NOT EXISTS public.fit_result_taps (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  listing_id  UUID        NOT NULL REFERENCES public.listings(id) ON DELETE CASCADE,
+  tapped_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_fit_result_taps_user_date
+  ON public.fit_result_taps (user_id, tapped_at);
+CREATE INDEX IF NOT EXISTS idx_fit_result_taps_listing
+  ON public.fit_result_taps (listing_id);
+
+ALTER TABLE public.fit_result_taps ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "fit_result_taps_insert_own"
+  ON public.fit_result_taps FOR INSERT
+  TO authenticated
+  WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE POLICY "fit_result_taps_select_own"
+  ON public.fit_result_taps FOR SELECT
+  TO authenticated
+  USING ((select auth.uid()) = user_id);
 
 -- ─── Account deletion (guarded soft-delete + anonymization) ───────────────────
 -- Orchestrated by the delete-account Edge Function. Two RPCs and a telemetry
