@@ -1,4 +1,4 @@
-import { CategoriesByGender, Gender } from '@/constants/theme';
+import { Categories, CategoriesByGender, Gender } from '@/constants/theme';
 
 export interface ListingForm {
   title: string;
@@ -41,7 +41,7 @@ export function validateListing(
       errors.gender = 'Select a gender';
     }
     if (!form.condition) errors.condition = 'Select a condition';
-    if (!form.size) errors.size = 'Select a size';
+    if (!form.size && !SIZE_OPTIONAL_CATEGORIES.has(form.category)) errors.size = 'Select a size';
   }
 
   return errors;
@@ -52,18 +52,25 @@ export function buildMeasurements(note: string): { note: string } | null {
   return trimmed ? { note: trimmed } : null;
 }
 
-export const CATEGORY_TO_GENDER: Record<string, Gender> = {
-  Lehenga:        'Women',
-  Saree:          'Women',
-  Anarkali:       'Women',
-  Dupatta:        'Women',
-  Blouse:         'Women',
-  Sharara:        'Women',
-  Sherwani:       'Men',
-  Achkan:         'Men',
-  'Pathani Suit': 'Men',
-  'Nehru Jacket': 'Men',
-};
+/**
+ * Categories listed under exactly one gender, derived from the theme so a new
+ * category can't be forgotten here. Kurta, Salwar, Jewellery, Accessories,
+ * Casualwear and Shoes sit under both and are absent — the seller picks.
+ */
+export const CATEGORY_TO_GENDER: Record<string, Gender> = Object.fromEntries(
+  Categories
+    .filter(c => c !== 'All')
+    .flatMap((c): [string, Gender][] => {
+      const women = CategoriesByGender.Women.includes(c);
+      const men = CategoriesByGender.Men.includes(c);
+      if (women && !men) return [[c, 'Women']];
+      if (men && !women) return [[c, 'Men']];
+      return [];
+    }),
+);
+
+/** Pieces with no meaningful garment size — the size picker is optional. */
+export const SIZE_OPTIONAL_CATEGORIES = new Set(['Dupatta', 'Jewellery', 'Accessories']);
 
 export function isCategoryValidForGender(category: string, gender: string): boolean {
   const categories = CategoriesByGender[gender as Gender];

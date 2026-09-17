@@ -226,6 +226,28 @@ CREATE POLICY "Sellers can delete their own collections"
 -- Migration for existing databases:
 -- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS gender TEXT DEFAULT 'Women' NOT NULL CHECK (gender IN ('Men', 'Women'));
 -- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS colour TEXT;
+
+-- Attribute lists are pinned to what the app shows (constants/theme.ts).
+-- Changing a list there means a migration that updates the matching
+-- constraint — see supabase/migrations/20260917120000_taxonomy_refresh.sql.
+ALTER TABLE public.listings ADD CONSTRAINT listings_category_valid CHECK (category IN (
+  'Lehenga', 'Saree', 'Anarkali', 'Salwar Kameez', 'Kurta', 'Sharara', 'Gown',
+  'Dupatta', 'Blouse', 'Salwar',
+  'Sherwani', 'Kurta Pajama', 'Achkan', 'Pathani Suit', 'Nehru Jacket',
+  'Jewellery', 'Accessories', 'Casualwear', 'Shoes'
+));
+ALTER TABLE public.listings ADD CONSTRAINT listings_colour_valid CHECK (colour IS NULL OR colour IN (
+  'Black', 'White', 'Cream', 'Grey', 'Silver',
+  'Red', 'Maroon', 'Pink', 'Peach', 'Orange', 'Yellow', 'Gold',
+  'Green', 'Teal', 'Blue', 'Navy', 'Purple',
+  'Multi', 'Other'
+));
+ALTER TABLE public.listings ADD CONSTRAINT listings_fabric_valid CHECK (fabric IS NULL OR fabric IN (
+  'Silk', 'Chiffon', 'Georgette', 'Cotton', 'Lawn', 'Velvet', 'Net', 'Organza', 'Satin', 'Crepe', 'Brocade', 'Linen', 'Other'
+));
+ALTER TABLE public.listings ADD CONSTRAINT listings_occasion_valid CHECK (occasion IS NULL OR occasion IN (
+  'Everyday', 'Eid', 'Diwali', 'Festive', 'Wedding', 'Mehndi', 'Party', 'Formal'
+));
 -- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS fabric TEXT;
 -- ALTER TABLE public.listings DROP CONSTRAINT IF EXISTS listings_price_check;
 -- ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS buyer_id UUID REFERENCES public.users(id) ON DELETE SET NULL;

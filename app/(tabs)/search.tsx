@@ -5,7 +5,10 @@ import { TabBar } from '@/components/TabBar';
 import {
   BorderRadius,
   ColorTokens,
-  Spacing
+  Spacing,
+  Categories,
+  CategoriesByGender,
+  Occasions
 } from '@/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DukanohFitSheet } from '@/components/DukanohFitSheet';
@@ -52,18 +55,9 @@ const BROWSE_TABS: { key: BrowseTab; label: string }[] = [
 ];
 
 const TAB_CONFIG: Record<BrowseTab, { categories: string[]; occasions: string[] }> = {
-  Women: {
-    categories: ['Lehenga', 'Saree', 'Anarkali', 'Kurta', 'Casualwear', 'Shoes'],
-    occasions: ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'],
-  },
-  Men: {
-    categories: ['Sherwani', 'Kurta', 'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes'],
-    occasions: ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'],
-  },
-  All: {
-    categories: ['Lehenga', 'Saree', 'Sherwani', 'Anarkali', 'Kurta', 'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes'],
-    occasions: ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'],
-  },
+  Women: { categories: CategoriesByGender.Women, occasions: [...Occasions] },
+  Men:   { categories: CategoriesByGender.Men,   occasions: [...Occasions] },
+  All:   { categories: Categories.filter(c => c !== 'All'), occasions: [...Occasions] },
 };
 
 // ─── Browse row component ───────────────────────────────────

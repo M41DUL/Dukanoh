@@ -3,7 +3,7 @@
 // Guards the maps against drifting from constants/theme.ts (a category or
 // colour Fit doesn't know about silently produces empty results) and pins
 // the scoring tiers and gender / neutral-colour rules the docs describe.
-import { Categories, CategoriesByGender, Colours, Fabrics } from '../constants/theme';
+import { Categories, CategoriesByGender, CategoryDefinitions, Colours, Fabrics } from '../constants/theme';
 import {
   COLOUR_MAP,
   COMPLEMENTARY_CATEGORIES,
@@ -18,7 +18,7 @@ import {
 } from '../utils/styleMatch';
 
 const FIT_CATEGORIES = Categories.filter(c => !['All', 'Casualwear', 'Shoes'].includes(c));
-const NEUTRAL_BASES = ['Beige', 'White', 'Other'];
+const NEUTRAL_BASES = ['Cream', 'White', 'Other'];
 const NON_NEUTRAL_COLOURS = Colours.filter(c => !NEUTRAL_BASES.includes(c));
 const ALL_CATEGORIES: readonly string[] = Categories;
 const ALL_COLOURS: readonly string[] = Colours;
@@ -39,6 +39,14 @@ describe('complementary categories', () => {
         expect(ALL_CATEGORIES).toContain(s);
         expect(s).not.toBe(base);
       }
+    }
+  });
+
+  test('every category has a one-line definition', () => {
+    for (const c of Categories) {
+      if (c === 'All') continue;
+      expect(typeof CategoryDefinitions[c]).toBe('string');
+      expect(CategoryDefinitions[c].length).toBeGreaterThan(5);
     }
   });
 
@@ -70,10 +78,10 @@ describe('colour compatibility', () => {
     }
   });
 
-  test('Beige and White pair with every non-neutral base', () => {
+  test('Cream and White pair with every non-neutral base', () => {
     for (const base of NON_NEUTRAL_COLOURS) {
       expect(isNeutralBaseColour(base)).toBe(false);
-      expect(isColourCompatible(base, 'Beige')).toBe(true);
+      expect(isColourCompatible(base, 'Cream')).toBe(true);
       expect(isColourCompatible(base, 'White')).toBe(true);
     }
   });

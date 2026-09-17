@@ -29,7 +29,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { SellerOnboarding } from '@/components/SellerOnboarding';
 import { ListingSuccessView } from '@/components/ListingSuccessView';
 import { Select, SelectHandle } from '@/components/Select';
-import { Typography, Spacing, BorderRadius, BorderWidth, Genders, Categories, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
+import { Typography, Spacing, BorderRadius, BorderWidth, Genders, Categories, CategoryDefinitions, Conditions, Occasions, Sizes, Colours, Fabrics, ColorTokens } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
@@ -563,6 +563,11 @@ export default function SellScreen() {
             }}
             error={errors.category}
           />
+          {form.category && CategoryDefinitions[form.category] ? (
+            <Text style={{ ...Typography.caption, color: colors.textSecondary, marginTop: -Spacing.sm, marginBottom: Spacing.base }}>
+              {CategoryDefinitions[form.category]}
+            </Text>
+          ) : null}
         </View>
 
         {form.category && !CATEGORY_TO_GENDER[form.category] && (

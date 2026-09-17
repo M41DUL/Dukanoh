@@ -94,7 +94,7 @@ Shows the most recently listed items filtered by the user's gender preference. K
 | `users.preferred_categories` | `TEXT[]` | Whether user prefers Men, Women, or neither |
 
 **How it ranks**
-1. Derive gender from onboarding: Women only → filter `category = 'Women'`; Men only → filter `category = 'Men'`; both or neither → no filter.
+1. Derive gender from onboarding: Women only → filter `listings.gender = 'Women'`; Men only → `listings.gender = 'Men'`; both or neither → no filter.
 2. Fetch up to 25 listings, ordered by `created_at DESC`, excluding user's own and blocked sellers.
 3. Apply seller diversity cap: max 2 listings per seller.
 4. Apply Pro Seller Ranking.
@@ -116,6 +116,7 @@ Whether users tap through and explore listings they would not have found via the
 |------|--------|--------|
 | — | Initial implementation | Simple newest-first discovery, no filter |
 | 2026-04-09 | Added gender filter from onboarding preference | Avoid showing Men listings to Women-only users and vice versa |
+| 2026-09-17 | Gender filter moved from the retired gender-as-category list to the `gender` column | The old filter matched `category IN ('Women', 'Partywear', …)`, so members with a gender preference saw almost no garment listings |
 | 2026-04-09 | Removed boost logic | Boosts belong in Stories only |
 | 2026-04-09 | Added seller diversity cap (max 2 per seller) | Prevent one seller dominating the section |
 | 2026-04-09 | Increased result limit from 6 to 10 | Section felt too thin |
@@ -141,7 +142,7 @@ A horizontal scrollable row of category bubbles on the home screen, showing whic
 **How it ranks**
 1. Fetch up to 500 saves from the last 7 days, joined to listing category and status.
 2. Count saves per category, excluding unavailable listings.
-3. Apply gender filter: skip categories that don't match the user's gender preference (if set).
+3. Apply gender filter: skip saves whose listing's `gender` column doesn't match the user's preference (if set).
 4. Sort by save count descending, take top 6.
 5. Cache per gender variant (`all` / `Men` / `Women`) for 30 minutes.
 
@@ -160,6 +161,7 @@ Whether users tap a trending category and then save or buy something from it.
 | — | Initial implementation | Listing count as a proxy for trending |
 | 2026-04-09 | Switched signal from listing count to save count | Save count measures buyer demand, not seller supply |
 | 2026-04-09 | Added gender filter | Avoid surfacing irrelevant gender categories |
+| 2026-09-17 | Gender filter reads `listings.gender` | It compared the category name to 'Women'/'Men', which never matched, so Trending was always empty for members with a preference |
 | 2026-04-09 | Made cache key gender-aware | Women and Men users get different cached results |
 
 ---
@@ -611,38 +613,51 @@ Defined in `utils/styleMatch.ts` (`COMPLEMENTARY_CATEGORIES`). Each base categor
 
 | Base | Suggests |
 |------|---------|
-| Lehenga | Dupatta, Blouse |
-| Saree | Blouse, Dupatta |
-| Anarkali | Dupatta, Salwar, Sharara |
-| Kurta | Dupatta, Salwar, Sharara, Nehru Jacket |
-| Sherwani | Kurta, Salwar |
-| Achkan | Kurta, Salwar |
-| Pathani Suit | Salwar |
-| Dupatta | Lehenga, Anarkali, Kurta, Saree |
+| Lehenga | Dupatta, Blouse, Jewellery, Accessories |
+| Saree | Blouse, Jewellery, Accessories |
+| Anarkali | Dupatta, Salwar, Sharara, Jewellery |
+| Salwar Kameez | Dupatta, Jewellery, Accessories |
+| Kurta | Dupatta, Salwar, Sharara, Nehru Jacket, Jewellery |
+| Sharara | Kurta, Anarkali, Dupatta, Jewellery |
+| Gown | Jewellery, Accessories, Dupatta |
+| Dupatta | Lehenga, Anarkali, Salwar Kameez, Kurta, Saree |
 | Blouse | Saree, Lehenga |
-| Sharara | Kurta, Anarkali |
 | Salwar | Kurta, Achkan, Sherwani, Pathani Suit |
-| Nehru Jacket | Kurta |
+| Sherwani | Kurta, Salwar, Accessories, Jewellery |
+| Kurta Pajama | Nehru Jacket, Accessories |
+| Achkan | Kurta, Salwar, Accessories |
+| Pathani Suit | Salwar, Accessories |
+| Nehru Jacket | Kurta, Kurta Pajama |
+| Jewellery | Lehenga, Saree, Anarkali, Salwar Kameez, Gown, Sharara, Sherwani |
+| Accessories | Lehenga, Saree, Salwar Kameez, Gown, Sherwani, Achkan, Kurta Pajama |
 
 The gender filter trims these per search: a men's Kurta only ever gets Salwar and Nehru Jacket; a women's Kurta gets Dupatta, Salwar and Sharara.
 
 **Colour compatibility**
-Defined in `utils/styleMatch.ts` (`COLOUR_MAP`). Two tiers — primary (+2) and secondary (+1). Beige and White are added as secondary matches for every non-neutral base unless the map already ranks them as primary (Black → White):
+Defined in `utils/styleMatch.ts` (`COLOUR_MAP`). Two tiers — primary (+2) and secondary (+1). Cream and White are neutral: as a base they apply no filter, and as a candidate they are added as secondary for every base unless the map already ranks them primary. Nineteen colours since the 2026-09-17 refresh (Cream replaced Beige).
 
 | Base colour | Primary matches | Secondary matches |
 |-------------|----------------|-----------------|
-| Red | Gold, Maroon | Beige, Pink, Black, White |
-| Maroon | Gold, Pink | Beige, White, Red |
-| Pink | Gold, Beige | White, Red, Multi |
-| Green | Gold, Beige | Multi, White |
-| Blue | Gold, Beige | White, Multi |
-| Gold | Red, Maroon, Green | Blue, Pink, Beige, White |
-| Black | Gold, White | Beige, Multi |
-| Beige / White / Other | — (neutral, matches everything) | — |
-| Multi | Beige, White, Black | Gold |
+| Red | Gold, Maroon, Green | Pink, Black, Orange, Navy, Cream, White |
+| Maroon | Gold, Pink, Cream | Red, Peach, Green, Silver, White |
+| Pink | Gold, Cream, Silver | Red, Multi, Peach, Green, Teal, White |
+| Peach | Gold, Cream, Teal | Pink, Green, Silver, Maroon, White |
+| Orange | Gold, Cream, Navy | Green, Pink, Teal, Red, White |
+| Yellow | Gold, Green, Navy | Pink, Purple, Orange, Cream, White |
+| Gold | Red, Maroon, Green, Navy, Purple | Blue, Pink, Teal, Black, Orange, Cream, White |
+| Green | Gold, Cream, Pink | Multi, Yellow, Orange, Peach, Maroon, White |
+| Teal | Gold, Cream, Peach | Pink, Orange, Silver, Navy, White |
+| Blue | Gold, Cream, Silver | Multi, Peach, Pink, Navy, White |
+| Navy | Gold, Cream, Silver | Red, Orange, Yellow, Pink, Teal, White |
+| Purple | Gold, Silver, Cream | Pink, Yellow, Green, Grey, White |
+| Black | Gold, White, Silver | Cream, Multi, Red, Pink, Grey |
+| Grey | Silver, Pink, Navy | Black, Teal, Purple, Maroon, Cream, White |
+| Silver | Navy, Purple, Black | Blue, Pink, Grey, Teal, Cream, White |
+| Multi | Cream, White, Black, Gold | Silver |
+| Cream / White / Other | — (neutral, matches everything) | — |
 
 **Fabric weight**
-Sellers pick a fabric, not a weight. `fabricToWeight()` maps it: Chiffon / Georgette / Net → Light; Silk / Cotton / Linen → Structured; Velvet / Brocade → Heavy; Other or unset → no weight (signal skipped).
+Sellers pick a fabric, not a weight. `fabricToWeight()` maps it: Chiffon / Georgette / Net / Lawn / Satin / Crepe → Light; Silk / Cotton / Linen / Organza → Structured; Velvet / Brocade → Heavy; Other or unset → no weight (signal skipped).
 
 **Rate limiting**
 10 searches per member per calendar day, enforced server-side via the `record_fit_search()` Postgres RPC. Uses `pg_advisory_xact_lock` to atomically check-and-insert — no race condition. Resets at midnight UTC (calendar day boundary in the DB). The RPC rejects unauthenticated callers and is granted to `authenticated` only. A transport error from the RPC is shown as a connection problem, never as the daily limit.
@@ -684,6 +699,7 @@ Tap-through. `fit_result_taps` records every result a member opens (user, listin
 | 2026-09-16 | Results header and Android back return to the form; query failure shows a retry state; training upload once per photo and only after a search ran; home nudge card has an explicit dismiss and stays until Fit is used | UX gaps from the launch review |
 | 2026-09-16 | `fit_result_taps` table; sheet discloses the training copy; camera permission string covers Fit | Success metric was unmeasurable; photo retention was undisclosed; purpose string only mentioned listings |
 | 2026-09-16 | `record_fit_search()` guards `auth.uid()` and is granted to `authenticated` only | Predated the June default-deny; was executable by anon |
+| 2026-09-17 | Taxonomy refresh: + Salwar Kameez, Gown, Kurta Pajama, Jewellery, Accessories; 19 colours (Cream replaces Beige); + Lawn, Organza, Satin, Crepe; + Festive; every category has a one-line definition; lists pinned by DB constraints | The three-piece suit had no category, 9 of 17 live pieces were colour 'Other', and free-text columns let a retired category survive |
 
 ---
 

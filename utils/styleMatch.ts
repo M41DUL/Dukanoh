@@ -7,7 +7,8 @@
  *   with every base colour
  * - Fabric → weight mapping and weight compatibility (there is no
  *   fabric_weight column — `listings.fabric` is the only source)
- * - Gender inference from the base category (Kurta / Salwar are ambiguous)
+ * - Gender inference from the base category (Kurta, Salwar, Jewellery and
+ *   Accessories sit under both genders and are ambiguous)
  * - scoreMatch() — scores a candidate listing against a base piece
  */
 
@@ -16,18 +17,26 @@ import { CategoriesByGender, type Gender } from '@/constants/theme';
 // ─── Complementary category map ─────────────────────────────────────────────
 
 export const COMPLEMENTARY_CATEGORIES: Record<string, string[]> = {
-  Lehenga:        ['Dupatta', 'Blouse'],
-  Saree:          ['Blouse', 'Dupatta'],
-  Anarkali:       ['Dupatta', 'Salwar', 'Sharara'],
-  Kurta:          ['Dupatta', 'Salwar', 'Sharara', 'Nehru Jacket'],
-  Sherwani:       ['Kurta', 'Salwar'],
-  Achkan:         ['Kurta', 'Salwar'],
-  'Pathani Suit': ['Salwar'],
-  Dupatta:        ['Lehenga', 'Anarkali', 'Kurta', 'Saree'],
-  Blouse:         ['Saree', 'Lehenga'],
-  Sharara:        ['Kurta', 'Anarkali'],
-  Salwar:         ['Kurta', 'Achkan', 'Sherwani', 'Pathani Suit'],
-  'Nehru Jacket': ['Kurta'],
+  // Women
+  Lehenga:         ['Dupatta', 'Blouse', 'Jewellery', 'Accessories'],
+  Saree:           ['Blouse', 'Jewellery', 'Accessories'],
+  Anarkali:        ['Dupatta', 'Salwar', 'Sharara', 'Jewellery'],
+  'Salwar Kameez': ['Dupatta', 'Jewellery', 'Accessories'],
+  Kurta:           ['Dupatta', 'Salwar', 'Sharara', 'Nehru Jacket', 'Jewellery'],
+  Sharara:         ['Kurta', 'Anarkali', 'Dupatta', 'Jewellery'],
+  Gown:            ['Jewellery', 'Accessories', 'Dupatta'],
+  Dupatta:         ['Lehenga', 'Anarkali', 'Salwar Kameez', 'Kurta', 'Saree'],
+  Blouse:          ['Saree', 'Lehenga'],
+  Salwar:          ['Kurta', 'Achkan', 'Sherwani', 'Pathani Suit'],
+  // Men
+  Sherwani:        ['Kurta', 'Salwar', 'Accessories', 'Jewellery'],
+  'Kurta Pajama':  ['Nehru Jacket', 'Accessories'],
+  Achkan:          ['Kurta', 'Salwar', 'Accessories'],
+  'Pathani Suit':  ['Salwar', 'Accessories'],
+  'Nehru Jacket':  ['Kurta', 'Kurta Pajama'],
+  // Both
+  Jewellery:       ['Lehenga', 'Saree', 'Anarkali', 'Salwar Kameez', 'Gown', 'Sharara', 'Sherwani'],
+  Accessories:     ['Lehenga', 'Saree', 'Salwar Kameez', 'Gown', 'Sherwani', 'Achkan', 'Kurta Pajama'],
 };
 
 // ─── Colour compatibility map ────────────────────────────────────────────────
@@ -38,24 +47,33 @@ interface ColourCompatibility {
 }
 
 export const COLOUR_MAP: Record<string, ColourCompatibility> = {
-  Red:    { primary: ['Gold', 'Maroon'],              secondary: ['Beige', 'Pink', 'Black'] },
-  Maroon: { primary: ['Gold', 'Pink'],                secondary: ['Beige', 'White', 'Red'] },
-  Pink:   { primary: ['Gold', 'Beige'],               secondary: ['White', 'Red', 'Multi'] },
-  Green:  { primary: ['Gold', 'Beige'],               secondary: ['Multi', 'White'] },
-  Blue:   { primary: ['Gold', 'Beige'],               secondary: ['White', 'Multi'] },
-  Gold:   { primary: ['Red', 'Maroon', 'Green'],      secondary: ['Blue', 'Pink', 'Beige'] },
-  Black:  { primary: ['Gold', 'White'],               secondary: ['Beige', 'Multi'] },
-  Beige:  { primary: [],                              secondary: [] }, // neutral — matches everything
-  White:  { primary: [],                              secondary: [] }, // neutral — matches everything
-  Multi:  { primary: ['Beige', 'White', 'Black'],     secondary: ['Gold'] },
-  Other:  { primary: [],                              secondary: [] }, // unknown — no filter applied
+  Red:    { primary: ['Gold', 'Maroon', 'Green'],          secondary: ['Pink', 'Black', 'Orange', 'Navy'] },
+  Maroon: { primary: ['Gold', 'Pink', 'Cream'],            secondary: ['Red', 'Peach', 'Green', 'Silver'] },
+  Pink:   { primary: ['Gold', 'Cream', 'Silver'],          secondary: ['Red', 'Multi', 'Peach', 'Green', 'Teal'] },
+  Peach:  { primary: ['Gold', 'Cream', 'Teal'],            secondary: ['Pink', 'Green', 'Silver', 'Maroon'] },
+  Orange: { primary: ['Gold', 'Cream', 'Navy'],            secondary: ['Green', 'Pink', 'Teal', 'Red'] },
+  Yellow: { primary: ['Gold', 'Green', 'Navy'],            secondary: ['Pink', 'Purple', 'Orange'] },
+  Gold:   { primary: ['Red', 'Maroon', 'Green', 'Navy', 'Purple'], secondary: ['Blue', 'Pink', 'Teal', 'Black', 'Orange'] },
+  Green:  { primary: ['Gold', 'Cream', 'Pink'],            secondary: ['Multi', 'Yellow', 'Orange', 'Peach', 'Maroon'] },
+  Teal:   { primary: ['Gold', 'Cream', 'Peach'],           secondary: ['Pink', 'Orange', 'Silver', 'Navy'] },
+  Blue:   { primary: ['Gold', 'Cream', 'Silver'],          secondary: ['Multi', 'Peach', 'Pink', 'Navy'] },
+  Navy:   { primary: ['Gold', 'Cream', 'Silver'],          secondary: ['Red', 'Orange', 'Yellow', 'Pink', 'Teal'] },
+  Purple: { primary: ['Gold', 'Silver', 'Cream'],          secondary: ['Pink', 'Yellow', 'Green', 'Grey'] },
+  Black:  { primary: ['Gold', 'White', 'Silver'],          secondary: ['Cream', 'Multi', 'Red', 'Pink', 'Grey'] },
+  Grey:   { primary: ['Silver', 'Pink', 'Navy'],           secondary: ['Black', 'Teal', 'Purple', 'Maroon'] },
+  Silver: { primary: ['Navy', 'Purple', 'Black'],          secondary: ['Blue', 'Pink', 'Grey', 'Teal'] },
+  Multi:  { primary: ['Cream', 'White', 'Black', 'Gold'],  secondary: ['Silver'] },
+  Cream:  { primary: [],                                   secondary: [] }, // neutral — matches everything
+  White:  { primary: [],                                   secondary: [] }, // neutral — matches everything
+  Other:  { primary: [],                                   secondary: [] }, // unknown — no filter applied
 };
 
 /** Base colours that pair with everything — no colour filter is applied. */
-const NEUTRAL_BASE_COLOURS = new Set(['Beige', 'White', 'Other']);
+// Cream replaced Beige in the 2026-09 taxonomy refresh.
+const NEUTRAL_BASE_COLOURS = new Set(['Cream', 'White', 'Other']);
 
 /** Candidate colours that pair with every non-neutral base (secondary tier). */
-const NEUTRAL_CANDIDATE_COLOURS = ['Beige', 'White'];
+const NEUTRAL_CANDIDATE_COLOURS = ['Cream', 'White'];
 
 /**
  * Fewer strict (colour-compatible) results than this and the search is
@@ -78,9 +96,13 @@ const FABRIC_TO_WEIGHT: Record<string, FabricWeight> = {
   Chiffon:   'Light',
   Georgette: 'Light',
   Net:       'Light',
+  Lawn:      'Light',
+  Satin:     'Light',
+  Crepe:     'Light',
   Silk:      'Structured',
   Cotton:    'Structured',
   Linen:     'Structured',
+  Organza:   'Structured',
   Velvet:    'Heavy',
   Brocade:   'Heavy',
 };

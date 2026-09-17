@@ -118,7 +118,7 @@ async function fetchTrendingCategories(
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('saved_items')
-    .select('listings(category, status)')
+    .select('listings(category, status, gender)')
     .gte('created_at', since)
     .limit(100)
     .abortSignal(signal);
@@ -130,7 +130,7 @@ async function fetchTrendingCategories(
     const listing = row.listings;
     const cat = listing?.category;
     if (!cat || listing?.status !== 'available') return acc;
-    if (gender && cat !== gender) return acc; // gender filter
+    if (gender && listing?.gender !== gender) return acc; // gender filter
     // Apply seasonal weight multiplier to boost seasonal categories in ranking
     const multiplier = season?.categories.includes(cat) ? (season.weight ?? 1) : 1;
     acc[cat] = (acc[cat] ?? 0) + multiplier;
@@ -233,7 +233,7 @@ async function fetchNewArrivals(
     .limit(25); // fetch extra to allow for diversity filtering
 
   if (blockedIds.length > 0) query = query.not('seller_id', 'in', `(${blockedIds.join(',')})`);
-  if (gender) query = query.in('category', [gender, 'Casualwear', 'Partywear', 'Festive', 'Formal', 'Achkan', 'Wedding', 'Pathani Suit', 'Shoes']);
+  if (gender) query = query.eq('gender', gender);
 
   const { data, error } = await query.abortSignal(signal);
   if (error) throw error;

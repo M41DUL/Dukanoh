@@ -268,35 +268,75 @@ export type Gender = (typeof Genders)[number];
 
 export const Categories = [
   'All',
+  // Women
   'Lehenga',
   'Saree',
   'Anarkali',
-  'Sherwani',
+  'Salwar Kameez',
   'Kurta',
-  'Achkan',
-  'Pathani Suit',
-  'Casualwear',
-  'Shoes',
+  'Sharara',
+  'Gown',
   'Dupatta',
   'Blouse',
-  'Sharara',
   'Salwar',
+  // Men
+  'Sherwani',
+  'Kurta Pajama',
+  'Achkan',
+  'Pathani Suit',
   'Nehru Jacket',
+  // Both
+  'Jewellery',
+  'Accessories',
+  'Casualwear',
+  'Shoes',
 ] as const;
 
 export type Category = (typeof Categories)[number];
 
 export const CategoriesByGender: Record<Gender, string[]> = {
-  Women: ['Lehenga', 'Saree', 'Anarkali', 'Kurta', 'Dupatta', 'Blouse', 'Sharara', 'Salwar', 'Casualwear', 'Shoes'],
-  Men: ['Sherwani', 'Kurta', 'Achkan', 'Pathani Suit', 'Salwar', 'Nehru Jacket', 'Casualwear', 'Shoes'],
+  Women: ['Lehenga', 'Saree', 'Anarkali', 'Salwar Kameez', 'Kurta', 'Sharara', 'Gown', 'Dupatta', 'Blouse', 'Salwar', 'Jewellery', 'Accessories', 'Casualwear', 'Shoes'],
+  Men: ['Sherwani', 'Kurta Pajama', 'Kurta', 'Achkan', 'Pathani Suit', 'Nehru Jacket', 'Salwar', 'Jewellery', 'Accessories', 'Casualwear', 'Shoes'],
+};
+
+/**
+ * One line per category, shown under the sell form's category picker and
+ * given to the recognition engine so sellers and the engine share a meaning.
+ * "Set" categories are sold as an outfit; the rest are single pieces.
+ */
+export const CategoryDefinitions: Record<string, string> = {
+  Lehenga:         'Skirt-based set, with or without blouse and dupatta',
+  Saree:           'Saree, with or without blouse',
+  Anarkali:        'Long flared frock-style set',
+  'Salwar Kameez': 'Kameez with bottoms, with or without dupatta',
+  Kurta:           'Kurta or kurti sold on its own',
+  Sharara:         'Sharara or gharara, top included if a set',
+  Gown:            'Indo-western gown or party dress',
+  Dupatta:         'Dupatta or shawl on its own',
+  Blouse:          'Blouse on its own',
+  Salwar:          'Bottoms on their own: salwar, churidar, palazzo, pajama',
+  Sherwani:        'Sherwani set',
+  'Kurta Pajama':  'Kurta with matching bottoms sold as a set',
+  Achkan:          'Achkan or Jodhpuri',
+  'Pathani Suit':  'Pathani set',
+  'Nehru Jacket':  'Nehru jacket, waistcoat or koti',
+  Jewellery:       'Earrings, necklaces, tikka, bangles, sets, kalgi',
+  Accessories:     'Bags and potlis, safa and turbans, belts, hair pieces, brooches',
+  Casualwear:      'Everyday pieces that fit no other category',
+  Shoes:           'Footwear',
 };
 
 export const Conditions = ['New', 'Excellent', 'Good', 'Fair'] as const;
 
-export const Occasions = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'] as const;
+export const Occasions = ['Everyday', 'Eid', 'Diwali', 'Festive', 'Wedding', 'Mehndi', 'Party', 'Formal'] as const;
 
-export const Sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Custom'] as const;
+export const Sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One size', 'Custom'] as const;
 
-export const Colours = ['Black', 'White', 'Red', 'Blue', 'Green', 'Gold', 'Pink', 'Maroon', 'Beige', 'Multi', 'Other'] as const;
+export const Colours = [
+  'Black', 'White', 'Cream', 'Grey', 'Silver',
+  'Red', 'Maroon', 'Pink', 'Peach', 'Orange', 'Yellow', 'Gold',
+  'Green', 'Teal', 'Blue', 'Navy', 'Purple',
+  'Multi', 'Other',
+] as const;
 
-export const Fabrics = ['Silk', 'Chiffon', 'Georgette', 'Cotton', 'Velvet', 'Net', 'Brocade', 'Linen', 'Other'] as const;
+export const Fabrics = ['Silk', 'Chiffon', 'Georgette', 'Cotton', 'Lawn', 'Velvet', 'Net', 'Organza', 'Satin', 'Crepe', 'Brocade', 'Linen', 'Other'] as const;

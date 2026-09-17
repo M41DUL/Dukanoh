@@ -1,10 +1,10 @@
+import { Categories } from '@/constants/theme';
+
 // Fixed list — not derived from Categories so new sell/browse
 // categories don't shift the onboarding flow under returning users.
-export const ONBOARDING_CATEGORIES = [
-  'Lehenga', 'Saree', 'Anarkali',
-  'Sherwani', 'Kurta', 'Achkan',
-  'Pathani Suit', 'Casualwear', 'Shoes',
-] as const;
+// Every real category, in theme order — derived so a new category can't be
+// missed here. 'All' is a browse filter, not a preference.
+export const ONBOARDING_CATEGORIES = Categories.filter(c => c !== 'All');
 
 export function getSubtitleText(count: number): string {
   if (count === 0) return 'Pick at least one to continue';

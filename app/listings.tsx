@@ -25,7 +25,18 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { Radio } from '@/components/Radio';
 import { Checkbox } from '@/components/Checkbox';
-import { Typography, Spacing, BorderRadius, ColorTokens } from '@/constants/theme';
+import {
+  Typography,
+  Spacing,
+  BorderRadius,
+  ColorTokens,
+  Categories,
+  Colours,
+  Conditions,
+  Fabrics,
+  Occasions,
+  Sizes
+} from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlocked } from '@/context/BlockedContext';
@@ -47,12 +58,12 @@ const SORT_LABELS: Record<SortOption, string> = {
   most_viewed: 'Most viewed',
 };
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Custom'];
-const CONDITIONS = ['New', 'Excellent', 'Good', 'Fair'];
-const OCCASIONS = ['Everyday', 'Eid', 'Diwali', 'Wedding', 'Mehndi', 'Party', 'Formal'];
-const ALL_CATEGORIES = ['Lehenga', 'Saree', 'Sherwani', 'Anarkali', 'Kurta', 'Achkan', 'Pathani Suit', 'Casualwear', 'Shoes'];
-const COLOURS = ['Black', 'White', 'Red', 'Blue', 'Green', 'Gold', 'Pink', 'Maroon', 'Beige', 'Multi', 'Other'];
-const FABRICS = ['Silk', 'Chiffon', 'Georgette', 'Cotton', 'Velvet', 'Net', 'Brocade', 'Linen', 'Other'];
+const SIZES = [...Sizes];
+const CONDITIONS = [...Conditions];
+const OCCASIONS = [...Occasions];
+const ALL_CATEGORIES = Categories.filter(c => c !== 'All');
+const COLOURS = [...Colours];
+const FABRICS = [...Fabrics];
 
 interface PriceRange { label: string; min: number; max: number }
 const PRICE_RANGES: PriceRange[] = [

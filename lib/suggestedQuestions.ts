@@ -6,7 +6,7 @@
  */
 
 // Occasions where delivery timing matters enough to prompt the buyer to ask.
-export const TIME_SENSITIVE_OCCASIONS = ['Wedding', 'Festive', 'Partywear'];
+export const TIME_SENSITIVE_OCCASIONS = ['Wedding', 'Mehndi', 'Eid', 'Diwali', 'Festive', 'Party'];
 
 // A measurements object counts as "filled" only if at least one field has a
 // real value — sellers can leave it as an empty/all-null object.

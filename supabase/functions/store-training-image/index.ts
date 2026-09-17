@@ -13,8 +13,10 @@ const BUCKET = 'dukanoh-fit-training';
 
 // Valid app categories — reject anything outside this set
 const VALID_CATEGORIES = new Set([
-  'Lehenga', 'Saree', 'Anarkali', 'Sherwani', 'Kurta', 'Achkan',
-  'Pathani Suit', 'Dupatta', 'Blouse', 'Sharara', 'Salwar', 'Nehru Jacket',
+  'Lehenga', 'Saree', 'Anarkali', 'Salwar Kameez', 'Kurta', 'Sharara', 'Gown',
+  'Dupatta', 'Blouse', 'Salwar',
+  'Sherwani', 'Kurta Pajama', 'Achkan', 'Pathani Suit', 'Nehru Jacket',
+  'Jewellery', 'Accessories', 'Casualwear', 'Shoes',
 ]);
 
 Deno.serve(async (req) => {
@@ -82,7 +84,7 @@ Deno.serve(async (req) => {
     );
 
     if (!s3Res.ok) {
-      // eslint-disable-next-line no-console
+       
       console.error('S3 upload failed:', s3Res.status);
       return ok();
     }
@@ -96,7 +98,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.error('store-training-image error:', (err as Error).message);
     return ok();
   }

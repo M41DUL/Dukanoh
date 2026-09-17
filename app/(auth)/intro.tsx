@@ -27,7 +27,7 @@ const BADGES: { label: string; left: `${number}%`; top: `${number}%`; accent: bo
   { label: 'Eid',       left: '6%',  top: '8%',  accent: true  },
   { label: 'Wedding',   left: '54%', top: '6%',  accent: false },
   { label: 'Festive',   left: '20%', top: '26%', accent: false },
-  { label: 'Partywear', left: '50%', top: '28%', accent: true  },
+  { label: 'Lehenga',   left: '50%', top: '28%', accent: true  },
   { label: 'Mehndi',    left: '7%',  top: '46%', accent: false },
   { label: 'Achkan',    left: '60%', top: '48%', accent: false },
   { label: 'Diwali',    left: '30%', top: '16%', accent: true  },

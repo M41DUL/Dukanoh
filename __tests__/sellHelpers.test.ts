@@ -182,6 +182,13 @@ describe('validateListing', () => {
       expect(errors.size).toBe('Select a size');
     });
 
+    test('does not require size for pieces with no garment size (Dupatta, Jewellery, Accessories)', () => {
+      for (const category of ['Dupatta', 'Jewellery', 'Accessories']) {
+        const errors = validateListing({ ...validForm, category, gender: 'Women', size: '' }, 1, false);
+        expect(errors.size).toBeUndefined();
+      }
+    });
+
     test('returns multiple errors at once', () => {
       const errors = validateListing(emptyForm, 0, false);
       expect(Object.keys(errors).length).toBeGreaterThan(3);

@@ -9,7 +9,7 @@ import {
 
 describe('isClothingLabel', () => {
   test('recognises root clothing labels', () => {
-    for (const name of ['Clothing', 'Apparel', 'Fashion', 'Textile', 'Fabric']) {
+    for (const name of ['Clothing', 'Apparel', 'Fashion', 'Textile', 'Fabric', 'Jewelry', 'Accessories', 'Footwear']) {
       expect(isClothingLabel({ Name: name, Confidence: 90 })).toBe(true);
     }
   });
@@ -26,6 +26,11 @@ describe('isClothingLabel', () => {
       Confidence: 85,
       Parents: [{ Name: 'Clothing' }],
     })).toBe(true);
+  });
+
+  test('recognises listable non-garment roots and parents (Shoes, Accessories)', () => {
+    expect(isClothingLabel({ Name: 'Shoe', Confidence: 90, Parents: [{ Name: 'Footwear' }] })).toBe(true);
+    expect(isClothingLabel({ Name: 'Bag', Confidence: 90, Parents: [] })).toBe(true);
   });
 
   test('recognises child label whose parent is Apparel', () => {
@@ -50,14 +55,14 @@ describe('isClothingLabel', () => {
 
   test('returns false when parent is unrelated', () => {
     expect(isClothingLabel({
-      Name: 'Shoe',
+      Name: 'Sofa',
       Confidence: 90,
-      Parents: [{ Name: 'Footwear' }],
+      Parents: [{ Name: 'Furniture' }],
     })).toBe(false);
   });
 
   test('returns false when Parents is an empty array', () => {
-    expect(isClothingLabel({ Name: 'Bag', Confidence: 90, Parents: [] })).toBe(false);
+    expect(isClothingLabel({ Name: 'Lamp', Confidence: 90, Parents: [] })).toBe(false);
   });
 
   test('returns false when Parents is undefined', () => {
@@ -84,8 +89,17 @@ describe('detectCategory', () => {
     expect(detectCategory(['Lehnga'])).toBe('Lehenga');
   });
 
-  test('maps Gown → Lehenga', () => {
-    expect(detectCategory(['Gown'])).toBe('Lehenga');
+  test('maps Gown → Gown', () => {
+    expect(detectCategory(['Gown'])).toBe('Gown');
+  });
+
+  test('maps Jewelry → Jewellery and Handbag → Accessories', () => {
+    expect(detectCategory(['Jewelry'])).toBe('Jewellery');
+    expect(detectCategory(['Handbag'])).toBe('Accessories');
+  });
+
+  test('an outfit with jewellery in shot still reads as the outfit', () => {
+    expect(detectCategory(['Necklace', 'Dress'])).toBe('Lehenga');
   });
 
   test('maps Dress → Lehenga', () => {
@@ -163,20 +177,24 @@ describe('detectCategory', () => {
 describe('detectColour', () => {
   const cases: [string, string][] = [
     ['red',    'Red'],
-    ['pink',   'Pink'],
-    ['orange', 'Other'],
-    ['yellow', 'Gold'],
-    ['green',  'Green'],
-    ['blue',   'Blue'],
-    ['purple', 'Other'],
-    ['white',  'White'],
-    ['black',  'Black'],
-    ['grey',   'Other'],
-    ['gray',   'Other'],
-    ['brown',  'Beige'],
-    ['beige',  'Beige'],
-    ['gold',   'Gold'],
     ['maroon', 'Maroon'],
+    ['pink',   'Pink'],
+    ['orange', 'Orange'],
+    ['yellow', 'Yellow'],
+    ['gold',   'Gold'],
+    ['green',  'Green'],
+    ['teal',   'Teal'],
+    ['blue',   'Blue'],
+    ['navy',   'Navy'],
+    ['purple', 'Purple'],
+    ['white',  'White'],
+    ['cream',  'Cream'],
+    ['beige',  'Cream'],
+    ['brown',  'Other'],
+    ['grey',   'Grey'],
+    ['gray',   'Grey'],
+    ['silver', 'Silver'],
+    ['black',  'Black'],
   ];
 
   test.each(cases)('maps %s → %s', (input, expected) => {
