@@ -77,10 +77,18 @@ export default function DukanohFitScreen() {
     photoUri: paramPhotoUri,
     detectedCategory,
     detectedColour,
+    detectedEngine,
+    detectedEngineVersion,
+    detectedConfidence,
+    hasPerson,
   } = useLocalSearchParams<{
     photoUri?: string;
     detectedCategory?: string;
     detectedColour?: string;
+    detectedEngine?: string;
+    detectedEngineVersion?: string;
+    detectedConfidence?: string;
+    hasPerson?: string;
   }>();
 
   const [step, setStep] = useState<Step>('form');
@@ -239,7 +247,11 @@ export default function DukanohFitScreen() {
   }, [user, blockedIds]);
 
   // ─── Training image (silent, background) ──────────────────────────────────
-  const storeTrainingImage = useCallback((photoUri: string, confirmedCategory: string) => {
+  // Sends the photo with the labels the member confirmed and the engine's
+  // original guess, so the dataset learns from corrections. The server keeps
+  // no link to the member. A photo with a person in it is never sent.
+  const storeTrainingImage = useCallback((photoUri: string, confirmed: SearchInput) => {
+    if (hasPerson === '1') return;
     ImageManipulator.manipulateAsync(
       photoUri,
       [{ resize: { width: 800 } }],
@@ -248,11 +260,27 @@ export default function DukanohFitScreen() {
       if (!compressed.base64) return;
       const raw = compressed.base64;
       const imageBase64 = raw.includes(',') ? raw.split(',')[1] : raw;
+      const parsedConfidence = detectedConfidence ? Number(detectedConfidence) : NaN;
       return supabase.functions.invoke('store-training-image', {
-        body: { imageBase64, category: confirmedCategory },
+        body: {
+          imageBase64,
+          category: confirmed.category,
+          gender: confirmed.gender,
+          colour: confirmed.colour,
+          occasion: confirmed.occasion ?? null,
+          fabricWeight: confirmed.fabricWeight ?? null,
+          hasPerson: false,
+          predicted: {
+            category: detectedCategory || null,
+            colour: detectedColour || null,
+            confidence: Number.isFinite(parsedConfidence) ? parsedConfidence : null,
+            engine: detectedEngine || null,
+            engineVersion: detectedEngineVersion || null,
+          },
+        },
       });
     }).catch(() => {});
-  }, []);
+  }, [hasPerson, detectedCategory, detectedColour, detectedConfidence, detectedEngine, detectedEngineVersion]);
 
   // ─── Result tap (success metric) ───────────────────────────────────────────
   const logResultTap = useCallback((listingId: string) => {
@@ -270,17 +298,18 @@ export default function DukanohFitScreen() {
       Alert.alert('Almost there', 'Please select a category and colour to continue.');
       return;
     }
-    const ran = await runMatch({
+    const input: SearchInput = {
       category,
       colour,
       gender: effectiveGender,
       occasion: occasion || undefined,
       fabricWeight: (fabricWeight as FabricWeight) || undefined,
-    });
+    };
+    const ran = await runMatch(input);
     // Training upload only after a search actually ran, and once per photo.
     if (ran && paramPhotoUri && uploadedPhotoRef.current !== paramPhotoUri) {
       uploadedPhotoRef.current = paramPhotoUri;
-      storeTrainingImage(paramPhotoUri, category);
+      storeTrainingImage(paramPhotoUri, input);
     }
   }, [category, colour, effectiveGender, occasion, fabricWeight, runMatch, paramPhotoUri, storeTrainingImage]);
 

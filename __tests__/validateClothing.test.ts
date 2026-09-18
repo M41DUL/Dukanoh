@@ -1,8 +1,12 @@
 // Unit tests for pure logic in supabase/functions/validate-clothing/_lib.ts
 import {
-  isClothingLabel,
+  categoryConfidence,
   detectCategory,
   detectColour,
+  detectHasPerson,
+  ENGINE,
+  ENGINE_VERSION,
+  isClothingLabel,
 } from '../supabase/functions/validate-clothing/_lib';
 
 // ─── isClothingLabel ──────────────────────────────────────────────────────────
@@ -229,5 +233,47 @@ describe('detectColour', () => {
 
   test('returns null when no colour matches', () => {
     expect(detectColour([{ SimplifiedColor: 'ultraviolet' }])).toBeNull();
+  });
+});
+
+// ─── detectHasPerson ──────────────────────────────────────────────────────────
+
+describe('detectHasPerson', () => {
+  test('flags a person in frame under any of Rekognition\'s people labels', () => {
+    for (const label of ['Person', 'Human', 'Face', 'Woman', 'Man', 'Child']) {
+      expect(detectHasPerson(['Clothing', label])).toBe(true);
+    }
+  });
+
+  test('a garment on its own is not a person', () => {
+    expect(detectHasPerson(['Clothing', 'Dress', 'Silk'])).toBe(false);
+    expect(detectHasPerson([])).toBe(false);
+  });
+});
+
+// ─── categoryConfidence ───────────────────────────────────────────────────────
+
+describe('categoryConfidence', () => {
+  const labels = [
+    { Name: 'Clothing', Confidence: 99.2 },
+    { Name: 'Dress', Confidence: 87.6 },
+    { Name: 'Necklace', Confidence: 70.1 },
+  ];
+
+  test('returns the confidence of the label behind the detected category, as 0–1', () => {
+    expect(categoryConfidence(labels, 'Lehenga')).toBe(0.88);
+    expect(categoryConfidence(labels, 'Jewellery')).toBe(0.7);
+  });
+
+  test('null when nothing was detected or the label is absent', () => {
+    expect(categoryConfidence(labels, null)).toBeNull();
+    expect(categoryConfidence(labels, 'Sherwani')).toBeNull();
+  });
+});
+
+describe('engine identity', () => {
+  test('is named so the scoreboard can tell engines apart', () => {
+    expect(ENGINE).toBe('rekognition');
+    expect(ENGINE_VERSION).toMatch(/^detect-labels-/);
   });
 });

@@ -84,7 +84,7 @@ export function DukanohFitSheet({ visible, onClose, onProceed }: DukanohFitSheet
       // 15 second timeout — if network is slow we fail gracefully
       const invokeWithTimeout = Promise.race([
         supabase.functions.invoke('validate-clothing', {
-          body: { imageBase64 },
+          body: { imageBase64, source: 'fit' },
         }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Request timed out')), 15000)
@@ -120,6 +120,13 @@ export function DukanohFitSheet({ visible, onClose, onProceed }: DukanohFitSheet
           photoUri: compressed.uri,
           detectedCategory: data.detectedCategory ?? '',
           detectedColour: data.detectedColour ?? '',
+          // The engine's guess travels with the photo so the member's
+          // confirmation can be recorded next to it (as plain values —
+          // nothing that links the stored photo back to this account).
+          detectedEngine: data.engine ?? '',
+          detectedEngineVersion: data.engineVersion ?? '',
+          detectedConfidence: typeof data.confidence === 'number' ? String(data.confidence) : '',
+          hasPerson: data.hasPerson ? '1' : '0',
         },
       });
     } catch {

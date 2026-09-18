@@ -665,6 +665,20 @@ Sellers pick a fabric, not a weight. `fabricToWeight()` maps it: Chiffon / Georg
 **Success metric**
 Tap-through. `fit_result_taps` records every result a member opens (user, listing, time). Tap-through rate = taps ÷ rows in `fit_search_logs`; join taps to `saved_items` / `orders` on `listing_id` + `user_id` to see whether tapped pieces were saved or bought. A high abandon rate after seeing results suggests the matches aren't relevant enough.
 
+**Data foundation (2026-09-18)**
+The parts of the Fit rebuild that no engine swap touches:
+
+| Piece | Where | What it does |
+|-------|-------|--------------|
+| `garment_labels` | table | Every labelled photo. Listing photos arrive by trigger with the seller's labels; Fit photos arrive from `store-training-image` with the member's confirmed labels and the engine's guess copied in as plain values; seed images carry a licence. `corrected` is generated: the engine guessed a different category from the one confirmed. |
+| `recognition_events` | table | One row per engine call from `validate-clothing`: who asked, engine and version, outcome, answer, confidence, whether a person was in frame, latency. No image, no reference from any stored photo. |
+| `platform_settings.recognition_engine` | row | The engine switch. `rekognition` today. `validate-clothing` reads it per call; an unknown value is recorded and Rekognition still answers. |
+| `recognition_accuracy` | view | Per engine, per source, per week: predictions, category correct, colour compared, colour correct. From confirmed labels vs. the guess stored next to them. |
+
+Privacy rules, enforced in code and constraints: a Fit row never carries a member id or listing id (`garment_labels_fit_rows_unlinked`); a photo with a person in frame is used for the search and never stored (`detectHasPerson` → `validateSubmission` refuses it); listing rows leave with the listing or the seller (`anonymize_user_account`). Retention for Fit copies is the privacy policy's figure; nothing enforces it yet — that is an S3 lifecycle rule until the move to Supabase Storage, then a scheduled delete.
+
+The contract `validate-clothing` answers with is `{ isClothing, detectedCategory, detectedColour, engine, engineVersion, confidence, hasPerson }`. The Fit sheet passes `source: 'fit'`; the sell form's calls are `sell`.
+
 **Current limitations**
 - Rekognition is a Western-trained model — South Asian garments (lehenga, sherwani) are rarely identified by name. The function falls back to Western equivalents (Dress → Lehenga, Suit → Sherwani) which are close but not exact.
 - No price range signal — the algorithm doesn't try to match the price tier of the uploaded piece.
@@ -700,6 +714,7 @@ Tap-through. `fit_result_taps` records every result a member opens (user, listin
 | 2026-09-16 | `fit_result_taps` table; sheet discloses the training copy; camera permission string covers Fit | Success metric was unmeasurable; photo retention was undisclosed; purpose string only mentioned listings |
 | 2026-09-16 | `record_fit_search()` guards `auth.uid()` and is granted to `authenticated` only | Predated the June default-deny; was executable by anon |
 | 2026-09-17 | Taxonomy refresh: + Salwar Kameez, Gown, Kurta Pajama, Jewellery, Accessories; 19 colours (Cream replaces Beige); + Lawn, Organza, Satin, Crepe; + Festive; every category has a one-line definition; lists pinned by DB constraints | The three-piece suit had no category, 9 of 17 live pieces were colour 'Other', and free-text columns let a retired category survive |
+| 2026-09-18 | Recognition foundation: `garment_labels` fed by listings (trigger) and Fit confirmations, `recognition_events` prediction log, `recognition_engine` setting, `recognition_accuracy` view; Fit photos stored unlinked and never with a person in frame; the 200-per-category cap removed; `fit_training_images` superseded | Build the dataset and scoreboard before swapping engines, so the swap is a setting and every engine is measured against confirmed labels |
 
 ---
 

@@ -916,6 +916,94 @@ export type Database = {
         }
         Relationships: []
       }
+      garment_labels: {
+        Row: {
+          category: string
+          colour: string | null
+          corrected: boolean
+          created_at: string
+          fabric: string | null
+          fabric_weight: string | null
+          gender: string | null
+          has_person: boolean | null
+          id: string
+          image_url: string
+          licence: string | null
+          licence_source_url: string | null
+          listing_id: string | null
+          occasion: string | null
+          predicted_category: string | null
+          predicted_colour: string | null
+          predicted_confidence: number | null
+          predicted_engine: string | null
+          predicted_engine_version: string | null
+          seller_id: string | null
+          source: string
+          taxonomy_version: number
+        }
+        Insert: {
+          category: string
+          colour?: string | null
+          created_at?: string
+          fabric?: string | null
+          fabric_weight?: string | null
+          gender?: string | null
+          has_person?: boolean | null
+          id?: string
+          image_url: string
+          licence?: string | null
+          licence_source_url?: string | null
+          listing_id?: string | null
+          occasion?: string | null
+          predicted_category?: string | null
+          predicted_colour?: string | null
+          predicted_confidence?: number | null
+          predicted_engine?: string | null
+          predicted_engine_version?: string | null
+          seller_id?: string | null
+          source: string
+          taxonomy_version?: number
+        }
+        Update: {
+          category?: string
+          colour?: string | null
+          created_at?: string
+          fabric?: string | null
+          fabric_weight?: string | null
+          gender?: string | null
+          has_person?: boolean | null
+          id?: string
+          image_url?: string
+          licence?: string | null
+          licence_source_url?: string | null
+          listing_id?: string | null
+          occasion?: string | null
+          predicted_category?: string | null
+          predicted_colour?: string | null
+          predicted_confidence?: number | null
+          predicted_engine?: string | null
+          predicted_engine_version?: string | null
+          seller_id?: string | null
+          source?: string
+          taxonomy_version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "garment_labels_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "garment_labels_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invites: {
         Row: {
           code: string
@@ -1546,6 +1634,65 @@ export type Database = {
           },
         ]
       }
+      recognition_events: {
+        Row: {
+          category: string | null
+          colour: string | null
+          confidence: number | null
+          created_at: string
+          engine: string
+          engine_version: string | null
+          has_person: boolean | null
+          id: string
+          is_clothing: boolean | null
+          latency_ms: number | null
+          outcome: string
+          requested_engine: string | null
+          source: string
+          user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          colour?: string | null
+          confidence?: number | null
+          created_at?: string
+          engine: string
+          engine_version?: string | null
+          has_person?: boolean | null
+          id?: string
+          is_clothing?: boolean | null
+          latency_ms?: number | null
+          outcome: string
+          requested_engine?: string | null
+          source: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          colour?: string | null
+          confidence?: number | null
+          created_at?: string
+          engine?: string
+          engine_version?: string | null
+          has_person?: boolean | null
+          id?: string
+          is_clothing?: boolean | null
+          latency_ms?: number | null
+          outcome?: string
+          requested_engine?: string | null
+          source?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recognition_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reports: {
         Row: {
           created_at: string | null
@@ -2116,6 +2263,19 @@ export type Database = {
       }
     }
     Views: {
+      recognition_accuracy: {
+        Row: {
+          category_correct: number | null
+          colour_compared: number | null
+          colour_correct: number | null
+          engine: string | null
+          engine_version: string | null
+          predictions: number | null
+          source: string | null
+          week: string | null
+        }
+        Relationships: []
+      }
       admin_boosts_summary: {
         Row: {
           active_count: number | null

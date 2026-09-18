@@ -113,3 +113,31 @@ export function detectColour(dominantColors: { SimplifiedColor?: string; PixelPe
   }
   return null;
 }
+
+// ─── Engine identity ─────────────────────────────────────────────────────────
+// Every prediction is logged with these so the scoreboard can compare engines.
+// Bump ENGINE_VERSION whenever the label maps above change materially.
+
+export const ENGINE = 'rekognition';
+export const ENGINE_VERSION = 'detect-labels-2026-09';
+
+// ─── People in frame ─────────────────────────────────────────────────────────
+// A Fit photo with a person in it is used for the search and then discarded —
+// never kept for training. Rekognition reports people under these labels.
+
+const PERSON_LABELS = new Set(['Person', 'Human', 'Face', 'Man', 'Woman', 'Child', 'Boy', 'Girl', 'Baby', 'Adult']);
+
+export function detectHasPerson(labels: string[]): boolean {
+  return labels.some(l => PERSON_LABELS.has(l));
+}
+
+/**
+ * Confidence (0–1) of the Rekognition label that produced the detected
+ * category, or null when nothing was detected.
+ */
+export function categoryConfidence(rawLabels: RekognitionLabel[], detected: string | null): number | null {
+  if (!detected) return null;
+  const sourceLabels = LABEL_TO_CATEGORY.filter(([, cat]) => cat === detected).map(([l]) => l);
+  const hit = rawLabels.find(l => sourceLabels.includes(l.Name));
+  return hit ? Math.round(hit.Confidence) / 100 : null;
+}
