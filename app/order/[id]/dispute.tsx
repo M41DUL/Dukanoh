@@ -138,7 +138,7 @@ export default function DisputeScreen() {
 
           <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
             <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              Our team reviews all disputes. If we rule in your favour, your item price will be refunded. The Dukanoh Safe Checkout charge is non-refundable.
+              Our team reviews all disputes. If we rule in your favour, you get a full refund, including the Safe Checkout charge.
             </Text>
           </View>
 

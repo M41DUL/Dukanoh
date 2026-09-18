@@ -21,7 +21,7 @@ const FAQS: FAQ[] = [
   },
   {
     question: 'What is Dukanoh Safe Checkout?',
-    answer: 'Dukanoh Safe Checkout covers orders up to £1,000. If your piece doesn\'t arrive or doesn\'t match the listing, tap "Report an issue" on the order before it completes and our team will step in. We aim to resolve all claims within 7 days. The Safe Checkout charge is non-refundable, but the full item price is refunded if a dispute is resolved in your favour.',
+    answer: 'Dukanoh Safe Checkout covers orders up to £1,000. If your piece doesn\'t arrive or doesn\'t match the listing, tap "Report an issue" on the order before it completes and our team will step in. We aim to resolve all claims within 7 days. If a dispute is decided in your favour, you get everything back, including the Safe Checkout charge.',
   },
   {
     question: 'How much does Dukanoh Safe Checkout cost?',
@@ -29,7 +29,7 @@ const FAQS: FAQ[] = [
   },
   {
     question: 'Something\'s wrong with my order. What do I do?',
-    answer: 'Tap "Report an issue" from your order screen. You can do this any time after the seller ships, or within 48 hours of tapping "Item received". If you take no action, the order completes 7 days after dispatch and we remind you the day before. Our Trust & Safety team reviews all disputes and will respond within 7 days. If your dispute is upheld, you\'ll receive a full refund on the item price.',
+    answer: 'Tap "Report an issue" from your order screen. You can do this any time after the seller ships, or within 48 hours of tapping "Item received". If you take no action, the order completes 7 days after dispatch and we remind you the day before. Our Trust & Safety team reviews all disputes and will respond within 7 days. If your dispute is upheld, you\'ll receive a full refund, including the Safe Checkout charge.',
   },
   {
     question: 'How do I become a seller?',

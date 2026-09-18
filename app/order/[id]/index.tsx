@@ -302,7 +302,9 @@ export default function OrderDetailScreen() {
     if (!order) return;
     Alert.alert(
       'Cancel order',
-      `Are you sure you want to cancel? You'll be refunded £${order.item_price.toFixed(2)} to your original payment method. The Dukanoh Safe Checkout charge is non-refundable.`,
+      isBuyer
+        ? `Are you sure you want to cancel? You'll be refunded £${order.total_paid.toFixed(2)} in full, including the Safe Checkout charge, to your original payment method.`
+        : 'Are you sure you want to cancel? The buyer will be refunded in full and the piece will be relisted. Cancelling counts as a strike on your account.',
       [
         { text: 'Keep order', style: 'cancel' },
         {
