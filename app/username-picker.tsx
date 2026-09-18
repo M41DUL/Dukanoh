@@ -14,6 +14,7 @@ import {
 } from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { formatDobInput, dobToIso, isOver18, UNDER_18_MESSAGE } from '@/lib/dob';
 
 export default function UsernamePickerScreen() {
   const { user, onboardingCompleted, refreshProfile } = useAuth();
@@ -24,9 +25,30 @@ export default function UsernamePickerScreen() {
   const [usernameHint, setUsernameHint] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Social sign-ups (Apple / Google) never see the signup form, so this screen
+  // applies the 18+ rule (Terms 2) for them. Email signups already have a date
+  // of birth, so the field only appears when one is missing.
+  const [needsDob, setNeedsDob] = useState(false);
+  const [dobDisplay, setDobDisplay] = useState('');
   const usernameTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   const userId = user?.id;
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    supabase
+      .from('user_private')
+      .select('dob')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setNeedsDob(!data?.dob); });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const dobIso = dobToIso(dobDisplay);
+  const dobOver18 = dobIso ? isOver18(dobIso) : null;
+  const dobOk = !needsDob || (!!dobIso && dobOver18 === true);
 
   const checkUsername = useCallback((value: string) => {
     if (usernameTimer.current) clearTimeout(usernameTimer.current);
@@ -91,12 +113,19 @@ export default function UsernamePickerScreen() {
   };
 
   const handleSave = async () => {
-    if (!usernameValid || !user) return;
+    if (!usernameValid || !user || !dobOk) return;
     Keyboard.dismiss();
     setSaving(true);
     setError('');
 
     try {
+      if (needsDob && dobIso) {
+        const { error: dobError } = await supabase
+          .from('user_private')
+          .upsert({ user_id: user.id, dob: dobIso }, { onConflict: 'user_id' });
+        if (dobError) throw dobError;
+      }
+
       const { error: updateError } = await supabase
         .from('users')
         .update({ username: username.toLowerCase(), username_confirmed: true })
@@ -109,7 +138,7 @@ export default function UsernamePickerScreen() {
       await refreshProfile();
       router.replace(onboardingCompleted ? '/(tabs)' : '/onboarding');
     } catch {
-      setError('Could not save username. Please try again.');
+      setError('Could not save your details. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -149,12 +178,26 @@ export default function UsernamePickerScreen() {
           hint={usernameHint || (!usernameError && !usernameValid && username.length === 0 ? 'Lowercase letters, numbers, and underscores' : undefined)}
           {...AUTH_INPUT_STYLE}
         />
+        {needsDob && (
+          <Input
+            placeholder="Date of birth (DD/MM/YYYY)"
+            value={dobDisplay}
+            onChangeText={v => setDobDisplay(formatDobInput(v))}
+            keyboardType="number-pad"
+            maxLength={10}
+            returnKeyType="done"
+            onSubmitEditing={handleSave}
+            error={dobIso && dobOver18 === false ? UNDER_18_MESSAGE : undefined}
+            hint={!dobIso ? 'Dukanoh is for members aged 18 and over' : undefined}
+            {...AUTH_INPUT_STYLE}
+          />
+        )}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button
           label="Continue"
           onPress={handleSave}
           loading={saving}
-          disabled={!usernameValid}
+          disabled={!usernameValid || !dobOk}
           variant="secondary"
           style={{ marginTop: Spacing.base }}
         />

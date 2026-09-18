@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, G, ClipPath, Rect, Defs } from 'react-native-svg';
 import { lightColors, Spacing, FontFamily } from '@/constants/theme';
@@ -120,11 +120,37 @@ export function AuthSheet({ visible, mode, onClose, onEmail }: AuthSheetProps) {
           borderColor="rgba(255,255,255,0.5)"
         />
       </View>
+
+      {/* Shown before any of the three routes, so Apple and Google sign-ups
+          see the same acceptance line as email sign-ups (Terms 2). */}
+      <Text style={styles.legal}>
+        By continuing you agree to our{' '}
+        <Text style={styles.legalLink} onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}>
+          Terms &amp; Conditions
+        </Text>
+        {' '}and{' '}
+        <Text style={styles.legalLink} onPress={() => Linking.openURL('https://www.dukanoh.com/privacy-policy')}>
+          Privacy Policy
+        </Text>
+        . You must be 18 or over.
+      </Text>
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
+  legal: {
+    marginTop: Spacing.base,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.6)',
+    ...FontFamily.regular,
+  },
+  legalLink: {
+    color: '#FFFFFF',
+    textDecorationLine: 'underline',
+  },
   title: {
     fontSize: 28,
     ...FontFamily.semibold,

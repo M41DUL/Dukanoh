@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { isOver18, UNDER_18_MESSAGE } from '@/lib/dob';
 import { isProTier, tierLabel } from '@/lib/tiers';
 
 export default function EditProfileScreen() {
@@ -181,6 +182,10 @@ export default function EditProfileScreen() {
     const dobForDb = dob.trim() ? parseDob(dob) : null;
     if (dob.trim() && !dobForDb) {
       Alert.alert('Invalid date', 'Please enter your date of birth as DD/MM/YYYY.');
+      return;
+    }
+    if (dobForDb && !isOver18(dobForDb)) {
+      Alert.alert('Check your date of birth', UNDER_18_MESSAGE);
       return;
     }
 

@@ -17,30 +17,7 @@ import {
   withTimeout,
 } from '@/constants/authStyles';
 import { supabase } from '@/lib/supabase';
-
-function formatDobInput(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-}
-
-function dobToIso(display: string): string | null {
-  const parts = display.replace(/\s/g, '').split('/');
-  if (parts.length !== 3) return null;
-  const [d, m, y] = parts;
-  if (d.length !== 2 || m.length !== 2 || y.length !== 4) return null;
-  const date = new Date(`${y}-${m}-${d}`);
-  if (isNaN(date.getTime())) return null;
-  return `${y}-${m}-${d}`;
-}
-
-function isOver18(isoDate: string): boolean {
-  const dob = new Date(isoDate);
-  const cutoff = new Date();
-  cutoff.setFullYear(cutoff.getFullYear() - 18);
-  return dob <= cutoff;
-}
+import { formatDobInput, dobToIso, isOver18, UNDER_18_MESSAGE } from '@/lib/dob';
 
 export default function SignUpScreen() {
   const [username, setUsername] = useState('');
@@ -263,7 +240,7 @@ export default function SignUpScreen() {
           keyboardType="number-pad"
           maxLength={10}
           returnKeyType="done"
-          error={dobValid && dobOver18 === false ? 'You must be 18 or over to use Dukanoh' : undefined}
+          error={dobValid && dobOver18 === false ? UNDER_18_MESSAGE : undefined}
           {...AUTH_INPUT_STYLE}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -290,7 +267,7 @@ export default function SignUpScreen() {
         <Text style={styles.terms}>
           By signing up you agree to our{' '}
           <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}>
-            Terms of Service
+            Terms &amp; Conditions
           </Text>
           {' '}and{' '}
           <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.dukanoh.com/privacy-policy')}>
