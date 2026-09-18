@@ -50,7 +50,7 @@ const STEPS: Step[] = [
 const BUYER_TIPS: Tip[] = [
   {
     icon: 'shield-checkmark-outline',
-    text: 'Dukanoh Safe Checkout covers orders up to £1,000. If a piece doesn\'t arrive or doesn\'t match the listing, raise a dispute and our team will step in.',
+    text: 'Dukanoh Safe Checkout covers the full price of every order. If a piece doesn\'t arrive or doesn\'t match the listing, raise a dispute and our team will step in.',
   },
   {
     icon: 'eye-outline',

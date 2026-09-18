@@ -21,7 +21,7 @@ const FAQS: FAQ[] = [
   },
   {
     question: 'What is Dukanoh Safe Checkout?',
-    answer: 'Dukanoh Safe Checkout covers orders up to £1,000. If your piece doesn\'t arrive or doesn\'t match the listing, tap "Report an issue" on the order before it completes and our team will step in. We aim to resolve all claims within 7 days. If a dispute is decided in your favour, you get everything back, including the Safe Checkout charge.',
+    answer: 'Dukanoh Safe Checkout covers the full price of every order. If your piece doesn\'t arrive or doesn\'t match the listing, tap "Report an issue" on the order before it completes and our team will step in. We aim to resolve all claims within 7 days. If a dispute is decided in your favour, you get everything back, including the Safe Checkout charge.',
   },
   {
     question: 'How much does Dukanoh Safe Checkout cost?',
