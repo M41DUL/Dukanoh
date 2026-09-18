@@ -310,6 +310,45 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 REVOKE ALL    ON FUNCTION public.purge_message_redactions() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.purge_message_redactions() TO postgres;
 
+-- Trust & safety log of automated photo-screening verdicts (analyse-listing-image),
+-- one row per photo. Feeds the Transparency Report and appeals. Service-role only;
+-- purged after 3 years by purge_usage_records().
+CREATE TABLE IF NOT EXISTS public.listing_screen_events (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  photo_index    INT NOT NULL,
+  photo_count    INT NOT NULL,
+  outcome        TEXT NOT NULL DEFAULT 'ok' CHECK (outcome IN ('ok', 'unavailable')),
+  blocked        BOOLEAN NOT NULL DEFAULT FALSE,
+  reasons        TEXT[] NOT NULL DEFAULT '{}',
+  warnings       TEXT[] NOT NULL DEFAULT '{}',
+  is_clothing    BOOLEAN,
+  engine         TEXT,
+  engine_version TEXT,
+  model          TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.listing_screen_events ENABLE ROW LEVEL SECURITY; -- no policies: service role only
+CREATE INDEX IF NOT EXISTS idx_listing_screen_events_created ON public.listing_screen_events (created_at);
+CREATE INDEX IF NOT EXISTS idx_listing_screen_events_blocked ON public.listing_screen_events (created_at) WHERE blocked;
+
+-- Retention for first-party usage records (Privacy §14: up to 26 months) and the
+-- screening log (3 years). Nightly at 05:00.
+CREATE OR REPLACE FUNCTION public.purge_usage_records()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM public.listing_views          WHERE viewed_at   < NOW() - INTERVAL '26 months';
+  DELETE FROM public.story_views            WHERE viewed_at   < NOW() - INTERVAL '26 months';
+  DELETE FROM public.fit_search_logs        WHERE searched_at < NOW() - INTERVAL '26 months';
+  DELETE FROM public.fit_result_taps        WHERE tapped_at   < NOW() - INTERVAL '26 months';
+  DELETE FROM public.recognition_events     WHERE created_at  < NOW() - INTERVAL '26 months';
+  DELETE FROM public.listing_screen_events  WHERE created_at  < NOW() - INTERVAL '3 years';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.purge_usage_records() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.purge_usage_records() TO postgres;
+
 -- =============================================================
 -- TRIGGERS — auto-create user profile on signup
 -- =============================================================
@@ -2574,6 +2613,13 @@ SELECT cron.schedule(
     ),
     body := '{}'::jsonb
   );
+
+-- Runs nightly at 05:00 — purges usage records older than 26 months and screening logs older than 3 years
+SELECT cron.schedule(
+  'purge-usage-records',
+  '0 5 * * *',
+  'SELECT public.purge_usage_records()'
+);
   $cmd$
 );
 

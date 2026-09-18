@@ -146,9 +146,23 @@ Deno.serve(async (req) => {
       if (raws.some((r: string) => r.length > 2_500_000)) return json({ error: 'Image too large' }, 400);
       const started = Date.now();
       const result = await screenListing(raws.map(strip), model);
+      // Trust & safety log (listing_screen_events): one row per photo, including
+      // the fail-open case, so the Transparency Report can count what was
+      // screened and an appeal can see the original verdict.
+      const logScreen = (rows: object[]) =>
+        admin.from('listing_screen_events').insert(rows).then(() => {}, () => {});
       if (!result) {
+        logScreen(raws.map((_r: string, i: number) => ({
+          user_id: user.id, photo_index: i, photo_count: raws.length, outcome: 'unavailable',
+          engine: CLAUDE_ENGINE, engine_version: CLAUDE_ENGINE_VERSION, model,
+        })));
         return json({ photos: raws.map(() => ({ blocked: false, reasons: [], isClothing: true, warnings: [] })), cover: null });
       }
+      logScreen(result.photos.map((p, i) => ({
+        user_id: user.id, photo_index: i, photo_count: result.photos.length, outcome: 'ok',
+        blocked: p.blocked, reasons: p.reasons ?? [], warnings: p.warnings ?? [], is_clothing: p.isClothing ?? null,
+        engine: CLAUDE_ENGINE, engine_version: CLAUDE_ENGINE_VERSION, model,
+      })));
       const c = result.cover;
       admin.from('recognition_events').insert({
         user_id: user.id, source: 'sell', requested_engine: CLAUDE_ENGINE,
@@ -176,6 +190,13 @@ Deno.serve(async (req) => {
     const imageBase64 = strip(rawBase64);
 
     const result = await screen(imageBase64, model);
+    if (check === 'moderation') {
+      admin.from('listing_screen_events').insert({
+        user_id: user.id, photo_index: 0, photo_count: 1, outcome: result ? 'ok' : 'unavailable',
+        blocked: result?.blocked ?? false, reasons: result?.reasons ?? [], warnings: result?.warnings ?? [],
+        engine: CLAUDE_ENGINE, engine_version: CLAUDE_ENGINE_VERSION, model,
+      }).then(() => {}, () => {});
+    }
     if (!result) return json(check === 'moderation' ? { blocked: false, reasons: [] } : { warnings: [] });
     return json(check === 'moderation'
       ? { blocked: result.blocked, reasons: result.reasons }
