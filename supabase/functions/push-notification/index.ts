@@ -365,7 +365,7 @@ async function handleListingSaved(supabase: ReturnType<typeof createClient>, rec
   }
 
   const saverName = saver?.username ?? 'Someone';
-  const tokens = await getTokens(supabase, listing.seller_id);
+  const tokens = await getTokens(supabase, listing.seller_id, { activity: true });
 
   if (tokens.length === 0) {
     return new Response(JSON.stringify({ skipped: 'no tokens' }), { status: 200 });
@@ -394,7 +394,7 @@ async function handleReview(supabase: ReturnType<typeof createClient>, record: R
 
   const reviewerName = reviewer?.username ?? 'Someone';
   const stars = '★'.repeat(parseInt(record.rating ?? '5'));
-  const tokens = await getTokens(supabase, record.seller_id);
+  const tokens = await getTokens(supabase, record.seller_id, { activity: true });
 
   if (tokens.length === 0) {
     return new Response(JSON.stringify({ skipped: 'no tokens' }), { status: 200 });
@@ -474,11 +474,23 @@ async function handlePriceDrop(
     return new Response(JSON.stringify({ skipped: 'no eligible savers after threshold' }), { status: 200 });
   }
 
+  // Activity group: drop savers who switched it off at Settings → Notifications.
+  const { data: optedOut } = await supabase
+    .from('users')
+    .select('id')
+    .in('id', eligibleSavers.map(s => s.user_id))
+    .eq('activity_push_enabled', false);
+  const optedOutIds = new Set(((optedOut ?? []) as { id: string }[]).map(u => u.id));
+  const notifySavers = eligibleSavers.filter(s => !optedOutIds.has(s.user_id));
+  if (notifySavers.length === 0) {
+    return new Response(JSON.stringify({ skipped: 'all eligible savers opted out of activity pushes' }), { status: 200 });
+  }
+
   // Batch-fetch all push tokens in one query — avoids N+1 (one query per saver)
   const { data: tokenRows } = await supabase
     .from('push_tokens')
     .select('user_id, token')
-    .in('user_id', eligibleSavers.map(s => s.user_id));
+    .in('user_id', notifySavers.map(s => s.user_id));
 
   const tokensByUser = new Map<string, string[]>();
   for (const row of (tokenRows ?? []) as { user_id: string; token: string }[]) {
@@ -488,7 +500,7 @@ async function handlePriceDrop(
   }
 
   const messages: object[] = [];
-  for (const saver of eligibleSavers) {
+  for (const saver of notifySavers) {
     (tokensByUser.get(saver.user_id) ?? []).forEach(t => messages.push({
       to: t,
       sound: 'default',
@@ -507,8 +519,23 @@ async function handlePriceDrop(
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-async function getTokens(supabase: ReturnType<typeof createClient>, userId: string): Promise<string[]> {
+// `activity: true` marks the notification as part of the Activity group
+// (saves, reviews, price drops on saved pieces), which members can switch off
+// at Settings → Notifications. Orders, messages and standing notices ignore it.
+async function getTokens(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  opts?: { activity?: boolean }
+): Promise<string[]> {
   if (!userId) return [];
+  if (opts?.activity) {
+    const { data: prefs } = await supabase
+      .from('users')
+      .select('activity_push_enabled')
+      .eq('id', userId)
+      .maybeSingle();
+    if (prefs && prefs.activity_push_enabled === false) return [];
+  }
   const { data } = await supabase
     .from('push_tokens')
     .select('token')
