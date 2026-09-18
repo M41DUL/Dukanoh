@@ -211,9 +211,9 @@ export default function SettingsScreen() {
 
   const legalRows: MenuRow[] = [
     {
-      icon: 'options-outline',
-      title: 'Privacy Settings',
-      subtitle: 'Manage marketing notifications',
+      icon: 'notifications-outline',
+      title: 'Notifications',
+      subtitle: 'Orders, activity and marketing',
       onPress: () => router.push('/settings/privacy'),
     },
     {

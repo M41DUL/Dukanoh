@@ -2163,6 +2163,7 @@ export type Database = {
         Row: {
           account_status: string
           analytics_consent: boolean
+          activity_push_enabled: boolean
           avatar_url: string | null
           avg_response_time_mins: number | null
           bio: string | null
@@ -2200,6 +2201,7 @@ export type Database = {
         Insert: {
           account_status?: string
           analytics_consent?: boolean
+          activity_push_enabled?: boolean
           avatar_url?: string | null
           avg_response_time_mins?: number | null
           bio?: string | null
@@ -2237,6 +2239,7 @@ export type Database = {
         Update: {
           account_status?: string
           analytics_consent?: boolean
+          activity_push_enabled?: boolean
           avatar_url?: string | null
           avg_response_time_mins?: number | null
           bio?: string | null

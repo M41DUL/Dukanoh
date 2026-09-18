@@ -37,6 +37,7 @@ CREATE TABLE public.users (
   marketing_consent           BOOLEAN NOT NULL DEFAULT FALSE,  -- personalisation/retargeting opt-in
   marketing_push_consent      BOOLEAN NOT NULL DEFAULT FALSE,  -- marketing push notifications (PECR)
   marketing_prompted_at       TIMESTAMPTZ,                     -- when we asked the user about marketing notifications (signup checkbox or in-app sheet); null = never asked
+  activity_push_enabled       BOOLEAN NOT NULL DEFAULT TRUE, -- Settings → Notifications → Activity (saves, reviews, price drops on saved pieces)
   last_active_at              TIMESTAMPTZ,                     -- bumped from useAuth on app open; powers "active in last X days" audience filter
   -- Seller profile perks
   avg_response_time_mins      INT,
@@ -2229,6 +2230,7 @@ GRANT UPDATE (
   preferred_categories,   -- onboarding, settings reset
   onboarding_completed,   -- onboarding, settings reset
   marketing_push_consent, -- privacy settings, signup, consent sheet
+  activity_push_enabled,  -- notifications settings (activity group)
   marketing_prompted_at,  -- consent sheet
   last_active_at          -- useAuth, on app open
 ) ON public.users TO authenticated;
