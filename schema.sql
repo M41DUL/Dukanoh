@@ -675,14 +675,18 @@ ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Reviews are publicly viewable"
   ON public.reviews FOR SELECT USING (true);
+-- A review needs a finished order for that listing: 'completed', or 'resolved'
+-- (dispute decided). Checking listings.status = 'sold' let buyers rate before
+-- dispatch (migration 20260918160000_reviews_require_completed_order).
 CREATE POLICY "Users can create reviews"
   ON public.reviews FOR INSERT WITH CHECK (
     (select auth.uid()) = reviewer_id
     AND EXISTS (
-      SELECT 1 FROM public.listings
-      WHERE seller_id = reviews.seller_id
-        AND buyer_id  = (select auth.uid())
-        AND status    = 'sold'
+      SELECT 1 FROM public.orders o
+      WHERE o.listing_id = reviews.listing_id
+        AND o.seller_id  = reviews.seller_id
+        AND o.buyer_id   = (select auth.uid())
+        AND o.status IN ('completed', 'resolved')
     )
   );
 CREATE POLICY "Users can delete own reviews"

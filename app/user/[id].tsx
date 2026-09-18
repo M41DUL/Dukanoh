@@ -73,7 +73,10 @@ export default function SellerProfileScreen() {
   const [responseRate, setResponseRate] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [canReview, setCanReview] = useState(false);
-  const [firstConversationListingId, setFirstConversationListingId] = useState<string | null>(null);
+  // Listing of the most recent finished order with this seller that the viewer
+  // has not reviewed yet. Drives the "Rate this seller" button; the reviews
+  // INSERT policy requires a completed/resolved order for the same listing.
+  const [reviewListingId, setReviewListingId] = useState<string | null>(null);
   const [firstConversationId, setFirstConversationId] = useState<string | null>(null);
   const [collections, setCollections] = useState<SellerCollection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
@@ -176,24 +179,26 @@ export default function SellerProfileScreen() {
         .limit(1),
       supabase
         .from('reviews')
-        .select('id')
+        .select('listing_id')
         .eq('reviewer_id', user.id)
-        .eq('seller_id', id)
-        .maybeSingle(),
+        .eq('seller_id', id),
+      // Only finished orders count: 'completed', or 'resolved' (dispute decided).
+      // A paid-but-undelivered order must not unlock a review.
       supabase
-        .from('listings')
-        .select('id')
+        .from('orders')
+        .select('listing_id')
         .eq('seller_id', id)
         .eq('buyer_id', user.id)
-        .eq('status', 'sold')
-        .limit(1),
-    ]).then(([{ data: convs }, { data: existingReview }, { data: purchases }]) => {
+        .in('status', ['completed', 'resolved'])
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ]).then(([{ data: convs }, { data: myReviews }, { data: finishedOrders }]) => {
       const hasConversation = (convs ?? []).length > 0;
-      const hasReviewed = !!existingReview;
-      const hasPurchased = (purchases ?? []).length > 0;
-      setCanReview(hasPurchased && !hasReviewed);
+      const reviewed = new Set((myReviews ?? []).map(r => r.listing_id as string));
+      const pending = (finishedOrders ?? []).find(o => !!o.listing_id && !reviewed.has(o.listing_id as string));
+      setReviewListingId((pending?.listing_id as string) ?? null);
+      setCanReview(!!pending);
       if (hasConversation && convs && convs[0]) {
-        setFirstConversationListingId(convs[0].listing_id as string);
         setFirstConversationId(convs[0].id as string);
       }
     });
@@ -426,13 +431,13 @@ export default function SellerProfileScreen() {
         <View style={styles.section}>
           <SectionHeader title="Reviews" />
 
-          {canReview && firstConversationListingId && (
+          {canReview && reviewListingId && (
             <TouchableOpacity
               style={styles.rateBtn}
               activeOpacity={0.8}
               onPress={() =>
                 router.push(
-                  `/review/${firstConversationListingId}?sellerName=${seller.username ?? ''}`
+                  `/review/${reviewListingId}?sellerName=${seller.username ?? ''}`
                 )
               }
             >
