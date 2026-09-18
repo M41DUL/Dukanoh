@@ -9,6 +9,7 @@ import {
   MODERATION_SCHEMA,
   MODERATION_SYSTEM_PROMPT,
   QUALITY_WARNINGS,
+  RECOGNITION_CUES,
   RECOGNITION_SCHEMA,
   RECOGNITION_SYSTEM_PROMPT,
   modelOptions,
@@ -20,6 +21,16 @@ import {
 describe('prompts and schemas', () => {
   test('the recognition prompt names every category with its definition', () => {
     for (const c of CATEGORIES) expect(RECOGNITION_SYSTEM_PROMPT).toContain(`- ${c}: `);
+  });
+  test('every category has a visual cue and the prompt carries it', () => {
+    for (const c of CATEGORIES) {
+      expect(typeof RECOGNITION_CUES[c]).toBe('string');
+      expect(RECOGNITION_SYSTEM_PROMPT).toContain(`- ${c}: `);
+      expect(RECOGNITION_SYSTEM_PROMPT).toContain(RECOGNITION_CUES[c]);
+    }
+  });
+  test('the prompt tells the model a plain kurta is not Casualwear', () => {
+    expect(RECOGNITION_SYSTEM_PROMPT).toMatch(/never Casualwear/);
   });
   test('the recognition prompt lists every colour', () => {
     for (const c of COLOURS) expect(RECOGNITION_SYSTEM_PROMPT).toContain(c);

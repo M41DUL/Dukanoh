@@ -2541,9 +2541,10 @@ INSERT INTO public.platform_settings (key, value)
 VALUES ('recognition_engine', 'rekognition')
 ON CONFLICT (key) DO NOTHING;
 -- 'claude' | 'rekognition'. With 'claude', recognition_model picks the tier
--- (claude-haiku-4-5 default; claude-sonnet-5 / claude-opus-5 are a row edit).
+-- (claude-sonnet-5 default — beat Haiku on accuracy and cost in the 2026-09-18
+-- comparison; claude-opus-5 is a row edit).
 INSERT INTO public.platform_settings (key, value)
-VALUES ('recognition_model', 'claude-haiku-4-5')
+VALUES ('recognition_model', 'claude-sonnet-5')
 ON CONFLICT (key) DO NOTHING;
 
 -- Private bucket for Dukanoh Fit training photos (replaced the AWS S3 bucket

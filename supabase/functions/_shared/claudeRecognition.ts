@@ -6,17 +6,45 @@ import { CATEGORIES, CATEGORY_DEFINITIONS, COLOURS, GENDERS } from './garmentTax
 
 export const CLAUDE_ENGINE = 'claude';
 /** Bump whenever a prompt or schema below changes materially. */
-export const CLAUDE_ENGINE_VERSION = 'recognise-2026-09';
-export const DEFAULT_MODEL = 'claude-haiku-4-5';
+export const CLAUDE_ENGINE_VERSION = 'recognise-2026-09b';
+export const DEFAULT_MODEL = 'claude-sonnet-5';
 
 // ─── Recognition ─────────────────────────────────────────────────────────────
+
+/**
+ * What each category looks like. The definitions in the taxonomy say what a
+ * category *means* for a seller; these say how to *recognise* it in a photo,
+ * which is what a small model needs. A plain black kurta was read as
+ * Casualwear before these existed.
+ */
+export const RECOGNITION_CUES: Record<string, string> = {
+  Lehenga:         'full flared skirt, usually with a cropped blouse (choli) and a dupatta; often heavily embellished',
+  Saree:           'one long unstitched drape, pleated at the waist and thrown over one shoulder, with a fitted blouse',
+  Anarkali:        'long frock-style top flaring from the chest or waist to the ankle, worn over churidar',
+  'Salwar Kameez': 'three pieces — a knee-length kameez top, loose salwar trousers and a dupatta; the everyday South Asian women\'s suit',
+  Kurta:           'straight-cut tunic-length shirt, usually with a stand collar, buttoned placket and side slits; men\'s or women\'s; shown without bottoms. A plain kurta is still a Kurta, never Casualwear',
+  Sharara:         'wide flared trousers, often pleated from the knee, with a short kurti top',
+  Gown:            'floor-length western-style dress, often Indo-western with embroidery',
+  Dupatta:         'a long rectangular scarf or stole on its own',
+  Blouse:          'a fitted, usually cropped top for a saree or lehenga, on its own',
+  Salwar:          'bottoms on their own — salwar, churidar, palazzo or pajama',
+  Sherwani:        'men\'s long fitted coat buttoned to the neck, knee-length or longer, wedding-level embellishment, worn over a kurta and churidar',
+  'Kurta Pajama':  'men\'s kurta with matching pajama trousers shown together as a set',
+  Achkan:          'men\'s structured knee-length coat with a stand collar, plainer and more tailored than a sherwani; includes Jodhpuri suits',
+  'Pathani Suit':  'men\'s kurta with a stand collar and cuffed sleeves shown with its salwar as a two-piece set',
+  'Nehru Jacket':  'men\'s sleeveless waistcoat with a stand collar, worn over a kurta',
+  Jewellery:       'earrings, necklaces, tikka, bangles, sets, kalgi',
+  Accessories:     'bags and potlis, safa or turban, belts, hair pieces, brooches',
+  Casualwear:      'western casual pieces only — t-shirts, jeans, hoodies, plain western dresses. Never use it for a kurta or any other South Asian garment',
+  Shoes:           'footwear, including juttis, mojaris and khussa',
+};
 
 export const RECOGNITION_SYSTEM_PROMPT = [
   'You identify South Asian clothing for Dukanoh, a UK resale app for South Asian fashion.',
   'You will be shown one photo. Answer with the JSON the schema requires and nothing else.',
   '',
-  'Categories — pick exactly one, or null if the photo is not a listable item:',
-  ...CATEGORIES.map(c => `- ${c}: ${CATEGORY_DEFINITIONS[c]}`),
+  'Categories — pick exactly one, or null if the photo is not a listable item. Prefer the specific South Asian garment over Casualwear whenever the piece is one:',
+  ...CATEGORIES.map(c => `- ${c}: ${CATEGORY_DEFINITIONS[c]}. Looks like: ${RECOGNITION_CUES[c]}`),
   '',
   `Colours — pick from: ${COLOURS.join(', ')}.`,
   '"colour" is the main colour of the garment itself, ignoring the background, the floor and any person.',
