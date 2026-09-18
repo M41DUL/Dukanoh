@@ -21,16 +21,31 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 Deno.serve(async (req) => {
+  // Two callers: database webhooks (Bearer WEBHOOK_SECRET) and pg_cron / DB
+  // functions such as recompute_seller_standing() (x-dukanoh-key = INTERNAL_API_KEY).
   const webhookSecret = Deno.env.get('WEBHOOK_SECRET');
+  const internalKey = Deno.env.get('INTERNAL_API_KEY');
   const authHeader = req.headers.get('Authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const providedKey = req.headers.get('x-dukanoh-key');
 
-  if (!webhookSecret || !token || !timingSafeEqual(token, webhookSecret)) {
+  const viaWebhook = !!webhookSecret && !!token && timingSafeEqual(token, webhookSecret);
+  const viaInternal = !!internalKey && !!providedKey && timingSafeEqual(providedKey, internalKey);
+  if (!viaWebhook && !viaInternal) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const payload = await req.json();
-  const { table, record, old_record } = payload;
+  const { type, table, record, old_record } = payload;
+
+  // Seller reached five cancellation strikes (or an admin paused them): Terms 4.7.
+  if (table === 'users' && type === 'SELLING_PAUSED') {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    return handleSellingPausedEmail(supabase, record);
+  }
 
   if (table !== 'orders') {
     return new Response(JSON.stringify({ skipped: 'not orders table' }), { status: 200 });
@@ -47,6 +62,40 @@ Deno.serve(async (req) => {
 
   return handleOrderEmail(supabase, record, old_record);
 });
+
+// ─── Selling paused email ─────────────────────────────────────
+
+async function handleSellingPausedEmail(
+  supabase: ReturnType<typeof createClient>,
+  record: Record<string, string | number>
+) {
+  const sellerId = String(record?.id ?? '');
+  const strikes = Number(record?.strike_count ?? 0);
+  const [authRes, profileRes] = await Promise.all([
+    supabase.auth.admin.getUserById(sellerId),
+    supabase.from('users').select('username').eq('id', sellerId).maybeSingle(),
+  ]);
+  const to = authRes.data.user?.email;
+  if (!to) {
+    return new Response(JSON.stringify({ skipped: 'no email' }), { status: 200 });
+  }
+  const username = profileRes.data?.username ? `@${profileRes.data.username}` : 'there';
+
+  const html = layout({
+    heading: 'Selling paused',
+    subheading: `${username}, your selling on Dukanoh is paused after ${strikes} cancelled orders in the last 12 months.`,
+    ctaLabel: 'Request a review',
+    ctaUrl: `${BASE_URL}/support?type=appeals`,
+    sections: [
+      `<p style="margin:0 0 12px;">Each time a paid order is cancelled by you, or cancelled because it was not dispatched within 5 days, a strike is recorded. At five strikes in 12 months, selling is paused automatically (Terms, clause 4.7).</p>`,
+      `<p style="margin:0 0 12px;"><strong>What this means:</strong> your listings are hidden, buyers cannot check out from you, and you cannot create new listings. Orders that are already paid must still be sent. Your wallet and payouts are unaffected.</p>`,
+      `<p style="margin:0 0 12px;"><strong>Getting back to selling:</strong> this decision was applied automatically. You can ask a person to look at it at any time using the button above. Strikes also expire 12 months after the day they were given.</p>`,
+    ],
+  });
+
+  await withRetry(() => sendEmail({ to, subject: 'Your selling on Dukanoh is paused', html }));
+  return new Response(JSON.stringify({ sent: 1 }), { status: 200 });
+}
 
 // ─── Order email handler ──────────────────────────────────────
 

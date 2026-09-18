@@ -259,7 +259,7 @@ export default function ListingsScreen() {
 
       let q = supabase
         .from('listings')
-        .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, fabric, save_count, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)')
+        .select('id, title, price, original_price, price_dropped_at, images, status, category, condition, size, occasion, colour, fabric, save_count, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold, selling_paused)')
         .order(orderCol, { ascending });
 
       if (!myListings) q = q.eq('status', 'available');
@@ -304,7 +304,7 @@ export default function ListingsScreen() {
       if (error) throw error;
 
       const rawData = ((data ?? []) as Listing[]).filter(
-        l => !myListings && l.seller?.tax_hold ? false : true
+        l => !myListings && (l.seller?.tax_hold || l.seller?.selling_paused) ? false : true
       );
 
       // Client-side multi-size filter

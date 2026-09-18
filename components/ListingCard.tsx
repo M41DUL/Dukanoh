@@ -48,6 +48,7 @@ export interface Listing {
     seller_tier?: string | null;
     is_verified?: boolean | null;
     tax_hold?: boolean | null;
+    selling_paused?: boolean | null; // account_status = 'suspended' (Terms 4.7); treat like tax_hold
   } | null;
 }
 

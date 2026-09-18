@@ -39,11 +39,12 @@ import { useCreateListing } from '@/lib/mutations';
 import { useAuth } from '@/hooks/useAuth';
 import { useTaxStatus } from '@/hooks/useTaxStatus';
 import { TaxHoldBanner } from '@/components/TaxHoldBanner';
+import { SellerStandingBanner } from '@/components/SellerStandingBanner';
 
 const ALL_CATEGORIES = Categories.filter(c => c !== 'All') as string[];
 
 export default function SellScreen() {
-  const { user, isSeller, loading: authLoading, refreshProfile, username } = useAuth();
+  const { user, isSeller, loading: authLoading, refreshProfile, username, accountStatus, strikeCount } = useAuth();
   const { taxStatus, reloadTaxStatus } = useTaxStatus(isSeller ? user?.id : undefined);
   const isFocused = useIsFocused();
   const emptyForm: ListingForm = {
@@ -378,6 +379,21 @@ export default function SellScreen() {
           onActivated={refreshProfile}
         />
       </>
+    );
+  }
+
+  // Selling paused (Terms 4.7): the listings INSERT policy would refuse the
+  // save anyway; show the reason instead of a failed form.
+  if (accountStatus === 'suspended') {
+    return (
+      <ScreenWrapper>
+        <View style={{ paddingTop: Spacing.xl }}>
+          <SellerStandingBanner status="suspended" strikeCount={strikeCount} />
+          <Text style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 20 }}>
+            Listing is switched off while selling is paused. Orders you have already been paid for still need to be sent, and your wallet works as normal. Request a review from the banner above, or wait for strikes to expire.
+          </Text>
+        </View>
+      </ScreenWrapper>
     );
   }
 

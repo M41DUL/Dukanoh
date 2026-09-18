@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     if (order.seller_id) {
       await supabase
         .from('cancellation_strikes')
-        .insert({ seller_id: order.seller_id, order_id: order.id });
+        .insert({ seller_id: order.seller_id, order_id: order.id, reason: 'dispatch_deadline' });
     }
 
     return true;

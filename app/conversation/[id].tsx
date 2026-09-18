@@ -70,7 +70,7 @@ interface ConversationRow {
   seller_id: string;
   last_message_sender_id: string | null;
   buyer: { username: string | null; deleted_at: string | null } | null;
-  seller: { username: string | null; deleted_at: string | null; tax_hold: boolean | null } | null;
+  seller: { username: string | null; deleted_at: string | null; tax_hold: boolean | null; selling_paused: boolean | null } | null;
   listing: {
     title: string | null;
     status: string | null;
@@ -116,7 +116,7 @@ export default function ConversationScreen() {
         .select(`
           listing_id, buyer_id, seller_id, last_message_sender_id,
           buyer:users!conversations_buyer_id_fkey ( username, deleted_at ),
-          seller:users!conversations_seller_id_fkey ( username, deleted_at, tax_hold ),
+          seller:users!conversations_seller_id_fkey ( username, deleted_at, tax_hold, selling_paused ),
           listing:listings!conversations_listing_id_fkey ( title, status, price, images, category, condition, occasion, measurements )
         `)
         .eq('id', id!)
@@ -154,7 +154,7 @@ export default function ConversationScreen() {
       listing_condition: c.listing?.condition ?? null,
       listing_occasion: c.listing?.occasion ?? null,
       listing_measurements: c.listing?.measurements ?? null,
-      can_buy: isBuyer && listingExists && status === 'available' && !c.seller?.tax_hold,
+      can_buy: isBuyer && listingExists && status === 'available' && !c.seller?.tax_hold && !c.seller?.selling_paused,
     };
   }, [metaQuery.data, user]);
 

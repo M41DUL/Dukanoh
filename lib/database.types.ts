@@ -525,20 +525,26 @@ export type Database = {
       cancellation_strikes: {
         Row: {
           created_at: string | null
+          forgiven_at: string | null
           id: string
           order_id: string | null
+          reason: string | null
           seller_id: string
         }
         Insert: {
           created_at?: string | null
+          forgiven_at?: string | null
           id?: string
           order_id?: string | null
+          reason?: string | null
           seller_id: string
         }
         Update: {
           created_at?: string | null
+          forgiven_at?: string | null
           id?: string
           order_id?: string | null
+          reason?: string | null
           seller_id?: string
         }
         Relationships: [
@@ -2153,10 +2159,12 @@ export type Database = {
           bio: string | null
           boosts_reset_at: string | null
           boosts_used: number | null
+          admin_suspended_at: string | null
           cancellation_strike_count: number
           created_at: string | null
           deleted_at: string | null
           had_founder_subscription: boolean
+          selling_paused: boolean | null
           had_free_trial: boolean | null
           id: string
           is_official: boolean | null
@@ -2188,10 +2196,12 @@ export type Database = {
           bio?: string | null
           boosts_reset_at?: string | null
           boosts_used?: number | null
+          admin_suspended_at?: string | null
           cancellation_strike_count?: number
           created_at?: string | null
           deleted_at?: string | null
           had_founder_subscription?: boolean
+          selling_paused?: boolean | null
           had_free_trial?: boolean | null
           id: string
           is_official?: boolean | null
@@ -2223,10 +2233,12 @@ export type Database = {
           bio?: string | null
           boosts_reset_at?: string | null
           boosts_used?: number | null
+          admin_suspended_at?: string | null
           cancellation_strike_count?: number
           created_at?: string | null
           deleted_at?: string | null
           had_founder_subscription?: boolean
+          selling_paused?: boolean | null
           had_free_trial?: boolean | null
           id?: string
           is_official?: boolean | null

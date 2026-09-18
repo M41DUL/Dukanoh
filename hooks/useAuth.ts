@@ -6,6 +6,12 @@ import { supabase } from '@/lib/supabase';
 import { queryClient } from '@/lib/queryClient';
 import { toSellerTier } from '@/lib/tiers';
 
+export type AccountStatus = 'active' | 'warned' | 'suspended' | 'deleted';
+
+function toAccountStatus(v: unknown): AccountStatus {
+  return v === 'warned' || v === 'suspended' || v === 'deleted' ? v : 'active';
+}
+
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -13,6 +19,9 @@ export function useAuth() {
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [isSeller, setIsSeller] = useState<boolean>(false);
   const [isVerified, setIsVerified] = useState<boolean>(false);
+  // Seller standing (Terms 4.7): 'warned' at 3 active strikes, 'suspended' = selling paused at 5.
+  const [accountStatus, setAccountStatus] = useState<AccountStatus>('active');
+  const [strikeCount, setStrikeCount] = useState<number>(0);
   const [isOfficial, setIsOfficial] = useState<boolean>(false);
   const [sellerTier, setSellerTier] = useState<'free' | 'pro' | 'founder'>('free');
 
@@ -22,7 +31,7 @@ export function useAuth() {
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('users')
-      .select('onboarding_completed, is_seller, username_confirmed, username, is_verified, is_official, seller_tier, pro_expires_at')
+      .select('onboarding_completed, is_seller, username_confirmed, username, is_verified, is_official, seller_tier, pro_expires_at, account_status, cancellation_strike_count')
       .eq('id', userId)
       .maybeSingle();
     setOnboardingCompleted(data?.onboarding_completed ?? false);
@@ -31,6 +40,8 @@ export function useAuth() {
     setUsername(data?.username ?? '');
     setIsVerified(data?.is_verified ?? false);
     setIsOfficial(data?.is_official ?? false);
+    setAccountStatus(toAccountStatus(data?.account_status));
+    setStrikeCount(data?.cancellation_strike_count ?? 0);
     // Treat an expired subscription as free even while seller_tier still
     // says otherwise. The nightly sweep is the thing that rewrites the
     // column, so without this a member whose EXPIRATION webhook was missed
@@ -134,5 +145,5 @@ export function useAuth() {
     queryClient.clear();
   };
 
-  return { session, user, loading, signOut, onboardingCompleted, isSeller, isVerified, isOfficial, sellerTier, needsUsername, username, refreshProfile };
+  return { session, user, loading, signOut, onboardingCompleted, isSeller, isVerified, isOfficial, sellerTier, accountStatus, strikeCount, needsUsername, username, refreshProfile };
 }

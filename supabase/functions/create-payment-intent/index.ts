@@ -94,6 +94,21 @@ Deno.serve(async (req) => {
 
   const sellerVerified = !!(seller?.stripe_account_id && seller?.stripe_onboarding_complete);
 
+  // Selling paused (cancellation strikes, Terms 4.7) or tax hold (Terms 4.6.3):
+  // the app hides these listings, but a screen opened before the pause could
+  // still reach checkout, so refuse here as well.
+  const { data: standing } = await supabase
+    .from('users')
+    .select('account_status, tax_hold')
+    .eq('id', listing.seller_id)
+    .maybeSingle();
+  if (standing?.account_status === 'suspended' || standing?.tax_hold) {
+    return new Response(JSON.stringify({ error: "This member isn't selling right now" }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   // NOTE: an unverified seller is NOT blocked. Their charge is created as a plain
   // charge into the platform balance (no transfer_data below), and the order is
   // flagged via seller_verify_deadline so the money is settled to the seller's

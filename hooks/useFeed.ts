@@ -149,7 +149,7 @@ async function fetchTrendingCategories(
   return categories;
 }
 
-const SUGGESTED_SELECT = 'id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)';
+const SUGGESTED_SELECT = 'id, title, price, images, category, condition, size, created_at, seller_id, status, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold, selling_paused)';
 
 // Suggested for You: no boosts, occasion signal, seller diversity cap, limit 10
 async function fetchSuggestedSection(
@@ -190,7 +190,7 @@ async function fetchSuggestedSection(
   const merged: Listing[] = [];
   for (const { data } of results) {
     for (const item of data ?? []) {
-      if (!seen.has(item.id) && !(item as Listing).seller?.tax_hold) {
+      if (!seen.has(item.id) && !(item as Listing).seller?.tax_hold && !(item as Listing).seller?.selling_paused) {
         seen.add(item.id);
         merged.push(item as Listing);
       }
@@ -238,7 +238,7 @@ async function fetchNewArrivals(
   const { data, error } = await query.abortSignal(signal);
   if (error) throw error;
   const listings = ((data ?? []) as Listing[]).filter(
-    l => !l.seller?.tax_hold,
+    l => !l.seller?.tax_hold && !l.seller?.selling_paused,
   );
   if (listings.length === 0) return listings;
 

@@ -51,8 +51,10 @@ CREATE TABLE public.users (
   -- Official brand account flag (e.g. @dukanoh)
   is_official                 BOOLEAN DEFAULT FALSE,
   -- Cancellation accountability
-  cancellation_strike_count   INT NOT NULL DEFAULT 0,
+  cancellation_strike_count   INT NOT NULL DEFAULT 0, -- ACTIVE strikes (last 12 months, not forgiven); maintained by recompute_seller_standing()
   account_status              TEXT NOT NULL DEFAULT 'active' CHECK (account_status IN ('active', 'warned', 'suspended', 'deleted')),
+  admin_suspended_at          TIMESTAMPTZ,             -- manual pause by an admin; recompute keeps 'suspended' while set
+  selling_paused              BOOLEAN GENERATED ALWAYS AS (account_status = 'suspended') STORED, -- public-safe flag: listings hidden, checkout refused
   deleted_at                  TIMESTAMPTZ,    -- NULL = active; set when account is anonymized
   -- DAC7 / UK PIRRR tax reporting. The actual identifier and its type live
   -- in public.user_tax_info (see further down) to keep them out of the
@@ -449,7 +451,7 @@ GRANT SELECT (
   id, username, avatar_url, bio, created_at,
   is_seller, is_verified, is_official, seller_tier,
   avg_response_time_mins, rating_avg, rating_count,
-  tax_hold, deleted_at
+  tax_hold, deleted_at, selling_paused
 ) ON public.users TO anon;
 
 -- WITH CHECK prevents users from directly writing to:
@@ -605,8 +607,15 @@ CREATE POLICY "Users can update invites they created"
 CREATE POLICY "Listings are publicly viewable"
   ON public.listings FOR SELECT USING (status != 'draft' OR (select auth.uid()) = seller_id);
 
+-- A paused seller (account_status = 'suspended', Terms 4.7) cannot create listings.
 CREATE POLICY "Sellers can create listings"
-  ON public.listings FOR INSERT WITH CHECK ((select auth.uid()) = seller_id);
+  ON public.listings FOR INSERT WITH CHECK (
+    (select auth.uid()) = seller_id
+    AND NOT EXISTS (
+      SELECT 1 FROM public.users u
+       WHERE u.id = (select auth.uid()) AND u.account_status = 'suspended'
+    )
+  );
 
 CREATE POLICY "Sellers can update own listings"
   ON public.listings FOR UPDATE USING ((select auth.uid()) = seller_id);
@@ -1799,11 +1808,18 @@ CREATE INDEX IF NOT EXISTS idx_revenuecat_events_user
 
 -- Cancellation strikes (seller accountability)
 CREATE TABLE public.cancellation_strikes (
-  id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  seller_id  UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
-  order_id   UUID REFERENCES public.orders (id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  seller_id   UUID REFERENCES public.users (id) ON DELETE CASCADE NOT NULL,
+  order_id    UUID REFERENCES public.orders (id) ON DELETE SET NULL,
+  reason      TEXT DEFAULT 'seller_cancelled' CHECK (reason IN ('seller_cancelled', 'dispatch_deadline')), -- auto-cancel job writes dispatch_deadline
+  forgiven_at TIMESTAMPTZ, -- set by admin_set_seller_standing('restore'); forgiven strikes never count
+  created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- A strike counts for 12 months (Terms 4.7); this index serves the recompute.
+CREATE INDEX IF NOT EXISTS idx_strikes_seller_active
+  ON public.cancellation_strikes (seller_id, created_at)
+  WHERE forgiven_at IS NULL;
 
 ALTER TABLE public.cancellation_strikes ENABLE ROW LEVEL SECURITY;
 
@@ -1819,28 +1835,136 @@ CREATE POLICY "Sellers can record their own cancellation strikes"
 
 CREATE INDEX idx_strikes_seller ON public.cancellation_strikes (seller_id);
 
--- Trigger: increment strike count and escalate account_status on each new strike
-CREATE OR REPLACE FUNCTION public.handle_cancellation_strike()
-RETURNS TRIGGER AS $$
+-- Seller standing (Terms 4.7, migration 20260918170000_seller_strikes_pause).
+-- Counts ACTIVE strikes (last 12 months, not forgiven), stores the count,
+-- derives account_status (3 → warned, 5 or admin pause → suspended = selling
+-- paused) and, when standing worsens, notifies the seller through
+-- push-notification (+ send-email on pause) via pg_net with x-dukanoh-key.
+CREATE OR REPLACE FUNCTION public.recompute_seller_standing(p_seller_id UUID)
+RETURNS void AS $$
 DECLARE
-  v_count INT;
+  v_active INT;
+  v_old    TEXT;
+  v_new    TEXT;
+  v_admin  TIMESTAMPTZ;
+  v_url    TEXT;
+  v_key    TEXT;
 BEGIN
-  UPDATE public.users
-  SET cancellation_strike_count = cancellation_strike_count + 1
-  WHERE id = NEW.seller_id
-  RETURNING cancellation_strike_count INTO v_count;
-
-  IF v_count >= 5 THEN
-    UPDATE public.users SET account_status = 'suspended'
-    WHERE id = NEW.seller_id AND account_status != 'suspended';
-  ELSIF v_count >= 3 THEN
-    UPDATE public.users SET account_status = 'warned'
-    WHERE id = NEW.seller_id AND account_status = 'active';
+  SELECT account_status, admin_suspended_at
+    INTO v_old, v_admin
+    FROM public.users WHERE id = p_seller_id;
+  IF v_old IS NULL OR v_old = 'deleted' THEN
+    RETURN;
   END IF;
 
+  SELECT COUNT(*) INTO v_active
+    FROM public.cancellation_strikes
+   WHERE seller_id = p_seller_id
+     AND forgiven_at IS NULL
+     AND created_at >= NOW() - INTERVAL '12 months';
+
+  v_new := CASE
+    WHEN v_admin IS NOT NULL OR v_active >= 5 THEN 'suspended'
+    WHEN v_active >= 3                        THEN 'warned'
+    ELSE 'active'
+  END;
+
+  UPDATE public.users
+     SET cancellation_strike_count = v_active,
+         account_status            = v_new
+   WHERE id = p_seller_id
+     AND (cancellation_strike_count IS DISTINCT FROM v_active
+          OR account_status IS DISTINCT FROM v_new);
+
+  IF v_new = v_old
+     OR v_new NOT IN ('warned', 'suspended')
+     OR (v_new = 'warned' AND v_old = 'suspended') THEN
+    RETURN;
+  END IF;
+
+  SELECT decrypted_secret INTO v_url FROM vault.decrypted_secrets WHERE name = 'supabase_url';
+  SELECT decrypted_secret INTO v_key FROM vault.decrypted_secrets WHERE name = 'INTERNAL_API_KEY';
+  IF v_url IS NULL OR v_key IS NULL THEN
+    RAISE WARNING 'recompute_seller_standing: vault secrets missing; seller % not notified', p_seller_id;
+    RETURN;
+  END IF;
+
+  PERFORM net.http_post(
+    url := v_url || '/functions/v1/push-notification',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-dukanoh-key', v_key),
+    body := jsonb_build_object(
+      'type', CASE WHEN v_new = 'suspended' THEN 'SELLING_PAUSED' ELSE 'STRIKE_WARNING' END,
+      'table', 'users',
+      'record', jsonb_build_object('id', p_seller_id, 'account_status', v_new, 'strike_count', v_active)
+    )
+  );
+
+  IF v_new = 'suspended' THEN
+    PERFORM net.http_post(
+      url := v_url || '/functions/v1/send-email',
+      headers := jsonb_build_object('Content-Type', 'application/json', 'x-dukanoh-key', v_key),
+      body := jsonb_build_object(
+        'type', 'SELLING_PAUSED',
+        'table', 'users',
+        'record', jsonb_build_object('id', p_seller_id, 'strike_count', v_active)
+      )
+    );
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.recompute_seller_standing(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.recompute_seller_standing(UUID) TO postgres, service_role;
+
+-- Trigger: every new strike recomputes the seller's standing
+CREATE OR REPLACE FUNCTION public.handle_cancellation_strike()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM public.recompute_seller_standing(NEW.seller_id);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Admin (service role only): 'restore' forgives active strikes and clears any
+-- manual pause; 'pause' applies a manual pause the strike maths cannot undo.
+CREATE OR REPLACE FUNCTION public.admin_set_seller_standing(p_seller_id UUID, p_action TEXT)
+RETURNS void AS $$
+BEGIN
+  IF p_action = 'restore' THEN
+    UPDATE public.cancellation_strikes
+       SET forgiven_at = NOW()
+     WHERE seller_id = p_seller_id AND forgiven_at IS NULL;
+    UPDATE public.users SET admin_suspended_at = NULL WHERE id = p_seller_id;
+  ELSIF p_action = 'pause' THEN
+    UPDATE public.users SET admin_suspended_at = NOW() WHERE id = p_seller_id;
+  ELSE
+    RAISE EXCEPTION 'admin_set_seller_standing: unknown action %', p_action;
+  END IF;
+  PERFORM public.recompute_seller_standing(p_seller_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.admin_set_seller_standing(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_set_seller_standing(UUID, TEXT) TO service_role;
+
+-- Nightly (03:30): apply strike expiries for every seller with strikes
+CREATE OR REPLACE FUNCTION public.recompute_all_seller_standing()
+RETURNS void AS $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT DISTINCT seller_id AS id FROM public.cancellation_strikes
+    UNION
+    SELECT id FROM public.users WHERE account_status IN ('warned', 'suspended')
+  LOOP
+    PERFORM public.recompute_seller_standing(r.id);
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.recompute_all_seller_standing() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.recompute_all_seller_standing() TO postgres;
 
 DROP TRIGGER IF EXISTS on_cancellation_strike ON public.cancellation_strikes;
 CREATE TRIGGER on_cancellation_strike
@@ -2319,6 +2443,13 @@ SELECT cron.schedule(
   'remind-auto-release-orders',
   '30 * * * *',
   'SELECT public.remind_auto_release_orders()'
+);
+
+-- Runs nightly at 03:30 — expires cancellation strikes older than 12 months and re-derives seller standing
+SELECT cron.schedule(
+  'recompute-seller-standing',
+  '30 3 * * *',
+  'SELECT public.recompute_all_seller_standing()'
 );
 
 -- Runs every 5 minutes — releases abandoned 'pending' checkout reservations

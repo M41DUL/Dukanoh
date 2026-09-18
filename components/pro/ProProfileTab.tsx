@@ -16,6 +16,7 @@ import {
 
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { SellerStandingBanner } from '@/components/SellerStandingBanner';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-gifted-charts';
@@ -506,29 +507,8 @@ export function ProProfileTab() {
           ))}
         </View>
 
-        {/* ── Account status banners ── */}
-        {dash?.accountStatus === 'suspended' && (
-          <View style={[styles.banner, { backgroundColor: '#FF444420', borderColor: '#FF444440' }]}>
-            <Ionicons name="ban-outline" size={16} color="#FF4444" />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.bannerTitle, { color: '#FF4444' }]}>Account suspended</Text>
-              <Text style={[styles.bannerBody, { color: P.textSecondary }]}>
-                Your account has been suspended after {dash.strikeCount} cancelled orders. Contact support to appeal.
-              </Text>
-            </View>
-          </View>
-        )}
-        {dash?.accountStatus === 'warned' && (
-          <View style={[styles.banner, { backgroundColor: '#F59E0B20', borderColor: '#F59E0B40' }]}>
-            <Ionicons name="warning-outline" size={16} color="#F59E0B" />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.bannerTitle, { color: '#F59E0B' }]}>Account warning</Text>
-              <Text style={[styles.bannerBody, { color: P.textSecondary }]}>
-                You have {dash.strikeCount} cancellation strikes. Reaching 5 will suspend your account.
-              </Text>
-            </View>
-          </View>
-        )}
+        {/* ── Seller standing (Terms 4.7): warning at 3 strikes, selling paused at 5 ── */}
+        {dash && <SellerStandingBanner status={dash.accountStatus} strikeCount={dash.strikeCount} />}
 
         {/* ── Dashboard ── */}
         {dashLoading ? (

@@ -108,7 +108,7 @@ export default function ListingDetailScreen() {
       const { data, error } = await supabase
         .from('listings')
         .select(
-          'id, title, description, price, original_price, price_dropped_at, images, status, category, gender, condition, occasion, size, colour, fabric, worn_at, measurements, created_at, seller_id, save_count, view_count, collection_id, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier, tax_hold)'
+          'id, title, description, price, original_price, price_dropped_at, images, status, category, gender, condition, occasion, size, colour, fabric, worn_at, measurements, created_at, seller_id, save_count, view_count, collection_id, seller:users!listings_seller_id_fkey(username, avatar_url, rating_avg, rating_count, created_at, seller_tier, tax_hold, selling_paused)'
         )
         .eq('id', id!)
         .abortSignal(signal)
@@ -858,13 +858,13 @@ export default function ListingDetailScreen() {
       </Animated.ScrollView>
 
       {/* STICKY BOTTOM CTA — buyers only */}
-      {user?.id !== listing.seller_id && listing.status === 'available' && !listing.seller?.tax_hold && (
+      {user?.id !== listing.seller_id && listing.status === 'available' && !listing.seller?.tax_hold && !listing.seller?.selling_paused && (
         <BottomBar absolute>
           <Button label="Message" variant="outline" onPress={handleMessage} style={styles.ctaBtn} />
           <Button label="Buy Now" onPress={() => router.push(`/checkout/${id}`)} style={styles.ctaBtn} />
         </BottomBar>
       )}
-      {user?.id !== listing.seller_id && listing.status === 'available' && listing.seller?.tax_hold && (
+      {user?.id !== listing.seller_id && listing.status === 'available' && (listing.seller?.tax_hold || listing.seller?.selling_paused) && (
         <BottomBar absolute>
           <Button label="Temporarily unavailable" variant="outline" disabled onPress={() => {}} style={{ flex: 1 }} />
         </BottomBar>

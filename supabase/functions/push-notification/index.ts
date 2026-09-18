@@ -48,6 +48,12 @@ Deno.serve(async (req) => {
     return handleAutoReleaseReminder(supabase, record);
   }
 
+  // From recompute_seller_standing(): a seller reached 3 strikes (warning) or
+  // 5 strikes / an admin pause (selling paused). Terms clause 4.7.
+  if (table === 'users' && (type === 'STRIKE_WARNING' || type === 'SELLING_PAUSED')) {
+    return handleSellerStanding(supabase, type, record);
+  }
+
   if (table === 'messages') {
     return handleMessage(supabase, record);
   }
@@ -143,6 +149,34 @@ async function handleAutoReleaseReminder(
     title: 'Your order completes tomorrow',
     body: `Has ${itemTitle} arrived? Tap "Item received", or report an issue if something's wrong.`,
     data: { order_id: record.id },
+  }));
+
+  return sendPush(messages, supabase);
+}
+
+// ─── Seller standing (strikes) ────────────────────────────────
+
+async function handleSellerStanding(
+  supabase: ReturnType<typeof createClient>,
+  type: string,
+  record: Record<string, string | number>
+) {
+  const sellerId = String(record?.id ?? '');
+  const tokens = await getTokens(supabase, sellerId);
+  if (tokens.length === 0) {
+    return new Response(JSON.stringify({ skipped: 'no tokens' }), { status: 200 });
+  }
+
+  const strikes = Number(record?.strike_count ?? 0);
+  const paused = type === 'SELLING_PAUSED';
+  const messages = tokens.map(t => ({
+    to: t,
+    sound: 'default',
+    title: paused ? 'Selling paused' : 'Cancellation warning',
+    body: paused
+      ? `After ${strikes} cancelled orders in 12 months, your listings are hidden and new sales are paused. Request a review from your profile.`
+      : `You've cancelled ${strikes} orders in the last 12 months. At 5, selling is paused. Dispatch on time to keep your record clean.`,
+    data: { type: paused ? 'selling_paused' : 'strike_warning' },
   }));
 
   return sendPush(messages, supabase);

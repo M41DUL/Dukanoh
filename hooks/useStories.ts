@@ -100,11 +100,12 @@ export interface StoryListing {
     seller_tier?: string | null;
     is_verified?: boolean | null;
     tax_hold?: boolean | null;
+    selling_paused?: boolean | null;
   } | null;
 }
 
 const LISTING_SELECT =
-  'id, title, price, images, category, condition, status, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)';
+  'id, title, price, images, category, condition, status, published_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold, selling_paused)';
 
 async function fetchStories(userId: string, signal: AbortSignal): Promise<StoryListing[]> {
   // Organic window: 5 hours
@@ -198,7 +199,7 @@ async function fetchStories(userId: string, signal: AbortSignal): Promise<StoryL
   const organicListings = (organicRes.data ?? []) as StoryListing[];
   for (const l of [...boostedListings, ...organicListings]) {
     if (seenIds.has(l.id)) continue;
-    if (l.seller?.tax_hold) continue;
+    if (l.seller?.tax_hold || l.seller?.selling_paused) continue;
     seenIds.add(l.id);
     merged.push({ ...l, is_boosted: boostedIdSet.has(l.id), viewed: false });
   }

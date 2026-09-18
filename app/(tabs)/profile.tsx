@@ -10,6 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { StarRating } from '@/components/StarRating';
 import { ProPaywallSheet } from '@/components/pro/ProPaywallSheet';
 import { ProProfileTab } from '@/components/pro/ProProfileTab';
+import { SellerStandingBanner } from '@/components/SellerStandingBanner';
 import { WalletSheet } from '@/components/WalletSheet';
 import { Typography, Spacing, BorderRadius, BorderWidth, ColorTokens, FontFamily, proColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -34,7 +35,7 @@ interface QuickAction {
 
 
 export default function ProfileScreen() {
-  const { user, username, isSeller, isVerified, isOfficial, sellerTier, refreshProfile } = useAuth();
+  const { user, username, isSeller, isVerified, isOfficial, sellerTier, accountStatus, strikeCount, refreshProfile } = useAuth();
   const { taxStatus, reloadTaxStatus } = useTaxStatus(user?.id);
   const [refreshing, setRefreshing] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
@@ -255,6 +256,9 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* ── Seller standing (Terms 4.7): warning at 3 strikes, selling paused at 5 ── */}
+        {isSeller && <SellerStandingBanner status={accountStatus} strikeCount={strikeCount} />}
 
         {/* ── Dukanoh Pro entry card — sellers only (paywall handles verified gate internally) ── */}
         {isSeller && <TouchableOpacity

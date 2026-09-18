@@ -54,7 +54,7 @@ const FABRIC_WEIGHTS = ['Light', 'Structured', 'Heavy'] as const;
 // gender + fabric feed the filter and scoring; tax_hold mirrors the feed —
 // a tax-held seller's pieces can't be bought, so they aren't suggested.
 const LISTING_SELECT =
-  'id, title, price, original_price, price_dropped_at, images, status, category, gender, condition, size, occasion, colour, fabric, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)';
+  'id, title, price, original_price, price_dropped_at, images, status, category, gender, condition, size, occasion, colour, fabric, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold, selling_paused)';
 
 type Step = 'form' | 'results';
 /** The confirmation card when the engine read the piece; the full form otherwise, or on "Change something". */
@@ -253,7 +253,7 @@ export default function DukanohFitScreen() {
 
     const scoringInput: MatchInput = { ...input, priorityCategories: plan.priority };
     const scored = candidates
-      .filter(l => !l.seller?.tax_hold)
+      .filter(l => !l.seller?.tax_hold && !l.seller?.selling_paused)
       .map(l => ({
         listing: l,
         compatible: isColourCompatible(input.colour, l.colour, accents),
