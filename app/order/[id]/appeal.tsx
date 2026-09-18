@@ -17,6 +17,9 @@ import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/them
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAppealDispute } from '@/lib/mutations';
+import { useAuth } from '@/hooks/useAuth';
+import { EvidencePicker } from '@/components/EvidencePicker';
+import { uploadDisputeEvidence, MAX_APPEAL_PHOTOS } from '@/lib/disputeEvidence';
 
 export default function AppealScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,7 +27,9 @@ export default function AppealScreen() {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
+  const { user } = useAuth();
   const [reason, setReason] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const appealDispute = useAppealDispute();
 
@@ -42,9 +47,18 @@ export default function AppealScreen() {
         reason: reason.trim(),
       });
 
+      let photoNote = '';
+      if (photos.length > 0 && user) {
+        try {
+          await uploadDisputeEvidence({ orderId: id, userId: user.id, uris: photos, stage: 'appeal' });
+        } catch {
+          photoNote = ' Your photos did not upload; you can add them from the order screen.';
+        }
+      }
+
       Alert.alert(
         'Appeal submitted',
-        'Our team will review your appeal and respond within 7 days.',
+        'Our team will review your appeal and respond within 7 days.' + photoNote,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch {
@@ -87,6 +101,16 @@ export default function AppealScreen() {
               />
             </View>
             <Text style={[styles.charCount, { color: colors.textSecondary }]}>{reason.length}/600</Text>
+          </View>
+
+          <View style={styles.section}>
+            <EvidencePicker
+              label="New photos (optional)"
+              hint="Add anything the original decision did not have: new angles, the label, proof of postage, a receipt."
+              uris={photos}
+              onChange={setPhotos}
+              max={MAX_APPEAL_PHOTOS}
+            />
           </View>
 
           <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>

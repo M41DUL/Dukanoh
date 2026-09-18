@@ -1973,15 +1973,48 @@ CREATE TRIGGER on_cancellation_strike
   EXECUTE FUNCTION public.handle_cancellation_strike();
 
 -- Dispute evidence (photo uploads for buyer disputes)
+-- Photo evidence for disputes and appeals (Terms 8.3, 13.1, 13.2). Files live in
+-- the PRIVATE storage bucket `dispute-evidence` under <order_id>/…; image_url is
+-- the object path and is rendered through signed URLs only. Either party may add
+-- photos while the order is shipped/delivered/disputed/resolved; `stage` records
+-- whether a photo was added for the dispute or an appeal.
+-- (migration 20260918180000_dispute_evidence_photos)
 CREATE TABLE public.dispute_evidence (
   id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   order_id   UUID REFERENCES public.orders (id) ON DELETE CASCADE NOT NULL,
   user_id    UUID REFERENCES public.users (id) ON DELETE SET NULL,
-  image_url  TEXT NOT NULL,
+  image_url  TEXT NOT NULL, -- object path inside the dispute-evidence bucket
+  stage      TEXT NOT NULL DEFAULT 'dispute' CHECK (stage IN ('dispute', 'appeal')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE public.dispute_evidence ENABLE ROW LEVEL SECURITY;
+
+-- Party to the order (buyer or seller)?
+CREATE OR REPLACE FUNCTION public.is_order_party(p_order_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.orders o
+     WHERE o.id = p_order_id
+       AND (o.buyer_id = (select auth.uid()) OR o.seller_id = (select auth.uid()))
+  );
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+-- Party AND the order is at a stage where evidence makes sense.
+CREATE OR REPLACE FUNCTION public.can_add_dispute_evidence(p_order_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.orders o
+     WHERE o.id = p_order_id
+       AND (o.buyer_id = (select auth.uid()) OR o.seller_id = (select auth.uid()))
+       AND o.status IN ('shipped', 'delivered', 'disputed', 'resolved')
+  );
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.is_order_party(UUID)            FROM PUBLIC, anon;
+REVOKE ALL    ON FUNCTION public.can_add_dispute_evidence(UUID)  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_order_party(UUID)            TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_add_dispute_evidence(UUID)  TO authenticated;
 
 CREATE POLICY "Buyers and sellers can read dispute evidence for their orders"
   ON public.dispute_evidence FOR SELECT TO authenticated
@@ -1992,9 +2025,41 @@ CREATE POLICY "Buyers and sellers can read dispute evidence for their orders"
     )
   );
 
-CREATE POLICY "Buyers can upload dispute evidence"
+CREATE POLICY "Parties can add dispute evidence"
   ON public.dispute_evidence FOR INSERT TO authenticated
-  WITH CHECK ((select auth.uid()) = user_id);
+  WITH CHECK (
+    (select auth.uid()) = user_id
+    AND public.can_add_dispute_evidence(order_id)
+  );
+
+-- Storage bucket + policies. Objects are keyed <order_id>/<file>.jpg; the first
+-- segment must be an order the caller is party to.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('dispute-evidence', 'dispute-evidence', false)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION public.dispute_evidence_order_id(p_name TEXT)
+RETURNS UUID AS $$
+  SELECT CASE
+    WHEN split_part(p_name, '/', 1) ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    THEN split_part(p_name, '/', 1)::uuid
+    ELSE NULL
+  END;
+$$ LANGUAGE sql IMMUTABLE;
+
+CREATE POLICY "Parties can upload dispute evidence"
+  ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'dispute-evidence'
+    AND public.can_add_dispute_evidence(public.dispute_evidence_order_id(name))
+  );
+
+CREATE POLICY "Parties can read dispute evidence"
+  ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'dispute-evidence'
+    AND public.is_order_party(public.dispute_evidence_order_id(name))
+  );
 
 -- =============================================================
 -- BOOSTS (listing promotions)

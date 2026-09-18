@@ -712,6 +712,7 @@ export type Database = {
           id: string
           image_url: string
           order_id: string
+          stage: string
           user_id: string | null
         }
         Insert: {
@@ -719,6 +720,7 @@ export type Database = {
           id?: string
           image_url: string
           order_id: string
+          stage?: string
           user_id?: string | null
         }
         Update: {
@@ -726,6 +728,7 @@ export type Database = {
           id?: string
           image_url?: string
           order_id?: string
+          stage?: string
           user_id?: string | null
         }
         Relationships: [

@@ -23,6 +23,7 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
 import { QueryStateView } from '@/components/QueryStateView';
+import { DisputeEvidenceStrip } from '@/components/DisputeEvidenceStrip';
 import { Spacing, BorderRadius, ColorTokens, FontFamily } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -879,6 +880,12 @@ export default function OrderDetailScreen() {
               {order.dispute_description && (
                 <Text style={[styles.hint, { color: colors.textPrimary }]}>{order.dispute_description}</Text>
               )}
+              <DisputeEvidenceStrip
+                orderId={order.id}
+                buyerId={order.buyer_id}
+                canAdd={isBuyer || isSeller}
+                stage="dispute"
+              />
               <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
                 Our team reviews all disputes and will be in touch within 7 days.
@@ -914,6 +921,12 @@ export default function OrderDetailScreen() {
               {order.resolution_note && (
                 <Text style={[styles.hint, { color: colors.textPrimary }]}>{order.resolution_note}</Text>
               )}
+              <DisputeEvidenceStrip
+                orderId={order.id}
+                buyerId={order.buyer_id}
+                canAdd={false}
+                stage="appeal"
+              />
               <View style={[styles.metaDivider, { backgroundColor: colors.border }]} />
               {order.appealed_at ? (
                 <Text style={[styles.hint, { color: colors.textSecondary }]}>

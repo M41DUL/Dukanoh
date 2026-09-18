@@ -19,6 +19,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuth } from '@/hooks/useAuth';
 import { useRaiseDispute } from '@/lib/mutations';
+import { EvidencePicker } from '@/components/EvidencePicker';
+import { uploadDisputeEvidence, MAX_DISPUTE_PHOTOS } from '@/lib/disputeEvidence';
 
 const DISPUTE_REASONS = [
   'Item not received',
@@ -27,6 +29,10 @@ const DISPUTE_REASONS = [
   'Wrong item sent',
   'Other',
 ];
+
+// Claims about the piece itself need to show it (Terms 8.3). Non-arrival cannot
+// be photographed, so photos stay optional there and for 'Other'.
+const PHOTO_REQUIRED = new Set(['Item not as described', 'Item damaged', 'Wrong item sent']);
 
 export default function DisputeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,6 +43,7 @@ export default function DisputeScreen() {
 
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const raiseDispute = useRaiseDispute();
 
@@ -49,6 +56,10 @@ export default function DisputeScreen() {
       Alert.alert('Add a description', 'Please describe the issue in a few words.');
       return;
     }
+    if (PHOTO_REQUIRED.has(reason) && photos.length === 0) {
+      Alert.alert('Add a photo', 'For this kind of issue we need at least one photo showing the problem.');
+      return;
+    }
     if (!user || !id) return;
 
     setSubmitting(true);
@@ -59,9 +70,19 @@ export default function DisputeScreen() {
         reason,
         description: description.trim(),
       });
+      // The dispute exists from here; photos are best-effort and can be added
+      // later from the order screen if the upload fails.
+      let photoNote = '';
+      if (photos.length > 0) {
+        try {
+          await uploadDisputeEvidence({ orderId: id, userId: user.id, uris: photos, stage: 'dispute' });
+        } catch {
+          photoNote = ' Your photos did not upload; you can add them from the order screen.';
+        }
+      }
       Alert.alert(
         'Dispute raised',
-        'Our team has been notified and will review your dispute. We aim to resolve disputes within 7 days.',
+        'Our team has been notified and will review your dispute. We aim to resolve disputes within 7 days.' + photoNote,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch {
@@ -134,6 +155,17 @@ export default function DisputeScreen() {
             <Text style={[styles.charCount, { color: colors.textSecondary }]}>
               {description.length}/500
             </Text>
+          </View>
+
+          {/* Photos */}
+          <View style={styles.section}>
+            <EvidencePicker
+              label={PHOTO_REQUIRED.has(reason) ? 'Photos (required)' : 'Photos (optional)'}
+              hint="Show the problem clearly: the whole piece, the label, and any damage or difference from the listing."
+              uris={photos}
+              onChange={setPhotos}
+              max={MAX_DISPUTE_PHOTOS}
+            />
           </View>
 
           <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
