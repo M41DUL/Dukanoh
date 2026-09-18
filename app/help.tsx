@@ -53,7 +53,7 @@ const FAQS: FAQ[] = [
   },
   {
     question: 'How do I delete my account?',
-    answer: 'Go to Settings and scroll to the bottom. Tap "Delete Account". This permanently removes your account and all your data. It cannot be undone.',
+    answer: 'Go to Settings and scroll to the bottom. Tap "Delete Account". It happens straight away and cannot be undone. Your name, contact details, photo, saved items and listings are removed and your username is retired. Records we must keep by law, such as orders and tax reporting, stay in anonymised form, and any reviews or conversations remain visible to the other member as "Deleted member".',
   },
 ];
 

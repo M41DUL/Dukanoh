@@ -56,7 +56,7 @@ interface Review {
   rating: number;
   comment?: string;
   created_at: string;
-  reviewer: { username: string; avatar_url?: string };
+  reviewer: { username: string; avatar_url?: string; deleted_at?: string | null };
 }
 
 export default function SellerProfileScreen() {
@@ -123,7 +123,7 @@ export default function SellerProfileScreen() {
       supabase.rpc('get_seller_response_rate', { p_seller_id: id }),
       supabase
         .from('reviews')
-        .select('*, reviewer:users!reviews_reviewer_id_fkey(username, avatar_url)')
+        .select('*, reviewer:users!reviews_reviewer_id_fkey(username, avatar_url, deleted_at)')
         .eq('seller_id', id)
         .order('created_at', { ascending: false }),
       supabase
@@ -471,12 +471,15 @@ export default function SellerProfileScreen() {
                   <View style={styles.reviewCard}>
                     <View style={styles.reviewHeader}>
                       <Avatar
-                        uri={review.reviewer?.avatar_url}
-                        initials={review.reviewer?.username?.[0]?.toUpperCase()}
+                        uri={review.reviewer?.deleted_at ? undefined : review.reviewer?.avatar_url}
+                        initials={review.reviewer?.deleted_at ? undefined : review.reviewer?.username?.[0]?.toUpperCase()}
                         size="small"
                       />
                       <View style={styles.reviewerInfo}>
-                        <Text style={styles.reviewerName}>@{review.reviewer?.username}</Text>
+                        {/* Privacy §14: a departed member's reviews stay, shown as "Deleted member". */}
+                        <Text style={styles.reviewerName}>
+                          {review.reviewer?.deleted_at ? 'Deleted member' : `@${review.reviewer?.username}`}
+                        </Text>
                       </View>
                       <Text style={[styles.reviewDate, { color: colors.textSecondary }]}>
                         {new Date(review.created_at).toLocaleDateString('en-GB', {
