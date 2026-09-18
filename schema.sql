@@ -297,6 +297,18 @@ CREATE TABLE public.message_redactions (
 );
 CREATE INDEX idx_message_redactions_message ON public.message_redactions (message_id);
 
+-- Originals are kept 90 days for misuse review, then purged nightly (Privacy §10).
+CREATE OR REPLACE FUNCTION public.purge_message_redactions()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM public.message_redactions
+   WHERE created_at < NOW() - INTERVAL '90 days';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.purge_message_redactions() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.purge_message_redactions() TO postgres;
+
 -- =============================================================
 -- TRIGGERS — auto-create user profile on signup
 -- =============================================================
@@ -2527,6 +2539,13 @@ SELECT cron.schedule(
   'recompute-seller-standing',
   '30 3 * * *',
   'SELECT public.recompute_all_seller_standing()'
+);
+
+-- Runs nightly at 04:15 — deletes message-redaction originals older than 90 days
+SELECT cron.schedule(
+  'purge-message-redactions',
+  '15 4 * * *',
+  'SELECT public.purge_message_redactions()'
 );
 
 -- Runs every 5 minutes — releases abandoned 'pending' checkout reservations

@@ -327,6 +327,11 @@ export default function ConversationScreen() {
         <Text style={[styles.bubbleText, isOwn && styles.bubbleTextOwn]}>
           {item.content}
         </Text>
+        {item.content.includes('[hidden]') && (
+          <Text style={[styles.hiddenNote, isOwn && styles.hiddenNoteOwn]}>
+            Contact details are hidden so your order stays covered by Safe Checkout.
+          </Text>
+        )}
       </View>
     );
 
@@ -665,6 +670,8 @@ function getStyles(colors: ColorTokens) {
       alignSelf: 'flex-start',
       borderBottomLeftRadius: BorderRadius.small,
     },
+    hiddenNote: { fontSize: 11, lineHeight: 15, marginTop: 4, color: colors.textSecondary },
+    hiddenNoteOwn: { color: 'rgba(255,255,255,0.78)' },
     bubbleText: { ...Typography.body, color: colors.textPrimary },
     bubbleTextOwn: { color: '#FFFFFF' },
     inputContainer: { flex: 1 },
