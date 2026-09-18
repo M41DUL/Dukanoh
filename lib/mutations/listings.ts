@@ -463,6 +463,32 @@ export function useReportListing() {
   });
 }
 
+interface ReportUserArgs {
+  reporterId: string;
+  reportedUserId: string;
+  reason: string;
+}
+
+/**
+ * Reports a member rather than a listing (reports.target = 'user'). The
+ * database allows one such report per reporter per member; a repeat surfaces
+ * as a unique-violation error (code 23505), which callers treat as "already
+ * reported".
+ */
+export function useReportUser() {
+  return useMutation({
+    mutationFn: async ({ reporterId, reportedUserId, reason }: ReportUserArgs) => {
+      const { error } = await supabase.from('reports').insert({
+        reporter_id: reporterId,
+        seller_id: reportedUserId,
+        target: 'user',
+        reason,
+      });
+      if (error) throw error;
+    },
+  });
+}
+
 interface RecordListingViewArgs {
   listingId: string;
   userId: string;

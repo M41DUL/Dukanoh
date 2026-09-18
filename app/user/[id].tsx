@@ -25,6 +25,7 @@ import { supabase } from '@/lib/supabase';
 import { isProTier } from '@/lib/tiers';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlocked } from '@/context/BlockedContext';
+import { useReportUser } from '@/lib/mutations';
 
 interface Seller {
   id: string;
@@ -62,6 +63,7 @@ export default function SellerProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const { isBlocked, blockUser } = useBlocked();
+  const reportUser = useReportUser();
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
@@ -204,14 +206,28 @@ export default function SellerProfileScreen() {
     });
   }, [id, user]);
 
-  const submitReport = () => {
-    Alert.alert('Report submitted', 'Thank you for your report.');
+  // Writes a real row to `reports` (target = 'user') so it reaches the admin
+  // queue. Terms 12 and 17 and the Legal page all point members at this button.
+  const submitReport = async (reason: string) => {
+    if (!user || !id) return;
+    try {
+      await reportUser.mutateAsync({ reporterId: user.id, reportedUserId: id, reason });
+      Alert.alert('Report submitted', 'Thank you. Our team reviews every report.');
+    } catch (e: unknown) {
+      const code = (e as { code?: string } | null)?.code;
+      if (code === '23505') {
+        Alert.alert('Already reported', "You've already reported this member. Our team will review it.");
+      } else {
+        Alert.alert('Could not send report', 'Please check your connection and try again.');
+      }
+    }
   };
 
   const handleReport = () => {
-    Alert.alert('Report user', 'Why are you reporting this user?', [
-      { text: 'Spam', onPress: () => submitReport() },
-      { text: 'Inappropriate behaviour', onPress: () => submitReport() },
+    Alert.alert('Report member', 'Why are you reporting this member?', [
+      { text: 'Spam', onPress: () => submitReport('Spam') },
+      { text: 'Inappropriate behaviour', onPress: () => submitReport('Inappropriate behaviour') },
+      { text: 'Scam or fraud', onPress: () => submitReport('Scam or fraud') },
       { text: 'Cancel', style: 'cancel' },
     ], { cancelable: true });
   };

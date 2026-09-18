@@ -1700,34 +1700,37 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
-          listing_id: string
+          listing_id: string | null
           reason: string
           reporter_id: string
           reviewed_at: string | null
           reviewed_by: string | null
           seller_id: string
+          target: string
           status: string
         }
         Insert: {
           created_at?: string | null
           id?: string
-          listing_id: string
+          listing_id?: string | null
           reason: string
           reporter_id: string
           reviewed_at?: string | null
           reviewed_by?: string | null
           seller_id: string
+          target?: string
           status?: string
         }
         Update: {
           created_at?: string | null
           id?: string
-          listing_id?: string
+          listing_id?: string | null
           reason?: string
           reporter_id?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
           seller_id?: string
+          target?: string
           status?: string
         }
         Relationships: [

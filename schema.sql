@@ -809,18 +809,27 @@ CREATE POLICY "Listings are publicly viewable"
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS sold_at TIMESTAMPTZ;
 
 -- Reports
+-- A report targets a listing (listing_id set) or a member (listing_id NULL).
+-- seller_id is the reported member in both cases. Migration
+-- 20260918210000_member_reports made listing_id optional and split the
+-- one-report-per-target rule into two partial unique indexes.
 CREATE TABLE public.reports (
   id          UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   reporter_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-  listing_id  UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
-  seller_id   UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  listing_id  UUID REFERENCES public.listings(id) ON DELETE CASCADE,          -- required when target = 'listing'
+  seller_id   UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,   -- the reported member
+  target      TEXT NOT NULL DEFAULT 'listing' CHECK (target IN ('listing', 'user')),
   reason      TEXT NOT NULL,
   status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'dismissed', 'actioned')),
   reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   reviewed_at TIMESTAMPTZ,
   created_at  TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (reporter_id, listing_id)
+  CONSTRAINT reports_target_shape CHECK ((target = 'listing' AND listing_id IS NOT NULL) OR (target = 'user' AND listing_id IS NULL)),
+  CONSTRAINT reports_not_self CHECK (reporter_id <> seller_id)
 );
+
+CREATE UNIQUE INDEX reports_one_per_listing ON public.reports (reporter_id, listing_id) WHERE target = 'listing';
+CREATE UNIQUE INDEX reports_one_per_member  ON public.reports (reporter_id, seller_id)  WHERE target = 'user';
 
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
