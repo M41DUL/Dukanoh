@@ -18,23 +18,35 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 Deno.serve(async (req) => {
-  // Verify webhook secret
+  // Two callers are allowed:
+  //  • Database webhooks — Authorization: Bearer <WEBHOOK_SECRET>
+  //  • pg_cron jobs (remind_auto_release_orders) — x-dukanoh-key: <INTERNAL_API_KEY>,
+  //    the same header/secret the auto-cancel cron uses.
   const webhookSecret = Deno.env.get('WEBHOOK_SECRET');
+  const internalKey = Deno.env.get('INTERNAL_API_KEY');
   const authHeader = req.headers.get('Authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const providedKey = req.headers.get('x-dukanoh-key');
 
-  if (!webhookSecret || !token || !timingSafeEqual(token, webhookSecret)) {
+  const viaWebhook = !!webhookSecret && !!token && timingSafeEqual(token, webhookSecret);
+  const viaInternal = !!internalKey && !!providedKey && timingSafeEqual(providedKey, internalKey);
+  if (!viaWebhook && !viaInternal) {
     return new Response('Unauthorized', { status: 401 });
   }
 
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const payload = await req.json();
-  const { table, record, old_record } = payload;
+  const { type, table, record, old_record } = payload;
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     serviceRoleKey ?? ''
   );
+
+  // Cron-originated: the buyer's 'shipped' order completes in ~24h.
+  if (table === 'orders' && type === 'AUTO_RELEASE_REMINDER') {
+    return handleAutoReleaseReminder(supabase, record);
+  }
 
   if (table === 'messages') {
     return handleMessage(supabase, record);
@@ -94,6 +106,43 @@ async function handleMessage(supabase: ReturnType<typeof createClient>, record: 
     title: `@${senderName}`,
     body,
     data: { conversation_id: record.conversation_id },
+  }));
+
+  return sendPush(messages, supabase);
+}
+
+// ─── Auto-release reminder ────────────────────────────────────
+// Sent by the remind-auto-release-orders cron ~24h before a 'shipped' order
+// completes on its own (Terms clause 5: "We will send you a reminder before this
+// happens"). Buyer only. The cron stamps auto_release_reminder_sent_at before
+// calling, so a retry never double-sends.
+
+async function handleAutoReleaseReminder(
+  supabase: ReturnType<typeof createClient>,
+  record: Record<string, string>
+) {
+  if (!record?.buyer_id || record.status !== 'shipped') {
+    return new Response(JSON.stringify({ skipped: 'not a shipped order' }), { status: 200 });
+  }
+
+  const tokens = await getTokens(supabase, record.buyer_id);
+  if (tokens.length === 0) {
+    return new Response(JSON.stringify({ skipped: 'no tokens' }), { status: 200 });
+  }
+
+  const { data: listing } = await supabase
+    .from('listings')
+    .select('title')
+    .eq('id', record.listing_id)
+    .single();
+  const itemTitle = listing?.title ?? 'your order';
+
+  const messages = tokens.map(t => ({
+    to: t,
+    sound: 'default',
+    title: 'Your order completes tomorrow',
+    body: `Has ${itemTitle} arrived? Tap "Item received", or report an issue if something's wrong.`,
+    data: { order_id: record.id },
   }));
 
   return sendPush(messages, supabase);

@@ -38,7 +38,7 @@ const STEPS: Step[] = [
   {
     icon: 'shield-checkmark-outline',
     title: 'Pay securely',
-    description: 'Every order includes Dukanoh Safe Checkout. Payment is held until you confirm your piece has arrived, or released automatically 48 hours after delivery.',
+    description: 'Every order includes Dukanoh Safe Checkout. Payment is held until you confirm your piece has arrived, then released 48 hours later if all is well.',
   },
   {
     icon: 'star-outline',
@@ -66,7 +66,7 @@ const BUYER_TIPS: Tip[] = [
   },
   {
     icon: 'alert-circle-outline',
-    text: 'Raise a dispute within 48 hours of delivery if something\'s wrong. Our team reviews all claims within 7 days.',
+    text: 'Report an issue before the order completes if something\'s wrong. Our team reviews all claims within 7 days.',
   },
 ];
 
@@ -130,7 +130,7 @@ export default function HowItWorksScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
           <Text style={styles.infoText}>
-            Every order on Dukanoh includes Dukanoh Safe Checkout. Payments are held by Stripe and only released to the seller once you confirm your piece has arrived, or automatically 48 hours after delivery if you take no action.
+            Every order on Dukanoh includes Dukanoh Safe Checkout. Payments are held by Stripe and released to the seller 48 hours after you confirm your piece has arrived, or 7 days after dispatch if you take no action. We remind you the day before.
           </Text>
         </View>
 

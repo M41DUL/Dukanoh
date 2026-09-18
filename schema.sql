@@ -1186,6 +1186,7 @@ CREATE TABLE public.orders (
   shipped_at        TIMESTAMPTZ,
   delivered_at      TIMESTAMPTZ,
   auto_release_at   TIMESTAMPTZ,
+  auto_release_reminder_sent_at TIMESTAMPTZ, -- buyer reminded ~24h before a 'shipped' order auto-completes (remind_auto_release_orders)
   completed_at      TIMESTAMPTZ,
   cancelled_at      TIMESTAMPTZ,
   cancelled_by      TEXT CHECK (cancelled_by IN ('buyer','seller','system')),
@@ -1640,6 +1641,61 @@ BEGIN
     AND appealed_at IS NULL;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Remind the buyer ~24h before a 'shipped' order auto-completes (Terms clause 5
+-- promises this). Stamps auto_release_reminder_sent_at and POSTs one
+-- AUTO_RELEASE_REMINDER event per order to the push-notification edge function
+-- via pg_net, authenticated with x-dukanoh-key = INTERNAL_API_KEY (Vault).
+-- 'delivered' orders are not reminded: the buyer chose to start the 48h window.
+CREATE OR REPLACE FUNCTION public.remind_auto_release_orders()
+RETURNS void AS $$
+DECLARE
+  v_url TEXT;
+  v_key TEXT;
+  r RECORD;
+BEGIN
+  SELECT decrypted_secret INTO v_url FROM vault.decrypted_secrets WHERE name = 'supabase_url';
+  SELECT decrypted_secret INTO v_key FROM vault.decrypted_secrets WHERE name = 'INTERNAL_API_KEY';
+  IF v_url IS NULL OR v_key IS NULL THEN
+    RAISE WARNING 'remind_auto_release_orders: vault secrets supabase_url / INTERNAL_API_KEY missing; no reminders sent';
+    RETURN;
+  END IF;
+
+  FOR r IN
+    UPDATE public.orders o
+    SET auto_release_reminder_sent_at = NOW()
+    WHERE o.status = 'shipped'
+      AND o.auto_release_at IS NOT NULL
+      AND o.auto_release_at > NOW()
+      AND o.auto_release_at <= NOW() + INTERVAL '25 hours'
+      AND o.auto_release_reminder_sent_at IS NULL
+    RETURNING o.id, o.buyer_id, o.seller_id, o.listing_id, o.status, o.auto_release_at
+  LOOP
+    PERFORM net.http_post(
+      url := v_url || '/functions/v1/push-notification',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'x-dukanoh-key', v_key
+      ),
+      body := jsonb_build_object(
+        'type', 'AUTO_RELEASE_REMINDER',
+        'table', 'orders',
+        'record', jsonb_build_object(
+          'id', r.id,
+          'buyer_id', r.buyer_id,
+          'seller_id', r.seller_id,
+          'listing_id', r.listing_id,
+          'status', r.status,
+          'auto_release_at', r.auto_release_at
+        )
+      )
+    );
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL    ON FUNCTION public.remind_auto_release_orders() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.remind_auto_release_orders() TO postgres;
 
 -- Cancel abandoned checkout reservations: 'pending' orders older than 20 min
 -- (longer than a realistic 3DS / wallet / bank-app session) are cancelled and
@@ -2252,6 +2308,13 @@ SELECT cron.schedule(
   'auto-release-orders',
   '0 * * * *',
   'SELECT public.auto_release_orders()'
+);
+
+-- Runs at :30 each hour — reminds the buyer ~24h before a 'shipped' order auto-completes
+SELECT cron.schedule(
+  'remind-auto-release-orders',
+  '30 * * * *',
+  'SELECT public.remind_auto_release_orders()'
 );
 
 -- Runs every 5 minutes — releases abandoned 'pending' checkout reservations
