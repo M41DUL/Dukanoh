@@ -84,6 +84,22 @@ export default function ListingDetailScreen() {
   // stays. Seeded from extrasQuery via the useEffect below.
   const [boostExpiry, setBoostExpiry] = useState<Date | null>(null);
   const [boostsUsed, setBoostsUsed] = useState(0);
+  // Live store price for boost_single, so the sheet and the recorded amount can
+  // never disagree with what App Store / Play actually charge. Fetched when the
+  // boost sheet opens.
+  const [boostProduct, setBoostProduct] = useState<{ price: number; priceString: string } | null>(null);
+  useEffect(() => {
+    if (!boostVisible || boostProduct) return;
+    let cancelled = false;
+    Purchases.getProducts(['boost_single'], PRODUCT_CATEGORY.NON_SUBSCRIPTION)
+      .then(products => {
+        if (!cancelled && products[0]) {
+          setBoostProduct({ price: products[0].price, priceString: products[0].priceString });
+        }
+      })
+      .catch(() => { /* sheet shows "Store price" until it loads; purchase still works */ });
+    return () => { cancelled = true; };
+  }, [boostVisible, boostProduct]);
   // boosts_reset_at no longer needs client tracking — increment_boosts_used
   // owns the rollover atomically and the boosts.tsx screen reads its own copy.
   const [activeBoostCount, setActiveBoostCount] = useState(0);
@@ -98,7 +114,7 @@ export default function ListingDetailScreen() {
   // This used to normalise the tier through `as 'pro' | 'free'`, which
   // silenced the compiler while letting 'founder' pass through the ternary
   // untouched — so every `=== 'pro'` check below quietly failed for founders,
-  // charging them £0.99 for boosts their subscription already covers. Route
+  // charging them the store price for boosts their subscription already covers. Route
   // tier checks through isProTier; never compare the string directly.
   const hasPro = isProTier(authSellerTier);
 
@@ -348,7 +364,8 @@ export default function ListingDetailScreen() {
 
   const handleCloseBoost = () => setBoostVisible(false);
 
-  const purchaseBoostConsumable = async (): Promise<boolean> => {
+  // Resolves to the store price paid, or null if the purchase did not happen.
+  const purchaseBoostConsumable = async (): Promise<number | null> => {
     try {
       // boost_single is a ONE-TIME product. getProducts defaults its type to
       // PRODUCT_CATEGORY.SUBSCRIPTION, so without this the store is queried for a
@@ -362,10 +379,10 @@ export default function ListingDetailScreen() {
         // exact state shows in the crash dashboard.
         reportError(new Error('boost_single returned no products'), 'boost/getProducts');
         Alert.alert('Purchase unavailable', 'Please try again later.');
-        return false;
+        return null;
       }
       await Purchases.purchaseStoreProduct(products[0]);
-      return true;
+      return products[0].price;
     } catch (e: any) {
       if (!e.userCancelled) {
         // Capture the real RevenueCat error (code + message) so we can tell a
@@ -374,7 +391,7 @@ export default function ListingDetailScreen() {
         reportError(new Error(`boost purchase failed: ${e?.code ?? '?'} ${e?.message ?? e}`), 'boost/purchase');
         Alert.alert('Purchase failed', 'Something went wrong. Please try again.');
       }
-      return false;
+      return null;
     }
   };
 
@@ -414,14 +431,14 @@ export default function ListingDetailScreen() {
         setBoostsUsed(prev => prev + 1);
       } else {
         // Quota exhausted — fall through to IAP.
-        const purchased = await purchaseBoostConsumable();
-        if (!purchased) return;
-        amountPaid = 0.99;
+        const paid = await purchaseBoostConsumable();
+        if (paid === null) return;
+        amountPaid = paid;
       }
     } else {
-      const purchased = await purchaseBoostConsumable();
-      if (!purchased) return;
-      amountPaid = 0.99;
+      const paid = await purchaseBoostConsumable();
+      if (paid === null) return;
+      amountPaid = paid;
     }
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -965,7 +982,7 @@ export default function ListingDetailScreen() {
                 </View>
               </>
             ) : (
-              <Text style={[styles.boostDetailVal, { color: colors.textPrimary }]}>£0.99</Text>
+              <Text style={[styles.boostDetailVal, { color: colors.textPrimary }]}>{boostProduct?.priceString ?? 'Store price'}</Text>
             )}
           </View>
         </View>
