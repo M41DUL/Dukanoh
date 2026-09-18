@@ -1814,6 +1814,7 @@ INSERT INTO public.platform_settings (key, value) VALUES
   ('founder_annual_price', '59.99'),
   ('pro_monthly_price', '9.99'),
   ('pro_annual_price', '84.99'),
+  ('fit_photo_retention_months', '24'), -- Dukanoh Fit photos purged after this (purge-fit-photos, Privacy §14)
   ('protection_fee_percent', '6.5'),
   ('protection_fee_flat', '0.80');
 
@@ -2555,6 +2556,23 @@ SELECT cron.schedule(
   'purge-message-redactions',
   '15 4 * * *',
   'SELECT public.purge_message_redactions()'
+);
+
+-- Runs nightly at 04:45 — calls the purge-fit-photos edge function (pg_net + Vault
+-- secrets) to delete Dukanoh Fit photos older than fit_photo_retention_months
+SELECT cron.schedule(
+  'purge-fit-photos',
+  '45 4 * * *',
+  $cmd$
+  SELECT net.http_post(
+    url := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'supabase_url') || '/functions/v1/purge-fit-photos',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-dukanoh-key', (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'INTERNAL_API_KEY')
+    ),
+    body := '{}'::jsonb
+  );
+  $cmd$
 );
 
 -- Runs every 5 minutes — releases abandoned 'pending' checkout reservations
