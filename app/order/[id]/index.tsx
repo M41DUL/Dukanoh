@@ -53,6 +53,7 @@ interface Order {
   total_paid: number;
   payment_method: 'card' | 'google_pay' | 'apple_pay' | null;
   tracking_number: string | null;
+  posted_untracked: boolean;
   courier: string | null;
   dispute_reason: string | null;
   dispute_description: string | null;
@@ -170,6 +171,8 @@ export default function OrderDetailScreen() {
   // infer this from `courier` alone, since an empty courier is also the default
   // pre-selection state.
   const [otherCourier, setOtherCourier] = useState(false);
+  // Terms 14: seller may post without tracking, at their own risk.
+  const [untracked, setUntracked] = useState(false);
 
   const markShipped = useMarkOrderShipped();
   const confirmReceipt = useConfirmOrderReceipt();
@@ -233,8 +236,8 @@ export default function OrderDetailScreen() {
   // ── Seller: mark as shipped ──────────────────────────────────
   const handleMarkShipped = async () => {
     if (!order || !user) return;
-    if (!trackingNumber.trim()) {
-      Alert.alert('Tracking number required', 'Please enter a tracking number before marking as shipped.');
+    if (!untracked && !trackingNumber.trim()) {
+      Alert.alert('Tracking or reference number required', "Enter the tracking or reference number, or tick 'Posted without tracking'.");
       return;
     }
     setSubmitting(true);
@@ -242,8 +245,9 @@ export default function OrderDetailScreen() {
       await markShipped.mutateAsync({
         orderId: order.id,
         sellerId: user.id,
-        trackingNumber: trackingNumber.trim(),
-        courier: courier.trim() || undefined,
+        trackingNumber: untracked ? '' : trackingNumber.trim(),
+        courier: untracked ? undefined : (courier.trim() || undefined),
+        untracked,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -546,6 +550,18 @@ export default function OrderDetailScreen() {
           </View>
 
           {/* Tracking */}
+          {order.status !== 'created' && order.status !== 'paid' && order.posted_untracked && (
+            <View style={[styles.card, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Postage</Text>
+              <Text style={[styles.hint, { color: colors.textPrimary }]}>Posted without tracking.</Text>
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                {isBuyer
+                  ? "If it doesn't arrive, tap Report an issue before the order completes and you'll be refunded in full."
+                  : "You chose untracked postage. If the buyer reports it as not received before the order completes, they're refunded and you aren't paid for this order."}
+              </Text>
+            </View>
+          )}
+
           {order.status !== 'created' && order.status !== 'paid' && order.tracking_number && (
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <View style={styles.trackingHeader}>
@@ -728,7 +744,7 @@ export default function OrderDetailScreen() {
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Ship this order</Text>
               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                Enter tracking details and mark as shipped. Payment releases 48 hours after the buyer confirms receipt, or automatically 7 days after delivery if they take no action.
+                Enter the tracking or reference number and mark as shipped. Payment releases 48 hours after the buyer confirms receipt, or automatically 7 days after dispatch if they take no action.
               </Text>
               {order.dispatch_deadline_at && (
                 <View style={[styles.autoRelease, { backgroundColor: colors.amber + '15', borderColor: colors.amber + '35' }]}>
@@ -738,9 +754,10 @@ export default function OrderDetailScreen() {
                   </Text>
                 </View>
               )}
+              {!untracked && (<>
               <View style={styles.fieldGroup}>
                 <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>
-                  Tracking number <Text style={{ color: colors.error }}>*</Text>
+                  Tracking or reference number <Text style={{ color: colors.error }}>*</Text>
                 </Text>
                 <View style={[styles.inputWrap, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
                   <TextInput
@@ -820,6 +837,28 @@ export default function OrderDetailScreen() {
                   </View>
                 )}
               </View>
+
+              </>)}
+
+              <TouchableOpacity
+                style={styles.untrackedRow}
+                onPress={() => { setUntracked(v => !v); Haptics.selectionAsync(); }}
+                activeOpacity={0.8}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: untracked }}
+              >
+                <Ionicons
+                  name={untracked ? 'checkbox' : 'square-outline'}
+                  size={22}
+                  color={untracked ? colors.primary : colors.textSecondary}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fieldLabel, { color: colors.textPrimary }]}>Posted without tracking</Text>
+                  <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                    Untracked postage is at your risk. If the buyer reports this order as not received before it completes, they're refunded in full and you aren't paid for it. Tracked postage protects you.
+                  </Text>
+                </View>
+              </TouchableOpacity>
 
               <Button label="Mark as shipped" onPress={handleMarkShipped} loading={submitting} />
             </View>
@@ -1360,6 +1399,7 @@ function getStyles(_colors: ColorTokens) {
       fontSize: 14,
       ...FontFamily.regular,
     },
+    untrackedRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, marginBottom: Spacing.base },
     fieldGroup: {
       gap: Spacing.xs,
     },

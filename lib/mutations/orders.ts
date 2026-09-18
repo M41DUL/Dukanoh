@@ -44,16 +44,19 @@ interface MarkOrderShippedArgs {
   sellerId: string;
   trackingNumber: string;
   courier?: string;
+  /** Seller confirmed untracked postage (Terms 14). Tracking may then be empty. */
+  untracked?: boolean;
 }
 
 export function useMarkOrderShipped() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ orderId, sellerId, trackingNumber, courier }: MarkOrderShippedArgs) => {
+    mutationFn: async ({ orderId, sellerId, trackingNumber, courier, untracked }: MarkOrderShippedArgs) => {
       const { error } = await supabase.rpc('mark_order_shipped', {
         p_order_id: orderId,
         p_seller_id: sellerId,
+        p_untracked: untracked ?? false,
         p_tracking: trackingNumber,
         p_courier: courier,
       });

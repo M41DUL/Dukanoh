@@ -1167,7 +1167,8 @@ CREATE TABLE public.orders (
   item_price        NUMERIC(10,2) NOT NULL,
   protection_fee    NUMERIC(10,2) NOT NULL,
   total_paid        NUMERIC(10,2) NOT NULL,
-  tracking_number   TEXT,
+  tracking_number   TEXT,             -- NULL when posted_untracked
+  posted_untracked  BOOLEAN NOT NULL DEFAULT FALSE, -- seller confirmed untracked postage at dispatch (Terms 14); not-received disputes resolve for the buyer
   courier           TEXT,
   stripe_payment_id TEXT UNIQUE,        -- set ONLY once the charge is confirmed; presence means "this order was paid"
   -- How the buyer paid: card | google_pay | apple_pay. Derived from the Stripe
@@ -1514,12 +1515,17 @@ CREATE TRIGGER order_tax_threshold
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_order_tax_threshold();
 
--- mark_order_shipped RPC — uses server time, enforces paid→shipped guard
+-- mark_order_shipped RPC — uses server time, enforces paid→shipped guard.
+-- Requires a tracking/reference number unless the seller confirms untracked
+-- postage (p_untracked), which is recorded on the order (Terms 14).
+-- Single signature on purpose: the old 4-arg version was dropped so PostgREST
+-- has one candidate; old builds omitting p_untracked resolve via the default.
 CREATE OR REPLACE FUNCTION public.mark_order_shipped(
   p_order_id  UUID,
   p_seller_id UUID,
   p_tracking  TEXT,
-  p_courier   TEXT DEFAULT NULL
+  p_courier   TEXT    DEFAULT NULL,
+  p_untracked BOOLEAN DEFAULT FALSE
 )
 RETURNS void AS $$
 BEGIN
@@ -1527,13 +1533,19 @@ BEGIN
     RAISE EXCEPTION 'not allowed';
   END IF;
 
+  IF NOT COALESCE(p_untracked, FALSE) AND (p_tracking IS NULL OR btrim(p_tracking) = '') THEN
+    RAISE EXCEPTION 'tracking_required'
+      USING HINT = 'Enter the tracking or reference number, or confirm untracked postage.';
+  END IF;
+
   UPDATE public.orders
   SET
-    status          = 'shipped',
-    tracking_number = p_tracking,
-    courier         = p_courier,
-    shipped_at      = NOW(),
-    auto_release_at = NOW() + INTERVAL '7 days'
+    status           = 'shipped',
+    tracking_number  = CASE WHEN COALESCE(p_untracked, FALSE) THEN NULL ELSE btrim(p_tracking) END,
+    courier          = CASE WHEN COALESCE(p_untracked, FALSE) THEN NULL ELSE NULLIF(btrim(p_courier), '') END,
+    posted_untracked = COALESCE(p_untracked, FALSE),
+    shipped_at       = NOW(),
+    auto_release_at  = NOW() + INTERVAL '7 days'
   WHERE
     id        = p_order_id
     AND seller_id = p_seller_id
@@ -1541,8 +1553,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-REVOKE ALL    ON FUNCTION public.mark_order_shipped(uuid, uuid, text, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.mark_order_shipped(uuid, uuid, text, text) TO authenticated;
+REVOKE ALL    ON FUNCTION public.mark_order_shipped(uuid, uuid, text, text, boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.mark_order_shipped(uuid, uuid, text, text, boolean) TO authenticated;
 
 -- confirm_order_receipt RPC — uses server time, enforces shipped→delivered guard.
 -- Moves order to 'delivered' and resets auto_release_at to +2 days so the

@@ -44,6 +44,10 @@ const FAQS: FAQ[] = [
     answer: 'You must dispatch within 5 days of a sale. If you don\'t ship in time, the order is automatically cancelled and the buyer is refunded in full.',
   },
   {
+    question: 'Do I need to send tracked?',
+    answer: 'Tracked is strongly recommended and protects you: if tracking shows delivery, a "not received" claim is decided in your favour. You can post without tracking, but then the risk is yours. If the buyer reports the piece as not received before the order completes, they are refunded in full and you are not paid for that order.',
+  },
+  {
     question: 'What if I have an issue with another member?',
     answer: 'Tap the flag icon on any profile or listing to report it. For order issues, raise a dispute directly from your order screen.',
   },

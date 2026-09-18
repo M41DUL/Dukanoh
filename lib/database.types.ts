@@ -1400,6 +1400,7 @@ export type Database = {
           status: string
           stripe_payment_id: string | null
           total_paid: number
+          posted_untracked: boolean
           tracking_number: string | null
           wallet_released_at: string | null
         }
@@ -1443,6 +1444,7 @@ export type Database = {
           status?: string
           stripe_payment_id?: string | null
           total_paid: number
+          posted_untracked?: boolean
           tracking_number?: string | null
           wallet_released_at?: string | null
         }
@@ -1486,6 +1488,7 @@ export type Database = {
           status?: string
           stripe_payment_id?: string | null
           total_paid?: number
+          posted_untracked?: boolean
           tracking_number?: string | null
           wallet_released_at?: string | null
         }
