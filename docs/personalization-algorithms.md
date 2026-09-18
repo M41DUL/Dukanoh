@@ -555,7 +555,7 @@ Whether buyers who see similar listings tap through and save or purchase one. A 
 ## 13. Dukanoh Fit
 
 **What it does**
-A buyer-facing outfit matching tool. The member photographs a clothing piece they own; AWS Rekognition validates it is clothing and auto-detects the category and colour. The member confirms or overrides the form (category, who it's for, colour, optional occasion and fabric weight), then the algorithm finds complementary listings from the platform's inventory.
+A buyer-facing outfit matching tool. The member photographs a clothing piece they own; the Claude engine confirms it is a listable piece and reads the category, colour, accent colours, gender and embellishment. The member confirms or overrides the form (category, who it's for, colour, optional occasion and fabric weight), then the algorithm finds complementary listings from the platform's inventory.
 
 **Where it lives**
 - Screen: `app/dukanoh-fit.tsx`
@@ -568,7 +568,7 @@ A buyer-facing outfit matching tool. The member photographs a clothing piece the
 **Data it uses**
 | Source | What it tells us |
 |--------|-----------------|
-| AWS Rekognition `DetectLabels` | Whether the photo is clothing; detected category and dominant colour |
+| Claude engine (`validate-clothing`) | Whether the photo is a listable piece; category, colour, accent colours, gender, embellishment, person in frame, confidence |
 | `listings.category` | Complementary category filter |
 | `listings.gender` | Who the piece is for — hard filter, so a Sherwani search never returns women's Salwars |
 | `listings.colour` | Colour compatibility filter and score |
@@ -579,12 +579,11 @@ A buyer-facing outfit matching tool. The member photographs a clothing piece the
 | `users.tax_hold` | Tax-held sellers are excluded — their pieces can't be bought |
 
 **How it works — validation**
-1. Member takes a photo. Image is compressed to 800px wide, 0.7 JPEG quality, sent as base64 to the `validate-clothing` Edge Function.
-2. Rekognition `DetectLabels` runs with `MinConfidence: 60`, `MaxLabels: 30`, features `GENERAL_LABELS` + `IMAGE_PROPERTIES`.
-3. A label is classified as clothing if its `Name` is in the root set (`Clothing`, `Apparel`, `Silk`, `Saree` etc.) **or** any of its `Parents` has `Name: 'Clothing'` or `Name: 'Apparel'`. This catches generic Western labels like `Dress` or `Shirt` which Rekognition returns with `Clothing` as a parent rather than as a top-level label.
-4. If not clothing → member is shown an alert and asked to retake. If clothing → form is pre-filled with detected category and colour; member can override either.
-5. If the check itself fails (network, Rekognition down — the function returns 503 `validation_unavailable`), the member is told the photo couldn't be checked and to try again. A failed check is never reported as "not clothing". The sell form, which calls the same function, fails open.
-6. After a search runs, the photo is uploaded once, in the background, to S3 for training (`store-training-image`, capped at 200 per category, stored with no link to the member). The sheet discloses this and the privacy policy covers it.
+1. Member takes a photo. Image is compressed to 800px wide, 0.7 JPEG quality, sent as base64 to the `validate-clothing` Edge Function with `source: 'fit'`.
+2. The Claude engine looks once, with the taxonomy (categories with definitions and visual cues, colours) in a cached system prompt and the answer pinned to a JSON schema, so it can only answer with values the app knows.
+3. If not a listable piece → member is shown an alert and asked to retake. If it is → the form is pre-filled with the detected category and colour, and with the engine's gender guess when the category alone can't settle it; the member can override any of them.
+4. If the check itself fails (network, engine down — the function returns 503 `validation_unavailable`), the member is told the photo couldn't be checked and to try again. A failed check is never reported as "not clothing". The sell form, which calls the same function, fails open. A refusal from the model is "not listable".
+5. After a search runs, the photo is uploaded once, in the background, to the private `fit-training` bucket with the confirmed labels and the engine's guess (`store-training-image`), with no link to the member and never when a person is in frame. The sheet discloses this and the privacy policy covers it.
 
 **How it works — who it's for**
 Single-gender categories settle it (Lehenga → Women, Sherwani → Men — from `CategoriesByGender` in `constants/theme.ts`). Kurta and Salwar are listed under both genders, so the form asks "Who's it for?". The listings query filters on `gender`, so cross-gender suggestions cannot appear.
@@ -672,7 +671,7 @@ The parts of the Fit rebuild that no engine swap touches:
 |-------|-------|--------------|
 | `garment_labels` | table | Every labelled photo. Listing photos arrive by trigger with the seller's labels; Fit photos arrive from `store-training-image` with the member's confirmed labels and the engine's guess copied in as plain values; seed images carry a licence. `corrected` is generated: the engine guessed a different category from the one confirmed. |
 | `recognition_events` | table | One row per engine call from `validate-clothing`: who asked, engine and version, outcome, answer, confidence, whether a person was in frame, latency. No image, no reference from any stored photo. |
-| `platform_settings.recognition_engine` | row | The engine switch. `rekognition` today. `validate-clothing` reads it per call; an unknown value is recorded and Rekognition still answers. |
+| `platform_settings.recognition_engine` | row | The engine switch, `claude`. `validate-clothing` reads it per call; an unknown value is recorded on the event for a future engine and Claude answers meanwhile. |
 | `recognition_accuracy` | view | Per engine, per source, per week: predictions, category correct, colour compared, colour correct. From confirmed labels vs. the guess stored next to them. |
 
 Privacy rules, enforced in code and constraints: a Fit row never carries a member id or listing id (`garment_labels_fit_rows_unlinked`); a photo with a person in frame is used for the search and never stored (`detectHasPerson` → `validateSubmission` refuses it); listing rows leave with the listing or the seller (`anonymize_user_account`). Retention for Fit copies is the privacy policy's figure; nothing enforces it yet — that is an S3 lifecycle rule until the move to Supabase Storage, then a scheduled delete.
@@ -691,9 +690,9 @@ Model tier: `claude-sonnet-5` by default. On the first real photo (a plain black
 Training photos now go to the private Supabase Storage bucket `fit-training` (`storage://fit-training/<category>/<uuid>.jpg` in `garment_labels.image_url`), not S3. The engine's gender guess pre-fills "Who's it for?" on the Fit form when the category alone can't settle it.
 
 **Current limitations**
-- Rekognition is a Western-trained model — South Asian garments (lehenga, sherwani) are rarely identified by name. The function falls back to Western equivalents (Dress → Lehenga, Suit → Sherwani) which are close but not exact.
+- One confirmed photo so far. Accuracy per model tier is a scoreboard question (`recognition_accuracy`) once members have confirmed a few hundred; Sonnet 5 was chosen on a single kurta photo where Haiku 4.5 failed.
 - No price range signal — the algorithm doesn't try to match the price tier of the uploaded piece.
-- Colour detection is from the full image, not just the garment — background colour can skew the dominant colour result.
+- The sell form still makes one recognition call and one screening call per photo, plus a quality call for the cover. A six-photo listing is thirteen looks at roughly 0.25p each. Folding these into one look per listing needs a sell-form change in the next build.
 - Colour and fabric are optional on the sell form. Pieces without a colour only appear via the widen pass; pieces without a fabric never earn the fabric-weight point.
 - Camera only — a member can't pick an existing photo from their library.
 

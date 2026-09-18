@@ -2517,9 +2517,11 @@ COMMENT ON TABLE public.recognition_events IS
 
 -- ── 4. Engine switch ─────────────────────────────────────────────────────────
 INSERT INTO public.platform_settings (key, value)
-VALUES ('recognition_engine', 'rekognition')
+VALUES ('recognition_engine', 'claude')
 ON CONFLICT (key) DO NOTHING;
--- 'claude' | 'rekognition'. With 'claude', recognition_model picks the tier
+-- 'claude' is the only engine wired (AWS Rekognition retired 2026-09-18); the
+-- row exists so a future engine can be switched in without touching callers.
+-- recognition_model picks the Claude tier
 -- (claude-sonnet-5 default — beat Haiku on accuracy and cost in the 2026-09-18
 -- comparison; claude-opus-5 is a row edit).
 INSERT INTO public.platform_settings (key, value)

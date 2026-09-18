@@ -95,7 +95,7 @@ export function DukanohFitSheet({ visible, onClose, onProceed }: DukanohFitSheet
 
       setValidating(false);
 
-      // A failed check (network, server, Rekognition down) is not a verdict
+      // A failed check (network, server, engine down) is not a verdict
       // on the photo — don't tell the member it isn't clothing.
       if (error || data?.error) {
         Alert.alert("Can't check the photo right now", 'Check your connection and try again.');

@@ -58,7 +58,7 @@ export async function compressImage(uri: string): Promise<string> {
 }
 
 /**
- * Compress an image to 800px wide for Rekognition analysis.
+ * Compress an image to 800px wide for recognition and screening.
  * Returns base64-encoded JPEG (without data URL prefix).
  */
 export async function compressImageForAnalysis(uri: string): Promise<string> {
