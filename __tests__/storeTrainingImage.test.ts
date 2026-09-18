@@ -38,7 +38,7 @@ describe('validateSubmission', () => {
     fabricWeight: 'Heavy',
     hasPerson: false,
     predicted: { category: 'Gown', colour: 'Red', confidence: 0.82, engine: 'claude', engineVersion: 'v1', model: 'claude-haiku-4-5' },
-    attributes: { accentColours: ['Gold', 'Beige', 'Cream'], embellishment: 'heavy' },
+    attributes: { accentColours: ['Gold', 'Beige', 'Cream'], embellishment: 'heavy', pieces: ['top', 'bottoms', 'cape'] },
   };
 
   test('accepts a full submission and strips the data-URL prefix', () => {
@@ -59,7 +59,7 @@ describe('validateSubmission', () => {
       predicted_engine: 'claude',
       predicted_engine_version: 'v1',
       predicted_model: 'claude-haiku-4-5',
-      attributes: { accentColours: ['Gold', 'Cream'], embellishment: 'heavy' },
+      attributes: { accentColours: ['Gold', 'Cream'], embellishment: 'heavy', pieces: ['top', 'bottoms'] },
       taxonomy_version: 2,
       has_person: false,
     });

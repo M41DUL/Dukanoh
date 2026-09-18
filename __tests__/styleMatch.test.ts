@@ -11,9 +11,13 @@ import {
   fabricToWeight,
   getCompatibleColours,
   getComplementaryCategories,
+  getMissingPieces,
+  getStrictColours,
+  getSuggestionPlan,
   inferGenderForCategory,
   isColourCompatible,
   isNeutralBaseColour,
+  parseFitAttributes,
   scoreMatch,
 } from '../utils/styleMatch';
 
@@ -195,5 +199,83 @@ describe('scoreMatch', () => {
     expect(scoreMatch({ category: 'Lehenga', colour: 'Red', occasion: 'Wedding' }, {
       category: 'Dupatta', occasion: 'Party',
     })).toBe(0);
+  });
+});
+
+// ─── Set completion ──────────────────────────────────────────────────────────
+
+describe('set completion', () => {
+  test('a lehenga shown with skirt and blouse is missing its dupatta', () => {
+    expect(getMissingPieces('Lehenga', 'Women', ['skirt', 'blouse'])).toEqual(['dupatta']);
+  });
+  test('a complete set is missing nothing', () => {
+    expect(getMissingPieces('Salwar Kameez', 'Women', ['top', 'bottoms', 'dupatta'])).toEqual([]);
+  });
+  test('a kurta set depends on who wears it', () => {
+    expect(getMissingPieces('Kurta', 'Women', ['top'])).toEqual(['bottoms', 'dupatta']);
+    expect(getMissingPieces('Kurta', 'Men', ['top'])).toEqual(['bottoms', 'jacket']);
+  });
+  test('the piece that is the category is never missing', () => {
+    expect(getMissingPieces('Saree', 'Women', ['top'])).toEqual(['blouse']);
+  });
+  test('no read, or a single-piece category, means no set logic', () => {
+    expect(getMissingPieces('Lehenga', 'Women', [])).toBeNull();
+    expect(getMissingPieces('Lehenga', 'Women', undefined)).toBeNull();
+    expect(getMissingPieces('Dupatta', 'Women', ['dupatta'])).toBeNull();
+  });
+  test('the plan leads with the missing pieces, then outfit extras', () => {
+    const plan = getSuggestionPlan({ category: 'Lehenga', gender: 'Women', pieces: ['skirt', 'blouse'] });
+    expect(plan.source).toBe('set');
+    expect(plan.priority).toEqual(['Dupatta']);
+    expect(plan.categories).toEqual(['Dupatta', 'Jewellery', 'Accessories']);
+  });
+  test('a complete set gets the extras only', () => {
+    const plan = getSuggestionPlan({ category: 'Sherwani', gender: 'Men', pieces: ['top', 'bottoms'] });
+    expect(plan.priority).toEqual([]);
+    expect(plan.categories).toEqual(['Jewellery', 'Accessories']);
+  });
+  test('without a read the fixed table is used', () => {
+    const plan = getSuggestionPlan({ category: 'Lehenga', gender: 'Women' });
+    expect(plan.source).toBe('table');
+    expect(plan.categories).toEqual(getComplementaryCategories('Lehenga'));
+  });
+});
+
+// ─── Accent colours ──────────────────────────────────────────────────────────
+
+describe('accent colours', () => {
+  test('an accent colour joins the strict set and counts as compatible', () => {
+    expect(getStrictColours('Maroon', ['Gold'])).toContain('Gold');
+    expect(getStrictColours('Blue', ['Orange'])).toContain('Orange');
+    expect(isColourCompatible('Blue', 'Orange')).toBe(false);
+    expect(isColourCompatible('Blue', 'Orange', ['Orange'])).toBe(true);
+  });
+  test('an accent scores like a primary match', () => {
+    const base = { category: 'Lehenga', colour: 'Blue', accentColours: ['Orange'] };
+    expect(scoreMatch(base, { category: 'Dupatta', colour: 'Orange' })).toBe(2);
+  });
+  test('a neutral base still applies no filter', () => {
+    expect(getStrictColours('Cream', ['Gold'])).toEqual([]);
+  });
+  test('the category that completes the set ranks ahead', () => {
+    const base = { category: 'Lehenga', colour: 'Red', priorityCategories: ['Dupatta'] };
+    expect(scoreMatch(base, { category: 'Dupatta', colour: 'Gold' })).toBe(4);
+    expect(scoreMatch(base, { category: 'Jewellery', colour: 'Gold' })).toBe(2);
+  });
+});
+
+// ─── Engine attributes ───────────────────────────────────────────────────────
+
+describe('parseFitAttributes', () => {
+  test('reads the JSON the sheet passes and keeps only known values', () => {
+    const a = parseFitAttributes(JSON.stringify({ accentColours: ['Gold', 'Beige', 'Cream', 'Silver'], embellishment: 'heavy', pieces: ['top', 'cape', 'dupatta'] }));
+    expect(a).toEqual({ accentColours: ['Gold', 'Cream'], embellishment: 'heavy', pieces: ['top', 'dupatta'] });
+  });
+  test('empty, missing or broken input is harmless', () => {
+    const empty = { accentColours: [], embellishment: null, pieces: [] };
+    expect(parseFitAttributes('')).toEqual(empty);
+    expect(parseFitAttributes(undefined)).toEqual(empty);
+    expect(parseFitAttributes('{not json')).toEqual(empty);
+    expect(parseFitAttributes({ embellishment: 'medium' })).toEqual(empty);
   });
 });

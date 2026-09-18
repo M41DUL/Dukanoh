@@ -9,6 +9,9 @@
  *   fabric_weight column — `listings.fabric` is the only source)
  * - Gender inference from the base category (Kurta, Salwar, Jewellery and
  *   Accessories sit under both genders and are ambiguous)
+ * - Set completion: what a full set of each category is made of, so the engine's
+ *   read of which pieces are in the photo turns into "what's missing"
+ * - Accent colours: the engine's secondary colours count as matches too
  * - scoreMatch() — scores a candidate listing against a base piece
  */
 
@@ -126,13 +129,125 @@ export function inferGenderForCategory(category: string): Gender | null {
   return null;
 }
 
+// ─── Set completion ──────────────────────────────────────────────────────────
+
+/** The separate pieces the engine can report seeing. Mirrors _shared/claudeRecognition.ts PIECES. */
+export const PIECES = ['saree', 'skirt', 'top', 'bottoms', 'dupatta', 'blouse', 'jacket'] as const;
+export type Piece = typeof PIECES[number];
+
+/**
+ * What a complete set of each category is made of, in the order a missing
+ * piece should be suggested. Single-piece categories have no set.
+ */
+const SET_PIECES: Record<string, Piece[]> = {
+  Lehenga:         ['skirt', 'blouse', 'dupatta'],
+  Saree:           ['saree', 'blouse'],
+  Anarkali:        ['top', 'bottoms', 'dupatta'],
+  'Salwar Kameez': ['top', 'bottoms', 'dupatta'],
+  Sharara:         ['top', 'bottoms', 'dupatta'],
+  Sherwani:        ['top', 'bottoms'],
+  'Kurta Pajama':  ['top', 'bottoms'],
+  Achkan:          ['top', 'bottoms'],
+  'Pathani Suit':  ['top', 'bottoms'],
+};
+
+/** Kurta is the one category whose set depends on who wears it. */
+function setPiecesFor(category: string, gender: string | null | undefined): Piece[] | null {
+  if (category === 'Kurta') return gender === 'Men' ? ['top', 'bottoms', 'jacket'] : ['top', 'bottoms', 'dupatta'];
+  return SET_PIECES[category] ?? null;
+}
+
+/** The category to search when a piece is missing. */
+const PIECE_TO_CATEGORY: Record<Piece, string> = {
+  saree:   'Saree',
+  skirt:   'Lehenga',
+  top:     'Kurta',
+  bottoms: 'Salwar',
+  dupatta: 'Dupatta',
+  blouse:  'Blouse',
+  jacket:  'Nehru Jacket',
+};
+
+/** Categories that finish any outfit and are always worth showing after the missing pieces. */
+const OUTFIT_EXTRAS = ['Jewellery', 'Accessories'];
+
+/**
+ * Which pieces of the base category's set are not in the photo. Null when
+ * the category has no set, or when the engine reported no pieces (an older
+ * build, or a photo it couldn't read), so callers fall back to the table.
+ */
+export function getMissingPieces(category: string, gender: string | null | undefined, pieces?: string[] | null): Piece[] | null {
+  const set = setPiecesFor(category, gender);
+  if (!set || !pieces || pieces.length === 0) return null;
+  const seen = new Set(pieces);
+  // The piece that *is* the category is never "missing" — a photo of a saree
+  // drape reported only as 'top' would otherwise ask for a saree.
+  return set.filter(p => !seen.has(p) && p !== set[0]);
+}
+
+export interface SuggestionPlan {
+  /** Categories to search, in priority order. */
+  categories: string[];
+  /** The subset that completes the set — ranked ahead of everything else. */
+  priority: string[];
+  /** The missing pieces the plan is built on, if any. */
+  missing: Piece[];
+  /** Whether the plan came from what the engine saw or from the fixed table. */
+  source: 'set' | 'table';
+}
+
+/**
+ * What to search for. With the engine's read of the photo, that is the
+ * missing pieces first and outfit extras after; with nothing missing, the
+ * extras alone; without a read, the fixed complementary table.
+ */
+export function getSuggestionPlan(input: { category: string; gender?: string | null; pieces?: string[] | null }): SuggestionPlan {
+  const missing = getMissingPieces(input.category, input.gender, input.pieces);
+  if (missing === null) {
+    return { categories: getComplementaryCategories(input.category), priority: [], missing: [], source: 'table' };
+  }
+  const priority = [...new Set(missing.map(p => PIECE_TO_CATEGORY[p]))];
+  const categories = [...new Set([...priority, ...OUTFIT_EXTRAS])];
+  return { categories, priority, missing, source: 'set' };
+}
+
+// ─── Engine attributes ───────────────────────────────────────────────────────
+
+export interface FitAttributes {
+  accentColours: string[];
+  embellishment: 'none' | 'light' | 'heavy' | null;
+  pieces: Piece[];
+}
+
+/** Parses the attributes the engine returned (as JSON on the route), keeping only known values. */
+export function parseFitAttributes(raw: unknown): FitAttributes {
+  const empty: FitAttributes = { accentColours: [], embellishment: null, pieces: [] };
+  let obj: unknown = raw;
+  if (typeof raw === 'string') {
+    if (!raw) return empty;
+    try { obj = JSON.parse(raw); } catch { return empty; }
+  }
+  if (!obj || typeof obj !== 'object') return empty;
+  const a = obj as Record<string, unknown>;
+  const known = new Set<string>(Object.keys(COLOUR_MAP));
+  return {
+    accentColours: Array.isArray(a.accentColours) ? a.accentColours.filter((c): c is string => typeof c === 'string' && known.has(c)).slice(0, 2) : [],
+    embellishment: a.embellishment === 'none' || a.embellishment === 'light' || a.embellishment === 'heavy' ? a.embellishment : null,
+    pieces: Array.isArray(a.pieces) ? a.pieces.filter((x): x is Piece => typeof x === 'string' && (PIECES as readonly string[]).includes(x)) : [],
+  };
+}
+
 // ─── Scoring ─────────────────────────────────────────────────────────────────
 
 export interface MatchInput {
   category: string;
   colour: string;
+  /** Secondary colours on the base piece (zari, borders). A candidate in one of these is as good as a primary match. */
+  accentColours?: string[];
   occasion?: string;
   fabricWeight?: FabricWeight;
+  /** Categories that complete the set; a candidate in one ranks ahead. */
+  priorityCategories?: string[];
 }
 
 export interface ScoredListing {
@@ -148,6 +263,16 @@ export function getComplementaryCategories(baseCategory: string): string[] {
 
 export function isNeutralBaseColour(baseColour: string): boolean {
   return NEUTRAL_BASE_COLOURS.has(baseColour);
+}
+
+/**
+ * Every colour that counts as a match for a base piece: the base colour's
+ * compatible set plus the piece's own accent colours. Empty means no filter.
+ */
+export function getStrictColours(baseColour: string, accentColours: string[] = []): string[] {
+  if (NEUTRAL_BASE_COLOURS.has(baseColour)) return [];
+  const compat = getCompatibleColours(baseColour);
+  return [...new Set([...compat.primary, ...compat.secondary, ...accentColours.filter(c => c !== 'Other')])];
 }
 
 export function getCompatibleColours(baseColour: string): { primary: string[]; secondary: string[] } {
@@ -174,9 +299,10 @@ export function getCompatibleColours(baseColour: string): { primary: string[]; s
  * A neutral base accepts anything. An unset or 'Other' candidate colour is
  * unknown, so it is never a strict match against a non-neutral base.
  */
-export function isColourCompatible(baseColour: string, candidateColour?: string | null): boolean {
+export function isColourCompatible(baseColour: string, candidateColour?: string | null, accentColours: string[] = []): boolean {
   if (NEUTRAL_BASE_COLOURS.has(baseColour)) return true;
   if (!candidateColour || candidateColour === 'Other') return false;
+  if (accentColours.includes(candidateColour)) return true;
   const compat = getCompatibleColours(baseColour);
   return compat.primary.includes(candidateColour) || compat.secondary.includes(candidateColour);
 }
@@ -195,10 +321,14 @@ export function scoreMatch(base: MatchInput, candidate: {
     score += 3;
   }
 
-  // Colour compatibility
+  // Completing the set — the piece the photo is missing ranks first
+  if (base.priorityCategories?.includes(candidate.category)) score += 2;
+
+  // Colour compatibility — an accent colour on the base piece counts like a primary match
   if (base.colour && candidate.colour) {
     const compat = getCompatibleColours(base.colour);
-    if (compat.primary.includes(candidate.colour)) score += 2;
+    if (base.accentColours?.includes(candidate.colour)) score += 2;
+    else if (compat.primary.includes(candidate.colour)) score += 2;
     else if (compat.secondary.includes(candidate.colour)) score += 1;
   }
 

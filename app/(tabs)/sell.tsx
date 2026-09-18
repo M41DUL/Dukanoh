@@ -33,9 +33,8 @@ import { Typography, Spacing, BorderRadius, BorderWidth, Genders, Categories, Ca
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
-import { supabase } from '@/lib/supabase';
-import { compressImageForAnalysis } from '@/lib/imageUtils';
 import { validateListing, isFormDirty as checkFormDirty, ListingForm, CATEGORY_TO_GENDER } from '@/lib/sellHelpers';
+import { screenListingPhotos, type ListingCoverRead, type ListingScreen } from '@/lib/listingScreening';
 import { useCreateListing } from '@/lib/mutations';
 import { useAuth } from '@/hooks/useAuth';
 import { useTaxStatus } from '@/hooks/useTaxStatus';
@@ -92,33 +91,13 @@ export default function SellScreen() {
 
   const isFormDirty = checkFormDirty(form, measurementsNote, images.length);
 
-  // ── Cover quality check ───────────────────────────────────────────────────────
+  // ── Cover warnings ────────────────────────────────────────────────────────────
+  // Every photo is screened once when it's added (see screenListingPhotos);
+  // the warnings for whichever photo is the cover are read back from that.
   const coverImage = images[0];
-  const prevCoverRef = useRef<string | undefined>(undefined);
+  const photoWarningsRef = useRef<Map<string, string[]>>(new Map());
   useEffect(() => {
-    if (!coverImage) { setCoverWarnings([]); return; }
-    if (coverImage === prevCoverRef.current) return;
-    prevCoverRef.current = coverImage;
-    setCoverWarnings([]);
-
-    let cancelled = false;
-    const debounce = setTimeout(async () => {
-      try {
-        const imageBase64 = await compressImageForAnalysis(coverImage);
-        if (cancelled) return;
-        const invoke = supabase.functions.invoke('analyse-listing-image', {
-          body: { imageBase64, check: 'quality' },
-        });
-        const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 15000)
-        );
-        const { data } = await Promise.race([invoke, timeout]);
-        if (!cancelled) setCoverWarnings(data?.warnings ?? []);
-      } catch {
-        // fail open — no warnings shown
-      }
-    }, 1000);
-    return () => { cancelled = true; clearTimeout(debounce); };
+    setCoverWarnings(coverImage ? photoWarningsRef.current.get(coverImage) ?? [] : []);
   }, [coverImage]);
 
   const formDirtyRef = useRef(isFormDirty);
@@ -165,33 +144,24 @@ export default function SellScreen() {
     }
   };
 
-  type CheckResult = { status: 'ok'; detectedColour?: string } | { status: 'blocked' } | { status: 'not-clothing' };
+  // The engine's read of the cover pre-fills what the seller hasn't typed yet.
+  // Category, gender and colour only; the seller confirms every field as before.
+  const applyCoverRead = (cover: ListingCoverRead | null) => {
+    if (!cover) return;
+    setForm(f => {
+      const category = f.category || (cover.detectedCategory ?? '');
+      const inferredGender = CATEGORY_TO_GENDER[category];
+      return {
+        ...f,
+        category,
+        gender: f.gender || inferredGender || cover.detectedGender || '',
+        colour: f.colour || (cover.detectedColour ?? ''),
+      };
+    });
+  };
 
-  // Runs moderation + clothing check in parallel.
-  const runChecks = async (uri: string): Promise<CheckResult> => {
-    try {
-      const imageBase64 = await compressImageForAnalysis(uri);
-      const timeout = <T,>(p: Promise<T>) => Promise.race([
-        p,
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000)),
-      ]);
-
-      const [modResult, clothingResult] = await Promise.all([
-        timeout(supabase.functions.invoke('analyse-listing-image', {
-          body: { imageBase64, check: 'moderation' },
-        })).catch(() => ({ data: { blocked: false } })),
-        timeout(supabase.functions.invoke('validate-clothing', {
-          body: { imageBase64 },
-        })).catch(() => ({ data: { isClothing: true } })), // fail open
-      ]);
-
-      if ((modResult as { data: { blocked?: boolean } }).data?.blocked) return { status: 'blocked' };
-      const cd = (clothingResult as { data: { isClothing?: boolean; detectedColour?: string } }).data;
-      if (cd?.isClothing === false) return { status: 'not-clothing' };
-      return { status: 'ok', detectedColour: cd?.detectedColour };
-    } catch {
-      return { status: 'ok' }; // fail open
-    }
+  const rememberWarnings = (uris: string[], screen: ListingScreen) => {
+    uris.forEach((uri, i) => photoWarningsRef.current.set(uri, screen.photos[i]?.warnings ?? []));
   };
 
   const pickFromLibrary = async () => {
@@ -212,10 +182,11 @@ export default function SellScreen() {
       const uris = result.assets.map(a => a.uri);
       setAnalysingImages(true);
       try {
-        const checkResults = await Promise.all(uris.map(runChecks));
-        const passed = uris.filter((_, i) => checkResults[i].status === 'ok');
-        const blockedCount = checkResults.filter(r => r.status === 'blocked').length;
-        const notClothingCount = checkResults.filter(r => r.status === 'not-clothing').length;
+        const screen = await screenListingPhotos(uris);
+        rememberWarnings(uris, screen);
+        const passed = uris.filter((_, i) => screen.photos[i].ok);
+        const blockedCount = screen.photos.filter(p => p.blocked).length;
+        const notClothingCount = screen.photos.filter(p => !p.blocked && !p.isClothing).length;
 
         if (blockedCount > 0) {
           Alert.alert(
@@ -236,14 +207,7 @@ export default function SellScreen() {
 
         if (passed.length > 0) {
           setImages(prev => {
-            const isFirstPhoto = prev.length === 0;
-            if (isFirstPhoto) {
-              const firstResult = checkResults[uris.indexOf(passed[0])];
-              const detected = firstResult.status === 'ok' ? firstResult.detectedColour : undefined;
-              if (detected) {
-                setForm(f => ({ ...f, colour: f.colour || detected }));
-              }
-            }
+            if (prev.length === 0 && screen.photos[0]?.ok) applyCoverRead(screen.cover);
             return [...prev, ...passed].slice(0, 8);
           });
           setErrors(e => ({ ...e, images: undefined }));
@@ -273,20 +237,19 @@ export default function SellScreen() {
 
       const uri = result.assets[0].uri;
       setAnalysingImages(true);
-      const checkResult = await runChecks(uri).finally(() => setAnalysingImages(false));
+      const screen = await screenListingPhotos([uri]).finally(() => setAnalysingImages(false));
+      rememberWarnings([uri], screen);
+      const photo = screen.photos[0];
 
-      if (checkResult.status === 'blocked') {
+      if (photo.blocked) {
         Alert.alert('Photo not allowed', "This image isn't allowed. Please try another.");
         break;
-      } else if (checkResult.status === 'not-clothing') {
+      } else if (!photo.isClothing) {
         Alert.alert('Not a clothing item', "Please take a photo of the clothing piece you want to sell.");
         break;
       } else {
         setImages(prev => {
-          const detected = checkResult.status === 'ok' ? checkResult.detectedColour : undefined;
-          if (prev.length === 0 && detected) {
-            setForm(f => ({ ...f, colour: f.colour || detected }));
-          }
+          if (prev.length === 0) applyCoverRead(screen.cover);
           return [...prev, uri].slice(0, 8);
         });
         setErrors(e => ({ ...e, images: undefined }));
@@ -346,7 +309,7 @@ export default function SellScreen() {
     setShowDetails(false);
     setImages([]);
     setCoverWarnings([]);
-    prevCoverRef.current = undefined;
+    photoWarningsRef.current.clear();
   };
 
   const submitListing = async (status: 'available' | 'draft') => {

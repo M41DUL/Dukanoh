@@ -6,10 +6,21 @@ import { CATEGORIES, CATEGORY_DEFINITIONS, COLOURS, GENDERS } from './garmentTax
 
 export const CLAUDE_ENGINE = 'claude';
 /** Bump whenever a prompt or schema below changes materially. */
-export const CLAUDE_ENGINE_VERSION = 'recognise-2026-09b';
+export const CLAUDE_ENGINE_VERSION = 'recognise-2026-09c';
 export const DEFAULT_MODEL = 'claude-sonnet-5';
 
 // ─── Recognition ─────────────────────────────────────────────────────────────
+
+/**
+ * The separate garment pieces an outfit can be made of. The engine reports
+ * which are visible so Fit can suggest what's missing from a set rather than
+ * what a fixed table says goes with the category.
+ */
+export const PIECES = ['saree', 'skirt', 'top', 'bottoms', 'dupatta', 'blouse', 'jacket'] as const;
+
+export const PIECES_GUIDE =
+  '"pieces" lists the separate garment pieces visible in the photo, from: saree (the drape), skirt (a lehenga skirt), top (kameez, kurta, kurti, anarkali, sherwani, achkan, gown bodice), bottoms (salwar, churidar, pajama, sharara, palazzo), dupatta, blouse (choli or saree blouse), jacket (Nehru jacket or waistcoat). Empty for jewellery, accessories and shoes.';
+
 
 /**
  * What each category looks like. The definitions in the taxonomy say what a
@@ -55,6 +66,7 @@ export const RECOGNITION_SYSTEM_PROMPT = [
   '"gender" is Men or Women for who the piece is made for, or null if you cannot tell.',
   '"embellishment" is none (plain), light (some embroidery or print) or heavy (dense embroidery, zari, stones, sequins).',
   '"has_person" is true if any person or part of a person is visible, including a face, hands or legs.',
+  PIECES_GUIDE,
   '"confidence" is 0 to 1 for the category choice.',
 ].join('\n');
 
@@ -68,9 +80,10 @@ export const RECOGNITION_SCHEMA = {
     gender:         { anyOf: [{ type: 'string', enum: [...GENDERS] }, { type: 'null' }] },
     embellishment:  { anyOf: [{ type: 'string', enum: ['none', 'light', 'heavy'] }, { type: 'null' }] },
     has_person:     { type: 'boolean' },
+    pieces:         { type: 'array', items: { type: 'string', enum: [...PIECES] } },
     confidence:     { type: 'number' },
   },
-  required: ['is_listable', 'category', 'colour', 'accent_colours', 'gender', 'embellishment', 'has_person', 'confidence'],
+  required: ['is_listable', 'category', 'colour', 'accent_colours', 'gender', 'embellishment', 'has_person', 'pieces', 'confidence'],
   additionalProperties: false,
 } as const;
 
@@ -85,6 +98,7 @@ export interface RecognitionResult {
   attributes: {
     accentColours: string[];
     embellishment: 'none' | 'light' | 'heavy' | null;
+    pieces: string[];
   };
 }
 
@@ -107,6 +121,9 @@ export function normaliseRecognition(raw: unknown): RecognitionResult {
   const accents = Array.isArray(r.accent_colours)
     ? r.accent_colours.map(c => oneOf(c, COLOURS)).filter((c): c is string => !!c).slice(0, 2)
     : [];
+  const pieces = Array.isArray(r.pieces)
+    ? [...new Set(r.pieces.map(x => oneOf(x, PIECES)).filter((x): x is string => !!x))]
+    : [];
   const category = oneOf(r.category, CATEGORIES);
   const isListable = r.is_listable === true && category !== null;
   return {
@@ -119,6 +136,7 @@ export function normaliseRecognition(raw: unknown): RecognitionResult {
     attributes: {
       accentColours: accents,
       embellishment: oneOf(r.embellishment, ['none', 'light', 'heavy']) as RecognitionResult['attributes']['embellishment'],
+      pieces: isListable ? pieces : [],
     },
   };
 }
@@ -205,6 +223,126 @@ export function normaliseModeration(raw: unknown, refused = false): ModerationRe
   if (flags.stockOrWatermark) warnings.push(QUALITY_WARNINGS.stockOrWatermark);
   if (flags.screenshot) warnings.push(QUALITY_WARNINGS.screenshot);
   return { blocked, reasons: refused && reasons.length === 0 ? ['other'] : reasons, warnings, flags };
+}
+
+// ─── Whole listing in one look ───────────────────────────────────────────────
+// The sell form sends every photo of a listing at once. One call screens each
+// photo and identifies the piece from the cover, instead of two or three calls
+// per photo.
+
+const MODERATION_RULES = [
+  'Set "blocked" true only for: explicit nudity or sexual content; graphic violence or gore; weapons shown as a threat; illegal drugs; hate symbols.',
+  'Do NOT block ordinary fashion photography. A visible midriff, back, shoulders or arms in a saree, lehenga, blouse or sharara is normal and allowed. A person modelling the garment is allowed. A mannequin is allowed.',
+  '"reasons" lists why it was blocked; empty when not blocked.',
+  '"is_listable" is true when the photo shows a garment, jewellery, an accessory or footwear that could be sold on the app. A person wearing it, a mannequin, a hanger or a flat-lay all count.',
+  '"too_dark": the item is hard to see because the photo is underexposed.',
+  '"blurry": the item is out of focus or motion-blurred.',
+  '"busy_background": clutter, furniture or a messy room distracts from the item.',
+  '"stock_or_watermark": this looks like a retailer\'s catalogue image, a professional stock photo, or carries a watermark or shop logo, rather than a photo the seller took of their own piece.',
+  '"screenshot": this is a screenshot of a website, app or message rather than a photo.',
+  '"has_person": any person or part of a person is visible.',
+];
+
+export const LISTING_SCREEN_SYSTEM_PROMPT = [
+  'You screen the photos a seller is adding to one listing on Dukanoh, a UK resale app for South Asian fashion, and you identify the piece from the cover photo.',
+  'You will be shown up to 8 photos of the same item, numbered in order. Photo 1 is the cover. Answer with the JSON the schema requires and nothing else, with exactly one "photos" entry per photo, in order, "index" starting at 1.',
+  '',
+  'For every photo:',
+  ...MODERATION_RULES,
+  '',
+  'For the cover photo only, fill in "cover":',
+  'Categories — pick exactly one, or null if the cover is not a listable item. Prefer the specific South Asian garment over Casualwear whenever the piece is one:',
+  ...CATEGORIES.map(c => `- ${c}: ${CATEGORY_DEFINITIONS[c]}. Looks like: ${RECOGNITION_CUES[c]}`),
+  '',
+  `Colours — pick from: ${COLOURS.join(', ')}. "colour" is the main colour of the garment itself, ignoring the background; "accent_colours" are up to two secondary colours on the piece. Use "Multi" only when no single colour dominates.`,
+  '"gender" is Men or Women for who the piece is made for, or null if you cannot tell.',
+  '"embellishment" is none, light or heavy.',
+  PIECES_GUIDE,
+  '"confidence" is 0 to 1 for the category choice.',
+].join('\n');
+
+const PHOTO_SCREEN_SCHEMA = {
+  type: 'object',
+  properties: {
+    index:              { type: 'integer' },
+    blocked:            { type: 'boolean' },
+    reasons:            { type: 'array', items: { type: 'string', enum: [...MODERATION_REASONS] } },
+    is_listable:        { type: 'boolean' },
+    too_dark:           { type: 'boolean' },
+    blurry:             { type: 'boolean' },
+    busy_background:    { type: 'boolean' },
+    stock_or_watermark: { type: 'boolean' },
+    screenshot:         { type: 'boolean' },
+    has_person:         { type: 'boolean' },
+  },
+  required: ['index', 'blocked', 'reasons', 'is_listable', 'too_dark', 'blurry', 'busy_background', 'stock_or_watermark', 'screenshot', 'has_person'],
+  additionalProperties: false,
+} as const;
+
+export const LISTING_SCREEN_SCHEMA = {
+  type: 'object',
+  properties: {
+    photos: { type: 'array', items: PHOTO_SCREEN_SCHEMA },
+    cover: {
+      type: 'object',
+      properties: {
+        category:       { anyOf: [{ type: 'string', enum: [...CATEGORIES] }, { type: 'null' }] },
+        colour:         { anyOf: [{ type: 'string', enum: [...COLOURS] }, { type: 'null' }] },
+        accent_colours: { type: 'array', items: { type: 'string', enum: [...COLOURS] } },
+        gender:         { anyOf: [{ type: 'string', enum: [...GENDERS] }, { type: 'null' }] },
+        embellishment:  { anyOf: [{ type: 'string', enum: ['none', 'light', 'heavy'] }, { type: 'null' }] },
+        pieces:         { type: 'array', items: { type: 'string', enum: [...PIECES] } },
+        confidence:     { type: 'number' },
+      },
+      required: ['category', 'colour', 'accent_colours', 'gender', 'embellishment', 'pieces', 'confidence'],
+      additionalProperties: false,
+    },
+  },
+  required: ['photos', 'cover'],
+  additionalProperties: false,
+} as const;
+
+export interface PhotoScreenResult extends ModerationResult {
+  isClothing: boolean;
+}
+
+export interface ListingScreenResult {
+  photos: PhotoScreenResult[];
+  cover: RecognitionResult;
+}
+
+/** A photo the model said nothing about passes: screening fails open, never closed. */
+function passThroughPhoto(): PhotoScreenResult {
+  return { ...normaliseModeration({}), isClothing: true };
+}
+
+/**
+ * One entry per photo sent, in order, whatever the model returned. Missing or
+ * out-of-range entries pass through; a refusal blocks every photo. The cover
+ * read is normalised like a single recognition, with "is_listable" taken
+ * from photo 1.
+ */
+export function normaliseListingScreen(raw: unknown, count: number, refused = false): ListingScreenResult {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const entries = Array.isArray(r.photos) ? r.photos : [];
+  const photos: PhotoScreenResult[] = Array.from({ length: count }, () => passThroughPhoto());
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const i = typeof e.index === 'number' ? Math.round(e.index) - 1 : -1;
+    if (i < 0 || i >= count) continue;
+    photos[i] = { ...normaliseModeration(e), isClothing: e.is_listable !== false };
+  }
+  if (refused) {
+    for (const p of photos) { p.blocked = true; if (p.reasons.length === 0) p.reasons = ['other']; }
+  }
+  const coverRaw = (r.cover && typeof r.cover === 'object' ? r.cover : {}) as Record<string, unknown>;
+  const cover = normaliseRecognition({
+    ...coverRaw,
+    is_listable: photos[0]?.isClothing ?? false,
+    has_person: photos[0]?.flags.hasPerson ?? false,
+  });
+  return { photos, cover };
 }
 
 // ─── Request shaping ─────────────────────────────────────────────────────────

@@ -3,12 +3,18 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk@0.126.0';
 /* eslint-enable import/no-unresolved */
 import {
+  CLAUDE_ENGINE,
+  CLAUDE_ENGINE_VERSION,
   DEFAULT_MODEL,
+  LISTING_SCREEN_SCHEMA,
+  LISTING_SCREEN_SYSTEM_PROMPT,
   modelOptions,
   MODERATION_SCHEMA,
   MODERATION_SYSTEM_PROMPT,
+  normaliseListingScreen,
   normaliseModeration,
   parseJsonAnswer,
+  type ListingScreenResult,
   type ModerationResult,
 } from '../_shared/claudeRecognition.ts';
 
@@ -19,12 +25,17 @@ const CORS_HEADERS = {
 
 // ─── Listing photo screening ──────────────────────────────────────────────────
 //
-// Request:  { imageBase64, check: 'moderation' | 'quality' }
+// Request:  { imageBase64, check: 'moderation' | 'quality' }        — one photo
+//           { imagesBase64: string[], check: 'listing' }              — a whole listing
 // Response: check=moderation → { blocked, reasons }
 //           check=quality    → { warnings }
+//           check=listing    → { photos: [{ blocked, reasons, isClothing, warnings }],
+//                                cover: { detectedCategory, detectedColour, detectedGender,
+//                                         confidence, hasPerson, attributes } }
 //
-// One look answers both checks; the response is trimmed to what the caller
-// asked for so today's sell form keeps working unchanged. The model tier is
+// The single-photo modes are what the older sell form calls, two or three
+// times per photo. The listing mode is one look for the whole listing: every
+// photo screened, the piece identified from the cover. The model tier is
 // platform_settings.recognition_model. AWS Rekognition was retired 2026-09-18.
 //
 // Fails open on an outage — a seller is never blocked because a service was
@@ -61,6 +72,38 @@ async function screen(imageBase64: string, model: string): Promise<ModerationRes
   }
 }
 
+const MAX_LISTING_PHOTOS = 8;
+
+async function screenListing(imagesBase64: string[], model: string): Promise<ListingScreenResult | null> {
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  if (!apiKey) return null;
+  const client = new Anthropic({ apiKey, timeout: 25_000, maxRetries: 1 });
+  const opts = modelOptions(model);
+  const outputConfig: Record<string, unknown> = { format: { type: 'json_schema', schema: LISTING_SCREEN_SCHEMA } };
+  if (opts.output_config_effort) outputConfig.effort = opts.output_config_effort;
+  const content = imagesBase64.flatMap((data, i) => ([
+    { type: 'text', text: `Photo ${i + 1}${i === 0 ? ' (cover)' : ''}:` },
+    { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } },
+  ]));
+  content.push({ type: 'text', text: `Screen all ${imagesBase64.length} photos and identify the piece from photo 1.` });
+  try {
+    const response = await client.messages.create({
+      model,
+      max_tokens: 1200,
+      system: [{ type: 'text', text: LISTING_SCREEN_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content }],
+      output_config: outputConfig,
+      ...(opts.thinking ? { thinking: opts.thinking } : {}),
+    } as never);
+    if (response.stop_reason === 'refusal') return normaliseListingScreen(null, imagesBase64.length, true);
+    const parsed = parseJsonAnswer(response.content);
+    return parsed === null ? null : normaliseListingScreen(parsed, imagesBase64.length);
+  } catch (err) {
+    console.error('Claude listing screen error:', (err as Error).message);
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
@@ -82,22 +125,55 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
   if (authError || !user) return json({ error: 'Unauthorized' }, 401);
 
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const strip = (raw: string) => (raw.includes(',') ? raw.split(',')[1] : raw);
+
   try {
-    const { imageBase64: rawBase64, check } = await req.json();
-
-    if (!rawBase64 || typeof rawBase64 !== 'string') return json({ error: 'No image provided' }, 400);
-    if (rawBase64.length > 2_500_000) return json({ error: 'Image too large' }, 400);
-    if (check !== 'moderation' && check !== 'quality') return json({ error: 'Invalid check type' }, 400);
-
-    const imageBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
-
-    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const body = await req.json();
+    const check = body.check;
     const { data: setting } = await admin
       .from('platform_settings')
       .select('value')
       .eq('key', 'recognition_model')
       .maybeSingle();
     const model = setting?.value ?? DEFAULT_MODEL;
+
+    // ── Whole listing ─────────────────────────────────────────────────────────
+    if (check === 'listing') {
+      const raws = Array.isArray(body.imagesBase64) ? body.imagesBase64 : [];
+      if (raws.length === 0 || raws.length > MAX_LISTING_PHOTOS) return json({ error: 'Send 1 to 8 images' }, 400);
+      if (raws.some((r: unknown) => typeof r !== 'string' || !r)) return json({ error: 'No image provided' }, 400);
+      if (raws.some((r: string) => r.length > 2_500_000)) return json({ error: 'Image too large' }, 400);
+      const started = Date.now();
+      const result = await screenListing(raws.map(strip), model);
+      if (!result) {
+        return json({ photos: raws.map(() => ({ blocked: false, reasons: [], isClothing: true, warnings: [] })), cover: null });
+      }
+      const c = result.cover;
+      admin.from('recognition_events').insert({
+        user_id: user.id, source: 'sell', requested_engine: CLAUDE_ENGINE,
+        engine: CLAUDE_ENGINE, engine_version: CLAUDE_ENGINE_VERSION, model, outcome: 'ok',
+        is_clothing: c.isClothing, category: c.detectedCategory, colour: c.detectedColour,
+        confidence: c.confidence, has_person: c.hasPerson, attributes: c.attributes,
+        latency_ms: Date.now() - started,
+      }).then(() => {}, () => {});
+      return json({
+        photos: result.photos.map(p => ({ blocked: p.blocked, reasons: p.reasons, isClothing: p.isClothing, warnings: p.warnings })),
+        cover: {
+          detectedCategory: c.detectedCategory, detectedColour: c.detectedColour, detectedGender: c.detectedGender,
+          confidence: c.confidence, hasPerson: c.hasPerson, attributes: c.attributes,
+          engine: CLAUDE_ENGINE, engineVersion: CLAUDE_ENGINE_VERSION, model,
+        },
+      });
+    }
+
+    // ── One photo (older sell form) ───────────────────────────────────────────
+    const rawBase64 = body.imageBase64;
+    if (!rawBase64 || typeof rawBase64 !== 'string') return json({ error: 'No image provided' }, 400);
+    if (rawBase64.length > 2_500_000) return json({ error: 'Image too large' }, 400);
+    if (check !== 'moderation' && check !== 'quality') return json({ error: 'Invalid check type' }, 400);
+
+    const imageBase64 = strip(rawBase64);
 
     const result = await screen(imageBase64, model);
     if (!result) return json(check === 'moderation' ? { blocked: false, reasons: [] } : { warnings: [] });

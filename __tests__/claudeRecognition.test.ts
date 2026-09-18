@@ -6,8 +6,12 @@ import {
   CLAUDE_ENGINE,
   CLAUDE_ENGINE_VERSION,
   DEFAULT_MODEL,
+  LISTING_SCREEN_SCHEMA,
+  LISTING_SCREEN_SYSTEM_PROMPT,
   MODERATION_SCHEMA,
   MODERATION_SYSTEM_PROMPT,
+  normaliseListingScreen,
+  PIECES,
   QUALITY_WARNINGS,
   RECOGNITION_CUES,
   RECOGNITION_SCHEMA,
@@ -58,11 +62,11 @@ describe('normaliseRecognition', () => {
   test('a good answer maps straight onto the contract', () => {
     const r = normaliseRecognition({
       is_listable: true, category: 'Anarkali', colour: 'Maroon', accent_colours: ['Gold', 'Cream', 'Red'],
-      gender: 'Women', embellishment: 'heavy', has_person: false, confidence: 0.9234,
+      gender: 'Women', embellishment: 'heavy', has_person: false, pieces: ['top', 'dupatta', 'top', 'cape'], confidence: 0.9234,
     });
     expect(r).toEqual({
       isClothing: true, detectedCategory: 'Anarkali', detectedColour: 'Maroon', detectedGender: 'Women',
-      confidence: 0.923, hasPerson: false, attributes: { accentColours: ['Gold', 'Cream'], embellishment: 'heavy' },
+      confidence: 0.923, hasPerson: false, attributes: { accentColours: ['Gold', 'Cream'], embellishment: 'heavy', pieces: ['top', 'dupatta'] },
     });
   });
   test('not listable means no category and no confidence, whatever else came back', () => {
@@ -119,5 +123,43 @@ describe('request shaping', () => {
     expect(parseJsonAnswer([{ type: 'text', text: '{"ok":true}' }])).toEqual({ ok: true });
     expect(parseJsonAnswer([{ type: 'thinking', thinking: '' }, { type: 'text', text: 'nope' }])).toBeNull();
     expect(parseJsonAnswer('x')).toBeNull();
+  });
+});
+
+describe('pieces and the whole-listing look', () => {
+  test('the recognition schema and prompt know the pieces vocabulary', () => {
+    const items = RECOGNITION_SCHEMA.properties.pieces.items as { enum: readonly string[] };
+    expect([...items.enum]).toEqual([...PIECES]);
+    expect(RECOGNITION_SYSTEM_PROMPT).toContain('"pieces"');
+  });
+  test('the listing schema has one entry per photo and a cover read', () => {
+    expect(LISTING_SCREEN_SCHEMA.required).toEqual(['photos', 'cover']);
+    expect(LISTING_SCREEN_SYSTEM_PROMPT).toMatch(/Photo 1 is the cover/);
+    expect(LISTING_SCREEN_SYSTEM_PROMPT).toMatch(/midriff/);
+  });
+  test('normaliseListingScreen keeps photo order and reads the cover', () => {
+    const r = normaliseListingScreen({
+      photos: [
+        { index: 2, blocked: true, reasons: ['nudity'], is_listable: true },
+        { index: 1, blocked: false, reasons: [], is_listable: true, too_dark: true },
+        { index: 9, blocked: true },
+      ],
+      cover: { category: 'Kurta', colour: 'Black', accent_colours: [], gender: 'Men', embellishment: 'none', pieces: ['top'], confidence: 0.8 },
+    }, 3);
+    expect(r.photos.map(p => p.blocked)).toEqual([false, true, false]);
+    expect(r.photos[0].warnings).toEqual([QUALITY_WARNINGS.tooDark]);
+    expect(r.photos[2].isClothing).toBe(true);
+    expect(r.cover.detectedCategory).toBe('Kurta');
+    expect(r.cover.detectedGender).toBe('Men');
+    expect(r.cover.attributes.pieces).toEqual(['top']);
+  });
+  test('a cover that is not listable yields no category', () => {
+    const r = normaliseListingScreen({ photos: [{ index: 1, is_listable: false }], cover: { category: 'Kurta' } }, 1);
+    expect(r.photos[0].isClothing).toBe(false);
+    expect(r.cover.detectedCategory).toBeNull();
+  });
+  test('a refusal blocks every photo', () => {
+    const r = normaliseListingScreen(null, 2, true);
+    expect(r.photos.every(p => p.blocked)).toBe(true);
   });
 });

@@ -7,6 +7,7 @@ import {
   FlatList,
   Alert,
   BackHandler,
+  TouchableOpacity,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -27,16 +28,20 @@ import { supabase } from '@/lib/supabase';
 import { proRankSort } from '@/utils/proRankSort';
 import {
   fabricToWeight,
-  getComplementaryCategories,
-  getCompatibleColours,
+  getMissingPieces,
+  getStrictColours,
+  getSuggestionPlan,
   inferGenderForCategory,
   isColourCompatible,
   isNeutralBaseColour,
   MIN_STRICT_RESULTS,
+  parseFitAttributes,
   scoreMatch,
   type FabricWeight,
   type MatchInput,
+  type Piece,
 } from '@/utils/styleMatch';
+import { buildFitSummary, missingSearchNote } from '@/utils/fitSummary';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -52,23 +57,23 @@ const LISTING_SELECT =
   'id, title, price, original_price, price_dropped_at, images, status, category, gender, condition, size, occasion, colour, fabric, save_count, created_at, seller_id, seller:users!listings_seller_id_fkey(username, avatar_url, seller_tier, is_verified, tax_hold)';
 
 type Step = 'form' | 'results';
-
-function parseAttributes(raw?: string): unknown {
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
+/** The confirmation card when the engine read the piece; the full form otherwise, or on "Change something". */
+type ConfirmMode = 'card' | 'form';
 
 interface SearchInput extends MatchInput {
   gender: string;
+  pieces: Piece[];
 }
 
 interface ResultsState {
   listings: Listing[];
   widened: boolean;
   failed: boolean;
+  /** "Looking for a dupatta first." when the search led with a missing piece. */
+  note: string | null;
 }
 
-const EMPTY_RESULTS: ResultsState = { listings: [], widened: false, failed: false };
+const EMPTY_RESULTS: ResultsState = { listings: [], widened: false, failed: false, note: null };
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
@@ -102,6 +107,9 @@ export default function DukanohFitScreen() {
     hasPerson?: string;
   }>();
 
+  // The engine's richer read: accent colours, embellishment, pieces in shot.
+  const attrs = useMemo(() => parseFitAttributes(detectedAttributes), [detectedAttributes]);
+
   const [step, setStep] = useState<Step>('form');
 
   const [category, setCategory] = useState(detectedCategory ?? '');
@@ -123,14 +131,27 @@ export default function DukanohFitScreen() {
     return s;
   });
 
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<ResultsState>(EMPTY_RESULTS);
-
   // Single-gender categories (Lehenga, Sherwani…) settle who wears the piece.
   // Kurta and Salwar are listed under both, so the member picks.
   const inferredGender = category ? inferGenderForCategory(category) : null;
   const effectiveGender = inferredGender ?? gender;
   const canSubmit = !!category && !!colour && !!effectiveGender;
+
+  // One tap when the engine read enough to say what the piece is.
+  const [confirmMode, setConfirmMode] = useState<ConfirmMode>(() =>
+    detectedCategory && detectedColour && (inferGenderForCategory(detectedCategory) || detectedGender === 'Men' || detectedGender === 'Women')
+      ? 'card'
+      : 'form'
+  );
+
+  const missing = useMemo(() => getMissingPieces(category, effectiveGender, attrs.pieces), [category, effectiveGender, attrs.pieces]);
+  const summary = useMemo(() => buildFitSummary({
+    category, colour, gender: effectiveGender,
+    accentColours: attrs.accentColours, embellishment: attrs.embellishment, missing,
+  }), [category, colour, effectiveGender, attrs, missing]);
+
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<ResultsState>(EMPTY_RESULTS);
 
   // Ignore responses from a search the member has already moved on from.
   const searchSeq = useRef(0);
@@ -173,11 +194,14 @@ export default function DukanohFitScreen() {
     setStep('results');
     setResults(EMPTY_RESULTS);
 
-    const complementary = getComplementaryCategories(input.category);
-    if (complementary.length === 0) {
+    // What to look for: the pieces the photo is missing first, outfit extras
+    // after; or the fixed table when the engine didn't read the photo.
+    const plan = getSuggestionPlan({ category: input.category, gender: input.gender, pieces: input.pieces });
+    if (plan.categories.length === 0) {
       setLoading(false);
       return true;
     }
+    const note = missingSearchNote(plan.missing);
 
     // Validate blockedIds are UUIDs before using in query
     const safeBlockedIds = blockedIds.filter(id => UUID_REGEX.test(id));
@@ -187,24 +211,25 @@ export default function DukanohFitScreen() {
         .from('listings')
         .select(LISTING_SELECT)
         .eq('status', 'available')
-        .in('category', complementary)
+        .in('category', plan.categories)
         .eq('gender', input.gender)
         .neq('seller_id', user.id);
       if (safeBlockedIds.length > 0) q = q.not('seller_id', 'in', `(${safeBlockedIds.join(',')})`);
       return q.order('save_count', { ascending: false });
     };
 
-    // Strict pass: only colour-compatible pieces (neutrals included). A
-    // neutral base colour pairs with everything, so no filter applies.
-    const compat = getCompatibleColours(input.colour);
-    const strictColours = [...compat.primary, ...compat.secondary];
+    // Strict pass: colour-compatible pieces, including the base piece's own
+    // accent colours (gold dupattas for a maroon-and-gold anarkali). A neutral
+    // base colour pairs with everything, so no filter applies.
+    const accents = input.accentColours ?? [];
+    const strictColours = getStrictColours(input.colour, accents);
     const useColourFilter = !isNeutralBaseColour(input.colour) && strictColours.length > 0;
 
     const strictQuery = useColourFilter ? buildBase().in('colour', strictColours) : buildBase();
     const strictRes = await strictQuery.limit(100);
     if (seq !== searchSeq.current) return true;
     if (strictRes.error) {
-      setResults({ listings: [], widened: false, failed: true });
+      setResults({ ...EMPTY_RESULTS, failed: true });
       setLoading(false);
       return true;
     }
@@ -226,12 +251,13 @@ export default function DukanohFitScreen() {
       }
     }
 
+    const scoringInput: MatchInput = { ...input, priorityCategories: plan.priority };
     const scored = candidates
       .filter(l => !l.seller?.tax_hold)
       .map(l => ({
         listing: l,
-        compatible: isColourCompatible(input.colour, l.colour),
-        score: scoreMatch(input, {
+        compatible: isColourCompatible(input.colour, l.colour, accents),
+        score: scoreMatch(scoringInput, {
           category: l.category ?? '',
           colour: l.colour,
           occasion: l.occasion,
@@ -256,7 +282,7 @@ export default function DukanohFitScreen() {
       return true;
     });
 
-    setResults({ listings: proRankSort(diverse), widened, failed: false });
+    setResults({ listings: proRankSort(diverse), widened, failed: false, note });
     setLoading(false);
     return true;
   }, [user, blockedIds]);
@@ -293,11 +319,11 @@ export default function DukanohFitScreen() {
             engineVersion: detectedEngineVersion || null,
             model: detectedModel || null,
           },
-          attributes: parseAttributes(detectedAttributes),
+          attributes: attrs,
         },
       });
     }).catch(() => {});
-  }, [hasPerson, detectedCategory, detectedColour, detectedConfidence, detectedEngine, detectedEngineVersion, detectedModel, detectedAttributes]);
+  }, [hasPerson, detectedCategory, detectedColour, detectedConfidence, detectedEngine, detectedEngineVersion, detectedModel, attrs]);
 
   // ─── Result tap (success metric) ───────────────────────────────────────────
   const logResultTap = useCallback((listingId: string) => {
@@ -319,6 +345,8 @@ export default function DukanohFitScreen() {
       category,
       colour,
       gender: effectiveGender,
+      accentColours: attrs.accentColours,
+      pieces: attrs.pieces,
       occasion: occasion || undefined,
       fabricWeight: (fabricWeight as FabricWeight) || undefined,
     };
@@ -328,10 +356,12 @@ export default function DukanohFitScreen() {
       uploadedPhotoRef.current = paramPhotoUri;
       storeTrainingImage(paramPhotoUri, input);
     }
-  }, [category, colour, effectiveGender, occasion, fabricWeight, runMatch, paramPhotoUri, storeTrainingImage]);
+  }, [category, colour, effectiveGender, attrs, occasion, fabricWeight, runMatch, paramPhotoUri, storeTrainingImage]);
 
   // ─── Results ───────────────────────────────────────────────────────────────
   if (step === 'results') {
+    const headerLines = [results.note, results.widened ? "Not many exact colour matches yet, so we've widened the search." : null]
+      .filter((l): l is string => !!l);
     return (
       <ScreenWrapper>
         <Header title="Dukanoh Fit" showBack onBack={backToForm} />
@@ -353,10 +383,10 @@ export default function DukanohFitScreen() {
             contentContainerStyle={styles.gridContent}
             showsVerticalScrollIndicator={false}
             ListHeaderComponent={
-              results.widened ? (
-                <Text style={styles.widenedNote}>
-                  Not many exact colour matches yet, so we've widened the search.
-                </Text>
+              headerLines.length > 0 ? (
+                <View style={styles.resultsNotes}>
+                  {headerLines.map(line => <Text key={line} style={styles.widenedNote}>{line}</Text>)}
+                </View>
               ) : null
             }
             renderItem={({ item }) => (
@@ -395,83 +425,98 @@ export default function DukanohFitScreen() {
           <Image source={{ uri: paramPhotoUri }} style={styles.photo} contentFit="cover" />
         ) : null}
 
-        {/* Category */}
-        <View style={styles.section}>
-          {detectedFields.has('category') && (
-            <View style={styles.labelRow}>
-              <Text style={styles.sectionLabel}>Category <Text style={styles.required}>*</Text></Text>
-              <Text style={styles.detectedTag}>Does this look right?</Text>
-            </View>
-          )}
-          <Select
-            label={detectedFields.has('category') ? undefined : 'Category *'}
-            placeholder="Select category"
-            value={category}
-            options={CATEGORIES}
-            onSelect={v => {
-              setCategory(v);
-              const g = inferGenderForCategory(v);
-              if (g) setGender(g);
-            }}
-          />
-        </View>
-
-        {/* Who wears it — only when the category doesn't settle it */}
-        {category && !inferredGender ? (
-          <View style={styles.section}>
-            <Select
-              label="Who's it for? *"
-              placeholder="Select"
-              value={gender}
-              options={Genders}
-              onSelect={v => setGender(v)}
-            />
+        {confirmMode === 'card' ? (
+          // ── One-tap confirmation ──────────────────────────────────────────
+          <View style={styles.card}>
+            <Text style={styles.cardEyebrow}>What we see</Text>
+            <Text style={styles.cardHeadline}>{summary.headline}</Text>
+            {summary.detail ? <Text style={styles.cardDetail}>{summary.detail}</Text> : null}
+            {summary.missingLine ? <Text style={styles.cardMissing}>{summary.missingLine}</Text> : null}
+            <TouchableOpacity onPress={() => setConfirmMode('form')} activeOpacity={0.7} hitSlop={8} style={styles.changeLink}>
+              <Text style={styles.changeLinkText}>Change something</Text>
+            </TouchableOpacity>
           </View>
-        ) : null}
-
-        {/* Colour */}
-        <View style={styles.section}>
-          {detectedFields.has('colour') && (
-            <View style={styles.labelRow}>
-              <Text style={styles.sectionLabel}>Colour <Text style={styles.required}>*</Text></Text>
-              <Text style={styles.detectedTag}>Does this look right?</Text>
+        ) : (
+          <>
+            {/* Category */}
+            <View style={styles.section}>
+              {detectedFields.has('category') && (
+                <View style={styles.labelRow}>
+                  <Text style={styles.sectionLabel}>Category <Text style={styles.required}>*</Text></Text>
+                  <Text style={styles.detectedTag}>Does this look right?</Text>
+                </View>
+              )}
+              <Select
+                label={detectedFields.has('category') ? undefined : 'Category *'}
+                placeholder="Select category"
+                value={category}
+                options={CATEGORIES}
+                onSelect={v => {
+                  setCategory(v);
+                  const g = inferGenderForCategory(v);
+                  if (g) setGender(g);
+                }}
+              />
             </View>
-          )}
-          <Select
-            label={detectedFields.has('colour') ? undefined : 'Colour *'}
-            placeholder="Select colour"
-            value={colour}
-            options={Colours}
-            onSelect={v => setColour(v)}
-          />
-        </View>
 
-        {/* Occasion */}
-        <View style={styles.section}>
-          <Select
-            label="Occasion (optional)"
-            placeholder="Select occasion"
-            value={occasion}
-            options={Occasions}
-            onSelect={v => setOccasion(v)}
-          />
-        </View>
+            {/* Who wears it — only when the category doesn't settle it */}
+            {category && !inferredGender ? (
+              <View style={styles.section}>
+                <Select
+                  label="Who's it for? *"
+                  placeholder="Select"
+                  value={gender}
+                  options={Genders}
+                  onSelect={v => setGender(v)}
+                />
+              </View>
+            ) : null}
 
-        {/* Fabric weight */}
-        <View style={[styles.section, { marginBottom: 0 }]}>
-          <Select
-            label="Fabric weight (optional)"
-            placeholder="Select fabric weight"
-            value={fabricWeight}
-            options={FABRIC_WEIGHTS}
-            onSelect={v => setFabricWeight(v)}
-          />
-        </View>
+            {/* Colour */}
+            <View style={styles.section}>
+              {detectedFields.has('colour') && (
+                <View style={styles.labelRow}>
+                  <Text style={styles.sectionLabel}>Colour <Text style={styles.required}>*</Text></Text>
+                  <Text style={styles.detectedTag}>Does this look right?</Text>
+                </View>
+              )}
+              <Select
+                label={detectedFields.has('colour') ? undefined : 'Colour *'}
+                placeholder="Select colour"
+                value={colour}
+                options={Colours}
+                onSelect={v => setColour(v)}
+              />
+            </View>
+
+            {/* Occasion */}
+            <View style={styles.section}>
+              <Select
+                label="Occasion (optional)"
+                placeholder="Select occasion"
+                value={occasion}
+                options={Occasions}
+                onSelect={v => setOccasion(v)}
+              />
+            </View>
+
+            {/* Fabric weight */}
+            <View style={[styles.section, { marginBottom: 0 }]}>
+              <Select
+                label="Fabric weight (optional)"
+                placeholder="Select fabric weight"
+                value={fabricWeight}
+                options={FABRIC_WEIGHTS}
+                onSelect={v => setFabricWeight(v)}
+              />
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <BottomBar>
         <Button
-          label="Find my fit"
+          label={confirmMode === 'card' ? 'Looks right' : 'Find my fit'}
           variant="primary"
           onPress={handleSubmit}
           disabled={!canSubmit}
@@ -496,6 +541,42 @@ function getStyles(colors: ColorTokens) {
       marginTop: Spacing.lg,
       marginBottom: Spacing.lg,
     },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: BorderRadius.large,
+      padding: Spacing.lg,
+      gap: Spacing.xs,
+    },
+    cardEyebrow: {
+      ...Typography.micro,
+      color: colors.textSecondary,
+      ...FontFamily.semibold,
+      textTransform: 'uppercase',
+      letterSpacing: 0.6,
+      marginBottom: Spacing.xs,
+    },
+    cardHeadline: {
+      ...Typography.subheading,
+      color: colors.textPrimary,
+    },
+    cardDetail: {
+      ...Typography.body,
+      color: colors.textSecondary,
+    },
+    cardMissing: {
+      ...Typography.body,
+      color: colors.textPrimary,
+      marginTop: Spacing.sm,
+    },
+    changeLink: {
+      marginTop: Spacing.base,
+      alignSelf: 'flex-start',
+    },
+    changeLinkText: {
+      ...Typography.label,
+      color: colors.primary,
+      ...FontFamily.semibold,
+    },
     section: { marginBottom: Spacing.lg },
     labelRow: {
       flexDirection: 'row',
@@ -518,6 +599,7 @@ function getStyles(colors: ColorTokens) {
       borderRadius: BorderRadius.full,
     },
     required: { color: colors.error },
+    resultsNotes: { marginBottom: Spacing.xs },
     widenedNote: {
       ...Typography.caption,
       color: colors.textSecondary,

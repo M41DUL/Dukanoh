@@ -581,7 +581,7 @@ A buyer-facing outfit matching tool. The member photographs a clothing piece the
 **How it works — validation**
 1. Member takes a photo. Image is compressed to 800px wide, 0.7 JPEG quality, sent as base64 to the `validate-clothing` Edge Function with `source: 'fit'`.
 2. The Claude engine looks once, with the taxonomy (categories with definitions and visual cues, colours) in a cached system prompt and the answer pinned to a JSON schema, so it can only answer with values the app knows.
-3. If not a listable piece → member is shown an alert and asked to retake. If it is → the form is pre-filled with the detected category and colour, and with the engine's gender guess when the category alone can't settle it; the member can override any of them.
+3. If not a listable piece → member is shown an alert and asked to retake. If it is → the member sees a one-line read on a confirmation card ("Maroon anarkali with gold · Heavy embroidery · For women · Missing a dupatta — we'll look for one first") and taps **Looks right**, or **Change something** to get the full form pre-filled with the detected category, colour and gender guess. `utils/fitSummary.ts` builds the line.
 4. If the check itself fails (network, engine down — the function returns 503 `validation_unavailable`), the member is told the photo couldn't be checked and to try again. A failed check is never reported as "not clothing". The sell form, which calls the same function, fails open. A refusal from the model is "not listable".
 5. After a search runs, the photo is uploaded once, in the background, to the private `fit-training` bucket with the confirmed labels and the engine's guess (`store-training-image`), with no link to the member and never when a person is in frame. The sheet discloses this and the privacy policy covers it.
 
@@ -589,8 +589,8 @@ A buyer-facing outfit matching tool. The member photographs a clothing piece the
 Single-gender categories settle it (Lehenga → Women, Sherwani → Men — from `CategoriesByGender` in `constants/theme.ts`). Kurta and Salwar are listed under both genders, so the form asks "Who's it for?". The listings query filters on `gender`, so cross-gender suggestions cannot appear.
 
 **How it ranks — matching**
-1. Look up complementary categories for the base piece using `COMPLEMENTARY_CATEGORIES` map (e.g. Lehenga → Dupatta, Blouse).
-2. **Strict pass**: fetch top 100 listings by `save_count DESC` in complementary categories, matching gender, status = available, excluding own listings and blocked sellers, and **only colour-compatible pieces**. Beige and White are compatible with every base colour. A neutral base colour (Beige, White, Other) applies no colour filter at all.
+1. Decide what to look for (`getSuggestionPlan`). With the engine's read of which pieces are in the photo, the missing pieces of the set come first (`SET_PIECES`: a lehenga is skirt + blouse + dupatta; a kurta set depends on who wears it), then Jewellery and Accessories. A complete set gets the extras only. Without a read (older build, unreadable photo) the fixed `COMPLEMENTARY_CATEGORIES` table is used.
+2. **Strict pass**: fetch top 100 listings by `save_count DESC` in those categories, matching gender, status = available, excluding own listings and blocked sellers, and **only colour-compatible pieces** — the base colour's compatible set plus the base piece's own accent colours (gold dupattas for a maroon-and-gold anarkali). Cream and White are compatible with every base colour. A neutral base colour (Cream, White, Other) applies no colour filter at all.
 3. **Widen pass**: if the strict pass returns fewer than `MIN_STRICT_RESULTS` (8), fetch up to 50 more pieces whose colour is unset, 'Other', or outside the compatible set. The results screen tells the member the search was widened.
 4. Drop pieces from tax-held sellers.
 5. Score each listing client-side:
@@ -598,7 +598,8 @@ Single-gender categories settle it (Lehenga → Women, Sherwani → Men — from
 | Signal | Points |
 |--------|--------|
 | Occasion matches exactly | +3 |
-| Colour is a primary compatible match | +2 |
+| Category completes the set (a missing piece) | +2 |
+| Colour is a primary compatible match, or one of the base piece's accent colours | +2 |
 | Colour is a secondary compatible match (incl. Beige / White) | +1 |
 | Fabric weight (from `listings.fabric`) is compatible | +1 |
 | `save_count` ≥ 5 (popularity boost) | +1 |
@@ -607,8 +608,8 @@ Single-gender categories settle it (Lehenga → Women, Sherwani → Men — from
 7. Apply seller diversity cap: max 2 listings per seller.
 8. Apply Pro Seller Ranking (`proRankSort`).
 
-**Complementary categories**
-Defined in `utils/styleMatch.ts` (`COMPLEMENTARY_CATEGORIES`). Each base category maps to what should be paired with it:
+**Complementary categories (fallback)**
+Defined in `utils/styleMatch.ts` (`COMPLEMENTARY_CATEGORIES`). Used when the engine didn't read the photo's pieces. Each base category maps to what should be paired with it:
 
 | Base | Suggests |
 |------|---------|
@@ -676,7 +677,9 @@ The parts of the Fit rebuild that no engine swap touches:
 
 Privacy rules, enforced in code and constraints: a Fit row never carries a member id or listing id (`garment_labels_fit_rows_unlinked`); a photo with a person in frame is used for the search and never stored (`detectHasPerson` → `validateSubmission` refuses it); listing rows leave with the listing or the seller (`anonymize_user_account`). Retention for Fit copies is the privacy policy's figure; nothing enforces it yet — that is an S3 lifecycle rule until the move to Supabase Storage, then a scheduled delete.
 
-The contract `validate-clothing` answers with is `{ isClothing, detectedCategory, detectedColour, detectedGender, engine, engineVersion, model, confidence, hasPerson, attributes: { accentColours, embellishment } }`. The Fit sheet passes `source: 'fit'`; the sell form's calls are `sell`.
+The contract `validate-clothing` answers with is `{ isClothing, detectedCategory, detectedColour, detectedGender, engine, engineVersion, model, confidence, hasPerson, attributes: { accentColours, embellishment, pieces } }`. The Fit sheet passes `source: 'fit'`.
+
+**The sell form** no longer calls it. It sends every photo of a listing to `analyse-listing-image` with `check: 'listing'` (batches of 4, `lib/listingScreening.ts`): one look screens each photo (blocked, not clothing, quality warnings) and reads the piece from the cover, which pre-fills category, gender and colour when the seller hasn't set them. A six-photo listing is two looks instead of thirteen. The older single-photo modes remain for builds that still call them.
 
 **Engines (2026-09-18)**
 `platform_settings.recognition_engine` names the engine; `recognition_model` picks the Claude model tier. Claude is the only engine wired (AWS Rekognition retired 2026-09-18 — no AWS secrets, code or buckets remain); another value on the switch is recorded on the event for a future engine and Claude answers meanwhile.
@@ -692,7 +695,7 @@ Training photos now go to the private Supabase Storage bucket `fit-training` (`s
 **Current limitations**
 - One confirmed photo so far. Accuracy per model tier is a scoreboard question (`recognition_accuracy`) once members have confirmed a few hundred; Sonnet 5 was chosen on a single kurta photo where Haiku 4.5 failed.
 - No price range signal — the algorithm doesn't try to match the price tier of the uploaded piece.
-- The sell form still makes one recognition call and one screening call per photo, plus a quality call for the cover. A six-photo listing is thirteen looks at roughly 0.25p each. Folding these into one look per listing needs a sell-form change in the next build.
+- Set completion and accent matching depend on the engine's read; on a build older than 2026-09-18 Fit falls back to the fixed table and single-colour matching.
 - Colour and fabric are optional on the sell form. Pieces without a colour only appear via the widen pass; pieces without a fabric never earn the fabric-weight point.
 - Camera only — a member can't pick an existing photo from their library.
 
@@ -726,6 +729,7 @@ Training photos now go to the private Supabase Storage bucket `fit-training` (`s
 | 2026-09-18 | Recognition foundation: `garment_labels` fed by listings (trigger) and Fit confirmations, `recognition_events` prediction log, `recognition_engine` setting, `recognition_accuracy` view; Fit photos stored unlinked and never with a person in frame; the 200-per-category cap removed; `fit_training_images` superseded | Build the dataset and scoreboard before swapping engines, so the swap is a setting and every engine is measured against confirmed labels |
 | 2026-09-18 | Claude engine behind the switch for recognition, moderation and quality; `recognition_model` setting (Haiku 4.5 default); Fit training photos moved from S3 to the private `fit-training` Supabase bucket; engine's gender guess pre-fills the form; accent colours and embellishment recorded on events and labels | Rekognition never named a South Asian garment and read colour from the whole frame; one vendor for everything; the owner's cost stance | 
 | 2026-09-18 | Visual cues per category in the recognition prompt; model tier set to Sonnet 5; AWS retired (Rekognition code paths, tests, secrets, `fit_training_images` table removed) | Haiku 4.5 read a plain black men's kurta as Casualwear / Women even with cues and spent ~3× the image tokens; Sonnet 5 and Opus 5 both answered Kurta / Men. One vendor for everything |
+| 2026-09-18 | Fit rebuild: one-tap confirmation card (`utils/fitSummary.ts`), accent-colour matching, set completion from the engine's `pieces` read (`getSuggestionPlan`, `SET_PIECES`), results note for the missing piece; sell form screens a whole listing in one look (`check: 'listing'`, `lib/listingScreening.ts`) and pre-fills category, gender and colour from the cover | The form was four dropdowns to confirm; matching used one colour; suggestions came from a fixed table regardless of what was in the photo; a six-photo listing cost thirteen looks |
 
 ---
 

@@ -3,6 +3,7 @@
 // constants/theme.ts.
 
 import { CATEGORIES, COLOURS, FABRIC_WEIGHTS, GENDERS, OCCASIONS, TAXONOMY_VERSION as SHARED_TAXONOMY_VERSION } from '../_shared/garmentTaxonomy.ts';
+import { PIECES } from '../_shared/claudeRecognition.ts';
 
 export const VALID_CATEGORIES = new Set(CATEGORIES);
 export const VALID_COLOURS = new Set(COLOURS);
@@ -42,7 +43,7 @@ export interface LabelRow {
   predicted_engine: string | null;
   predicted_engine_version: string | null;
   predicted_model: string | null;
-  attributes: { accentColours: string[]; embellishment: string | null } | null;
+  attributes: { accentColours: string[]; embellishment: string | null; pieces: string[] } | null;
   taxonomy_version: number;
   has_person: boolean;
 }
@@ -57,8 +58,11 @@ function normaliseAttributes(value: unknown): LabelRow['attributes'] {
   const embellishment = typeof a.embellishment === 'string' && ['none', 'light', 'heavy'].includes(a.embellishment)
     ? a.embellishment
     : null;
-  if (accentColours.length === 0 && embellishment === null) return null;
-  return { accentColours, embellishment };
+  const pieces = Array.isArray(a.pieces)
+    ? [...new Set(a.pieces.filter((x): x is string => typeof x === 'string' && (PIECES as readonly string[]).includes(x)))]
+    : [];
+  if (accentColours.length === 0 && embellishment === null && pieces.length === 0) return null;
+  return { accentColours, embellishment, pieces };
 }
 
 function pick(value: unknown, allowed: Set<string>): string | null {
