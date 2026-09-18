@@ -37,7 +37,8 @@ describe('validateSubmission', () => {
     occasion: 'Wedding',
     fabricWeight: 'Heavy',
     hasPerson: false,
-    predicted: { category: 'Gown', colour: 'Red', confidence: 0.82, engine: 'rekognition', engineVersion: 'v1' },
+    predicted: { category: 'Gown', colour: 'Red', confidence: 0.82, engine: 'claude', engineVersion: 'v1', model: 'claude-haiku-4-5' },
+    attributes: { accentColours: ['Gold', 'Beige', 'Cream'], embellishment: 'heavy' },
   };
 
   test('accepts a full submission and strips the data-URL prefix', () => {
@@ -55,8 +56,10 @@ describe('validateSubmission', () => {
       predicted_category: 'Gown',
       predicted_colour: 'Red',
       predicted_confidence: 0.82,
-      predicted_engine: 'rekognition',
+      predicted_engine: 'claude',
       predicted_engine_version: 'v1',
+      predicted_model: 'claude-haiku-4-5',
+      attributes: { accentColours: ['Gold', 'Cream'], embellishment: 'heavy' },
       taxonomy_version: 2,
       has_person: false,
     });
@@ -102,5 +105,7 @@ describe('validateSubmission', () => {
     if (!r.ok) return;
     expect(r.row.category).toBe('Kurta');
     expect(r.row.predicted_engine).toBeNull();
+    expect(r.row.predicted_model).toBeNull();
+    expect(r.row.attributes).toBeNull();
   });
 });

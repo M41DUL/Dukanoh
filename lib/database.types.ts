@@ -918,6 +918,7 @@ export type Database = {
       }
       garment_labels: {
         Row: {
+          attributes: Json | null
           category: string
           colour: string | null
           corrected: boolean
@@ -937,11 +938,13 @@ export type Database = {
           predicted_confidence: number | null
           predicted_engine: string | null
           predicted_engine_version: string | null
+          predicted_model: string | null
           seller_id: string | null
           source: string
           taxonomy_version: number
         }
         Insert: {
+          attributes?: Json | null
           category: string
           colour?: string | null
           created_at?: string
@@ -960,11 +963,13 @@ export type Database = {
           predicted_confidence?: number | null
           predicted_engine?: string | null
           predicted_engine_version?: string | null
+          predicted_model?: string | null
           seller_id?: string | null
           source: string
           taxonomy_version?: number
         }
         Update: {
+          attributes?: Json | null
           category?: string
           colour?: string | null
           created_at?: string
@@ -983,6 +988,7 @@ export type Database = {
           predicted_confidence?: number | null
           predicted_engine?: string | null
           predicted_engine_version?: string | null
+          predicted_model?: string | null
           seller_id?: string | null
           source?: string
           taxonomy_version?: number
@@ -1636,6 +1642,7 @@ export type Database = {
       }
       recognition_events: {
         Row: {
+          attributes: Json | null
           category: string | null
           colour: string | null
           confidence: number | null
@@ -1646,12 +1653,14 @@ export type Database = {
           id: string
           is_clothing: boolean | null
           latency_ms: number | null
+          model: string | null
           outcome: string
           requested_engine: string | null
           source: string
           user_id: string | null
         }
         Insert: {
+          attributes?: Json | null
           category?: string | null
           colour?: string | null
           confidence?: number | null
@@ -1662,12 +1671,14 @@ export type Database = {
           id?: string
           is_clothing?: boolean | null
           latency_ms?: number | null
+          model?: string | null
           outcome: string
           requested_engine?: string | null
           source: string
           user_id?: string | null
         }
         Update: {
+          attributes?: Json | null
           category?: string | null
           colour?: string | null
           confidence?: number | null
@@ -1678,6 +1689,7 @@ export type Database = {
           id?: string
           is_clothing?: boolean | null
           latency_ms?: number | null
+          model?: string | null
           outcome?: string
           requested_engine?: string | null
           source?: string

@@ -677,7 +677,19 @@ The parts of the Fit rebuild that no engine swap touches:
 
 Privacy rules, enforced in code and constraints: a Fit row never carries a member id or listing id (`garment_labels_fit_rows_unlinked`); a photo with a person in frame is used for the search and never stored (`detectHasPerson` → `validateSubmission` refuses it); listing rows leave with the listing or the seller (`anonymize_user_account`). Retention for Fit copies is the privacy policy's figure; nothing enforces it yet — that is an S3 lifecycle rule until the move to Supabase Storage, then a scheduled delete.
 
-The contract `validate-clothing` answers with is `{ isClothing, detectedCategory, detectedColour, engine, engineVersion, confidence, hasPerson }`. The Fit sheet passes `source: 'fit'`; the sell form's calls are `sell`.
+The contract `validate-clothing` answers with is `{ isClothing, detectedCategory, detectedColour, detectedGender, engine, engineVersion, model, confidence, hasPerson, attributes: { accentColours, embellishment } }`. The Fit sheet passes `source: 'fit'`; the sell form's calls are `sell`.
+
+**Engines (2026-09-18)**
+`platform_settings.recognition_engine` picks the engine; `recognition_model` picks the Claude model tier.
+
+| Engine | What it does | Where |
+|--------|--------------|-------|
+| `claude` | One look per photo, answering the contract directly from the taxonomy: category from the 19 with their definitions, main colour and up to two accent colours from the 19 colours, gender, embellishment (none / light / heavy), whether a person is in frame, confidence. Structured output pinned to a JSON schema, so the model can only answer with values the app knows. The same engine screens listing photos in `analyse-listing-image`: block on explicit nudity, graphic violence, weapons, drugs, hate symbols — never on the midriff, back or shoulders a saree or lehenga shows — plus quality flags (dark, blurry, busy background, stock or watermarked, screenshot). A refusal from the model is "not listable" for recognition and "blocked" for moderation. | `_shared/claudeRecognition.ts` (prompts, schemas, normalisers — unit tested), `validate-clothing/index.ts`, `analyse-listing-image/index.ts` |
+| `rekognition` | The original label-detection path with the translation table. Kept until AWS is retired. | `validate-clothing/_lib.ts`, `analyse-listing-image/_lib.ts` |
+
+Model tier: `claude-haiku-4-5` by default (cost decision — under a penny per photo). `claude-sonnet-5` and `claude-opus-5` are a row edit; the current Sonnet / Opus generation runs adaptive thinking at low effort for this task, Haiku runs without. The scoreboard (`recognition_accuracy`) is how the tier decision gets made from confirmed labels rather than guessed.
+
+Training photos now go to the private Supabase Storage bucket `fit-training` (`storage://fit-training/<category>/<uuid>.jpg` in `garment_labels.image_url`), not S3. The engine's gender guess pre-fills "Who's it for?" on the Fit form when the category alone can't settle it.
 
 **Current limitations**
 - Rekognition is a Western-trained model — South Asian garments (lehenga, sherwani) are rarely identified by name. The function falls back to Western equivalents (Dress → Lehenga, Suit → Sherwani) which are close but not exact.
@@ -715,6 +727,7 @@ The contract `validate-clothing` answers with is `{ isClothing, detectedCategory
 | 2026-09-16 | `record_fit_search()` guards `auth.uid()` and is granted to `authenticated` only | Predated the June default-deny; was executable by anon |
 | 2026-09-17 | Taxonomy refresh: + Salwar Kameez, Gown, Kurta Pajama, Jewellery, Accessories; 19 colours (Cream replaces Beige); + Lawn, Organza, Satin, Crepe; + Festive; every category has a one-line definition; lists pinned by DB constraints | The three-piece suit had no category, 9 of 17 live pieces were colour 'Other', and free-text columns let a retired category survive |
 | 2026-09-18 | Recognition foundation: `garment_labels` fed by listings (trigger) and Fit confirmations, `recognition_events` prediction log, `recognition_engine` setting, `recognition_accuracy` view; Fit photos stored unlinked and never with a person in frame; the 200-per-category cap removed; `fit_training_images` superseded | Build the dataset and scoreboard before swapping engines, so the swap is a setting and every engine is measured against confirmed labels |
+| 2026-09-18 | Claude engine behind the switch for recognition, moderation and quality; `recognition_model` setting (Haiku 4.5 default); Fit training photos moved from S3 to the private `fit-training` Supabase bucket; engine's gender guess pre-fills the form; accent colours and embellishment recorded on events and labels | Rekognition never named a South Asian garment and read colour from the whole frame; one vendor for everything; the owner's cost stance | 
 
 ---
 

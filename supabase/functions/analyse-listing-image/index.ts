@@ -1,45 +1,101 @@
 /* eslint-disable import/no-unresolved */
 import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.19';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import Anthropic from 'npm:@anthropic-ai/sdk@0.126.0';
 /* eslint-enable import/no-unresolved */
+import { hasComplexBackground, isBlocked, type ModerationLabel } from './_lib.ts';
+import {
+  CLAUDE_ENGINE,
+  DEFAULT_MODEL,
+  modelOptions,
+  MODERATION_SCHEMA,
+  MODERATION_SYSTEM_PROMPT,
+  normaliseModeration,
+  parseJsonAnswer,
+  QUALITY_WARNINGS,
+  type ModerationResult,
+} from '../_shared/claudeRecognition.ts';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ─── Moderation ───────────────────────────────────────────────────────────────
+// ─── Listing photo screening ──────────────────────────────────────────────────
+//
+// Request:  { imageBase64, check: 'moderation' | 'quality' }
+// Response: check=moderation → { blocked, reasons }
+//           check=quality    → { warnings }
+//
+// Same engine switch as validate-clothing (platform_settings.recognition_engine).
+// With Claude, one look answers both checks; the response is trimmed to what
+// the caller asked for so today's sell form keeps working unchanged.
+//
+// Fails open on an outage — a seller is never blocked because a service was
+// down — but a refusal from the model is treated as blocked.
 
-// Suggestive is intentionally excluded — South Asian garments (sarees,
-// lehengas) can show midriff and would generate false positives.
-const BLOCKED_MODERATION_PARENTS = new Set(['Explicit Nudity']);
-const BLOCKED_MODERATION_NAMES   = new Set(['Explicit Nudity', 'Graphic Violence']);
-
-interface ModerationLabel {
-  Name: string;
-  ParentName?: string;
-  Confidence: number;
+async function screenWithClaude(imageBase64: string, model: string): Promise<ModerationResult | null> {
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  if (!apiKey) return null;
+  const client = new Anthropic({ apiKey, timeout: 12_000, maxRetries: 1 });
+  const opts = modelOptions(model);
+  const outputConfig: Record<string, unknown> = { format: { type: 'json_schema', schema: MODERATION_SCHEMA } };
+  if (opts.output_config_effort) outputConfig.effort = opts.output_config_effort;
+  try {
+    const response = await client.messages.create({
+      model,
+      max_tokens: 300,
+      system: [{ type: 'text', text: MODERATION_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+          { type: 'text', text: 'Screen this listing photo.' },
+        ],
+      }],
+      output_config: outputConfig,
+      ...(opts.thinking ? { thinking: opts.thinking } : {}),
+    } as never);
+    if (response.stop_reason === 'refusal') return normaliseModeration(null, true);
+    const parsed = parseJsonAnswer(response.content);
+    return parsed === null ? null : normaliseModeration(parsed);
+  } catch (err) {
+    console.error('Claude moderation error:', (err as Error).message);
+    return null;
+  }
 }
 
-function isBlocked(label: ModerationLabel): boolean {
-  if (label.Confidence < 70) return false;
-  if (BLOCKED_MODERATION_NAMES.has(label.Name)) return true;
-  if (label.ParentName && BLOCKED_MODERATION_PARENTS.has(label.ParentName)) return true;
-  return false;
-}
+async function screenWithRekognition(imageBase64: string, check: 'moderation' | 'quality'): Promise<{ blocked: boolean; warnings: string[] } | null> {
+  const region = Deno.env.get('AWS_REGION');
+  const accessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
+  const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
+  if (!region || !accessKeyId || !secretAccessKey) return null;
+  const aws = new AwsClient({ accessKeyId, secretAccessKey, region, service: 'rekognition' });
+  const call = (target: string, body: object) => aws.fetch(`https://rekognition.${region}.amazonaws.com/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-amz-json-1.1', 'X-Amz-Target': `RekognitionService.${target}` },
+    body: JSON.stringify(body),
+  });
 
-// ─── Background complexity ────────────────────────────────────────────────────
+  if (check === 'moderation') {
+    const res = await call('DetectModerationLabels', { Image: { Bytes: imageBase64 }, MinConfidence: 70 });
+    if (!res.ok) { console.error('Rekognition moderation error:', res.status); return null; }
+    const labels: ModerationLabel[] = (await res.json()).ModerationLabels ?? [];
+    return { blocked: labels.some(isBlocked), warnings: [] };
+  }
 
-const BACKGROUND_LABELS = new Set([
-  'Room', 'Living Room', 'Bedroom', 'Furniture', 'Floor', 'Table',
-  'Chair', 'Couch', 'Sofa', 'Bed', 'Wall', 'Door', 'Window', 'Lamp',
-  'Carpet', 'Rug', 'Kitchen', 'Bathroom', 'Shelf', 'Cabinet',
-  'Indoors', 'Interior Design', 'Home Decor',
-]);
-
-function hasComplexBackground(labels: { Name: string; Confidence: number }[]): boolean {
-  const count = labels.filter(l => l.Confidence >= 70 && BACKGROUND_LABELS.has(l.Name)).length;
-  return count >= 3;
+  const res = await call('DetectLabels', {
+    Image: { Bytes: imageBase64 }, MaxLabels: 50, MinConfidence: 60, Features: ['GENERAL_LABELS', 'IMAGE_PROPERTIES'],
+  });
+  if (!res.ok) { console.error('Rekognition quality error:', res.status); return null; }
+  const data = await res.json();
+  const quality = data.ImageProperties?.Quality ?? {};
+  const labels: { Name: string; Confidence: number }[] = data.Labels ?? [];
+  const warnings: string[] = [];
+  if (typeof quality.Brightness === 'number' && quality.Brightness < 30) warnings.push(QUALITY_WARNINGS.tooDark);
+  if (typeof quality.Sharpness === 'number' && quality.Sharpness < 35) warnings.push(QUALITY_WARNINGS.blurry);
+  if (hasComplexBackground(labels)) warnings.push(QUALITY_WARNINGS.busyBackground);
+  return { blocked: false, warnings };
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -74,76 +130,29 @@ Deno.serve(async (req) => {
 
     const imageBase64 = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
 
-    const region = Deno.env.get('AWS_REGION');
-    const accessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
-    if (!region || !accessKeyId || !secretAccessKey) return json({ error: 'Server misconfigured' }, 500);
+    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { data: settings } = await admin
+      .from('platform_settings')
+      .select('key, value')
+      .in('key', ['recognition_engine', 'recognition_model']);
+    const setting = (key: string) => settings?.find(s => s.key === key)?.value;
+    const engine = setting('recognition_engine') ?? 'rekognition';
+    const model = setting('recognition_model') ?? DEFAULT_MODEL;
 
-    const aws = new AwsClient({
-      accessKeyId,
-      secretAccessKey,
-      region,
-      service: 'rekognition',
-    });
-
-    // ── Moderation check ──────────────────────────────────────────────────────
-    if (check === 'moderation') {
-      const res = await aws.fetch(`https://rekognition.${region}.amazonaws.com/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-amz-json-1.1',
-          'X-Amz-Target': 'RekognitionService.DetectModerationLabels',
-        },
-        body: JSON.stringify({ Image: { Bytes: imageBase64 }, MinConfidence: 70 }),
-      });
-      if (!res.ok) {
-        // eslint-disable-next-line no-console
-        console.error('Rekognition moderation error:', res.status);
-        // Fail open — don't block the seller if Rekognition is unavailable
-        return json({ blocked: false });
-      }
-      const data = await res.json();
-      const labels: ModerationLabel[] = data.ModerationLabels ?? [];
-      return json({ blocked: labels.some(isBlocked) });
+    if (engine === CLAUDE_ENGINE) {
+      const result = await screenWithClaude(imageBase64, model);
+      if (!result) return json(check === 'moderation' ? { blocked: false, reasons: [] } : { warnings: [] });
+      return json(check === 'moderation'
+        ? { blocked: result.blocked, reasons: result.reasons }
+        : { warnings: result.warnings });
     }
 
-    // ── Quality check ─────────────────────────────────────────────────────────
-    const res = await aws.fetch(`https://rekognition.${region}.amazonaws.com/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-amz-json-1.1',
-        'X-Amz-Target': 'RekognitionService.DetectLabels',
-      },
-      body: JSON.stringify({
-        Image: { Bytes: imageBase64 },
-        MaxLabels: 50,
-        MinConfidence: 60,
-        Features: ['GENERAL_LABELS', 'IMAGE_PROPERTIES'],
-      }),
-    });
-    if (!res.ok) {
-      // eslint-disable-next-line no-console
-      console.error('Rekognition quality error:', res.status);
-      return json({ warnings: [] });
-    }
-
-    const data = await res.json();
-    const quality = data.ImageProperties?.Quality ?? {};
-    const labels: { Name: string; Confidence: number }[] = data.Labels ?? [];
-    const warnings: string[] = [];
-
-    if (typeof quality.Brightness === 'number' && quality.Brightness < 30)
-      warnings.push('Your cover photo looks a bit dark — better-lit photos help buyers see the details.');
-    if (typeof quality.Sharpness === 'number' && quality.Sharpness < 35)
-      warnings.push('Your cover photo looks blurry — try holding your phone steady or retaking it.');
-    if (hasComplexBackground(labels))
-      warnings.push('A plain background helps buyers focus on the item.');
-
-    return json({ warnings });
+    const result = await screenWithRekognition(imageBase64, check);
+    if (!result) return json(check === 'moderation' ? { blocked: false, reasons: [] } : { warnings: [] });
+    return json(check === 'moderation' ? { blocked: result.blocked, reasons: [] } : { warnings: result.warnings });
 
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error('analyse-listing-image error:', (err as Error).message);
-    return json({ blocked: false, warnings: [] });
+    return json({ blocked: false, reasons: [], warnings: [] });
   }
 });

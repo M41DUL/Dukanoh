@@ -1,5 +1,4 @@
 /* eslint-disable import/no-unresolved */
-import { AwsClient } from 'https://esm.sh/aws4fetch@1.0.19';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /* eslint-enable import/no-unresolved */
 import { validateSubmission } from './_lib.ts';
@@ -9,7 +8,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BUCKET = 'dukanoh-fit-training';
+const BUCKET = 'fit-training'; // private Supabase Storage bucket; service role only
 
 // Stores a Dukanoh Fit photo plus the labels the member confirmed as one
 // garment_labels row (source 'fit'). By design the row carries no member id
@@ -50,46 +49,36 @@ Deno.serve(async (req) => {
     if (!submission.ok) return notStored(submission.reason);
     const { imageBase64, row } = submission;
 
-    // ── Upload to S3 ─────────────────────────────────────────────────────────────
-    const region = Deno.env.get('AWS_REGION');
-    const accessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
-    if (!region || !accessKeyId || !secretAccessKey) return notStored('misconfigured');
-
-    const aws = new AwsClient({ accessKeyId, secretAccessKey, region, service: 's3' });
-
-    const imageBytes = Uint8Array.from(atob(imageBase64), c => c.charCodeAt(0));
-    const s3Key = `${row.category}/${crypto.randomUUID()}.jpg`;
-
-    const s3Res = await aws.fetch(
-      `https://${BUCKET}.s3.${region}.amazonaws.com/${s3Key}`,
-      { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: imageBytes }
-    );
-
-    if (!s3Res.ok) {
-       
-      console.error('S3 upload failed:', s3Res.status);
-      return notStored('upload_failed');
-    }
-
-    // ── Record the labelled photo ───────────────────────────────────────────────
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
+
+    // ── Upload ──────────────────────────────────────────────────────────────────
+    const imageBytes = Uint8Array.from(atob(imageBase64), c => c.charCodeAt(0));
+    const path = `${row.category}/${crypto.randomUUID()}.jpg`;
+    const { error: uploadError } = await admin.storage
+      .from(BUCKET)
+      .upload(path, imageBytes, { contentType: 'image/jpeg', upsert: false });
+    if (uploadError) {
+      console.error('fit-training upload failed:', uploadError.message);
+      return notStored('upload_failed');
+    }
+
+    // ── Record the labelled photo ───────────────────────────────────────────────
     const { error } = await admin
       .from('garment_labels')
-      .insert({ ...row, image_url: `s3://${BUCKET}/${s3Key}` });
+      .insert({ ...row, image_url: `storage://${BUCKET}/${path}` });
     if (error) {
-       
       console.error('garment_labels insert failed:', error.message);
+      // Don't leave an orphaned object behind.
+      await admin.storage.from(BUCKET).remove([path]).catch(() => {});
       return notStored('record_failed');
     }
 
     return reply({ stored: true });
 
   } catch (err) {
-     
     console.error('store-training-image error:', (err as Error).message);
     return notStored('error');
   }

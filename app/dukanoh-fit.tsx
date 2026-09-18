@@ -53,6 +53,11 @@ const LISTING_SELECT =
 
 type Step = 'form' | 'results';
 
+function parseAttributes(raw?: string): unknown {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
 interface SearchInput extends MatchInput {
   gender: string;
 }
@@ -80,6 +85,9 @@ export default function DukanohFitScreen() {
     detectedEngine,
     detectedEngineVersion,
     detectedConfidence,
+    detectedGender,
+    detectedModel,
+    detectedAttributes,
     hasPerson,
   } = useLocalSearchParams<{
     photoUri?: string;
@@ -88,15 +96,22 @@ export default function DukanohFitScreen() {
     detectedEngine?: string;
     detectedEngineVersion?: string;
     detectedConfidence?: string;
+    detectedGender?: string;
+    detectedModel?: string;
+    detectedAttributes?: string;
     hasPerson?: string;
   }>();
 
   const [step, setStep] = useState<Step>('form');
 
   const [category, setCategory] = useState(detectedCategory ?? '');
-  const [gender, setGender] = useState<string>(
-    () => (detectedCategory ? inferGenderForCategory(detectedCategory) ?? '' : '')
-  );
+  // The category settles gender where it can; otherwise the engine's guess
+  // pre-fills the picker and the member can change it.
+  const [gender, setGender] = useState<string>(() => {
+    const fromCategory = detectedCategory ? inferGenderForCategory(detectedCategory) : null;
+    if (fromCategory) return fromCategory;
+    return detectedGender === 'Men' || detectedGender === 'Women' ? detectedGender : '';
+  });
   const [colour, setColour] = useState(detectedColour ?? '');
   const [occasion, setOccasion] = useState('');
   const [fabricWeight, setFabricWeight] = useState('');
@@ -276,11 +291,13 @@ export default function DukanohFitScreen() {
             confidence: Number.isFinite(parsedConfidence) ? parsedConfidence : null,
             engine: detectedEngine || null,
             engineVersion: detectedEngineVersion || null,
+            model: detectedModel || null,
           },
+          attributes: parseAttributes(detectedAttributes),
         },
       });
     }).catch(() => {});
-  }, [hasPerson, detectedCategory, detectedColour, detectedConfidence, detectedEngine, detectedEngineVersion]);
+  }, [hasPerson, detectedCategory, detectedColour, detectedConfidence, detectedEngine, detectedEngineVersion, detectedModel, detectedAttributes]);
 
   // ─── Result tap (success metric) ───────────────────────────────────────────
   const logResultTap = useCallback((listingId: string) => {

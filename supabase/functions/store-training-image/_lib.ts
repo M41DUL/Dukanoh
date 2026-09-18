@@ -1,27 +1,15 @@
-// Pure logic for store-training-image — no Deno or AWS dependencies, so it
-// can be unit tested. The lists mirror constants/theme.ts; a test asserts
-// they match so a taxonomy change can't silently start rejecting uploads.
+// Pure logic for store-training-image — no Deno dependencies, so it can be
+// unit tested. Lists come from the shared taxonomy, which a test pins to
+// constants/theme.ts.
 
-export const VALID_CATEGORIES = new Set([
-  'Lehenga', 'Saree', 'Anarkali', 'Salwar Kameez', 'Kurta', 'Sharara', 'Gown',
-  'Dupatta', 'Blouse', 'Salwar',
-  'Sherwani', 'Kurta Pajama', 'Achkan', 'Pathani Suit', 'Nehru Jacket',
-  'Jewellery', 'Accessories', 'Casualwear', 'Shoes',
-]);
+import { CATEGORIES, COLOURS, FABRIC_WEIGHTS, GENDERS, OCCASIONS, TAXONOMY_VERSION as SHARED_TAXONOMY_VERSION } from '../_shared/garmentTaxonomy.ts';
 
-export const VALID_COLOURS = new Set([
-  'Black', 'White', 'Cream', 'Grey', 'Silver',
-  'Red', 'Maroon', 'Pink', 'Peach', 'Orange', 'Yellow', 'Gold',
-  'Green', 'Teal', 'Blue', 'Navy', 'Purple',
-  'Multi', 'Other',
-]);
-
-export const VALID_OCCASIONS = new Set(['Everyday', 'Eid', 'Diwali', 'Festive', 'Wedding', 'Mehndi', 'Party', 'Formal']);
-export const VALID_GENDERS = new Set(['Men', 'Women']);
-export const VALID_FABRIC_WEIGHTS = new Set(['Light', 'Structured', 'Heavy']);
-
-/** Bump when the lists above change shape, so rows can be filtered by era. */
-export const TAXONOMY_VERSION = 2;
+export const VALID_CATEGORIES = new Set(CATEGORIES);
+export const VALID_COLOURS = new Set(COLOURS);
+export const VALID_OCCASIONS = new Set(OCCASIONS);
+export const VALID_GENDERS = new Set(GENDERS);
+export const VALID_FABRIC_WEIGHTS = new Set(FABRIC_WEIGHTS);
+export const TAXONOMY_VERSION = SHARED_TAXONOMY_VERSION;
 
 export const MAX_BASE64_LENGTH = 2_500_000;
 
@@ -37,6 +25,7 @@ export interface TrainingSubmission {
   fabricWeight?: unknown;
   hasPerson?: unknown;
   predicted?: unknown;
+  attributes?: unknown;
 }
 
 /** The garment_labels columns a Fit submission fills in. */
@@ -52,8 +41,24 @@ export interface LabelRow {
   predicted_confidence: number | null;
   predicted_engine: string | null;
   predicted_engine_version: string | null;
+  predicted_model: string | null;
+  attributes: { accentColours: string[]; embellishment: string | null } | null;
   taxonomy_version: number;
   has_person: boolean;
+}
+
+/** The engine's richer read, kept only if it is well-formed. */
+function normaliseAttributes(value: unknown): LabelRow['attributes'] {
+  if (!value || typeof value !== 'object') return null;
+  const a = value as Record<string, unknown>;
+  const accentColours = Array.isArray(a.accentColours)
+    ? a.accentColours.filter((c): c is string => typeof c === 'string' && VALID_COLOURS.has(c)).slice(0, 2)
+    : [];
+  const embellishment = typeof a.embellishment === 'string' && ['none', 'light', 'heavy'].includes(a.embellishment)
+    ? a.embellishment
+    : null;
+  if (accentColours.length === 0 && embellishment === null) return null;
+  return { accentColours, embellishment };
 }
 
 function pick(value: unknown, allowed: Set<string>): string | null {
@@ -102,6 +107,8 @@ export function validateSubmission(body: TrainingSubmission):
       predicted_confidence: confidence,
       predicted_engine: str(predicted.engine),
       predicted_engine_version: str(predicted.engineVersion),
+      predicted_model: str(predicted.model),
+      attributes: normaliseAttributes(body.attributes),
       taxonomy_version: TAXONOMY_VERSION,
       has_person: false,
     },

@@ -1,6 +1,9 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    // Edge functions are Deno: relative imports must carry the .ts extension.
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "strict": true,
     "paths": {
       "@/*": [

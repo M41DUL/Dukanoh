@@ -2446,6 +2446,8 @@ CREATE TABLE IF NOT EXISTS public.garment_labels (
   predicted_confidence     NUMERIC(4,3) CHECK (predicted_confidence IS NULL OR (predicted_confidence >= 0 AND predicted_confidence <= 1)),
   predicted_engine         TEXT,
   predicted_engine_version TEXT,
+  predicted_model          TEXT,
+  attributes               JSONB,      -- { accentColours: string[], embellishment: none|light|heavy }
   corrected                BOOLEAN     GENERATED ALWAYS AS (predicted_category IS NOT NULL AND predicted_category IS DISTINCT FROM category) STORED,
   has_person               BOOLEAN,
   licence                  TEXT,
@@ -2513,13 +2515,15 @@ CREATE TABLE IF NOT EXISTS public.recognition_events (
   requested_engine TEXT,
   engine           TEXT        NOT NULL,
   engine_version   TEXT,
-  outcome          TEXT        NOT NULL CHECK (outcome IN ('ok', 'unavailable')),
+  outcome          TEXT        NOT NULL CHECK (outcome IN ('ok', 'unavailable', 'refused')),
   is_clothing      BOOLEAN,
   category         TEXT,
   colour           TEXT,
   confidence       NUMERIC(4,3),
   has_person       BOOLEAN,
   latency_ms       INT,
+  model            TEXT,
+  attributes       JSONB,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -2536,6 +2540,17 @@ COMMENT ON TABLE public.recognition_events IS
 INSERT INTO public.platform_settings (key, value)
 VALUES ('recognition_engine', 'rekognition')
 ON CONFLICT (key) DO NOTHING;
+-- 'claude' | 'rekognition'. With 'claude', recognition_model picks the tier
+-- (claude-haiku-4-5 default; claude-sonnet-5 / claude-opus-5 are a row edit).
+INSERT INTO public.platform_settings (key, value)
+VALUES ('recognition_model', 'claude-haiku-4-5')
+ON CONFLICT (key) DO NOTHING;
+
+-- Private bucket for Dukanoh Fit training photos (replaced the AWS S3 bucket
+-- 2026-09-18). No storage policies: service role only.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('fit-training', 'fit-training', false)
+ON CONFLICT (id) DO NOTHING;
 
 -- ── 5. Scoreboard ────────────────────────────────────────────────────────────
 CREATE OR REPLACE VIEW public.recognition_accuracy AS

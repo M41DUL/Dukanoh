@@ -126,6 +126,9 @@ export function DukanohFitSheet({ visible, onClose, onProceed }: DukanohFitSheet
           detectedEngine: data.engine ?? '',
           detectedEngineVersion: data.engineVersion ?? '',
           detectedConfidence: typeof data.confidence === 'number' ? String(data.confidence) : '',
+          detectedGender: data.detectedGender ?? '',
+          detectedModel: data.model ?? '',
+          detectedAttributes: data.attributes ? JSON.stringify(data.attributes) : '',
           hasPerson: data.hasPerson ? '1' : '0',
         },
       });
