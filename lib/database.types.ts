@@ -895,27 +895,6 @@ export type Database = {
           },
         ]
       }
-      fit_training_images: {
-        Row: {
-          category: string
-          created_at: string
-          id: string
-          s3_key: string
-        }
-        Insert: {
-          category: string
-          created_at?: string
-          id?: string
-          s3_key: string
-        }
-        Update: {
-          category?: string
-          created_at?: string
-          id?: string
-          s3_key?: string
-        }
-        Relationships: []
-      }
       garment_labels: {
         Row: {
           attributes: Json | null

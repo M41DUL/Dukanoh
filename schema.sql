@@ -2309,27 +2309,6 @@ CREATE POLICY "seasonal_weights_read"
   USING (true);
 
 
--- ─── Fit Training Images ─────────────────────────────────────────────────────
--- SUPERSEDED by garment_labels (2026-09-18). No longer written; dropped when
--- Fit photos move from S3 to Supabase Storage.
-CREATE TABLE IF NOT EXISTS public.fit_training_images (
-  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  category    TEXT        NOT NULL,
-  s3_key      TEXT        NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.fit_training_images ENABLE ROW LEVEL SECURITY;
-
--- Only Edge Functions (service role) write to this table — no direct client access
-CREATE POLICY "fit_training_images_no_client_access"
-  ON public.fit_training_images FOR ALL
-  TO authenticated
-  USING (false);
-
-CREATE INDEX IF NOT EXISTS idx_fit_training_images_category ON public.fit_training_images (category);
-
-
 -- ─── Fit Search Logs ──────────────────────────────────────────────────────────
 -- Server-side rate limiting for Dukanoh Fit searches (10/user/day).
 -- record_fit_search() atomically checks the count and inserts — no race condition.

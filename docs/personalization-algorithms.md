@@ -561,8 +561,8 @@ A buyer-facing outfit matching tool. The member photographs a clothing piece the
 - Screen: `app/dukanoh-fit.tsx`
 - Intro sheet + photo check: `components/DukanohFitSheet.tsx`
 - Matching logic: `utils/styleMatch.ts` (tests: `__tests__/styleMatch.test.ts`)
-- Clothing validation: `supabase/functions/validate-clothing/index.ts` (AWS Rekognition; pure logic in `_lib.ts`, tests in `__tests__/validateClothing.test.ts`)
-- Training photos: `supabase/functions/store-training-image/index.ts` → S3 bucket `dukanoh-fit-training`, tracked in `fit_training_images`
+- Recognition: `supabase/functions/validate-clothing/index.ts` (Claude; prompts, schemas and normalisers in `_shared/claudeRecognition.ts`, tests in `__tests__/claudeRecognition.test.ts`)
+- Training photos: `supabase/functions/store-training-image/index.ts` → private Supabase Storage bucket `fit-training`, recorded in `garment_labels`
 - Entry points: camera icon in search bar (`app/(tabs)/search.tsx`), nudge card on home feed (`app/(tabs)/index.tsx`), and the `dukanoh-fit` deep-link destination for app stories / broadcasts
 
 **Data it uses**
@@ -680,12 +680,11 @@ Privacy rules, enforced in code and constraints: a Fit row never carries a membe
 The contract `validate-clothing` answers with is `{ isClothing, detectedCategory, detectedColour, detectedGender, engine, engineVersion, model, confidence, hasPerson, attributes: { accentColours, embellishment } }`. The Fit sheet passes `source: 'fit'`; the sell form's calls are `sell`.
 
 **Engines (2026-09-18)**
-`platform_settings.recognition_engine` picks the engine; `recognition_model` picks the Claude model tier.
+`platform_settings.recognition_engine` names the engine; `recognition_model` picks the Claude model tier. Claude is the only engine wired (AWS Rekognition retired 2026-09-18 — no AWS secrets, code or buckets remain); another value on the switch is recorded on the event for a future engine and Claude answers meanwhile.
 
 | Engine | What it does | Where |
 |--------|--------------|-------|
 | `claude` | One look per photo, answering the contract directly from the taxonomy: category from the 19 with their definitions, main colour and up to two accent colours from the 19 colours, gender, embellishment (none / light / heavy), whether a person is in frame, confidence. Structured output pinned to a JSON schema, so the model can only answer with values the app knows. The same engine screens listing photos in `analyse-listing-image`: block on explicit nudity, graphic violence, weapons, drugs, hate symbols — never on the midriff, back or shoulders a saree or lehenga shows — plus quality flags (dark, blurry, busy background, stock or watermarked, screenshot). A refusal from the model is "not listable" for recognition and "blocked" for moderation. | `_shared/claudeRecognition.ts` (prompts, schemas, normalisers — unit tested), `validate-clothing/index.ts`, `analyse-listing-image/index.ts` |
-| `rekognition` | The original label-detection path with the translation table. Kept until AWS is retired. | `validate-clothing/_lib.ts`, `analyse-listing-image/_lib.ts` |
 
 Model tier: `claude-sonnet-5` by default. On the first real photo (a plain black men's kurta) Haiku 4.5 answered Casualwear / Women even with visual cues in the prompt, while Sonnet 5 and Opus 5 both answered Kurta / Men; Haiku also spent about three times the image tokens, so it was dearer per photo than Sonnet. `claude-opus-5` is a row edit (higher confidence, roughly 2.5× the cost); the current Sonnet / Opus generation runs adaptive thinking at low effort for this task, Haiku runs without. The scoreboard (`recognition_accuracy`) is how the tier decision gets made from confirmed labels rather than guessed.
 
@@ -697,7 +696,6 @@ Training photos now go to the private Supabase Storage bucket `fit-training` (`s
 - Colour detection is from the full image, not just the garment — background colour can skew the dominant colour result.
 - Colour and fabric are optional on the sell form. Pieces without a colour only appear via the widen pass; pieces without a fabric never earn the fabric-weight point.
 - Camera only — a member can't pick an existing photo from their library.
-- The training upload has never been observed succeeding in production (`fit_training_images` is empty despite logged searches); the S3 bucket needs a manual check.
 
 **Improvement ideas**
 - **Price tier matching**: infer a price band from the photo (e.g. fabric richness, embroidery) and filter suggestions to a similar range.
@@ -728,6 +726,7 @@ Training photos now go to the private Supabase Storage bucket `fit-training` (`s
 | 2026-09-17 | Taxonomy refresh: + Salwar Kameez, Gown, Kurta Pajama, Jewellery, Accessories; 19 colours (Cream replaces Beige); + Lawn, Organza, Satin, Crepe; + Festive; every category has a one-line definition; lists pinned by DB constraints | The three-piece suit had no category, 9 of 17 live pieces were colour 'Other', and free-text columns let a retired category survive |
 | 2026-09-18 | Recognition foundation: `garment_labels` fed by listings (trigger) and Fit confirmations, `recognition_events` prediction log, `recognition_engine` setting, `recognition_accuracy` view; Fit photos stored unlinked and never with a person in frame; the 200-per-category cap removed; `fit_training_images` superseded | Build the dataset and scoreboard before swapping engines, so the swap is a setting and every engine is measured against confirmed labels |
 | 2026-09-18 | Claude engine behind the switch for recognition, moderation and quality; `recognition_model` setting (Haiku 4.5 default); Fit training photos moved from S3 to the private `fit-training` Supabase bucket; engine's gender guess pre-fills the form; accent colours and embellishment recorded on events and labels | Rekognition never named a South Asian garment and read colour from the whole frame; one vendor for everything; the owner's cost stance | 
+| 2026-09-18 | Visual cues per category in the recognition prompt; model tier set to Sonnet 5; AWS retired (Rekognition code paths, tests, secrets, `fit_training_images` table removed) | Haiku 4.5 read a plain black men's kurta as Casualwear / Women even with cues and spent ~3× the image tokens; Sonnet 5 and Opus 5 both answered Kurta / Men. One vendor for everything |
 
 ---
 
