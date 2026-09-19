@@ -21,6 +21,7 @@ import { Divider } from '@/components/Divider';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useThemeColors } from '@/hooks/useThemeColors';
+import { useTaxThresholds, TAX_COUNT_THRESHOLD } from '@/hooks/useTaxStatus';
 import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/constants/theme';
 
 type TinType = 'NI' | 'UTR';
@@ -51,6 +52,7 @@ function formatDobInput(raw: string): string {
 export default function TaxInfoScreen() {
   const { user } = useAuth();
   const colors = useThemeColors();
+  const taxThresholds = useTaxThresholds();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
@@ -209,8 +211,8 @@ export default function TaxInfoScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.body}>
-            UK law requires us to collect and report seller details to HMRC once you reach 29 sales
-            or £1,690 in a calendar year (UK PIRRR 2023).
+            UK law requires us to collect and report seller details to HMRC once you reach {TAX_COUNT_THRESHOLD} sales
+            or £{taxThresholds.grossGbp.toLocaleString('en-GB')} in a calendar year (UK PIRRR 2023).
           </Text>
 
           {alreadySubmitted && (

@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BorderRadius, FontFamily, Spacing } from '@/constants/theme';
-import type { TaxStatus } from '@/hooks/useTaxStatus';
+import { TAX_COUNT_THRESHOLD, TAX_WARN_COUNT, type TaxStatus } from '@/hooks/useTaxStatus';
 
 interface Props {
   taxStatus: TaxStatus | null;
@@ -14,8 +14,9 @@ export function TaxHoldBanner({ taxStatus }: Props) {
 
   if (!taxStatus || taxStatus.hasTin) return null;
 
-  const hardBlock = taxStatus.taxHold || taxStatus.yearCount >= 29 || taxStatus.yearSales >= 1690;
-  const warning = !hardBlock && (taxStatus.yearCount >= 25 || taxStatus.yearSales >= 1500);
+  const { grossGbp, warnGbp } = taxStatus.thresholds;
+  const hardBlock = taxStatus.taxHold || taxStatus.yearCount >= TAX_COUNT_THRESHOLD || taxStatus.yearSales >= grossGbp;
+  const warning = !hardBlock && (taxStatus.yearCount >= TAX_WARN_COUNT || taxStatus.yearSales >= warnGbp);
 
   if (hardBlock) {
     return (

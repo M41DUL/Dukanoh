@@ -1533,6 +1533,19 @@ REVOKE ALL    ON FUNCTION public.cancel_order(uuid, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.cancel_order(uuid, text) TO authenticated;
 
 -- Tax threshold trigger — auto-sets tax_hold when a seller crosses DAC7 limits on order completion
+-- Sterling stand-in for the €2,000 UK PIRRR threshold, from platform_settings
+-- (tax_gross_threshold_gbp; tax_warn_gross_gbp drives the app's warning banner).
+-- Reviewed each January against HMRC's exchange rate from the admin HMRC page.
+CREATE OR REPLACE FUNCTION public.tax_gross_threshold_gbp()
+RETURNS NUMERIC
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT COALESCE(
+    (SELECT NULLIF(value, '')::numeric FROM public.platform_settings WHERE key = 'tax_gross_threshold_gbp'),
+    1690
+  );
+$$;
+GRANT EXECUTE ON FUNCTION public.tax_gross_threshold_gbp() TO authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.handle_order_tax_threshold()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -1553,7 +1566,7 @@ BEGIN
      AND status    = 'completed'
      AND created_at >= v_year_start;
 
-  IF v_year_count >= 29 OR v_year_sales >= 1690 THEN
+  IF v_year_count >= 29 OR v_year_sales >= public.tax_gross_threshold_gbp() THEN
     SELECT (tax_id_collected_at IS NOT NULL)
       INTO v_has_tin
       FROM public.users
@@ -1855,6 +1868,8 @@ INSERT INTO public.platform_settings (key, value) VALUES
   ('pro_monthly_price', '9.99'),
   ('pro_annual_price', '84.99'),
   ('fit_photo_retention_months', '24'), -- Dukanoh Fit photos purged after this (purge-fit-photos, Privacy §14)
+  ('tax_gross_threshold_gbp', '1690'),  -- sterling stand-in for €2,000 (UK PIRRR); pause listings / count as reportable
+  ('tax_warn_gross_gbp', '1500'),       -- approaching-threshold banner
   ('protection_fee_percent', '6.5'),
   ('protection_fee_flat', '0.80');
 
@@ -2301,7 +2316,7 @@ BEGIN
     AND status = 'completed'
     AND created_at >= DATE_TRUNC('year', NOW());
 
-  IF (v_count >= 29 OR v_sales >= 1690)
+  IF (v_count >= 29 OR v_sales >= public.tax_gross_threshold_gbp())
      AND NOT EXISTS (
        SELECT 1 FROM public.users
        WHERE id = NEW.seller_id AND tax_id_collected_at IS NOT NULL
