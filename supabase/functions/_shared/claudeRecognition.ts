@@ -2,11 +2,11 @@
 // schemas, and the normalisers that turn a model answer into the contract.
 // No Deno or SDK imports — every function here is unit tested in Jest.
 
-import { CATEGORIES, CATEGORY_DEFINITIONS, COLOURS, GENDERS } from './garmentTaxonomy.ts';
+import { CATEGORIES, CATEGORY_DEFINITIONS, COLOURS, FABRICS, GENDERS, OCCASIONS } from './garmentTaxonomy.ts';
 
 export const CLAUDE_ENGINE = 'claude';
 /** Bump whenever a prompt or schema below changes materially. */
-export const CLAUDE_ENGINE_VERSION = 'recognise-2026-09c';
+export const CLAUDE_ENGINE_VERSION = 'recognise-2026-09d';
 export const DEFAULT_MODEL = 'claude-sonnet-5';
 
 // ─── Recognition ─────────────────────────────────────────────────────────────
@@ -141,6 +141,16 @@ export function normaliseRecognition(raw: unknown): RecognitionResult {
   };
 }
 
+/**
+ * Now and then the model answers with a skeleton: listable, a category, and
+ * nothing else — confidence 0, no colour, no pieces. Seen on roughly one call
+ * in six for some photos, at both low and medium effort. The caller retries
+ * once rather than pre-filling a guess.
+ */
+export function isDegenerateRecognition(r: RecognitionResult): boolean {
+  return r.isClothing && (r.confidence === null || r.confidence === 0) && r.detectedColour === null;
+}
+
 // ─── Moderation + quality ────────────────────────────────────────────────────
 
 export const MODERATION_SYSTEM_PROMPT = [
@@ -225,10 +235,335 @@ export function normaliseModeration(raw: unknown, refused = false): ModerationRe
   return { blocked, reasons: refused && reasons.length === 0 ? ['other'] : reasons, warnings, flags };
 }
 
+// ─── Listing draft ───────────────────────────────────────────────────────────
+// The sell form fills title, description, fabric and occasion from the same
+// look. The seller publishes the words as their own, so the draft has to read
+// like a member typed it on their phone. The prompt asks for that; the
+// normaliser makes sure of it. A field that still reads like a machine is
+// dropped, never patched, and the reason is recorded so the prompt can be tuned.
+
+export const DRAFT_TITLE_MAX = 80;          // the form's maxLength
+export const DRAFT_TITLE_MIN_WORDS = 2;
+export const DRAFT_TITLE_MAX_WORDS = 8;
+export const DRAFT_DESCRIPTION_MAX = 500;   // the form's maxLength
+export const DRAFT_DESCRIPTION_MAX_WORDS = 90;
+export const DRAFT_FABRIC_MIN_CONFIDENCE = 0.6;
+export const DRAFT_OCCASION_MIN_CONFIDENCE = 0.6;
+
+/**
+ * Words and phrases that read as a brochure or a machine rather than a member.
+ * Any one of them drops the field. Kept as plain words so the same list is
+ * both the rule in the prompt and the check in the normaliser.
+ */
+export const DRAFT_BANNED_PHRASES: readonly string[] = [
+  // brochure adjectives
+  'stunning', 'gorgeous', 'exquisite', 'elegant', 'timeless', 'luxurious', 'vibrant', 'breathtaking',
+  'eye-catching', 'eye catching', 'versatile', 'effortless', 'beautiful',
+  // brochure verbs
+  'features', 'boasts', 'showcases', 'elevate', 'elevates', 'complements', 'pairs beautifully', 'adorned', 'crafted', 'exudes',
+  // sales lines
+  'perfect for', 'must-have', 'must have', 'statement piece', 'turn heads', 'add a touch', 'look no further',
+  "don't miss", 'wardrobe staple', 'any occasion', 'every occasion', 'whether you',
+  // connectors nobody types on a phone
+  'additionally', 'furthermore', 'moreover', 'overall',
+  // outsider terms for the community's own clothes
+  'tunic', 'scarf', 'ethnic', 'traditional', 'bollywood', 'desi',
+  // hedging
+  'appears', 'seems', 'likely', 'possibly',
+  // brand rules
+  'pre-loved', 'preloved', 'pre-owned', 'preowned', 'second hand', 'second-hand', 'used',
+  // disclaimers
+  'please note', 'may vary',
+  // a machine talking about its own answer
+  'placeholder', 'untitled', 'unknown', 'unclear', 'unable to', 'not visible', 'no item', 'n/a', 'tbc', 'tbd',
+];
+
+/**
+ * Words that describe the photo rather than the piece. A seller writing about
+ * their own kurta does not say it is on a hanger. A sentence carrying one of
+ * these is removed and the rest of the description kept; a title carrying one
+ * is dropped.
+ */
+export const DRAFT_PHOTO_PHRASES: readonly string[] = [
+  'photo', 'photos', 'picture', 'pictured', 'image', 'in frame', 'in the frame', 'shown', 'hanger', 'mannequin',
+  'laid out', 'flat lay', 'displayed', 'visible here', 'in view', 'on display', 'the model', 'wearer',
+];
+
+/** Filler a member would not bother typing. Removed, never a reason to drop. */
+export const DRAFT_FILLER_WORDS: readonly string[] = ['just', 'simply', 'really', 'very', 'quite'];
+
+/** The per-request line that varies how a draft opens, so two similar pieces do not read as one template. */
+export const DRAFT_OPENINGS: readonly string[] = [
+  'For this listing, start the title with the colour and open the description with the work or embellishment.',
+  'For this listing, start the title with the piece and open the description with the other pieces alongside it.',
+  'For this listing, start the title with the work or the fabric and open the description with the cut or silhouette.',
+  'For this listing, start the title with the colour and open the description with the border or the hem.',
+  'For this listing, start the title with the piece and open the description with the texture or the sheen.',
+];
+
+export function draftOpening(seed: number): string {
+  const n = Number.isFinite(seed) ? Math.abs(Math.trunc(seed)) : 0;
+  return DRAFT_OPENINGS[n % DRAFT_OPENINGS.length];
+}
+
+export const DRAFT_PROMPT_LINES: readonly string[] = [
+  'Then write the seller a draft in "draft", using every photo. The seller publishes it as their own words, so it must read like a member typed it on their phone in a minute, not like a shop, a catalogue or a machine.',
+  '',
+  '"title": three to six words in sentence case, no full stop: the piece, its colour and one detail you can see. Shapes that work: "Maroon zari lehenga set", "Black cotton kurta, side slits", "Mirror work sharara in peach".',
+  '"alt_title": a second title that starts with a different word from the first.',
+  '"description": 25 to 60 words in one paragraph. Only what the photos show: the work and where it sits, the pieces in frame, the neckline, the border, the sheen, the cut. Include two details another piece of the same colour and category would not share. Short sentences of uneven length. A fragment is fine.',
+  `"fabric": one of ${FABRICS.join(', ')} only when the photos make it plain, else null, with "fabric_confidence" from 0 to 1. Velvet, net, brocade, organza and cotton usually show; silk, satin, crepe, georgette and chiffon usually do not, so leave those null unless certain. Keep it consistent with the description: if you name a fabric there, set "fabric" to it with confidence 0.6 or above; if you would not name it, leave "fabric" null.`,
+  `"occasion": one of ${OCCASIONS.join(', ')} when the piece plainly suits it, else null, with "occasion_confidence" from 0 to 1. Heavy work points to Wedding or Festive, a plain everyday kurta to Everyday.`,
+  '',
+  'Rules for the title and description:',
+  '- Describe only the garment, as the seller would describe the piece itself. Never the person, the background, or how it is presented: no hanger, mannequin, flat lay, "in frame", "in the photo", "shown" or "pictured".',
+  '- Never mention condition, wear, flaws, fit, size, measurements, price, brand, designer, where it is from or how it was worn. The seller adds those.',
+  '- Say "set" only when more than one piece is there. Name the other pieces plainly, as in "with a matching choli and dupatta"; the seller removes any that are not for sale.',
+  '- Use the community\'s words: kurta, kameez, dupatta, choli, lehenga, sharara, zari, gota, mirror work, chikankari. Never tunic, scarf, skirt set, ethnic wear, traditional, Indian outfit, Bollywood or desi.',
+  '- British spelling: colour, jewellery, grey, favourite.',
+  '- Do not start the description with "This". Do not repeat the title as the first sentence. Do not list colour, category and occasion together.',
+  '- State what you see. No appears, seems, likely or possibly: if unsure, leave it out.',
+  '- No dashes, semicolons, bullet points, emojis, exclamation marks or quotation marks. Plain sentences with commas and full stops.',
+  '- Do not address the reader. No calls to action, no disclaimers, no "please note".',
+  `- No filler: ${DRAFT_FILLER_WORDS.join(', ')}.`,
+  `- Never use these words: ${DRAFT_BANNED_PHRASES.join(', ')}.`,
+  '',
+  'The voice, from three different photos:',
+  'Title: Maroon zari lehenga set. Description: Gold zari worked across the skirt in a dense floral jaal, heavier towards the hem. With the matching choli and a sheer dupatta edged in the same zari. Deep maroon with a slight sheen.',
+  'Title: Black kurta with side slits. Description: Plain black cotton, straight cut, stand collar and a short buttoned placket. Slits to the hip on both sides. Knee length.',
+  'Title: Peach sharara with mirror work. Description: Mirror work in rows down the kurti front, silver thread between the mirrors. Wide sharara pleated from the knee. Peach throughout, with a paler dupatta alongside.',
+];
+
+export const DRAFT_SCHEMA = {
+  type: 'object',
+  properties: {
+    title:               { type: 'string' },
+    alt_title:           { type: 'string' },
+    description:         { type: 'string' },
+    fabric:              { anyOf: [{ type: 'string', enum: [...FABRICS] }, { type: 'null' }] },
+    fabric_confidence:   { type: 'number' },
+    occasion:            { anyOf: [{ type: 'string', enum: [...OCCASIONS] }, { type: 'null' }] },
+    occasion_confidence: { type: 'number' },
+  },
+  required: ['title', 'alt_title', 'description', 'fabric', 'fabric_confidence', 'occasion', 'occasion_confidence'],
+  additionalProperties: false,
+} as const;
+
+export interface ListingDraft {
+  title: string | null;
+  altTitle: string | null;
+  description: string | null;
+  fabric: string | null;
+  occasion: string | null;
+  /**
+   * Why a field was dropped, e.g. "description:banned:stunning", or trimmed,
+   * e.g. "description:trimmed:hanger". For tuning, never shown.
+   */
+  dropped: string[];
+}
+
+const BANNED_RE = new RegExp(
+  '(?<![\\p{L}\\p{N}])(?:' + DRAFT_BANNED_PHRASES.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![\\p{L}\\p{N}])',
+  'iu',
+);
+
+const PHOTO_RE = new RegExp(
+  '(?<![\\p{L}\\p{N}])(?:' + DRAFT_PHOTO_PHRASES.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![\\p{L}\\p{N}])',
+  'iu',
+);
+
+const FILLER_RE = new RegExp('(?<![\\p{L}\\p{N}])(?:' + DRAFT_FILLER_WORDS.join('|') + ')\\s+', 'giu');
+
+/** The American spellings a UK member would never type. First-letter case is kept. */
+const SPELLING_FIXES: readonly [RegExp, string][] = [
+  [/\bcolor/giu, 'colour'],      // color, colors, colored, colorful
+  [/\bjewelry\b/giu, 'jewellery'],
+  [/\bgray\b/giu, 'grey'],
+  [/\bfavorite/giu, 'favourite'],
+  [/\bcenter\b/giu, 'centre'],
+];
+
+/** Proper nouns that keep their capital when a Title Cased title is brought down to sentence case. */
+const TITLE_KEEP_CAPS: readonly string[] = [
+  'Eid', 'Diwali', 'Holi', 'Navratri', 'Ramadan', 'Nehru', 'Jodhpuri', 'Banarasi', 'Kanjeevaram', 'Kanjivaram',
+  'Lucknowi', 'Chikankari', 'Phulkari', 'Bandhani', 'Kashmiri', 'Pashmina', 'Patola', 'Paithani', 'Chanderi',
+  'Jamdani', 'Ajrak', 'Kantha', 'Indo',
+];
+
+function fixSpelling(text: string): string {
+  let out = text;
+  for (const [re, fix] of SPELLING_FIXES) {
+    out = out.replace(re, m => (m[0] === m[0].toUpperCase() ? fix[0].toUpperCase() + fix.slice(1) : fix));
+  }
+  return out;
+}
+
+function findBanned(text: string): string | null {
+  const m = BANNED_RE.exec(text);
+  return m ? m[0].toLowerCase() : null;
+}
+
+function findPhotoWord(text: string): string | null {
+  const m = PHOTO_RE.exec(text);
+  return m ? m[0].toLowerCase() : null;
+}
+
+/** Sentence starts and the first letter come back up after words have been removed. */
+function recapitalise(text: string): string {
+  const s = text.replace(/([.?])\s+(\p{Ll})/gu, (_m, p: string, c: string) => `${p} ${c.toUpperCase()}`);
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+function removeFiller(text: string): string {
+  return recapitalise(text.replace(FILLER_RE, '').replace(/\s+([.,])/g, '$1').trim());
+}
+
+/**
+ * Removes every sentence that talks about the photo instead of the piece.
+ * Returns the sentences kept and the first offending word, for the log.
+ */
+function dropPhotoSentences(text: string): { kept: string; word: string | null } {
+  const sentences = text.split(/(?<=[.?])\s+/u);
+  let word: string | null = null;
+  const kept = sentences.filter(sentence => {
+    const hit = findPhotoWord(sentence);
+    if (hit && !word) word = hit;
+    return !hit;
+  });
+  return { kept: kept.join(' ').trim(), word };
+}
+
+/**
+ * Takes the machine out of a piece of text: dashes, semicolons, markdown,
+ * emoji, exclamation marks and quotation marks go, and what is left is one
+ * plain paragraph with commas and full stops.
+ */
+export function cleanDraftText(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  let s = raw
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”"«»]/g, '')
+    .replace(/[\p{Extended_Pictographic}‍️]/gu, '')
+    .replace(/^\s*(?:[#>*•\-–—]+\s*)+/gmu, '')   // headers, bullets and quotes at a line start
+    .replace(/\*\*|__|`/g, '')                                   // bold and code markers
+    .replace(/\s*[–—]\s*|\s+-\s+|\s*--+\s*/g, ', ')    // dashes used as punctuation
+    .replace(/…|\.{2,}/g, '.')
+    .replace(/!+/g, '.')
+    .replace(/;\s*/g, '. ')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([.,])/g, '$1')
+    .replace(/,\s*\./g, '.')
+    .replace(/\.\s*,/g, '.')
+    .replace(/,{2,}/g, ',')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^[,.\s]+/, '')
+    .trim();
+  s = s.replace(/([.?])\s+(\p{Ll})/gu, (_m, p: string, c: string) => `${p} ${c.toUpperCase()}`);
+  if (s) s = s[0].toUpperCase() + s.slice(1);
+  return s;
+}
+
+/** A title the model wrote In Title Case comes down to sentence case; one already in sentence case is left alone. */
+function sentenceCaseTitle(title: string): string {
+  const words = title.split(' ');
+  const rest = words.slice(1).filter(w => /^\p{L}{3,}$/u.test(w));
+  const titleCased = rest.length > 0 && rest.every(w => /^\p{Lu}/u.test(w));
+  if (!titleCased) return title;
+  return words
+    .map((w, i) => {
+      if (i === 0) return w;
+      const keep = TITLE_KEEP_CAPS.find(k => k.toLowerCase() === w.toLowerCase());
+      return keep ?? (/^\p{Lu}\p{Ll}*$/u.test(w) ? w.toLowerCase() : w);
+    })
+    .join(' ');
+}
+
+function cleanTitle(raw: unknown): { value: string | null; reason: string | null } {
+  let s = removeFiller(cleanDraftText(raw)).replace(/[.,:\s]+$/u, '');
+  if (!s) return { value: null, reason: 'empty' };
+  s = fixSpelling(s);
+  const banned = findBanned(s);
+  if (banned) return { value: null, reason: `banned:${banned}` };
+  const photo = findPhotoWord(s);
+  if (photo) return { value: null, reason: `photo:${photo}` };
+  const words = s.split(' ').length;
+  if (words > DRAFT_TITLE_MAX_WORDS || s.length > DRAFT_TITLE_MAX) return { value: null, reason: 'long' };
+  if (words < DRAFT_TITLE_MIN_WORDS || s.length < 3) return { value: null, reason: 'short' };
+  s = sentenceCaseTitle(s);
+  return { value: s, reason: null };
+}
+
+function cleanDescription(raw: unknown): { value: string | null; reason: string | null; note: string | null } {
+  let s = removeFiller(cleanDraftText(raw));
+  if (!s) return { value: null, reason: 'empty', note: null };
+  s = fixSpelling(s);
+  if (/^this\b/iu.test(s)) return { value: null, reason: 'starts_this', note: null };
+  const banned = findBanned(s);
+  if (banned) return { value: null, reason: `banned:${banned}`, note: null };
+  const { kept, word } = dropPhotoSentences(s);
+  const note = word ? `trimmed:${word}` : null;
+  s = kept;
+  if (!s) return { value: null, reason: `photo:${word}`, note: null };
+  if (s.split(' ').length > DRAFT_DESCRIPTION_MAX_WORDS) return { value: null, reason: 'long', note };
+  if (s.length > DRAFT_DESCRIPTION_MAX) {
+    const cut = s.lastIndexOf('. ', DRAFT_DESCRIPTION_MAX - 1);
+    if (cut < 10) return { value: null, reason: 'long', note };
+    s = s.slice(0, cut + 1);
+  }
+  if (!/[.?]$/u.test(s)) s += '.';
+  if (s.length < 10) return { value: null, reason: 'short', note };
+  return { value: s, reason: null, note };
+}
+
+function gatedChoice(
+  value: unknown, confidence: unknown, allowed: readonly string[], min: number, field: string, dropped: string[],
+): string | null {
+  const chosen = oneOf(value, allowed);
+  if (!chosen) {
+    if (typeof value === 'string' && value) dropped.push(`${field}:invalid`);
+    return null;
+  }
+  if (chosen === 'Other') return null;
+  if ((clamp01(confidence) ?? 0) < min) { dropped.push(`${field}:low_confidence`); return null; }
+  return chosen;
+}
+
+/**
+ * Turns the model's draft into what the form may fill in. Anything that still
+ * reads like a machine, or that the form could not accept, is dropped with a
+ * reason. A dropped field is blank for the seller, which is what they had
+ * before drafts existed.
+ */
+export function normaliseDraft(raw: unknown): ListingDraft {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const dropped: string[] = [];
+  const title = cleanTitle(r.title);
+  if (title.reason) dropped.push(`title:${title.reason}`);
+  const alt = cleanTitle(r.alt_title);
+  if (alt.reason) dropped.push(`alt_title:${alt.reason}`);
+  const description = cleanDescription(r.description);
+  if (description.reason) dropped.push(`description:${description.reason}`);
+  if (description.note) dropped.push(`description:${description.note}`);
+  const fabric = gatedChoice(r.fabric, r.fabric_confidence, FABRICS, DRAFT_FABRIC_MIN_CONFIDENCE, 'fabric', dropped);
+  const occasion = gatedChoice(r.occasion, r.occasion_confidence, OCCASIONS, DRAFT_OCCASION_MIN_CONFIDENCE, 'occasion', dropped);
+  return {
+    title: title.value,
+    altTitle: alt.value && alt.value.toLowerCase() !== title.value?.toLowerCase() ? alt.value : null,
+    description: description.value,
+    fabric,
+    occasion,
+    dropped,
+  };
+}
+
+export function emptyDraft(): ListingDraft {
+  return { title: null, altTitle: null, description: null, fabric: null, occasion: null, dropped: [] };
+}
+
 // ─── Whole listing in one look ───────────────────────────────────────────────
 // The sell form sends every photo of a listing at once. One call screens each
-// photo and identifies the piece from the cover, instead of two or three calls
-// per photo.
+// photo, identifies the piece from the cover and drafts the listing, instead
+// of two or three calls per photo.
 
 const MODERATION_RULES = [
   'Set "blocked" true only for: explicit nudity or sexual content; graphic violence or gore; weapons shown as a threat; illegal drugs; hate symbols.',
@@ -259,6 +594,8 @@ export const LISTING_SCREEN_SYSTEM_PROMPT = [
   '"embellishment" is none, light or heavy.',
   PIECES_GUIDE,
   '"confidence" is 0 to 1 for the category choice.',
+  '',
+  ...DRAFT_PROMPT_LINES,
 ].join('\n');
 
 const PHOTO_SCREEN_SCHEMA = {
@@ -297,8 +634,9 @@ export const LISTING_SCREEN_SCHEMA = {
       required: ['category', 'colour', 'accent_colours', 'gender', 'embellishment', 'pieces', 'confidence'],
       additionalProperties: false,
     },
+    draft: DRAFT_SCHEMA,
   },
-  required: ['photos', 'cover'],
+  required: ['photos', 'cover', 'draft'],
   additionalProperties: false,
 } as const;
 
@@ -309,6 +647,8 @@ export interface PhotoScreenResult extends ModerationResult {
 export interface ListingScreenResult {
   photos: PhotoScreenResult[];
   cover: RecognitionResult;
+  /** Null when the cover is not a listable piece or the model refused. */
+  draft: ListingDraft | null;
 }
 
 /** A photo the model said nothing about passes: screening fails open, never closed. */
@@ -320,7 +660,7 @@ function passThroughPhoto(): PhotoScreenResult {
  * One entry per photo sent, in order, whatever the model returned. Missing or
  * out-of-range entries pass through; a refusal blocks every photo. The cover
  * read is normalised like a single recognition, with "is_listable" taken
- * from photo 1.
+ * from photo 1. The draft only exists for a listable cover.
  */
 export function normaliseListingScreen(raw: unknown, count: number, refused = false): ListingScreenResult {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -342,7 +682,8 @@ export function normaliseListingScreen(raw: unknown, count: number, refused = fa
     is_listable: photos[0]?.isClothing ?? false,
     has_person: photos[0]?.flags.hasPerson ?? false,
   });
-  return { photos, cover };
+  const draft = cover.isClothing && !refused ? normaliseDraft(r.draft) : null;
+  return { photos, cover, draft };
 }
 
 // ─── Request shaping ─────────────────────────────────────────────────────────

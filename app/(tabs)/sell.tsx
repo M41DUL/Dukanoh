@@ -34,7 +34,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
 import { validateListing, isFormDirty as checkFormDirty, ListingForm, CATEGORY_TO_GENDER } from '@/lib/sellHelpers';
-import { screenListingPhotos, type ListingCoverRead, type ListingScreen } from '@/lib/listingScreening';
+import { recordDraftOutcome, screenListingPhotos, type ListingCoverRead, type ListingDraft, type ListingScreen } from '@/lib/listingScreening';
 import { useCreateListing } from '@/lib/mutations';
 import { useAuth } from '@/hooks/useAuth';
 import { useTaxStatus } from '@/hooks/useTaxStatus';
@@ -44,7 +44,7 @@ import { SellerStandingBanner } from '@/components/SellerStandingBanner';
 const ALL_CATEGORIES = Categories.filter(c => c !== 'All') as string[];
 
 export default function SellScreen() {
-  const { user, isSeller, loading: authLoading, refreshProfile, username, accountStatus, strikeCount } = useAuth();
+  const { user, isSeller, loading: authLoading, refreshProfile, username, accountStatus, strikeCount, sellerTier } = useAuth();
   const { taxStatus, reloadTaxStatus } = useTaxStatus(isSeller ? user?.id : undefined);
   const isFocused = useIsFocused();
   const emptyForm: ListingForm = {
@@ -145,21 +145,43 @@ export default function SellScreen() {
     }
   };
 
-  // The engine's read of the cover pre-fills what the seller hasn't typed yet.
-  // Category, gender and colour only; the seller confirms every field as before.
-  const applyCoverRead = (cover: ListingCoverRead | null) => {
-    if (!cover) return;
+  // The engine's read of the photos pre-fills what the seller hasn't typed yet:
+  // category, gender and colour from the cover, and the drafted title,
+  // description, fabric and occasion. The seller edits every field as before.
+  // What was actually applied is kept so the outcome can be scored at publish.
+  const appliedDraftRef = useRef<ListingDraft | null>(null);
+  const applyCoverRead = (cover: ListingCoverRead | null, draft: ListingDraft | null) => {
+    if (!cover && !draft) return;
     setForm(f => {
-      const category = f.category || (cover.detectedCategory ?? '');
+      const category = f.category || (cover?.detectedCategory ?? '');
       const inferredGender = CATEGORY_TO_GENDER[category];
+      const applied: ListingDraft = {
+        title: !f.title && draft?.title ? draft.title : null,
+        description: !f.description && draft?.description ? draft.description : null,
+        fabric: !f.fabric && draft?.fabric ? draft.fabric : null,
+        occasion: !f.occasion && draft?.occasion ? draft.occasion : null,
+        engineVersion: draft?.engineVersion ?? null,
+      };
+      appliedDraftRef.current = applied;
       return {
         ...f,
         category,
-        gender: f.gender || inferredGender || cover.detectedGender || '',
-        colour: f.colour || (cover.detectedColour ?? ''),
+        gender: f.gender || inferredGender || cover?.detectedGender || '',
+        colour: f.colour || (cover?.detectedColour ?? ''),
+        title: f.title || applied.title || '',
+        description: f.description || applied.description || '',
+        fabric: f.fabric || applied.fabric || '',
+        occasion: f.occasion || applied.occasion || '',
       };
     });
   };
+
+  // Colour, fabric and occasion live in the collapsed "Sell faster" section.
+  // When any of them is filled from the photos, open it so the seller sees
+  // what was chosen. A manual collapse afterwards sticks.
+  useEffect(() => {
+    if (form.colour || form.fabric || form.occasion) setShowDetails(true);
+  }, [form.colour, form.fabric, form.occasion]);
 
   const rememberWarnings = (uris: string[], screen: ListingScreen) => {
     uris.forEach((uri, i) => photoWarningsRef.current.set(uri, screen.photos[i]?.warnings ?? []));
@@ -208,7 +230,7 @@ export default function SellScreen() {
 
         if (passed.length > 0) {
           setImages(prev => {
-            if (prev.length === 0 && screen.photos[0]?.ok) applyCoverRead(screen.cover);
+            if (prev.length === 0 && screen.photos[0]?.ok) applyCoverRead(screen.cover, screen.draft);
             return [...prev, ...passed].slice(0, 8);
           });
           setErrors(e => ({ ...e, images: undefined }));
@@ -250,7 +272,7 @@ export default function SellScreen() {
         break;
       } else {
         setImages(prev => {
-          if (prev.length === 0) applyCoverRead(screen.cover);
+          if (prev.length === 0) applyCoverRead(screen.cover, screen.draft);
           return [...prev, uri].slice(0, 8);
         });
         setErrors(e => ({ ...e, images: undefined }));
@@ -311,6 +333,7 @@ export default function SellScreen() {
     setImages([]);
     setCoverWarnings([]);
     photoWarningsRef.current.clear();
+    appliedDraftRef.current = null;
   };
 
   const submitListing = async (status: 'available' | 'draft') => {
@@ -329,6 +352,7 @@ export default function SellScreen() {
       });
 
       if (status === 'available') {
+        recordDraftOutcome({ listingId: result.id, userId: user.id, sellerTier, draft: appliedDraftRef.current, form });
         setSuccessListing({
           id: result.id,
           seller_id: user.id,

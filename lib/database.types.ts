@@ -1043,6 +1043,60 @@ export type Database = {
           },
         ]
       }
+      listing_draft_outcomes: {
+        Row: {
+          created_at: string
+          description_outcome: string
+          engine_version: string | null
+          fabric_outcome: string
+          id: string
+          listing_id: string
+          occasion_outcome: string
+          seller_tier: string
+          title_outcome: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description_outcome: string
+          engine_version?: string | null
+          fabric_outcome: string
+          id?: string
+          listing_id: string
+          occasion_outcome: string
+          seller_tier?: string
+          title_outcome: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description_outcome?: string
+          engine_version?: string | null
+          fabric_outcome?: string
+          id?: string
+          listing_id?: string
+          occasion_outcome?: string
+          seller_tier?: string
+          title_outcome?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_draft_outcomes_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: true
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listing_draft_outcomes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       listing_price_history: {
         Row: {
           changed_at: string | null
@@ -2278,6 +2332,35 @@ export type Database = {
       }
     }
     Views: {
+      listing_draft_scoreboard: {
+        Row: {
+          description_edited: number | null
+          description_kept: number | null
+          description_replaced: number | null
+          engine_version: string | null
+          fabric_changed: number | null
+          fabric_kept: number | null
+          listings: number | null
+          occasion_changed: number | null
+          occasion_kept: number | null
+          seller_tier: string | null
+          title_edited: number | null
+          title_kept: number | null
+          title_replaced: number | null
+          week: string | null
+        }
+        Relationships: []
+      }
+      listing_draft_title_pairs: {
+        Row: {
+          listing_a: string | null
+          listing_b: string | null
+          similarity: number | null
+          title_a: string | null
+          title_b: string | null
+        }
+        Relationships: []
+      }
       recognition_accuracy: {
         Row: {
           category_correct: number | null

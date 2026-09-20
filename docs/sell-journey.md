@@ -245,6 +245,18 @@ The photo row uses the edge-to-edge breakout pattern:
 
 ---
 
+### Drafted from the photos
+
+When the first photos are added, the same screening call that identifies the piece also drafts the listing. The form fills **title, description, fabric and occasion** into fields the seller has not typed in, alongside category, gender and colour from the cover. Nothing marks the text as drafted: it appears as typed, and the seller edits it like anything else. The "Sell faster" section opens when colour, fabric or occasion was filled so the seller sees the choice.
+
+Never drafted: condition, size, price, measurements and story. Those are the seller's claims.
+
+The server normaliser (`supabase/functions/_shared/claudeRecognition.ts`, `normaliseDraft`) takes the machine out of the text before the app sees it: dashes, semicolons, markdown, emoji, exclamation and quotation marks go; American spellings become British; a Title Cased title comes down to sentence case; and any field that contains a banned brochure word, or a description that starts with "This", is dropped with a recorded reason. Fabric and occasion are filled only above a confidence bar. A drafted title already live on another listing is swapped for the alternative title the model also wrote. A per-request opening line varies how drafts start so similar pieces do not read as one template.
+
+Now and then the model answers with a skeleton (a category, confidence 0, no colour, no draft). Both recognition functions retry once on that answer rather than pre-fill a guess; `recognition_events.attributes.retried` counts it.
+
+At publish, `recordDraftOutcome` (`lib/listingScreening.ts`) writes one row to `listing_draft_outcomes`: kept, edited, replaced or cleared per field, with the seller tier and engine version, no text. `listing_draft_scoreboard` and `listing_draft_title_pairs` are the views to watch.
+
 ## Flow 4: Validation
 
 ### Published listing rules

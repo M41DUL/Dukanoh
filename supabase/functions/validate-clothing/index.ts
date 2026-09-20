@@ -6,6 +6,7 @@ import {
   CLAUDE_ENGINE,
   CLAUDE_ENGINE_VERSION,
   DEFAULT_MODEL,
+  isDegenerateRecognition,
   modelOptions,
   normaliseRecognition,
   parseJsonAnswer,
@@ -144,7 +145,13 @@ Deno.serve(async (req) => {
     const model = setting('recognition_model') ?? DEFAULT_MODEL;
     const started = Date.now();
 
-    const result = await runClaude(imageBase64, model);
+    // A skeleton answer (category, confidence 0, nothing else) is retried
+    // once rather than handed to the member as a verdict.
+    let result = await runClaude(imageBase64, model);
+    if (result.kind === 'ok' && result.outcome === 'ok' && isDegenerateRecognition(result.verdict)) {
+      const again = await runClaude(imageBase64, model);
+      if (again.kind === 'ok') result = again;
+    }
 
     if (result.kind === 'misconfigured') return json({ error: 'Server misconfigured' }, 500);
 
