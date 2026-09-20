@@ -1936,6 +1936,63 @@ export type Database = {
           },
         ]
       }
+      search_events: {
+        Row: {
+          created_at: string
+          id: string
+          parse: Json | null
+          query_norm: string
+          result_count: number | null
+          source: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          parse?: Json | null
+          query_norm: string
+          result_count?: number | null
+          source?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          parse?: Json | null
+          query_norm?: string
+          result_count?: number | null
+          source?: string | null
+        }
+        Relationships: []
+      }
+      search_parses: {
+        Row: {
+          created_at: string
+          hits: number
+          last_used_at: string
+          model: string | null
+          parse: Json
+          query_norm: string
+          version: string | null
+        }
+        Insert: {
+          created_at?: string
+          hits?: number
+          last_used_at?: string
+          model?: string | null
+          parse: Json
+          query_norm: string
+          version?: string | null
+        }
+        Update: {
+          created_at?: string
+          hits?: number
+          last_used_at?: string
+          model?: string | null
+          parse?: Json
+          query_norm?: string
+          version?: string | null
+        }
+        Relationships: []
+      }
       seasonal_weights: {
         Row: {
           categories: string[]
@@ -2358,6 +2415,16 @@ export type Database = {
           similarity: number | null
           title_a: string | null
           title_b: string | null
+        }
+        Relationships: []
+      }
+      search_zero_results: {
+        Row: {
+          last_seen: string | null
+          parse: Json | null
+          query_norm: string | null
+          searches: number | null
+          source: string | null
         }
         Relationships: []
       }

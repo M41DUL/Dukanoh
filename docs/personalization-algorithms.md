@@ -381,48 +381,39 @@ Whether users stay on the pre-selected tab or immediately switch away. If they a
 
 ---
 
-## 9. Fuzzy text search
+## 9. Text search: parse, then filter, then rank
 
 **What it does**
-When a user types in the search bar, results are ranked by relevance to their query using fuzzy matching (tolerates typos and partial matches).
+What a member types into the search bar becomes the same filters they could have tapped. "laal lehenga for shaadi under 150, medium" opens the listings screen with Lehenga · Red · Wedding · M · up to £150 lit as chips and nothing left to text-match. Words that name no filter (a brand, a weave, anything specific) are matched against listing text word by word. The Women / Men / All tabs on the search screen are a browse directory and never touch a typed search.
 
 **Where it lives**
-`app/listings.tsx` — lines 271–294. Uses the Fuse.js library.
+| Piece | File |
+|-------|------|
+| Dictionary parser (runs on the phone, instant, free) | `lib/searchParse.ts` |
+| Route parameters between the two screens | `lib/searchParams.ts` |
+| Claude fallback + search log | `lib/searchParseRemote.ts`, `supabase/functions/parse-search/index.ts`, `supabase/functions/_shared/searchParsePrompt.ts` |
+| Search bar hand-off | `app/(tabs)/search.tsx` — `openSearch` |
+| Query + filter chips | `app/listings.tsx` |
 
-**Data it uses**
-Listing fields: `title`, `category`, `occasion`.
-
-**How it ranks**
-The DB query casts a broad net via `ilike` on title, category, occasion, colour, and fabric (up to 100 results). Fuse.js then re-ranks client-side by weighted relevance:
-
-| Field | Weight |
-|-------|--------|
-| `title` | 55% |
-| `category` | 15% |
-| `occasion` | 10% |
-| `colour` | 10% |
-| `fabric` | 10% |
-
-Threshold: 0.4 (results below 40% match confidence are excluded).
-
-Note: Pro Seller Ranking is intentionally **not applied** during text search — relevance takes priority over seller tier.
+**How it works**
+1. The dictionary maps the community's words to the taxonomy: lehnga, ghagra and lehenga choli → Lehenga; saari, sharee → Saree; kameez, jora, 3 piece, suit → Salwar Kameez; choli → Blouse; chunni, odhni → Dupatta; jhumka, tikka → Jewellery; jutti, khussa → Shoes; laal → Red, gulabi → Pink, mehroon → Maroon, firozi → Teal; shaadi, walima, nikkah, bridal, groom → Wedding; mehendi, henna, haldi, holud → Mehndi; bnwt, unworn → New; mens, gents, groom → Men; ladies, bride → Women; "under 150", "£50 to £100", "size 12" → price and size. Longest phrase wins ("salwar kameez" before "salwar"); typos within a letter or two still match when unambiguous; a category never implies a gender.
+2. If words are left over, the phrase goes to `parse-search`, which answers from its cache (`search_parses`, keyed by the normalised phrase, no member id) or asks Claude once (Sonnet 5, low effort, structured output against the same taxonomy). That layer reads Bengali, Urdu, Hindi and Gurmukhi script, unusual spellings and intent phrases. The app waits at most 3 s (a warm-cache answer takes about 2.2 s on Sonnet 5; Haiku was faster but invented filters, so it is not used); on a slow or failed answer the dictionary's parse is used alone, and the Claude answer is still cached for the next member. Brands and weaves come back as `residual` for the title match.
+3. The listings screen receives the filters as parameters and seeds its normal filter chips with them, plus a **For: Women / Men** section and, for a typed price, a custom price row. Category is fixed from the parameter, like a category browse. Leftover words are matched per word across title, description, category, occasion, colour and fabric, then Fuse.js re-ranks by relevance (title 55%, category 15%, occasion / colour / fabric 10% each, threshold 0.4). With no leftover words it is a plain filtered browse: paginated and Pro-ranked like any other.
 
 **Success metric**
-Whether users find what they searched for and save or buy it. A high rate of zero-result searches indicates the threshold or fields need tuning.
+`search_events` records every typed search (phrase, parse, which layer parsed it, result count; no member id). The view `search_zero_results` lists the phrases that found nothing in the last 90 days: those are the words to add to the dictionary, or the pieces nobody is selling yet. `search_parses.hits` shows which phrases Claude was needed for and how often they repeat.
 
 **Current limitations**
-- Fuse.js runs client-side on results already fetched from the DB — so it can only rank what was already returned, not the full catalogue.
-- `description` and `size` are not Fuse keys — searching "short" or a size won't affect ranking.
-- Brand/designer name is not a dedicated field, so searching a brand name only works if it appears in the title.
-
-**Improvement ideas**
-- Move to Supabase full-text search (`pg_trgm` extension) so the search runs server-side across the full catalogue, not just the fetched page.
+- Parsed chips are hard filters, the same as manual ones: a red lehenga whose seller left colour blank will not appear under Colour Red. The photo draft now pre-fills colour, fabric and occasion, so blanks shrink over time.
+- The dictionary is hand-kept; new community words come from `search_zero_results` and `search_parses`.
+- Leftover-word matching is still `ilike` on the database, so it can only return the first 100 rows for ranking.
 
 **Change log**
 | Date | Change | Reason |
 |------|--------|--------|
 | — | Initial implementation | Fuse.js client-side fuzzy search on title, category, occasion |
-| 2026-04-09 | Added `colour` (10%) and `fabric` (10%) as Fuse keys; rebalanced weights | DB query already filtered by colour/fabric via ilike but Fuse wasn't scoring them — searching "silk" returned results but in arbitrary order. Now ranked by relevance. |
+| 2026-04-09 | Added `colour` (10%) and `fabric` (10%) as Fuse keys; rebalanced weights | Searching "silk" returned results in arbitrary order |
+| 2026-09-20 | Phrase → filters: dictionary on the phone, Claude for leftovers with a server cache, gender filter, per-word text match, search log and zero-result view | A multi-word search only matched a title containing the whole phrase, so "red lehenga" found nothing. Members write in the community's words and in several scripts. |
 
 ---
 

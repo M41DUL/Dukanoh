@@ -59,6 +59,7 @@ export const queryKeys = {
       term?: string;
       categories?: string[];
       occasion?: string;
+      gender?: string | null;
       sort?: string;
       subTab?: string;
       sizes?: string[];
@@ -79,6 +80,7 @@ export const queryKeys = {
           term: params.term ?? '',
           categories: [...(params.categories ?? [])].sort(),
           occasion: params.occasion ?? '',
+          gender: params.gender ?? null,
           sort: params.sort ?? 'newest',
           subTab: params.subTab ?? 'All',
           sizes: [...(params.sizes ?? [])].sort(),

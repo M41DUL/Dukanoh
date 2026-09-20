@@ -14,6 +14,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DukanohFitSheet } from '@/components/DukanohFitSheet';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchHistory } from '@/hooks/useSearchHistory';
+import { mergeParsed, parseSearch } from '@/lib/searchParse';
+import { parsedToParams, type ParseSource } from '@/lib/searchParams';
+import { fetchRemoteParse } from '@/lib/searchParseRemote';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { queryKeys } from '@/lib/queryKeys';
 import { supabase } from '@/lib/supabase';
@@ -24,6 +27,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { searchFocusRequest } from '@/lib/searchFocusRequest';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   InteractionManager,
   Platform,
@@ -202,12 +206,28 @@ export default function SearchScreen() {
     });
   }, []);
 
-  const openSearch = useCallback((term: string) => {
-    saveSearch(term);
-    router.push({
-      pathname: '/listings',
-      params: { title: `\u201C${term}\u201D`, query: term },
-    });
+  // What the member typed becomes the listing filters (see lib/searchParse).
+  // The dictionary runs first, instantly. Only leftover words go to Claude,
+  // and never for longer than a member would wait: on a slow answer the
+  // dictionary's parse is used on its own. The Women/Men tabs below the bar
+  // are a browse directory and never touch a typed search.
+  const [parsing, setParsing] = useState(false);
+  const openSearch = useCallback(async (term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+    saveSearch(trimmed);
+    let parsed = parseSearch(trimmed);
+    let source: ParseSource = 'rules';
+    if (parsed.residual.length > 0) {
+      setParsing(true);
+      const remote = await fetchRemoteParse(trimmed, 3000);
+      setParsing(false);
+      if (remote) {
+        parsed = mergeParsed(parsed, remote.parse);
+        source = remote.source;
+      }
+    }
+    router.push({ pathname: '/listings', params: parsedToParams(trimmed, parsed, source) });
   }, [saveSearch]);
 
   // Handle incoming search from home tab
@@ -245,7 +265,8 @@ export default function SearchScreen() {
               }}
             />
           </View>
-          {!searchFocused && (
+          {parsing && <ActivityIndicator size="small" color={colors.primary} style={styles.parsing} />}
+          {!searchFocused && !parsing && (
             <TouchableOpacity
               style={styles.fitBtn}
               onPress={() => setFitSheetVisible(true)}
@@ -320,6 +341,7 @@ function getStyles(colors: ColorTokens) {
       gap: Spacing.sm,
     },
     searchBarFlex: { flex: 1 },
+    parsing: { marginLeft: Spacing.sm },
     fitBtn: {
       width: 46,
       height: 46,

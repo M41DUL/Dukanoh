@@ -44,6 +44,8 @@ export const COLOURS: readonly string[] = [
 export const OCCASIONS: readonly string[] = ['Everyday', 'Eid', 'Diwali', 'Festive', 'Wedding', 'Mehndi', 'Party', 'Formal'];
 export const GENDERS: readonly string[] = ['Men', 'Women'];
 export const FABRICS: readonly string[] = ['Silk', 'Chiffon', 'Georgette', 'Cotton', 'Lawn', 'Velvet', 'Net', 'Organza', 'Satin', 'Crepe', 'Brocade', 'Linen', 'Other'];
+export const SIZES: readonly string[] = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One size', 'Custom'];
+export const CONDITIONS: readonly string[] = ['New', 'Excellent', 'Good', 'Fair'];
 export const FABRIC_WEIGHTS: readonly string[] = ['Light', 'Structured', 'Heavy'];
 
 /** Bump when the lists above change shape, so rows can be filtered by era. */

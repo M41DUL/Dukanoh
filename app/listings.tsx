@@ -43,6 +43,9 @@ import { useBlocked } from '@/context/BlockedContext';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/queryKeys';
 import { proRankSort } from '@/utils/proRankSort';
+import { readSearchParams } from '@/lib/searchParams';
+import { recordSearchEvent } from '@/lib/searchParseRemote';
+import type { Gender } from '@/lib/searchParse';
 
 // ─── Constants ──────────────────────────────────────────────
 
@@ -72,6 +75,17 @@ const PRICE_RANGES: PriceRange[] = [
   { label: '£75–£150', min: 75, max: 150 },
   { label: '£150+', min: 150, max: Infinity },
 ];
+
+/** A typed price ("under £150", "£50 to £100") as a filter chip. A preset with the same bounds is reused so it shows ticked. */
+function priceRangeFromSearch(min: number | null, max: number | null): PriceRange | null {
+  if (min === null && max === null) return null;
+  const lo = min ?? 0;
+  const hi = max ?? Infinity;
+  const preset = PRICE_RANGES.find(r => r.min === lo && r.max === hi);
+  if (preset) return preset;
+  const label = hi === Infinity ? `£${lo}+` : lo === 0 ? `Under £${hi}` : `£${lo}–£${hi}`;
+  return { label, min: lo, max: hi };
+}
 
 // ─── Skeleton loading ───────────────────────────────────────
 
@@ -127,19 +141,35 @@ const skeletonStyles = StyleSheet.create({
 // ─── Main screen ────────────────────────────────────────────
 
 export default function ListingsScreen() {
+  const params = useLocalSearchParams<{
+    title: string;
+    categories?: string;
+    occasion?: string;
+    query?: string;
+    myListings?: string;
+    // From a typed search (lib/searchParams): the words the dictionary and
+    // Claude turned into filters, so the chips arrive lit.
+    term?: string;
+    colours?: string;
+    occasions?: string;
+    fabrics?: string;
+    sizes?: string;
+    conditions?: string;
+    gender?: string;
+    priceMin?: string;
+    priceMax?: string;
+    src?: string;
+  }>();
   const {
     title = 'Listings',
     categories: categoriesParam,
     occasion: occasionParam,
     query: queryParam,
     myListings: myListingsParam,
-  } = useLocalSearchParams<{
-    title: string;
-    categories?: string;
-    occasion?: string;
-    query?: string;
-    myListings?: string;
-  }>();
+  } = params;
+  // Read once: it seeds the filter state and must not re-seed on re-render.
+  const [incoming] = useState(() => readSearchParams(params));
+  const fromSearch = incoming.source !== null;
   const myListings = myListingsParam === 'true';
   const { user } = useAuth();
   const { blockedIds } = useBlocked();
@@ -153,23 +183,27 @@ export default function ListingsScreen() {
 
   // Sub-tabs: occasions when browsing a single category, categories when browsing an occasion
   const subTabs = useMemo(() => {
+    if (fromSearch) return [];
     if (categories.length === 1 && !occasionPreset && !searchQuery) return ['All', ...OCCASIONS];
     if (occasionPreset && categories.length === 0) return ['All', ...ALL_CATEGORIES];
     return [];
-  }, [categories.length, occasionPreset, searchQuery]);
+  }, [categories.length, occasionPreset, searchQuery, fromSearch]);
 
   const [activeSubTab, setActiveSubTab] = useState('All');
 
   // Filter state
   const [sort, setSort] = useState<SortOption>('newest');
-  const [activeSizes, setActiveSizes] = useState<string[]>([]);
+  const [activeSizes, setActiveSizes] = useState<string[]>(incoming.sizes);
   const [activeOccasions, setActiveOccasions] = useState<string[]>(
-    occasionPreset ? [occasionPreset] : []
+    occasionPreset ? [occasionPreset] : incoming.occasions
   );
-  const [activeConditions, setActiveConditions] = useState<string[]>([]);
-  const [activeColours, setActiveColours] = useState<string[]>([]);
-  const [activeFabrics, setActiveFabrics] = useState<string[]>([]);
-  const [activePriceRange, setActivePriceRange] = useState<PriceRange | null>(null);
+  const [activeConditions, setActiveConditions] = useState<string[]>(incoming.conditions);
+  const [activeColours, setActiveColours] = useState<string[]>(incoming.colours);
+  const [activeFabrics, setActiveFabrics] = useState<string[]>(incoming.fabrics);
+  const [activeGender, setActiveGender] = useState<Gender | null>(incoming.gender);
+  const [activePriceRange, setActivePriceRange] = useState<PriceRange | null>(
+    () => priceRangeFromSearch(incoming.priceMin, incoming.priceMax)
+  );
   const [showFilterSheet, setShowFilterSheet] = useState(false);
 
   // Filter helpers
@@ -198,7 +232,13 @@ export default function ListingsScreen() {
     setActiveFabrics(prev => prev.includes(fab) ? prev.filter(f => f !== fab) : [...prev, fab]);
   }, []);
 
+  const toggleGender = useCallback((g: Gender) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveGender(prev => (prev === g ? null : g));
+  }, []);
+
   const clearAllFilters = useCallback(() => {
+    setActiveGender(null);
     setActiveSizes([]);
     setActiveOccasions(occasionPreset ? [occasionPreset] : []);
     setActiveConditions([]);
@@ -209,6 +249,7 @@ export default function ListingsScreen() {
   }, [occasionPreset]);
 
   const filterCount =
+    (activeGender ? 1 : 0) +
     activeSizes.length +
     (activeOccasions.length - (occasionPreset && activeOccasions.includes(occasionPreset) ? 1 : 0)) +
     activeConditions.length +
@@ -224,14 +265,16 @@ export default function ListingsScreen() {
   }, []);
 
   // ─── Fetch ────────────────────────────────────────────────
-  const trimmedQuery = searchQuery.trim().replace(/[,.()"'\\]/g, '');
+  const trimmedQuery = searchQuery.trim().replace(/[,.()"'\\%_]/g, '');
   const isTextSearch = !!trimmedQuery;
+  const searchWords = trimmedQuery.split(/\s+/).filter(Boolean).slice(0, 6);
 
   const query = useInfiniteQuery({
     queryKey: queryKeys.listings.search({
       term: trimmedQuery,
       categories,
       occasion: occasionPreset,
+      gender: activeGender,
       sort,
       subTab: activeSubTab,
       sizes: activeSizes,
@@ -290,14 +333,17 @@ export default function ListingsScreen() {
       else if (activeColours.length > 1) q = q.in('colour', activeColours);
       if (activeFabrics.length === 1) q = q.eq('fabric', activeFabrics[0]);
       else if (activeFabrics.length > 1) q = q.in('fabric', activeFabrics);
+      if (activeGender) q = q.eq('gender', activeGender);
 
       if (activePriceRange) {
         q = q.gte('price', activePriceRange.min);
         if (activePriceRange.max !== Infinity) q = q.lte('price', activePriceRange.max);
       }
 
-      if (trimmedQuery) {
-        q = q.or(`title.ilike.%${trimmedQuery}%,category.ilike.%${trimmedQuery}%,occasion.ilike.%${trimmedQuery}%,colour.ilike.%${trimmedQuery}%,fabric.ilike.%${trimmedQuery}%`);
+      // Every leftover word must appear somewhere on the listing, so
+      // "banarasi silk" finds "silk banarasi saree".
+      for (const word of searchWords) {
+        q = q.or(`title.ilike.%${word}%,description.ilike.%${word}%,category.ilike.%${word}%,occasion.ilike.%${word}%,colour.ilike.%${word}%,fabric.ilike.%${word}%`);
       }
 
       const { data, error } = await q.range(from, to).abortSignal(signal);
@@ -355,6 +401,15 @@ export default function ListingsScreen() {
     if (query.hasNextPage && !query.isFetchingNextPage) query.fetchNextPage();
   }, [isTextSearch, query]);
 
+  // One search log row per typed search, once the first page has landed.
+  const recordedRef = useRef(false);
+  useEffect(() => {
+    if (!fromSearch || recordedRef.current || query.isLoading || query.isError || !query.data) return;
+    recordedRef.current = true;
+    const { term, source, ...parse } = incoming;
+    recordSearchEvent({ term, parse, source: source ?? 'rules', resultCount: items.length });
+  }, [fromSearch, incoming, items.length, query.data, query.isError, query.isLoading]);
+
   // ─── Render ───────────────────────────────────────────────
   return (
     <ScreenWrapper>
@@ -405,14 +460,21 @@ export default function ListingsScreen() {
                   ctaLabel="Retry"
                   onCta={() => query.refetch()}
                 />
-              : <EmptyState
-                  heading="No listings yet"
-                  subtext={categories.length === 1
-                    ? `Be the first to list a ${categories[0]}!`
-                    : 'Try adjusting your filters or check back later.'}
-                  ctaLabel={categories.length === 1 ? 'Start selling' : undefined}
-                  onCta={categories.length === 1 ? () => router.push('/(tabs)/sell') : undefined}
-                />
+              : (fromSearch || isTextSearch)
+                ? <EmptyState
+                    heading={`Nothing for ${title} yet`}
+                    subtext="Try fewer filters or another word."
+                    ctaLabel={totalFilterCount > 0 ? 'Clear filters' : undefined}
+                    onCta={totalFilterCount > 0 ? clearAllFilters : undefined}
+                  />
+                : <EmptyState
+                    heading="No listings yet"
+                    subtext={categories.length === 1
+                      ? `Be the first to list a ${categories[0]}!`
+                      : 'Try adjusting your filters or check back later.'}
+                    ctaLabel={categories.length === 1 ? 'Start selling' : undefined}
+                    onCta={categories.length === 1 ? () => router.push('/(tabs)/sell') : undefined}
+                  />
           }
           ListFooterComponent={query.isFetchingNextPage ? <LoadingSpinner /> : null}
         />
@@ -435,6 +497,13 @@ export default function ListingsScreen() {
           <Text style={styles.filterSectionLabel}>Sort by</Text>
           {(Object.entries(SORT_LABELS) as [SortOption, string][]).map(([value, label]) => (
             <Radio key={value} label={label} selected={sort === value} onPress={() => selectSort(value)} />
+          ))}
+
+          <Divider style={styles.filterDivider} />
+
+          <Text style={styles.filterSectionLabel}>For</Text>
+          {(['Women', 'Men'] as Gender[]).map(g => (
+            <Checkbox key={g} label={g} checked={activeGender === g} onPress={() => toggleGender(g)} />
           ))}
 
           <Divider style={styles.filterDivider} />
@@ -475,6 +544,9 @@ export default function ListingsScreen() {
           <Divider style={styles.filterDivider} />
 
           <Text style={styles.filterSectionLabel}>Price</Text>
+          {activePriceRange && !PRICE_RANGES.some(r => r.label === activePriceRange.label) && (
+            <Checkbox label={activePriceRange.label} checked onPress={() => setActivePriceRange(null)} />
+          )}
           {PRICE_RANGES.map(range => (
             <Checkbox
               key={range.label}
