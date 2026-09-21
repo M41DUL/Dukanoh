@@ -17,6 +17,7 @@ import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/co
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import { openLegalPage } from '@/lib/legalLinks';
 
 interface DukanohFitSheetProps {
   visible: boolean;
@@ -143,6 +144,8 @@ export function DukanohFitSheet({ visible, onClose, onProceed }: DukanohFitSheet
       <Text style={styles.title}>Dukanoh Fit</Text>
       <Text style={styles.subtitle}>
         Have a piece but nothing to wear it with? Snap it and we'll find everything that goes with it.
+        Your photo helps Fit get better at recognising pieces and is never linked to your account.{' '}
+        <Text style={styles.subtitleLink} onPress={() => openLegalPage('privacy')}>Privacy Policy</Text>
       </Text>
 
       {HOW_IT_WORKS.map(({ icon, key, val }) => (
@@ -166,9 +169,6 @@ export function DukanohFitSheet({ visible, onClose, onProceed }: DukanohFitSheet
           disabled={validating}
           style={{ alignSelf: 'stretch' }}
         />
-        <Text style={styles.disclosure}>
-          We keep a copy of your photo, with no link to your account, to improve how Fit recognises pieces.
-        </Text>
         <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.maybeLater}>
           <Text style={styles.maybeLaterText}>Maybe later</Text>
         </TouchableOpacity>
@@ -191,6 +191,9 @@ function getStyles(colors: ColorTokens) {
       textAlign: 'center',
       lineHeight: 22,
       marginBottom: Spacing.base,
+    },
+    subtitleLink: {
+      textDecorationLine: 'underline',
     },
     detailRow: {
       flexDirection: 'row',
@@ -221,13 +224,6 @@ function getStyles(colors: ColorTokens) {
     actions: {
       marginTop: Spacing.base,
       gap: Spacing.sm,
-    },
-    disclosure: {
-      ...Typography.micro,
-      color: colors.textSecondary,
-      textAlign: 'center',
-      lineHeight: 16,
-      paddingHorizontal: Spacing.sm,
     },
     maybeLater: {
       paddingTop: Spacing.sm,
