@@ -17,7 +17,6 @@ import { BorderRadius, ColorTokens, FontFamily, Spacing, Typography } from '@/co
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useTheme } from '@/context/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { openLegalPage } from '@/lib/legalLinks';
 
 interface DukanohFitSheetProps {
   visible: boolean;
@@ -144,8 +143,7 @@ export function DukanohFitSheet({ visible, onClose, onProceed }: DukanohFitSheet
       <Text style={styles.title}>Dukanoh Fit</Text>
       <Text style={styles.subtitle}>
         Have a piece but nothing to wear it with? Snap it and we'll find everything that goes with it.
-        Your photo helps Fit get better at recognising pieces and is never linked to your account.{' '}
-        <Text style={styles.subtitleLink} onPress={() => openLegalPage('privacy')}>Privacy Policy</Text>
+        Your photo helps Fit get better at recognising pieces and is never linked to your account.
       </Text>
 
       {HOW_IT_WORKS.map(({ icon, key, val }) => (
@@ -191,9 +189,6 @@ function getStyles(colors: ColorTokens) {
       textAlign: 'center',
       lineHeight: 22,
       marginBottom: Spacing.base,
-    },
-    subtitleLink: {
-      textDecorationLine: 'underline',
     },
     detailRow: {
       flexDirection: 'row',
