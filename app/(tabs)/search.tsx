@@ -14,9 +14,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DukanohFitSheet } from '@/components/DukanohFitSheet';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchHistory } from '@/hooks/useSearchHistory';
-import { mergeParsed, parseSearch } from '@/lib/searchParse';
-import { parsedToParams, type ParseSource } from '@/lib/searchParams';
-import { fetchRemoteParse } from '@/lib/searchParseRemote';
+import { parseSearch } from '@/lib/searchParse';
+import { parsedToParams } from '@/lib/searchParams';
+import { prefetchRemoteParse } from '@/lib/searchParseRemote';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { queryKeys } from '@/lib/queryKeys';
 import { supabase } from '@/lib/supabase';
@@ -27,7 +27,6 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { searchFocusRequest } from '@/lib/searchFocusRequest';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   InteractionManager,
   Platform,
@@ -207,28 +206,28 @@ export default function SearchScreen() {
   }, []);
 
   // What the member typed becomes the listing filters (see lib/searchParse).
-  // The dictionary runs first, instantly. Only leftover words go to Claude,
-  // and never for longer than a member would wait: on a slow answer the
-  // dictionary's parse is used on its own. The Women/Men tabs below the bar
-  // are a browse directory and never touch a typed search.
-  const [parsing, setParsing] = useState(false);
-  const openSearch = useCallback(async (term: string) => {
+  // The dictionary runs first, instantly, and the results screen opens on its
+  // reading straight away. Only leftover words go to Claude; that answer is
+  // awaited on the results screen behind its skeleton, never here. The
+  // Women/Men tabs below the bar are a browse directory and never touch a
+  // typed search.
+  const openSearch = useCallback((term: string) => {
     const trimmed = term.trim();
     if (!trimmed) return;
     saveSearch(trimmed);
-    let parsed = parseSearch(trimmed);
-    let source: ParseSource = 'rules';
-    if (parsed.residual.length > 0) {
-      setParsing(true);
-      const remote = await fetchRemoteParse(trimmed, 3000);
-      setParsing(false);
-      if (remote) {
-        parsed = mergeParsed(parsed, remote.parse);
-        source = remote.source;
-      }
-    }
-    router.push({ pathname: '/listings', params: parsedToParams(trimmed, parsed, source) });
+    prefetchRemoteParse(trimmed);
+    router.push({ pathname: '/listings', params: parsedToParams(trimmed, parseSearch(trimmed), 'rules') });
   }, [saveSearch]);
+
+  // A pause of half a second while typing sends the phrase ahead, so the
+  // answer is often back before the member hits return. Phrases the
+  // dictionary reads in full never leave the phone.
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 3) return;
+    const timer = setTimeout(() => prefetchRemoteParse(term), 500);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   // Handle incoming search from home tab
   useEffect(() => {
@@ -265,8 +264,7 @@ export default function SearchScreen() {
               }}
             />
           </View>
-          {parsing && <ActivityIndicator size="small" color={colors.primary} style={styles.parsing} />}
-          {!searchFocused && !parsing && (
+          {!searchFocused && (
             <TouchableOpacity
               style={styles.fitBtn}
               onPress={() => setFitSheetVisible(true)}
@@ -341,7 +339,6 @@ function getStyles(colors: ColorTokens) {
       gap: Spacing.sm,
     },
     searchBarFlex: { flex: 1 },
-    parsing: { marginLeft: Spacing.sm },
     fitBtn: {
       width: 46,
       height: 46,

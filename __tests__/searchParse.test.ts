@@ -2,7 +2,7 @@
 // leftovers are kept for text matching, and nothing is invented.
 import { coerceParsed, emptyParse, isEmptyParse, mergeParsed, parseSearch, searchQueryKey } from '../lib/searchParse';
 import { normaliseQueryKey } from '../supabase/functions/_shared/searchParsePrompt';
-import { parsedToParams, readSearchParams } from '../lib/searchParams';
+import { parsedToParams, parsedToRead, readSearchParams } from '../lib/searchParams';
 
 const p = (s: string) => parseSearch(s);
 
@@ -193,5 +193,16 @@ describe('the cache key', () => {
     for (const q of ["  Men's  RED lehenga!!  ", 'lehenga under £150', 'লেহেঙ্গা shaadi', 'off-white saree']) {
       expect(searchQueryKey(q)).toBe(normaliseQueryKey(q));
     }
+  });
+});
+
+describe('parsedToRead', () => {
+  test('gives the listings screen exactly what the params round trip would', () => {
+    const term = ' banarasi silk saree under 200 ';
+    const parsed = { ...emptyParse(), categories: ['Saree'], fabrics: ['Silk'], priceMax: 200, residual: ['banarasi'] };
+    expect(parsedToRead(term, parsed, 'claude')).toEqual(readSearchParams(parsedToParams(term, parsed, 'claude')));
+  });
+  test('an empty leftover list reads as no text query', () => {
+    expect(parsedToRead('saree', { ...emptyParse(), categories: ['Saree'] }, 'rules').query).toBe('');
   });
 });

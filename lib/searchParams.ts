@@ -46,6 +46,27 @@ const num = (v: string | string[] | undefined): number | null => {
   return first(v) !== '' && Number.isFinite(n) && n >= 0 ? n : null;
 };
 
+/**
+ * The same shape readSearchParams returns, built straight from a parse. Used
+ * by the listings screen when the remote parse lands after it has opened.
+ */
+export function parsedToRead(term: string, p: ParsedSearch, source: ParseSource): ReadSearchParams {
+  return {
+    categories: [...p.categories],
+    colours: [...p.colours],
+    occasions: [...p.occasions],
+    fabrics: [...p.fabrics],
+    sizes: [...p.sizes],
+    conditions: [...p.conditions],
+    gender: p.gender,
+    priceMin: p.priceMin,
+    priceMax: p.priceMax,
+    query: p.residual.join(' '),
+    term: term.trim(),
+    source,
+  };
+}
+
 export function readSearchParams(params: RawParams): ReadSearchParams {
   const gender = first(params.gender);
   const src = first(params.src);

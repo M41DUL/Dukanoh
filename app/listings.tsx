@@ -43,9 +43,9 @@ import { useBlocked } from '@/context/BlockedContext';
 import { supabase } from '@/lib/supabase';
 import { queryKeys } from '@/lib/queryKeys';
 import { proRankSort } from '@/utils/proRankSort';
-import { readSearchParams } from '@/lib/searchParams';
-import { recordSearchEvent } from '@/lib/searchParseRemote';
-import type { Gender } from '@/lib/searchParse';
+import { parsedToRead, readSearchParams } from '@/lib/searchParams';
+import { fetchRemoteParse, recordSearchEvent } from '@/lib/searchParseRemote';
+import { mergeParsed, parseSearch, type Gender } from '@/lib/searchParse';
 
 // ─── Constants ──────────────────────────────────────────────
 
@@ -160,15 +160,10 @@ export default function ListingsScreen() {
     priceMax?: string;
     src?: string;
   }>();
-  const {
-    title = 'Listings',
-    categories: categoriesParam,
-    occasion: occasionParam,
-    query: queryParam,
-    myListings: myListingsParam,
-  } = params;
+  const { title = 'Listings', occasion: occasionParam, myListings: myListingsParam } = params;
   // Read once: it seeds the filter state and must not re-seed on re-render.
-  const [incoming] = useState(() => readSearchParams(params));
+  // A typed search is re-read once more, below, when the remote parse lands.
+  const [incoming, setIncoming] = useState(() => readSearchParams(params));
   const fromSearch = incoming.source !== null;
   const myListings = myListingsParam === 'true';
   const { user } = useAuth();
@@ -176,9 +171,8 @@ export default function ListingsScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
-  const categoriesStr = Array.isArray(categoriesParam) ? categoriesParam[0] : (categoriesParam ?? '');
-  const categories = categoriesStr ? categoriesStr.split(',').filter(Boolean) : [];
-  const searchQuery = Array.isArray(queryParam) ? queryParam[0] : (queryParam ?? '');
+  const categories = incoming.categories;
+  const searchQuery = incoming.query;
   const occasionPreset = Array.isArray(occasionParam) ? occasionParam[0] : (occasionParam ?? '');
 
   // Sub-tabs: occasions when browsing a single category, categories when browsing an occasion
@@ -205,6 +199,37 @@ export default function ListingsScreen() {
     () => priceRangeFromSearch(incoming.priceMin, incoming.priceMax)
   );
   const [showFilterSheet, setShowFilterSheet] = useState(false);
+
+  // A typed search opens on the dictionary's reading alone. When words were
+  // left over, the remote parse (already started on the search tab) is
+  // awaited here, behind the skeleton, before the first fetch. A slow or
+  // failed answer means the dictionary's reading stands; nothing it placed
+  // is ever removed, the remote answer only adds to it.
+  const [parsePending, setParsePending] = useState(
+    () => fromSearch && incoming.source === 'rules' && incoming.query.length > 0,
+  );
+  useEffect(() => {
+    if (!parsePending) return;
+    let cancelled = false;
+    fetchRemoteParse(incoming.term, 3000).then(remote => {
+      if (cancelled) return;
+      if (remote) {
+        const merged = mergeParsed(parseSearch(incoming.term), remote.parse);
+        setIncoming(parsedToRead(incoming.term, merged, remote.source));
+        setActiveSizes(merged.sizes);
+        setActiveOccasions(merged.occasions);
+        setActiveConditions(merged.conditions);
+        setActiveColours(merged.colours);
+        setActiveFabrics(merged.fabrics);
+        setActiveGender(merged.gender);
+        setActivePriceRange(priceRangeFromSearch(merged.priceMin, merged.priceMax));
+      }
+      setParsePending(false);
+    });
+    return () => { cancelled = true; };
+    // Once, for the search this screen opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Filter helpers
   const toggleSize = useCallback((size: string) => {
@@ -389,6 +414,7 @@ export default function ListingsScreen() {
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: !parsePending,
   });
 
   const items = useMemo(
@@ -429,7 +455,7 @@ export default function ListingsScreen() {
         <ScrollTabs tabs={subTabs} activeTab={activeSubTab ?? subTabs[0]} onTabChange={setActiveSubTab} />
       )}
 
-      {query.isLoading ? (
+      {parsePending || query.isLoading ? (
         <SkeletonGrid colors={colors} />
       ) : (
         <FlatList
