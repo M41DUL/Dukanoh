@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, Keyboard, Linking, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, Keyboard, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { openLegalPage } from '@/lib/legalLinks';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthLayout } from '@/components/AuthLayout';
 import { Button } from '@/components/Button';
@@ -266,11 +267,11 @@ export default function SignUpScreen() {
         />
         <Text style={styles.terms}>
           By signing up you agree to our{' '}
-          <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}>
+          <Text style={styles.termsLink} onPress={() => openLegalPage('terms')}>
             Terms &amp; Conditions
           </Text>
           {' '}and{' '}
-          <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.dukanoh.com/privacy-policy')}>
+          <Text style={styles.termsLink} onPress={() => openLegalPage('privacy')}>
             Privacy Policy
           </Text>
           .

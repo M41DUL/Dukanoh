@@ -8,10 +8,10 @@ import {
   Animated,
   Alert,
   Platform,
-  Linking,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import { openLegalPage } from '@/lib/legalLinks';
 import { StatusBar } from 'expo-status-bar';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -403,14 +403,14 @@ export function ProPaywallSheet({
           <Text style={styles.legalSep}> · </Text>
           <Text
             style={styles.legalLink}
-            onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}
+            onPress={() => openLegalPage('terms')}
           >
             Terms
           </Text>
           <Text style={styles.legalSep}> · </Text>
           <Text
             style={styles.legalLink}
-            onPress={() => Linking.openURL('https://www.dukanoh.com/privacy-policy')}
+            onPress={() => openLegalPage('privacy')}
           >
             Privacy
           </Text>

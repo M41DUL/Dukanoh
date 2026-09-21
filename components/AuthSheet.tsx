@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { openLegalPage } from '@/lib/legalLinks';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, G, ClipPath, Rect, Defs } from 'react-native-svg';
 import { lightColors, Spacing, FontFamily } from '@/constants/theme';
@@ -125,11 +126,11 @@ export function AuthSheet({ visible, mode, onClose, onEmail }: AuthSheetProps) {
           see the same acceptance line as email sign-ups (Terms 2). */}
       <Text style={styles.legal}>
         By continuing you agree to our{' '}
-        <Text style={styles.legalLink} onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}>
+        <Text style={styles.legalLink} onPress={() => openLegalPage('terms')}>
           Terms &amp; Conditions
         </Text>
         {' '}and{' '}
-        <Text style={styles.legalLink} onPress={() => Linking.openURL('https://www.dukanoh.com/privacy-policy')}>
+        <Text style={styles.legalLink} onPress={() => openLegalPage('privacy')}>
           Privacy Policy
         </Text>
         . You must be 18 or over.

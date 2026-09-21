@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { openLegalPage } from '@/lib/legalLinks';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -324,7 +324,7 @@ export default function TaxInfoScreen() {
             reporting threshold.{' '}
             <Text
               style={{ textDecorationLine: 'underline' }}
-              onPress={() => Linking.openURL('https://www.dukanoh.com/privacy-policy')}
+              onPress={() => openLegalPage('privacy')}
             >
               See our Privacy Policy for details.
             </Text>

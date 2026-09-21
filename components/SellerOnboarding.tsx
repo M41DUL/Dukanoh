@@ -4,7 +4,6 @@ import {
   Easing,
   Keyboard,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   StyleSheet,
   Text,
@@ -12,6 +11,7 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
+import { openLegalPage } from '@/lib/legalLinks';
 import { Ionicons } from '@expo/vector-icons';
 import { lightColors, Spacing, BorderRadius, FontFamily, Typography } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -209,7 +209,7 @@ export function SellerOnboarding({ userId, onActivated }: SellerOnboardingProps)
           </TouchableOpacity>
           <Text style={styles.terms}>
             By continuing you agree to our{' '}
-            <Text style={styles.termsLink} onPress={() => Linking.openURL('https://www.dukanoh.com/terms-and-conditions')}>
+            <Text style={styles.termsLink} onPress={() => openLegalPage('terms')}>
               Terms & Conditions
             </Text>
           </Text>
