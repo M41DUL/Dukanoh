@@ -219,13 +219,13 @@ export default function SearchScreen() {
     router.push({ pathname: '/listings', params: parsedToParams(trimmed, parseSearch(trimmed), 'rules') });
   }, [saveSearch]);
 
-  // A pause of half a second while typing sends the phrase ahead, so the
-  // answer is often back before the member hits return. Phrases the
+  // A two-second pause while typing sends the phrase ahead, so a member who
+  // stops to look at what they typed has the answer waiting. Phrases the
   // dictionary reads in full never leave the phone.
   useEffect(() => {
     const term = query.trim();
     if (term.length < 3) return;
-    const timer = setTimeout(() => prefetchRemoteParse(term), 500);
+    const timer = setTimeout(() => prefetchRemoteParse(term), 2000);
     return () => clearTimeout(timer);
   }, [query]);
 
