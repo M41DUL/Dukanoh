@@ -565,12 +565,8 @@ export default function SellScreen() {
               setTimeout(() => descRef.current?.focus(), 300);
             }}
             error={errors.category}
+            hint={form.category ? CategoryDefinitions[form.category] : undefined}
           />
-          {form.category && CategoryDefinitions[form.category] ? (
-            <Text style={{ ...Typography.caption, color: colors.textSecondary, marginTop: -Spacing.sm, marginBottom: Spacing.base }}>
-              {CategoryDefinitions[form.category]}
-            </Text>
-          ) : null}
         </View>
 
         {form.category && !CATEGORY_TO_GENDER[form.category] && (
@@ -861,7 +857,7 @@ function getStyles(colors: ColorTokens, isDark: boolean) {
     addPhotoBtnDisabled: { opacity: 0.5 },
     addPhotoLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
     addPhotoSub: { ...Typography.caption, color: colors.textSecondary },
-    multiline: { height: 100, textAlignVertical: 'top' },
+    multiline: { minHeight: 160, textAlignVertical: 'top' },
     sellFasterIcon: {
       width: 44,
       height: 44,

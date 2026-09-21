@@ -23,10 +23,12 @@ interface SelectProps {
   options: readonly string[];
   onSelect: (value: string) => void;
   error?: string;
+  /** Shown under the field when there is no error, e.g. a one-line category definition. */
+  hint?: string;
   emptyMessage?: string;
 }
 
-export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ label, required, placeholder = 'Select…', value, options, onSelect, error, emptyMessage }, ref) {
+export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ label, required, placeholder = 'Select…', value, options, onSelect, error, hint, emptyMessage }, ref) {
   const [open, setOpen] = useState(false);
 
   useImperativeHandle(ref, () => ({
@@ -58,6 +60,7 @@ export const Select = forwardRef<SelectHandle, SelectProps>(function Select({ la
         <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
       </TouchableOpacity>
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {!error && hint ? <Text style={styles.hint}>{hint}</Text> : null}
 
       <BottomSheet visible={open} onClose={() => setOpen(false)} useModal>
         {label ? <Text style={styles.sheetTitle}>{label}</Text> : null}
@@ -111,6 +114,7 @@ function getStyles(colors: ColorTokens) {
     },
     placeholder: { color: colors.textSecondary },
     error: { ...Typography.caption, color: colors.error },
+    hint: { ...Typography.caption, color: colors.textSecondary },
     optionList: {
       maxHeight: 380,
     },

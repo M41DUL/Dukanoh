@@ -551,7 +551,7 @@ function getStyles(colors: ColorTokens) {
     },
     addPhotoLabel: { ...Typography.caption, color: colors.textSecondary, fontFamily: 'Inter_600SemiBold' },
     addPhotoSub: { ...Typography.caption, color: colors.textSecondary },
-    multiline: { height: 100, textAlignVertical: 'top' },
+    multiline: { minHeight: 160, textAlignVertical: 'top' },
     errorText: { ...Typography.caption, color: colors.error, marginTop: Spacing.xs },
     submitRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
     draftBtn: { flex: 1 },
